@@ -10,17 +10,17 @@ typedef void *Context; /* FIXME */
 #include <stdio.h>
 
 struct Filename {
-    FSSpec fss;
+  FSSpec fss;
 };
 
-extern FILE * f_open(struct Filename, char const *);
+extern FILE *f_open(struct Filename, char const *);
 
 /* Suspiciously similar to an ICFontRecord */
 struct FontSpec {
-    short size;
-    Style face;
-    char pad;
-    Str255 name;
+  short size;
+  Style face;
+  char pad;
+  Str255 name;
 };
 
 /*
@@ -28,7 +28,10 @@ struct FontSpec {
  * Non-Unicode text will have these converted to CR along with the rest of the
  * content.
  */
-#define SEL_NL { 0x2028 }
+#define SEL_NL                                                                 \
+  {                                                                            \
+    0x2028                                                                     \
+  }
 
 #include <MacTypes.h>
 #include <Events.h> /* Timing related goo */
@@ -37,7 +40,7 @@ struct FontSpec {
 #define CURSORBLINK GetCaretTime()
 #define TICKSPERSEC 60
 
-#define DEFAULT_CODEPAGE 0	       /* FIXME: no idea how to do this */
+#define DEFAULT_CODEPAGE 0 /* FIXME: no idea how to do this */
 
 #define WCHAR wchar_t
 #define BYTE UInt8
