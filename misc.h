@@ -15,8 +15,8 @@ char *dupcat(char *s1, ...);
 
 struct bufchain_granule;
 typedef struct bufchain_tag {
-    struct bufchain_granule *head, *tail;
-    int buffersize;		       /* current amount of buffered data */
+  struct bufchain_granule *head, *tail;
+  int buffersize; /* current amount of buffered data */
 } bufchain;
 
 void bufchain_init(bufchain *ch);
@@ -43,18 +43,16 @@ void bufchain_consume(bufchain *ch, int len);
 void dprintf(char *fmt, ...);
 void debug_memdump(void *buf, int len, int L);
 #define debug(x) (dprintf x)
-#define dmemdump(buf,len) debug_memdump (buf, len, 0);
-#define dmemdumpl(buf,len) debug_memdump (buf, len, 1);
+#define dmemdump(buf, len) debug_memdump(buf, len, 0);
+#define dmemdumpl(buf, len) debug_memdump(buf, len, 1);
 #else
 #define debug(x)
-#define dmemdump(buf,len)
-#define dmemdumpl(buf,len)
+#define dmemdump(buf, len)
+#define dmemdumpl(buf, len)
 #endif
-
 
 #ifndef lenof
-#define lenof(x) ( (sizeof((x))) / (sizeof(*(x))))
+#define lenof(x) ((sizeof((x))) / (sizeof(*(x))))
 #endif
-
 
 #endif
