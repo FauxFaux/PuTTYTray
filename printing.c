@@ -24,139 +24,146 @@
 #endif
 
 struct printer_enum_tag {
-    int nprinters;
-    ENUM_PTR info;
+  int nprinters;
+  ENUM_PTR info;
 };
 
 struct printer_job_tag {
-    HANDLE hprinter;
+  HANDLE hprinter;
 };
 
-static char *printer_add_enum(int param, char *buffer,
-                              int offset, int *nprinters_ptr)
+static char *printer_add_enum(int param,
+                              char *buffer,
+                              int offset,
+                              int *nprinters_ptr)
 {
-    DWORD needed, nprinters;
+  DWORD needed, nprinters;
 
-    buffer = srealloc(buffer, offset+512);
+  buffer = srealloc(buffer, offset + 512);
 
-    /*
-     * Exploratory call to EnumPrinters to determine how much space
-     * we'll need for the output. Discard the return value since it
-     * will almost certainly be a failure due to lack of space.
-     */
-    EnumPrinters(param, NULL, ENUM_LEVEL, buffer+offset, 512,
-		 &needed, &nprinters);
+  /*
+   * Exploratory call to EnumPrinters to determine how much space
+   * we'll need for the output. Discard the return value since it
+   * will almost certainly be a failure due to lack of space.
+   */
+  EnumPrinters(
+      param, NULL, ENUM_LEVEL, buffer + offset, 512, &needed, &nprinters);
 
-    if (needed < 512)
-        needed = 512;
+  if (needed < 512)
+    needed = 512;
 
-    buffer = srealloc(buffer, offset+needed);
+  buffer = srealloc(buffer, offset + needed);
 
-    if (EnumPrinters(param, NULL, ENUM_LEVEL, buffer+offset,
-                     needed, &needed, &nprinters) == 0)
-        return NULL;
+  if (EnumPrinters(param,
+                   NULL,
+                   ENUM_LEVEL,
+                   buffer + offset,
+                   needed,
+                   &needed,
+                   &nprinters) == 0)
+    return NULL;
 
-    *nprinters_ptr += nprinters;
+  *nprinters_ptr += nprinters;
 
-    return buffer;
+  return buffer;
 }
 
 printer_enum *printer_start_enum(int *nprinters_ptr)
 {
-    printer_enum *ret = smalloc(sizeof(printer_enum));
-    char *buffer = NULL, *retval;
+  printer_enum *ret = smalloc(sizeof(printer_enum));
+  char *buffer = NULL, *retval;
 
-    *nprinters_ptr = 0;		       /* default return value */
-    buffer = smalloc(512);
+  *nprinters_ptr = 0; /* default return value */
+  buffer = smalloc(512);
 
-    retval = printer_add_enum(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS,
-			      buffer, 0, nprinters_ptr);
-    if (!retval)
-        goto error;
-    else
-        buffer = retval;
+  retval = printer_add_enum(
+      PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS, buffer, 0, nprinters_ptr);
+  if (!retval)
+    goto error;
+  else
+    buffer = retval;
 
-    ret->info = (ENUM_PTR)buffer;
-    ret->nprinters = *nprinters_ptr;
-    
-    return ret;
+  ret->info = (ENUM_PTR)buffer;
+  ret->nprinters = *nprinters_ptr;
 
-    error:
-    sfree(buffer);
-    sfree(ret);
-    *nprinters_ptr = 0;
-    return NULL;
+  return ret;
+
+error:
+  sfree(buffer);
+  sfree(ret);
+  *nprinters_ptr = 0;
+  return NULL;
 }
 
 char *printer_get_name(printer_enum *pe, int i)
 {
-    if (!pe)
-	return NULL;
-    if (i < 0 || i >= pe->nprinters)
-	return NULL;
-    return pe->info[i].ENUM_MEMBER;
+  if (!pe)
+    return NULL;
+  if (i < 0 || i >= pe->nprinters)
+    return NULL;
+  return pe->info[i].ENUM_MEMBER;
 }
 
 void printer_finish_enum(printer_enum *pe)
 {
-    if (!pe)
-	return;
-    sfree(pe->info);
-    sfree(pe);
+  if (!pe)
+    return;
+  sfree(pe->info);
+  sfree(pe);
 }
 
 printer_job *printer_start_job(char *printer)
 {
-    printer_job *ret = smalloc(sizeof(printer_job));
-    DOC_INFO_1 docinfo;
-    int jobstarted = 0, pagestarted = 0;
+  printer_job *ret = smalloc(sizeof(printer_job));
+  DOC_INFO_1 docinfo;
+  int jobstarted = 0, pagestarted = 0;
 
-    ret->hprinter = NULL;
-    if (!OpenPrinter(printer, &ret->hprinter, NULL))
-	goto error;
+  ret->hprinter = NULL;
+  if (!OpenPrinter(printer, &ret->hprinter, NULL))
+    goto error;
 
-    docinfo.pDocName = "PuTTY remote printer output";
-    docinfo.pOutputFile = NULL;
-    docinfo.pDatatype = "RAW";
+  docinfo.pDocName = "PuTTY remote printer output";
+  docinfo.pOutputFile = NULL;
+  docinfo.pDatatype = "RAW";
 
-    if (!StartDocPrinter(ret->hprinter, 1, (LPSTR)&docinfo))
-	goto error;
-    jobstarted = 1;
+  if (!StartDocPrinter(ret->hprinter, 1, (LPSTR)&docinfo))
+    goto error;
+  jobstarted = 1;
 
-    if (!StartPagePrinter(ret->hprinter))
-	goto error;
-    pagestarted = 1;
+  if (!StartPagePrinter(ret->hprinter))
+    goto error;
+  pagestarted = 1;
 
-    return ret;
+  return ret;
 
-    error:
-    if (pagestarted)
-	EndPagePrinter(ret->hprinter);
-    if (jobstarted)
-	EndDocPrinter(ret->hprinter);
-    if (ret->hprinter)
-	ClosePrinter(ret->hprinter);
-    sfree(ret);
-    return NULL;
+error:
+  if (pagestarted)
+    EndPagePrinter(ret->hprinter);
+  if (jobstarted)
+    EndDocPrinter(ret->hprinter);
+  if (ret->hprinter)
+    ClosePrinter(ret->hprinter);
+  sfree(ret);
+  return NULL;
 }
 
 void printer_job_data(printer_job *pj, void *data, int len)
 {
-    DWORD written;
+  DWORD written;
 
-    if (!pj)
-	return;
+  if (!pj)
+    return;
 
-    WritePrinter(pj->hprinter, data, len, &written);
+  WritePrinter(pj->hprinter, data, len, &written);
 }
 
 void printer_finish_job(printer_job *pj)
 {
-    if (!pj)
-	return;
+  if (!pj)
+    return;
 
-    EndPagePrinter(pj->hprinter);
-    EndDocPrinter(pj->hprinter);
-    ClosePrinter(pj->hprinter);
-    sfree(pj);
+  EndPagePrinter(pj->hprinter);
+  EndDocPrinter(pj->hprinter);
+  ClosePrinter(pj->hprinter);
+  sfree(pj);
 }

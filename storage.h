@@ -36,10 +36,10 @@ void close_settings_w(void *handle);
  * open_setting_r() to get a `void *' handle, then pass that to a
  * number of calls to read_setting_s() and read_setting_i(), and
  * then close it using close_settings_r().
- * 
+ *
  * read_setting_s() writes into the provided buffer and returns a
  * pointer to the same buffer.
- * 
+ *
  * If a particular string setting is not present in the session,
  * read_setting_s() can return NULL, in which case the caller
  * should invent a sensible default. If an integer setting is not
@@ -83,7 +83,7 @@ void store_host_key(char *hostname, int port, char *keytype, char *key);
  * Functions to access PuTTY's random number seed file.
  */
 
-typedef void (*noise_consumer_t) (void *data, int len);
+typedef void (*noise_consumer_t)(void *data, int len);
 
 /*
  * Read PuTTY's random seed file and pass its contents to a noise
