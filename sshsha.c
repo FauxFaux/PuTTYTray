@@ -293,7 +293,8 @@ const struct ssh_mac ssh_sha1 = {sha1_make_context,
                                  sha1_generate,
                                  sha1_verify,
                                  "hmac-sha1",
-                                 20};
+                                 20,
+                                 "HMAC-SHA1"};
 
 const struct ssh_mac ssh_sha1_buggy = {sha1_make_context,
                                        sha1_free_context,
@@ -301,4 +302,5 @@ const struct ssh_mac ssh_sha1_buggy = {sha1_make_context,
                                        sha1_generate,
                                        sha1_verify,
                                        "hmac-sha1",
-                                       20};
+                                       20,
+                                       "bug-compatible HMAC-SHA1"};

@@ -986,6 +986,24 @@ void setup_config_box(struct controlbox *b,
                     I(LGXF_ASK),
                     NULL);
 
+  if ((midsession && protocol == PROT_SSH) ||
+      (!midsession && backends[3].name != NULL)) {
+    s = ctrl_getset(
+        b, "Session/Logging", "ssh", "Options specific to SSH packet logging");
+    ctrl_checkbox(s,
+                  "Omit known password fields",
+                  'k',
+                  HELPCTX(logging_ssh_omit_password),
+                  dlg_stdcheckbox_handler,
+                  I(offsetof(Config, logomitpass)));
+    ctrl_checkbox(s,
+                  "Omit session data",
+                  'd',
+                  HELPCTX(logging_ssh_omit_data),
+                  dlg_stdcheckbox_handler,
+                  I(offsetof(Config, logomitdata)));
+  }
+
   /*
    * The Terminal panel.
    */
@@ -1865,14 +1883,14 @@ void setup_config_box(struct controlbox *b,
                         NULL);
     }
     ctrl_checkbox(s,
-                  "Keyboard sends telnet Backspace and Interrupt",
+                  "Keyboard sends Telnet special commands",
                   'k',
                   HELPCTX(telnet_specialkeys),
                   dlg_stdcheckbox_handler,
                   I(offsetof(Config, telnet_keyboard)));
     ctrl_checkbox(s,
-                  "Return key sends telnet New Line instead of ^M",
-                  NO_SHORTCUT,
+                  "Return key sends Telnet New Line instead of ^M",
+                  'm',
                   HELPCTX(telnet_newline),
                   dlg_stdcheckbox_handler,
                   I(offsetof(Config, telnet_newline)));

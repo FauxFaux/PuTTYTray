@@ -542,9 +542,13 @@ static void process_subneg(Telnet telnet)
       b[n++] = IAC;
       b[n++] = SE;
       telnet->bufsize = sk_write(telnet->s, (char *)b, n);
-      logbuf = dupprintf("client:\tSB %s IS %s",
+      logbuf = dupprintf("client:\tSB %s IS %s%s%s%s",
                          telopt(telnet->sb_opt),
-                         n == 6 ? "<nothing>" : "<stuff>");
+                         *telnet->cfg.username ? "USER=" : "",
+                         telnet->cfg.username,
+                         *telnet->cfg.username ? " " : "",
+                         n == 6 ? "<nothing>"
+                                : (*telnet->cfg.environmt ? "<stuff>" : ""));
       logevent(telnet->frontend, logbuf);
       sfree(logbuf);
     }

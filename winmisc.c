@@ -18,6 +18,12 @@ void platform_get_x11_auth(char *display,
 
 const char platform_x11_best_transport[] = "localhost";
 
+char *platform_get_x_display(void)
+{
+  /* We may as well check for DISPLAY in case it's useful. */
+  return dupstr(getenv("DISPLAY"));
+}
+
 Filename filename_from_str(const char *str)
 {
   Filename ret;

@@ -25,9 +25,10 @@
 #define IDM_SHOWLOG 0x0010
 #define IDM_NEWSESS 0x0020
 #define IDM_DUPSESS 0x0030
-#define IDM_RECONF 0x0040
-#define IDM_CLRSB 0x0050
-#define IDM_RESET 0x0060
+#define IDM_RESTART 0x0040
+#define IDM_RECONF 0x0050
+#define IDM_CLRSB 0x0060
+#define IDM_RESET 0x0070
 #define IDM_HELP 0x0140
 #define IDM_ABOUT 0x0150
 #define IDM_SAVEDSESS 0x0160
@@ -182,6 +183,124 @@ static UINT wm_mousewheel = WM_MOUSEWHEEL;
 /* Dummy routine, only required in plink. */
 void ldisc_update(void *frontend, int echo, int edit)
 {
+}
+
+static void start_backend(void)
+{
+  const char *error;
+  char msg[1024], *title;
+  char *realhost;
+  int i;
+
+  /*
+   * Select protocol. This is farmed out into a table in a
+   * separate file to enable an ssh-free variant.
+   */
+  back = NULL;
+  for (i = 0; backends[i].backend != NULL; i++)
+    if (backends[i].protocol == cfg.protocol) {
+      back = backends[i].backend;
+      break;
+    }
+  if (back == NULL) {
+    char *str = dupprintf("%s Internal Error", appname);
+    MessageBox(NULL,
+               "Unsupported protocol number found",
+               str,
+               MB_OK | MB_ICONEXCLAMATION);
+    sfree(str);
+    cleanup_exit(1);
+  }
+
+  error = back->init(NULL,
+                     &backhandle,
+                     &cfg,
+                     cfg.host,
+                     cfg.port,
+                     &realhost,
+                     cfg.tcp_nodelay,
+                     cfg.tcp_keepalives);
+  back->provide_logctx(backhandle, logctx);
+  if (error) {
+    char *str = dupprintf("%s Error", appname);
+    sprintf(msg,
+            "Unable to open connection to\n"
+            "%.800s\n"
+            "%s",
+            cfg.host,
+            error);
+    MessageBox(NULL, msg, str, MB_ICONERROR | MB_OK);
+    sfree(str);
+    exit(0);
+  }
+  window_name = icon_name = NULL;
+  if (*cfg.wintitle) {
+    title = cfg.wintitle;
+  } else {
+    sprintf(msg, "%s - %s", realhost, appname);
+    title = msg;
+  }
+  sfree(realhost);
+  set_title(NULL, title);
+  set_icon(NULL, title);
+
+  /*
+   * Connect the terminal to the backend for resize purposes.
+   */
+  term_provide_resize_fn(term, back->size, backhandle);
+
+  /*
+   * Set up a line discipline.
+   */
+  ldisc = ldisc_create(&cfg, term, back, backhandle, NULL);
+
+  /*
+   * Destroy the Restart Session menu item. (This will return
+   * failure if it's already absent, as it will be the very first
+   * time we call this function. We ignore that, because as long
+   * as the menu item ends up not being there, we don't care
+   * whether it was us who removed it or not!)
+   */
+  for (i = 0; i < lenof(popup_menus); i++) {
+    DeleteMenu(popup_menus[i].menu, IDM_RESTART, MF_BYCOMMAND);
+  }
+
+  session_closed = FALSE;
+}
+
+static void close_session(void)
+{
+  char morestuff[100];
+  int i;
+
+  session_closed = TRUE;
+  sprintf(morestuff, "%.70s (inactive)", appname);
+  set_icon(NULL, morestuff);
+  set_title(NULL, morestuff);
+
+  if (ldisc) {
+    ldisc_free(ldisc);
+    ldisc = NULL;
+  }
+  if (back) {
+    back->free(backhandle);
+    backhandle = NULL;
+    back = NULL;
+    update_specials_menu(NULL);
+  }
+
+  /*
+   * Show the Restart Session menu item. Do a precautionary
+   * delete first to ensure we never end up with more than one.
+   */
+  for (i = 0; i < lenof(popup_menus); i++) {
+    DeleteMenu(popup_menus[i].menu, IDM_RESTART, MF_BYCOMMAND);
+    InsertMenu(popup_menus[i].menu,
+               IDM_DUPSESS,
+               MF_BYCOMMAND | MF_ENABLED,
+               IDM_RESTART,
+               "&Restart Session");
+  }
 }
 
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
@@ -425,7 +544,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     /* See if host is of the form user@host */
     if (cfg.host[0] != '\0') {
-      char *atsign = strchr(cfg.host, '@');
+      char *atsign = strrchr(cfg.host, '@');
       /* Make sure we're not overflowing the user field */
       if (atsign) {
         if (atsign - cfg.host < sizeof cfg.username) {
@@ -454,29 +573,6 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
         p2++;
       }
       cfg.host[p1] = '\0';
-    }
-  }
-
-  /*
-   * Select protocol. This is farmed out into a table in a
-   * separate file to enable an ssh-free variant.
-   */
-  {
-    int i;
-    back = NULL;
-    for (i = 0; backends[i].backend != NULL; i++)
-      if (backends[i].protocol == cfg.protocol) {
-        back = backends[i].backend;
-        break;
-      }
-    if (back == NULL) {
-      char *str = dupprintf("%s Internal Error", appname);
-      MessageBox(NULL,
-                 "Unsupported protocol number found",
-                 str,
-                 MB_OK | MB_ICONEXCLAMATION);
-      sfree(str);
-      cleanup_exit(1);
     }
   }
 
@@ -621,58 +717,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     SetScrollInfo(hwnd, SB_VERT, &si, FALSE);
   }
 
-  /*
-   * Start up the telnet connection.
-   */
-  {
-    const char *error;
-    char msg[1024], *title;
-    char *realhost;
-
-    error = back->init(NULL,
-                       &backhandle,
-                       &cfg,
-                       cfg.host,
-                       cfg.port,
-                       &realhost,
-                       cfg.tcp_nodelay,
-                       cfg.tcp_keepalives);
-    back->provide_logctx(backhandle, logctx);
-    if (error) {
-      char *str = dupprintf("%s Error", appname);
-      sprintf(msg,
-              "Unable to open connection to\n"
-              "%.800s\n"
-              "%s",
-              cfg.host,
-              error);
-      MessageBox(NULL, msg, str, MB_ICONERROR | MB_OK);
-      sfree(str);
-      return 0;
-    }
-    window_name = icon_name = NULL;
-    if (*cfg.wintitle) {
-      title = cfg.wintitle;
-    } else {
-      sprintf(msg, "%s - %s", realhost, appname);
-      title = msg;
-    }
-    sfree(realhost);
-    set_title(NULL, title);
-    set_icon(NULL, title);
-  }
-
-  /*
-   * Connect the terminal to the backend for resize purposes.
-   */
-  term_provide_resize_fn(term, back->size, backhandle);
-
-  /*
-   * Set up a line discipline.
-   */
-  ldisc = ldisc_create(&cfg, term, back, backhandle, NULL);
-
-  session_closed = FALSE;
+  start_backend();
 
   /*
    * Prepare the mouse handler.
@@ -892,13 +937,17 @@ char *do_select(SOCKET skt, int startup)
  */
 void update_specials_menu(void *frontend)
 {
-  HMENU m = GetSystemMenu(hwnd, FALSE);
+  HMENU p;
   int menu_already_exists = (specials != NULL);
   int i, j;
 
-  specials = back->get_specials(backhandle);
+  if (back)
+    specials = back->get_specials(backhandle);
+  else
+    specials = NULL;
+
   if (specials) {
-    HMENU p = CreateMenu();
+    p = CreateMenu();
     for (i = 0; specials[i].name; i++) {
       assert(IDM_SPECIAL_MIN + 0x10 * i < IDM_SPECIAL_MAX);
       if (*specials[i].name)
@@ -906,22 +955,29 @@ void update_specials_menu(void *frontend)
       else
         AppendMenu(p, MF_SEPARATOR, 0, 0);
     }
-    for (j = 0; j < lenof(popup_menus); j++) {
-      if (menu_already_exists)
-        DeleteMenu(popup_menus[j].menu,
-                   popup_menus[j].specials_submenu_pos,
-                   MF_BYPOSITION);
-      else
-        InsertMenu(popup_menus[j].menu,
-                   popup_menus[j].specials_submenu_pos,
-                   MF_BYPOSITION | MF_SEPARATOR,
-                   0,
-                   0);
+  } else
+    p = NULL;
+
+  for (j = 0; j < lenof(popup_menus); j++) {
+    if (menu_already_exists) {
+      DeleteMenu(popup_menus[j].menu,
+                 popup_menus[j].specials_submenu_pos,
+                 MF_BYPOSITION);
+      DeleteMenu(popup_menus[j].menu,
+                 popup_menus[j].specials_submenu_pos,
+                 MF_BYPOSITION);
+    }
+    if (specials) {
+      InsertMenu(popup_menus[j].menu,
+                 popup_menus[j].specials_submenu_pos,
+                 MF_BYPOSITION | MF_SEPARATOR,
+                 0,
+                 0);
       InsertMenu(popup_menus[j].menu,
                  popup_menus[j].specials_submenu_pos,
                  MF_BYPOSITION | MF_POPUP | MF_ENABLED,
                  (UINT)p,
-                 "Special Command");
+                 "S&pecial Command");
     }
   }
 }
@@ -954,10 +1010,7 @@ void connection_fatal(void *frontend, char *fmt, ...)
   if (cfg.close_on_exit == FORCE_ON)
     PostQuitMessage(1);
   else {
-    session_closed = TRUE;
-    sprintf(morestuff, "%.70s (inactive)", appname);
-    set_icon(NULL, morestuff);
-    set_title(NULL, morestuff);
+    close_session();
   }
 }
 
@@ -1002,11 +1055,8 @@ static void enact_pending_netevent(void)
     if (cfg.close_on_exit == FORCE_ON || cfg.close_on_exit == AUTO)
       PostQuitMessage(0);
     else {
-      char morestuff[100];
+      close_session();
       session_closed = TRUE;
-      sprintf(morestuff, "%.70s (inactive)", appname);
-      set_icon(NULL, morestuff);
-      set_title(NULL, morestuff);
       MessageBox(hwnd,
                  "Connection closed by remote host",
                  appname,
@@ -1817,7 +1867,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       time_t now;
       time(&now);
       if (now - last_movement > cfg.ping_interval) {
-        back->special(backhandle, TS_PING);
+        if (back)
+          back->special(backhandle, TS_PING);
         last_movement = now;
       }
     }
@@ -1914,6 +1965,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       if (freecl)
         sfree(cl);
     } break;
+    case IDM_RESTART:
+      if (!back) {
+        logevent(NULL, "----- Session restarted -----");
+        start_backend();
+      }
+
+      break;
     case IDM_RECONF: {
       Config prev_cfg;
       int init_lvl = 1;
@@ -1946,7 +2004,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
        * Flush the line discipline's edit buffer in the
        * case where local editing has just been disabled.
        */
-      ldisc_send(ldisc, NULL, 0, 0);
+      if (ldisc)
+        ldisc_send(ldisc, NULL, 0, 0);
       if (pal)
         DeleteObject(pal);
       logpal = NULL;
@@ -1958,7 +2017,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       term_reconfig(term, &cfg);
 
       /* Pass new config data to the back end */
-      back->reconfig(backhandle, &cfg);
+      if (back)
+        back->reconfig(backhandle, &cfg);
 
       /* Screen size changed ? */
       if (cfg.height != prev_cfg.height || cfg.width != prev_cfg.width ||
@@ -2063,7 +2123,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       break;
     case IDM_RESET:
       term_pwron(term);
-      ldisc_send(ldisc, NULL, 0, 0);
+      if (ldisc)
+        ldisc_send(ldisc, NULL, 0, 0);
       break;
     case IDM_ABOUT:
       showabout(hwnd);
@@ -2111,7 +2172,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
           if (!specials || !specials[j].name)
             break;
         if (j == i) {
-          back->special(backhandle, specials[i].code);
+          if (back)
+            back->special(backhandle, specials[i].code);
           net_pending_errors();
         }
       }
@@ -2709,7 +2771,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
            * we're sent.
            */
           term_seen_key_event(term);
-          ldisc_send(ldisc, buf, len, 1);
+          if (ldisc)
+            ldisc_send(ldisc, buf, len, 1);
           show_mouseptr(0);
         }
       }
@@ -2757,7 +2820,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
        */
       term_seen_key_event(term);
       for (i = 0; i < n; i += 2) {
-        luni_send(ldisc, (unsigned short *)(buff + i), 1, 1);
+        if (ldisc)
+          luni_send(ldisc, (unsigned short *)(buff + i), 1, 1);
       }
       free(buff);
     }
@@ -2772,11 +2836,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       buf[1] = wParam;
       buf[0] = wParam >> 8;
       term_seen_key_event(term);
-      lpage_send(ldisc, kbd_codepage, buf, 2, 1);
+      if (ldisc)
+        lpage_send(ldisc, kbd_codepage, buf, 2, 1);
     } else {
       char c = (unsigned char)wParam;
       term_seen_key_event(term);
-      lpage_send(ldisc, kbd_codepage, &c, 1, 1);
+      if (ldisc)
+        lpage_send(ldisc, kbd_codepage, &c, 1, 1);
     }
     return (0);
   case WM_CHAR:
@@ -2790,13 +2856,24 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     {
       char c = (unsigned char)wParam;
       term_seen_key_event(term);
-      lpage_send(ldisc, CP_ACP, &c, 1, 1);
+      if (ldisc)
+        lpage_send(ldisc, CP_ACP, &c, 1, 1);
     }
     return 0;
   case WM_SETCURSOR:
     if (send_raw_mouse && LOWORD(lParam) == HTCLIENT) {
       SetCursor(LoadCursor(NULL, IDC_ARROW));
       return TRUE;
+    }
+    break;
+  case WM_SYSCOLORCHANGE:
+    if (cfg.system_colour) {
+      /* Refresh palette from system colours. */
+      /* XXX actually this zaps the entire palette. */
+      systopalette();
+      init_palette();
+      /* Force a repaint of the terminal window. */
+      term_invalidate(term);
     }
     break;
   case WM_AGENT_CALLBACK: {
@@ -3472,8 +3549,9 @@ static int TranslateKey(UINT message,
     }
 
     /* Nastyness with NUMLock - Shift-NUMLock is left alone though */
-    if ((cfg.funky_type == 3 ||
-         (cfg.funky_type <= 1 && term->app_keypad_keys && !cfg.no_applic_k)) &&
+    if ((cfg.funky_type == FUNKY_VT400 ||
+         (cfg.funky_type <= FUNKY_LINUX && term->app_keypad_keys &&
+          !cfg.no_applic_k)) &&
         wParam == VK_NUMLOCK && !(keystate[VK_SHIFT] & 0x80)) {
 
       wParam = VK_EXECUTE;
@@ -3536,8 +3614,9 @@ static int TranslateKey(UINT message,
 
   /* Sanitize the number pad if not using a PC NumPad */
   if (left_alt ||
-      (term->app_keypad_keys && !cfg.no_applic_k && cfg.funky_type != 2) ||
-      cfg.funky_type == 3 || cfg.nethack_keypad || compose_state) {
+      (term->app_keypad_keys && !cfg.no_applic_k &&
+       cfg.funky_type != FUNKY_XTERM) ||
+      cfg.funky_type == FUNKY_VT400 || cfg.nethack_keypad || compose_state) {
     if ((HIWORD(lParam) & KF_EXTENDED) == 0) {
       int nParam = 0;
       switch (wParam) {
@@ -3666,8 +3745,9 @@ static int TranslateKey(UINT message,
     if (!left_alt) {
       int xkey = 0;
 
-      if (cfg.funky_type == 3 ||
-          (cfg.funky_type <= 1 && term->app_keypad_keys && !cfg.no_applic_k))
+      if (cfg.funky_type == FUNKY_VT400 ||
+          (cfg.funky_type <= FUNKY_LINUX && term->app_keypad_keys &&
+           !cfg.no_applic_k))
         switch (wParam) {
         case VK_EXECUTE:
           xkey = 'P';
@@ -3719,7 +3799,7 @@ static int TranslateKey(UINT message,
           xkey = 'n';
           break;
         case VK_ADD:
-          if (cfg.funky_type == 2) {
+          if (cfg.funky_type == FUNKY_XTERM) {
             if (shift_state)
               xkey = 'l';
             else
@@ -3731,15 +3811,15 @@ static int TranslateKey(UINT message,
           break;
 
         case VK_DIVIDE:
-          if (cfg.funky_type == 2)
+          if (cfg.funky_type == FUNKY_XTERM)
             xkey = 'o';
           break;
         case VK_MULTIPLY:
-          if (cfg.funky_type == 2)
+          if (cfg.funky_type == FUNKY_XTERM)
             xkey = 'j';
           break;
         case VK_SUBTRACT:
-          if (cfg.funky_type == 2)
+          if (cfg.funky_type == FUNKY_XTERM)
             xkey = 'm';
           break;
 
@@ -3912,7 +3992,7 @@ static int TranslateKey(UINT message,
         break;
       }
     /* Reorder edit keys to physical order */
-    if (cfg.funky_type == 3 && code <= 6)
+    if (cfg.funky_type == FUNKY_VT400 && code <= 6)
       code = "\0\2\1\4\5\3\6"[code];
 
     if (term->vt52_mode && code > 0 && code <= 6) {
@@ -3920,7 +4000,7 @@ static int TranslateKey(UINT message,
       return p - output;
     }
 
-    if (cfg.funky_type == 5 && /* SCO function keys */
+    if (cfg.funky_type == FUNKY_SCO && /* SCO function keys */
         code >= 11 && code <= 34) {
       char codes[] = "MNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@[\\]^_`{";
       int index = 0;
@@ -3969,7 +4049,7 @@ static int TranslateKey(UINT message,
       p += sprintf((char *)p, "\x1B[%c", codes[index]);
       return p - output;
     }
-    if (cfg.funky_type == 5 && /* SCO small keypad */
+    if (cfg.funky_type == FUNKY_SCO && /* SCO small keypad */
         code >= 1 && code <= 6) {
       char codes[] = "HL.FIG";
       if (code == 3) {
@@ -3979,7 +4059,8 @@ static int TranslateKey(UINT message,
       }
       return p - output;
     }
-    if ((term->vt52_mode || cfg.funky_type == 4) && code >= 11 && code <= 24) {
+    if ((term->vt52_mode || cfg.funky_type == FUNKY_VT100P) && code >= 11 &&
+        code <= 24) {
       int offt = 0;
       if (code > 15)
         offt++;
@@ -3991,11 +4072,11 @@ static int TranslateKey(UINT message,
         p += sprintf((char *)p, "\x1BO%c", code + 'P' - 11 - offt);
       return p - output;
     }
-    if (cfg.funky_type == 1 && code >= 11 && code <= 15) {
+    if (cfg.funky_type == FUNKY_LINUX && code >= 11 && code <= 15) {
       p += sprintf((char *)p, "\x1B[[%c", code + 'A' - 11);
       return p - output;
     }
-    if (cfg.funky_type == 2 && code >= 11 && code <= 14) {
+    if (cfg.funky_type == FUNKY_XTERM && code >= 11 && code <= 14) {
       if (term->vt52_mode)
         p += sprintf((char *)p, "\x1B%c", code + 'P' - 11);
       else
@@ -4167,7 +4248,8 @@ static int TranslateKey(UINT message,
           }
           keybuf = nc;
           term_seen_key_event(term);
-          luni_send(ldisc, &keybuf, 1, 1);
+          if (ldisc)
+            luni_send(ldisc, &keybuf, 1, 1);
           continue;
         }
 
@@ -4178,7 +4260,8 @@ static int TranslateKey(UINT message,
             if (in_utf(term) || ucsdata.dbcs_screenfont) {
               keybuf = alt_sum;
               term_seen_key_event(term);
-              luni_send(ldisc, &keybuf, 1, 1);
+              if (ldisc)
+                luni_send(ldisc, &keybuf, 1, 1);
             } else {
               ch = (char)alt_sum;
               /*
@@ -4191,12 +4274,14 @@ static int TranslateKey(UINT message,
                * everything we're sent.
                */
               term_seen_key_event(term);
-              ldisc_send(ldisc, &ch, 1, 1);
+              if (ldisc)
+                ldisc_send(ldisc, &ch, 1, 1);
             }
             alt_sum = 0;
           } else {
             term_seen_key_event(term);
-            lpage_send(ldisc, kbd_codepage, &ch, 1, 1);
+            if (ldisc)
+              lpage_send(ldisc, kbd_codepage, &ch, 1, 1);
           }
         } else {
           if (capsOn && ch < 0x80) {
@@ -4204,14 +4289,16 @@ static int TranslateKey(UINT message,
             cbuf[0] = 27;
             cbuf[1] = xlat_uskbd2cyrllic(ch);
             term_seen_key_event(term);
-            luni_send(ldisc, cbuf + !left_alt, 1 + !!left_alt, 1);
+            if (ldisc)
+              luni_send(ldisc, cbuf + !left_alt, 1 + !!left_alt, 1);
           } else {
             char cbuf[2];
             cbuf[0] = '\033';
             cbuf[1] = ch;
             term_seen_key_event(term);
-            lpage_send(
-                ldisc, kbd_codepage, cbuf + !left_alt, 1 + !!left_alt, 1);
+            if (ldisc)
+              lpage_send(
+                  ldisc, kbd_codepage, cbuf + !left_alt, 1 + !!left_alt, 1);
           }
         }
         show_mouseptr(0);

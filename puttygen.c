@@ -977,8 +977,11 @@ static int CALLBACK MainDlgProc(HWND hwnd,
       endbox(&cp);
     }
     CheckRadioButton(hwnd, IDC_KEYSSH1, IDC_KEYSSH2DSA, IDC_KEYSSH2RSA);
-    CheckMenuRadioItem(
-        state->keymenu, IDC_KEYSSH1, IDC_KEYSSH2DSA, IDC_KEYSSH1, MF_BYCOMMAND);
+    CheckMenuRadioItem(state->keymenu,
+                       IDC_KEYSSH1,
+                       IDC_KEYSSH2DSA,
+                       IDC_KEYSSH2RSA,
+                       MF_BYCOMMAND);
     SetDlgItemInt(hwnd, IDC_BITS, DEFAULT_KEYSIZE, FALSE);
 
     /*
