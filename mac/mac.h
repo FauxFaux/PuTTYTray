@@ -17,21 +17,21 @@
 #include "charset.h"
 #include "tree234.h"
 
-#define PUTTY_CREATOR	FOUR_CHAR_CODE('pTTY')
+#define PUTTY_CREATOR FOUR_CHAR_CODE('pTTY')
 #define INTERNAL_CREATOR FOUR_CHAR_CODE('pTTI')
-#define SESS_TYPE	FOUR_CHAR_CODE('Sess')
-#define SEED_TYPE	FOUR_CHAR_CODE('Seed')
+#define SESS_TYPE FOUR_CHAR_CODE('Sess')
+#define SEED_TYPE FOUR_CHAR_CODE('Seed')
 
 struct mac_gestalts {
-    long sysvers;
-    long qdvers;
-    long apprvers;
-    long cntlattr;
-    long windattr;
-    long menuattr;
-    long encvvers; /* TEC version (from TECGetInfo()) */
-    long uncvattr; /* Unicode Converter attributes (frem TECGetInfo()) */
-    long navsvers; /* Navigation Services version */
+  long sysvers;
+  long qdvers;
+  long apprvers;
+  long cntlattr;
+  long windattr;
+  long menuattr;
+  long encvvers; /* TEC version (from TECGetInfo()) */
+  long uncvattr; /* Unicode Converter attributes (frem TECGetInfo()) */
+  long navsvers; /* Navigation Services version */
 };
 
 extern struct mac_gestalts mac_gestalts;
@@ -46,105 +46,105 @@ extern UInt32 sleeptime;
 
 /* Every window used by PuTTY has a refCon field pointing to one of these. */
 typedef struct {
-    struct Session *s;    /* Only used in PuTTY */
-    struct KeyState *ks; /* Only used in PuTTYgen */
-    struct macctrls *mcs;
+  struct Session *s;   /* Only used in PuTTY */
+  struct KeyState *ks; /* Only used in PuTTYgen */
+  struct macctrls *mcs;
 
-    void (*activate)	(WindowPtr, EventRecord *);
-    void (*adjustcursor)(WindowPtr, Point, RgnHandle);
-    void (*adjustmenus)	(WindowPtr);
-    void (*update)	(WindowPtr);
-    void (*click)	(WindowPtr, EventRecord *);
-    void (*grow)	(WindowPtr, EventRecord *);
-    void (*key)		(WindowPtr, EventRecord *);
-    void (*menu)	(WindowPtr, short, short);
-    void (*close)	(WindowPtr);
+  void (*activate)(WindowPtr, EventRecord *);
+  void (*adjustcursor)(WindowPtr, Point, RgnHandle);
+  void (*adjustmenus)(WindowPtr);
+  void (*update)(WindowPtr);
+  void (*click)(WindowPtr, EventRecord *);
+  void (*grow)(WindowPtr, EventRecord *);
+  void (*key)(WindowPtr, EventRecord *);
+  void (*menu)(WindowPtr, short, short);
+  void (*close)(WindowPtr);
 
-    int wtype;
+  int wtype;
 } WinInfo;
 
-#define mac_wininfo(w)		((WinInfo *)GetWRefCon(w))
-#define mac_windowsession(w)	(((WinInfo *)GetWRefCon(w))->s)
-#define mac_winctrls(w)		(((WinInfo *)GetWRefCon(w))->mcs)
+#define mac_wininfo(w) ((WinInfo *)GetWRefCon(w))
+#define mac_windowsession(w) (((WinInfo *)GetWRefCon(w))->s)
+#define mac_winctrls(w) (((WinInfo *)GetWRefCon(w))->mcs)
 
 union macctrl;
 
 struct macctrls {
-    WindowPtr		window;
-    void		(*end)(WindowPtr, int);
-    tree234		*byctrl;
-    void		*data; /* private data for config box */
-    unsigned int	npanels;
-    unsigned int	curpanel;
-    union macctrl	**panels; /* lists of controls by panel */
-    union macctrl	*focus; /* Input focus for System 7 */
-    union macctrl	*defbutton; /* Default button */
-    union macctrl	*canbutton; /* Cancel button */
-    Boolean		gotcolour;
-    RGBColor		thecolour;
-};    
+  WindowPtr window;
+  void (*end)(WindowPtr, int);
+  tree234 *byctrl;
+  void *data; /* private data for config box */
+  unsigned int npanels;
+  unsigned int curpanel;
+  union macctrl **panels;   /* lists of controls by panel */
+  union macctrl *focus;     /* Input focus for System 7 */
+  union macctrl *defbutton; /* Default button */
+  union macctrl *canbutton; /* Cancel button */
+  Boolean gotcolour;
+  RGBColor thecolour;
+};
 
 typedef struct Session {
-    struct Session *next;
-    struct Session **prev;
-    /* Config that created this session */
-    Config cfg;
-    /* Terminal emulator internal state */
-    Terminal *term;
-    /* Display state */
-    int font_width, font_height;
-    /* Line discipline */
-    void *ldisc;
-    /* Backend */
-    Backend *back;
-    void *backhandle;
-    char *realhost;
-    /* Logging */
-    void *logctx;
-    /* Unicode stuff */
-    struct unicode_data ucsdata;
+  struct Session *next;
+  struct Session **prev;
+  /* Config that created this session */
+  Config cfg;
+  /* Terminal emulator internal state */
+  Terminal *term;
+  /* Display state */
+  int font_width, font_height;
+  /* Line discipline */
+  void *ldisc;
+  /* Backend */
+  Backend *back;
+  void *backhandle;
+  char *realhost;
+  /* Logging */
+  void *logctx;
+  /* Unicode stuff */
+  struct unicode_data ucsdata;
 
-    /* Mac-specific elements */
-    short		fontnum;
-    int			font_ascent;
-    int			font_leading;
-    int			font_boldadjust;
-    Point		font_stdnumer;
-    Point		font_stddenom;
-    Point		font_widenumer;
-    Point		font_widedenom;
-    Point		font_bignumer;
-    Point		font_bigdenom;
-    WindowPtr		window;
-    WindowPtr		eventlog_window;
-    ListHandle		eventlog;
-    PaletteHandle	palette;
-    ControlHandle	scrollbar;
-    WCTabHandle		wctab;
-    int			raw_mouse;
-    UnicodeToTextInfo	uni_to_font;  /* Only one of uni_to_font and	 */
-    charset_t		font_charset; /* font_charset is used at a time. */
-    int			hasfile;
-    FSSpec		savefile;
+  /* Mac-specific elements */
+  short fontnum;
+  int font_ascent;
+  int font_leading;
+  int font_boldadjust;
+  Point font_stdnumer;
+  Point font_stddenom;
+  Point font_widenumer;
+  Point font_widedenom;
+  Point font_bignumer;
+  Point font_bigdenom;
+  WindowPtr window;
+  WindowPtr eventlog_window;
+  ListHandle eventlog;
+  PaletteHandle palette;
+  ControlHandle scrollbar;
+  WCTabHandle wctab;
+  int raw_mouse;
+  UnicodeToTextInfo uni_to_font; /* Only one of uni_to_font and	 */
+  charset_t font_charset;        /* font_charset is used at a time. */
+  int hasfile;
+  FSSpec savefile;
 
-    /* Config dialogue bits */
-    WindowPtr		settings_window;
-    struct controlbox	*ctrlbox;
-    struct macctrls	settings_ctrls;
+  /* Config dialogue bits */
+  WindowPtr settings_window;
+  struct controlbox *ctrlbox;
+  struct macctrls settings_ctrls;
 } Session;
 
 extern Session *sesslist;
 
 /* PuTTYgen per-window state */
 typedef struct KeyState {
-    DialogPtr		box;
-    int collecting_entropy;
-    int entropy_got, entropy_required, entropy_size;
-    unsigned *entropy;
-    ControlHandle	progress;
+  DialogPtr box;
+  int collecting_entropy;
+  int entropy_got, entropy_required, entropy_size;
+  unsigned *entropy;
+  ControlHandle progress;
 } KeyState;
 
-#define mac_windowkey(w)	(((WinInfo *)GetWRefCon(w))->ks)
+#define mac_windowkey(w) (((WinInfo *)GetWRefCon(w))->ks)
 
 /* from macmisc.c */
 extern WindowPtr mac_frontwindow(void);
@@ -204,15 +204,15 @@ extern char *ot_addr_error(SockAddr);
 /* from macabout.c */
 extern void mac_openabout(void);
 /* from macctrls.c */
-extern void macctrl_layoutbox(struct controlbox *, WindowPtr,
-			      struct macctrls *);
+extern void macctrl_layoutbox(struct controlbox *,
+                              WindowPtr,
+                              struct macctrls *);
 extern void macctrl_activate(WindowPtr, EventRecord *);
 extern void macctrl_click(WindowPtr, EventRecord *);
 extern void macctrl_key(WindowPtr, EventRecord *);
 extern void macctrl_update(WindowPtr);
 extern void macctrl_adjustmenus(WindowPtr);
 extern void macctrl_close(WindowPtr);
-
 
 /* from macpgkey.c */
 extern void mac_newkey(void);
