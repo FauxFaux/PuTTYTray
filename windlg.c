@@ -9,16 +9,15 @@
 #include "putty.h"
 #include "win_res.h"
 
-#define NPANELS 7
-#define MAIN_NPANELS 7
-#define RECONF_NPANELS 4
+#define NPANELS 8
+#define MAIN_NPANELS 8
+#define RECONF_NPANELS 5
 
 static const char *const puttystr = PUTTY_REG_POS "\\Sessions";
 
-static void get_sesslist(int allocate);
+static char **events = NULL;
+static int nevents = 0, negsize = 0;
 
-static char **negots = NULL;
-static int nnegots = 0, negsize = 0;
 static HWND logbox = NULL, abtbox = NULL;
 
 static char hex[16] = "0123456789ABCDEF";
@@ -101,9 +100,6 @@ static void gppi(HKEY key, LPCTSTR name, int def, int *i)
 
 static HINSTANCE hinst;
 
-static char **sessions;
-static int nsessions;
-
 static int readytogo;
 
 static void save_settings(char *section, int do_host)
@@ -127,9 +123,14 @@ static void save_settings(char *section, int do_host)
   if (do_host) {
     wpps(sesskey, "HostName", cfg.host);
     wppi(sesskey, "PortNumber", cfg.port);
-    wpps(sesskey, "Protocol", cfg.protocol == PROT_SSH ? "ssh" : "telnet");
+    wpps(sesskey,
+         "Protocol",
+         cfg.protocol == PROT_SSH
+             ? "ssh"
+             : cfg.protocol == PROT_TELNET ? "telnet" : "raw");
   }
   wppi(sesskey, "CloseOnExit", !!cfg.close_on_exit);
+  wppi(sesskey, "WarnOnClose", !!cfg.warn_on_close);
   wpps(sesskey, "TerminalType", cfg.termtype);
   wpps(sesskey, "TerminalSpeed", cfg.termspeed);
   {
@@ -153,13 +154,22 @@ static void save_settings(char *section, int do_host)
   }
   wpps(sesskey, "UserName", cfg.username);
   wppi(sesskey, "NoPTY", cfg.nopty);
-  wpps(sesskey, "Cipher", cfg.cipher == CIPHER_BLOWFISH ? "blowfish" : "3des");
+  wpps(sesskey,
+       "Cipher",
+       cfg.cipher == CIPHER_BLOWFISH
+           ? "blowfish"
+           : cfg.cipher == CIPHER_DES ? "des" : "3des");
+  wppi(sesskey, "AuthTIS", cfg.try_tis_auth);
   wppi(sesskey, "RFCEnviron", cfg.rfc_environ);
   wppi(sesskey, "BackspaceIsDelete", cfg.bksp_is_delete);
   wppi(sesskey, "RXVTHomeEnd", cfg.rxvt_homeend);
   wppi(sesskey, "LinuxFunctionKeys", cfg.linux_funkeys);
   wppi(sesskey, "ApplicationCursorKeys", cfg.app_cursor);
   wppi(sesskey, "ApplicationKeypad", cfg.app_keypad);
+  wppi(sesskey, "NetHackKeypad", cfg.nethack_keypad);
+  wppi(sesskey, "AltF4", cfg.alt_f4);
+  wppi(sesskey, "AltSpace", cfg.alt_space);
+  wppi(sesskey, "LdiscTerm", cfg.ldisc_term);
   wppi(sesskey, "ScrollbackLines", cfg.savelines);
   wppi(sesskey, "DECOriginMode", cfg.dec_om);
   wppi(sesskey, "AutoWrapMode", cfg.wrap_mode);
@@ -169,6 +179,7 @@ static void save_settings(char *section, int do_host)
   wppi(sesskey, "TermHeight", cfg.height);
   wpps(sesskey, "Font", cfg.font);
   wppi(sesskey, "FontIsBold", cfg.fontisbold);
+  wppi(sesskey, "FontCharSet", cfg.fontcharset);
   wppi(sesskey, "FontHeight", cfg.fontheight);
   wppi(sesskey, "FontVTMode", cfg.vtmode);
   wppi(sesskey, "TryPalette", cfg.try_palette);
@@ -194,6 +205,9 @@ static void save_settings(char *section, int do_host)
     }
     wpps(sesskey, buf, buf2);
   }
+  wppi(sesskey, "KoiWinXlat", cfg.xlat_enablekoiwin);
+  wppi(sesskey, "88592Xlat", cfg.xlat_88592w1250);
+  wppi(sesskey, "CapsLockCyr", cfg.xlat_capslockcyr);
 
   RegCloseKey(sesskey);
 }
@@ -219,6 +233,7 @@ static void load_settings(char *section, int do_host)
   int i;
   HKEY subkey1, sesskey;
   char *p;
+  char prot[10];
 
   p = malloc(3 * strlen(section) + 1);
   mungestr(section, p);
@@ -234,20 +249,20 @@ static void load_settings(char *section, int do_host)
 
   free(p);
 
-  if (do_host) {
-    char prot[10];
-    gpps(sesskey, "HostName", "", cfg.host, sizeof(cfg.host));
-    gppi(sesskey, "PortNumber", 23, &cfg.port);
-    gpps(sesskey, "Protocol", "telnet", prot, 10);
-    if (!strcmp(prot, "ssh"))
-      cfg.protocol = PROT_SSH;
-    else
-      cfg.protocol = PROT_TELNET;
-  } else {
-    cfg.port = 23;
-    *cfg.host = '\0';
-  }
+  gpps(sesskey, "HostName", "", cfg.host, sizeof(cfg.host));
+  gppi(sesskey, "PortNumber", default_port, &cfg.port);
+  gpps(sesskey, "Protocol", "default", prot, 10);
+  if (!strcmp(prot, "ssh"))
+    cfg.protocol = PROT_SSH;
+  else if (!strcmp(prot, "telnet"))
+    cfg.protocol = PROT_TELNET;
+  else if (!strcmp(prot, "raw"))
+    cfg.protocol = PROT_RAW;
+  else
+    cfg.protocol = default_protocol;
+
   gppi(sesskey, "CloseOnExit", 1, &cfg.close_on_exit);
+  gppi(sesskey, "WarnOnClose", 1, &cfg.warn_on_close);
   gpps(sesskey, "TerminalType", "xterm", cfg.termtype, sizeof(cfg.termtype));
   gpps(sesskey,
        "TerminalSpeed",
@@ -281,15 +296,22 @@ static void load_settings(char *section, int do_host)
     gpps(sesskey, "Cipher", "3des", cipher, 10);
     if (!strcmp(cipher, "blowfish"))
       cfg.cipher = CIPHER_BLOWFISH;
+    else if (!strcmp(cipher, "des"))
+      cfg.cipher = CIPHER_DES;
     else
       cfg.cipher = CIPHER_3DES;
   }
+  gppi(sesskey, "AuthTIS", 0, &cfg.try_tis_auth);
   gppi(sesskey, "RFCEnviron", 0, &cfg.rfc_environ);
   gppi(sesskey, "BackspaceIsDelete", 1, &cfg.bksp_is_delete);
   gppi(sesskey, "RXVTHomeEnd", 0, &cfg.rxvt_homeend);
   gppi(sesskey, "LinuxFunctionKeys", 0, &cfg.linux_funkeys);
   gppi(sesskey, "ApplicationCursorKeys", 0, &cfg.app_cursor);
   gppi(sesskey, "ApplicationKeypad", 0, &cfg.app_keypad);
+  gppi(sesskey, "NetHackKeypad", 0, &cfg.nethack_keypad);
+  gppi(sesskey, "AltF4", 1, &cfg.alt_f4);
+  gppi(sesskey, "AltSpace", 0, &cfg.alt_space);
+  gppi(sesskey, "LdiscTerm", 0, &cfg.ldisc_term);
   gppi(sesskey, "ScrollbackLines", 200, &cfg.savelines);
   gppi(sesskey, "DECOriginMode", 0, &cfg.dec_om);
   gppi(sesskey, "AutoWrapMode", 1, &cfg.wrap_mode);
@@ -299,6 +321,7 @@ static void load_settings(char *section, int do_host)
   gppi(sesskey, "TermHeight", 24, &cfg.height);
   gpps(sesskey, "Font", "Courier", cfg.font, sizeof(cfg.font));
   gppi(sesskey, "FontIsBold", 0, &cfg.fontisbold);
+  gppi(sesskey, "FontCharSet", ANSI_CHARSET, &cfg.fontcharset);
   gppi(sesskey, "FontHeight", 10, &cfg.fontheight);
   gppi(sesskey, "FontVTMode", VT_POORMAN, &cfg.vtmode);
   gppi(sesskey, "TryPalette", 0, &cfg.try_palette);
@@ -344,6 +367,10 @@ static void load_settings(char *section, int do_host)
       cfg.wordness[j] = atoi(q);
     }
   }
+  gppi(sesskey, "KoiWinXlat", 0, &cfg.xlat_enablekoiwin);
+  gppi(sesskey, "88592Xlat", 0, &cfg.xlat_88592w1250);
+  gppi(sesskey, "CapsLockCyr", 0, &cfg.xlat_capslockcyr);
+
   RegCloseKey(sesskey);
 }
 
@@ -362,8 +389,8 @@ static int CALLBACK LogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
   switch (msg) {
   case WM_INITDIALOG:
-    for (i = 0; i < nnegots; i++)
-      SendDlgItemMessage(hwnd, IDN_LIST, LB_ADDSTRING, 0, (LPARAM)negots[i]);
+    for (i = 0; i < nevents; i++)
+      SendDlgItemMessage(hwnd, IDN_LIST, LB_ADDSTRING, 0, (LPARAM)events[i]);
     return 1;
     /*      case WM_CTLCOLORDLG: */
     /*	return (int) GetStockObject (LTGRAY_BRUSH); */
@@ -473,10 +500,14 @@ static int CALLBACK ConnectionProc(HWND hwnd,
       SendDlgItemMessage(
           hwnd, IDC0_SESSLIST, LB_ADDSTRING, 0, (LPARAM)(sessions[i]));
     CheckRadioButton(hwnd,
-                     IDC0_PROTTELNET,
+                     IDC0_PROTRAW,
                      IDC0_PROTSSH,
-                     cfg.protocol == PROT_SSH ? IDC0_PROTSSH : IDC0_PROTTELNET);
+                     cfg.protocol == PROT_SSH
+                         ? IDC0_PROTSSH
+                         : cfg.protocol == PROT_TELNET ? IDC0_PROTTELNET
+                                                       : IDC0_PROTRAW);
     CheckDlgButton(hwnd, IDC0_CLOSEEXIT, cfg.close_on_exit);
+    CheckDlgButton(hwnd, IDC0_CLOSEWARN, cfg.warn_on_close);
     break;
   case WM_LBUTTONUP:
     /*
@@ -491,9 +522,11 @@ static int CALLBACK ConnectionProc(HWND hwnd,
     switch (LOWORD(wParam)) {
     case IDC0_PROTTELNET:
     case IDC0_PROTSSH:
+    case IDC0_PROTRAW:
       if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED) {
         int i = IsDlgButtonChecked(hwnd, IDC0_PROTSSH);
-        cfg.protocol = i ? PROT_SSH : PROT_TELNET;
+        int j = IsDlgButtonChecked(hwnd, IDC0_PROTTELNET);
+        cfg.protocol = i ? PROT_SSH : j ? PROT_TELNET : PROT_RAW;
         if ((cfg.protocol == PROT_SSH && cfg.port == 23) ||
             (cfg.protocol == PROT_TELNET && cfg.port == 22)) {
           cfg.port = i ? 22 : 23;
@@ -512,6 +545,10 @@ static int CALLBACK ConnectionProc(HWND hwnd,
     case IDC0_CLOSEEXIT:
       if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
         cfg.close_on_exit = IsDlgButtonChecked(hwnd, IDC0_CLOSEEXIT);
+      break;
+    case IDC0_CLOSEWARN:
+      if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
+        cfg.warn_on_close = IsDlgButtonChecked(hwnd, IDC0_CLOSEWARN);
       break;
     case IDC0_SESSEDIT:
       if (HIWORD(wParam) == EN_CHANGE)
@@ -558,12 +595,15 @@ static int CALLBACK ConnectionProc(HWND hwnd,
         load_settings(sessions[n], !!strcmp(sessions[n], "Default Settings"));
         SetDlgItemText(hwnd, IDC0_HOST, cfg.host);
         SetDlgItemInt(hwnd, IDC0_PORT, cfg.port, FALSE);
-        CheckRadioButton(
-            hwnd,
-            IDC0_PROTTELNET,
-            IDC0_PROTSSH,
-            (cfg.protocol == PROT_SSH ? IDC0_PROTSSH : IDC0_PROTTELNET));
+        CheckRadioButton(hwnd,
+                         IDC0_PROTRAW,
+                         IDC0_PROTSSH,
+                         (cfg.protocol == PROT_SSH
+                              ? IDC0_PROTSSH
+                              : cfg.protocol == PROT_TELNET ? IDC0_PROTTELNET
+                                                            : IDC0_PROTRAW));
         CheckDlgButton(hwnd, IDC0_CLOSEEXIT, cfg.close_on_exit);
+        CheckDlgButton(hwnd, IDC0_CLOSEWARN, cfg.warn_on_close);
         SendDlgItemMessage(hwnd, IDC0_SESSLIST, LB_SETCURSEL, (WPARAM)-1, 0);
       }
       if (LOWORD(wParam) == IDC0_SESSLIST) {
@@ -625,8 +665,13 @@ static int CALLBACK KeyboardProc(HWND hwnd,
                      cfg.app_cursor ? IDC1_CURAPPLIC : IDC1_CURNORMAL);
     CheckRadioButton(hwnd,
                      IDC1_KPNORMAL,
-                     IDC1_KPAPPLIC,
-                     cfg.app_keypad ? IDC1_KPAPPLIC : IDC1_KPNORMAL);
+                     IDC1_KPNH,
+                     cfg.nethack_keypad
+                         ? IDC1_KPNH
+                         : cfg.app_keypad ? IDC1_KPAPPLIC : IDC1_KPNORMAL);
+    CheckDlgButton(hwnd, IDC1_ALTF4, cfg.alt_f4);
+    CheckDlgButton(hwnd, IDC1_ALTSPACE, cfg.alt_space);
+    CheckDlgButton(hwnd, IDC1_LDISCTERM, cfg.ldisc_term);
     break;
   case WM_COMMAND:
     if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
@@ -646,10 +691,27 @@ static int CALLBACK KeyboardProc(HWND hwnd,
       case IDC1_KPNORMAL:
       case IDC1_KPAPPLIC:
         cfg.app_keypad = IsDlgButtonChecked(hwnd, IDC1_KPAPPLIC);
+        cfg.nethack_keypad = FALSE;
+        break;
+      case IDC1_KPNH:
+        cfg.app_keypad = FALSE;
+        cfg.nethack_keypad = TRUE;
         break;
       case IDC1_CURNORMAL:
       case IDC1_CURAPPLIC:
         cfg.app_cursor = IsDlgButtonChecked(hwnd, IDC1_CURAPPLIC);
+        break;
+      case IDC1_ALTF4:
+        if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
+          cfg.alt_f4 = IsDlgButtonChecked(hwnd, IDC1_ALTF4);
+        break;
+      case IDC1_ALTSPACE:
+        if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
+          cfg.alt_space = IsDlgButtonChecked(hwnd, IDC1_ALTSPACE);
+        break;
+      case IDC1_LDISCTERM:
+        if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
+          cfg.ldisc_term = IsDlgButtonChecked(hwnd, IDC1_LDISCTERM);
         break;
       }
   }
@@ -735,7 +797,7 @@ static int CALLBACK TerminalProc(HWND hwnd,
       lf.lfWidth = lf.lfEscapement = lf.lfOrientation = 0;
       lf.lfItalic = lf.lfUnderline = lf.lfStrikeOut = 0;
       lf.lfWeight = (cfg.fontisbold ? FW_BOLD : 0);
-      lf.lfCharSet = ANSI_CHARSET;
+      lf.lfCharSet = cfg.fontcharset;
       lf.lfOutPrecision = OUT_DEFAULT_PRECIS;
       lf.lfClipPrecision = CLIP_DEFAULT_PRECIS;
       lf.lfQuality = DEFAULT_QUALITY;
@@ -753,6 +815,7 @@ static int CALLBACK TerminalProc(HWND hwnd,
         strncpy(cfg.font, lf.lfFaceName, sizeof(cfg.font) - 1);
         cfg.font[sizeof(cfg.font) - 1] = '\0';
         cfg.fontisbold = (lf.lfWeight == FW_BOLD);
+        cfg.fontcharset = lf.lfCharSet;
         cfg.fontheight = lf.lfHeight;
         fmtfont(fontstatic);
         SetDlgItemText(hwnd, IDC2_FONTSTATIC, fontstatic);
@@ -904,9 +967,13 @@ static int CALLBACK SshProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     CheckDlgButton(hwnd, IDC3_NOPTY, cfg.nopty);
     CheckRadioButton(hwnd,
                      IDC3_CIPHER3DES,
-                     IDC3_CIPHERBLOWF,
-                     cfg.cipher == CIPHER_BLOWFISH ? IDC3_CIPHERBLOWF
-                                                   : IDC3_CIPHER3DES);
+                     IDC3_CIPHERDES,
+                     cfg.cipher == CIPHER_BLOWFISH
+                         ? IDC3_CIPHERBLOWF
+                         : cfg.cipher == CIPHER_DES ? IDC3_CIPHERDES :
+
+                                                    IDC3_CIPHER3DES);
+    CheckDlgButton(hwnd, IDC3_AUTHTIS, cfg.try_tis_auth);
     break;
   case WM_COMMAND:
     switch (LOWORD(wParam)) {
@@ -926,12 +993,19 @@ static int CALLBACK SshProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       break;
     case IDC3_CIPHER3DES:
     case IDC3_CIPHERBLOWF:
+    case IDC3_CIPHERDES:
       if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED) {
         if (IsDlgButtonChecked(hwnd, IDC3_CIPHER3DES))
           cfg.cipher = CIPHER_3DES;
         else if (IsDlgButtonChecked(hwnd, IDC3_CIPHERBLOWF))
           cfg.cipher = CIPHER_BLOWFISH;
+        else if (IsDlgButtonChecked(hwnd, IDC3_CIPHERDES))
+          cfg.cipher = CIPHER_DES;
       }
+      break;
+    case IDC3_AUTHTIS:
+      if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
+        cfg.try_tis_auth = IsDlgButtonChecked(hwnd, IDC3_AUTHTIS);
       break;
     }
     break;
@@ -1103,30 +1177,67 @@ static int CALLBACK ColourProc(HWND hwnd,
   return GeneralPanelProc(hwnd, msg, wParam, lParam);
 }
 
+static int CALLBACK LanguageProc(HWND hwnd,
+                                 UINT msg,
+                                 WPARAM wParam,
+                                 LPARAM lParam)
+{
+  switch (msg) {
+  case WM_INITDIALOG:
+    CheckRadioButton(hwnd,
+                     IDC6_NOXLAT,
+                     IDC6_88592WIN1250,
+                     cfg.xlat_88592w1250
+                         ? IDC6_88592WIN1250
+                         : cfg.xlat_enablekoiwin ? IDC6_KOI8WIN1251
+                                                 : IDC6_NOXLAT);
+    CheckDlgButton(hwnd, IDC6_CAPSLOCKCYR, cfg.xlat_capslockcyr);
+  case WM_COMMAND:
+    switch (LOWORD(wParam)) {
+    case IDC6_NOXLAT:
+    case IDC6_KOI8WIN1251:
+    case IDC6_88592WIN1250:
+      cfg.xlat_enablekoiwin = IsDlgButtonChecked(hwnd, IDC6_KOI8WIN1251);
+      cfg.xlat_88592w1250 = IsDlgButtonChecked(hwnd, IDC6_88592WIN1250);
+      break;
+    case IDC6_CAPSLOCKCYR:
+      if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED) {
+        cfg.xlat_capslockcyr = IsDlgButtonChecked(hwnd, IDC6_CAPSLOCKCYR);
+      }
+      break;
+    }
+  }
+  return GeneralPanelProc(hwnd, msg, wParam, lParam);
+}
+
 static DLGPROC panelproc[NPANELS] = {ConnectionProc,
                                      KeyboardProc,
                                      TerminalProc,
                                      TelnetProc,
                                      SshProc,
                                      SelectionProc,
-                                     ColourProc};
+                                     ColourProc,
+                                     LanguageProc};
 static char *panelids[NPANELS] = {MAKEINTRESOURCE(IDD_PANEL0),
                                   MAKEINTRESOURCE(IDD_PANEL1),
                                   MAKEINTRESOURCE(IDD_PANEL2),
                                   MAKEINTRESOURCE(IDD_PANEL3),
                                   MAKEINTRESOURCE(IDD_PANEL35),
                                   MAKEINTRESOURCE(IDD_PANEL4),
-                                  MAKEINTRESOURCE(IDD_PANEL5)};
+                                  MAKEINTRESOURCE(IDD_PANEL5),
+                                  MAKEINTRESOURCE(IDD_PANEL6)};
+
 static char *names[NPANELS] = {"Connection",
                                "Keyboard",
                                "Terminal",
                                "Telnet",
                                "SSH",
                                "Selection",
-                               "Colours"};
+                               "Colours",
+                               "Language"};
 
-static int mainp[MAIN_NPANELS] = {0, 1, 2, 3, 4, 5, 6};
-static int reconfp[RECONF_NPANELS] = {1, 2, 5, 6};
+static int mainp[MAIN_NPANELS] = {0, 1, 2, 3, 4, 5, 6, 7};
+static int reconfp[RECONF_NPANELS] = {1, 2, 5, 6, 7};
 
 static int GenericMainDlgProc(HWND hwnd,
                               UINT msg,
@@ -1256,7 +1367,7 @@ static int CALLBACK ReconfDlgProc(HWND hwnd,
       hwnd, msg, wParam, lParam, RECONF_NPANELS, reconfp, &page);
 }
 
-static void get_sesslist(int allocate)
+void get_sesslist(int allocate)
 {
   static char *buffer;
   int buflen, bufsize, i, ret;
@@ -1341,20 +1452,20 @@ void do_defaults(char *session)
     load_settings("Default Settings", FALSE);
 }
 
-void lognegot(char *string)
+void logevent(char *string)
 {
-  if (nnegots >= negsize) {
+  if (nevents >= negsize) {
     negsize += 64;
-    negots = srealloc(negots, negsize * sizeof(*negots));
+    events = srealloc(events, negsize * sizeof(*events));
   }
-  negots[nnegots] = smalloc(1 + strlen(string));
-  strcpy(negots[nnegots], string);
-  nnegots++;
+  events[nevents] = smalloc(1 + strlen(string));
+  strcpy(events[nevents], string);
+  nevents++;
   if (logbox)
     SendDlgItemMessage(logbox, IDN_LIST, LB_ADDSTRING, 0, (LPARAM)string);
 }
 
-void shownegot(HWND hwnd)
+void showeventlog(HWND hwnd)
 {
   if (!logbox) {
     logbox = CreateDialog(hinst, MAKEINTRESOURCE(IDD_LOGBOX), hwnd, LogProc);

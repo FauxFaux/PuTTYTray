@@ -14,6 +14,8 @@
 #define GLOBAL extern
 #endif
 
+GLOBAL HINSTANCE putty_inst;
+
 #define ATTR_ACTCURS 0x80000000UL /* active cursor (block) */
 #define ATTR_PASCURS 0x40000000UL /* passive cursor (box) */
 #define ATTR_INVALID 0x20000000UL
@@ -119,22 +121,32 @@ typedef struct {
 GLOBAL Backend *back;
 
 typedef struct {
+  void (*send)(char *buf, int len);
+} Ldisc;
+
+GLOBAL Ldisc *ldisc;
+
+typedef struct {
   /* Basic options */
   char host[512];
   int port;
   enum
   {
+    PROT_RAW,
     PROT_TELNET,
     PROT_SSH
   } protocol;
   int close_on_exit;
+  int warn_on_close;
   /* SSH options */
   int nopty;
   enum
   {
     CIPHER_3DES,
-    CIPHER_BLOWFISH
+    CIPHER_BLOWFISH,
+    CIPHER_DES
   } cipher;
+  int try_tis_auth;
   /* Telnet options */
   char termtype[32];
   char termspeed[32];
@@ -147,6 +159,10 @@ typedef struct {
   int linux_funkeys;
   int app_cursor;
   int app_keypad;
+  int nethack_keypad;
+  int alt_f4;    /* is it special? */
+  int alt_space; /* is it special? */
+  int ldisc_term;
   /* Terminal options */
   int savelines;
   int dec_om;
@@ -157,6 +173,7 @@ typedef struct {
   char font[64];
   int fontisbold;
   int fontheight;
+  int fontcharset;
   VT_Mode vtmode;
   /* Colour options */
   int try_palette;
@@ -165,9 +182,28 @@ typedef struct {
   /* Selection options */
   int mouse_is_xterm;
   short wordness[256];
+  /* russian language translation */
+  int xlat_enablekoiwin;
+  int xlat_88592w1250;
+  int xlat_capslockcyr;
 } Config;
 
+/*
+ * You can compile with -DSSH_DEFAULT to have ssh by default.
+ */
+#ifndef SSH_DEFAULT
+#define DEFAULT_PROTOCOL PROT_TELNET
+#define DEFAULT_PORT 23
+#else
+#define DEFAULT_PROTOCOL PROT_SSH
+#define DEFAULT_PORT 22
+#endif
+
 GLOBAL Config cfg;
+GLOBAL int default_protocol;
+GLOBAL int default_port;
+
+struct RSAKey; /* be a little careful of scope */
 
 /*
  * Exports from window.c.
@@ -202,10 +238,14 @@ void random_save_seed(void);
 int do_config(void);
 int do_reconfig(HWND);
 void do_defaults(char *);
-void lognegot(char *);
-void shownegot(HWND);
+void logevent(char *);
+void showeventlog(HWND);
 void showabout(HWND);
 void verify_ssh_host_key(char *host, struct RSAKey *key);
+void get_sesslist(int allocate);
+
+GLOBAL int nsessions;
+GLOBAL char **sessions;
 
 /*
  * Exports from terminal.c.
@@ -224,6 +264,12 @@ void term_update(void);
 void term_invalidate(void);
 
 /*
+ * Exports from raw.c.
+ */
+
+extern Backend raw_backend;
+
+/*
  * Exports from telnet.c.
  */
 
@@ -234,6 +280,12 @@ extern Backend telnet_backend;
  */
 
 extern Backend ssh_backend;
+
+/*
+ * Exports from ldisc.c.
+ */
+
+extern Ldisc ldisc_term, ldisc_simple;
 
 /*
  * Exports from sshrand.c.
@@ -268,6 +320,19 @@ void safefree(void *);
  * Exports from version.c.
  */
 extern char ver[];
+
+/*
+ * Exports from sizetip.c.
+ */
+void UpdateSizeTip(HWND src, int cx, int cy);
+void EnableSizeTip(int bEnable);
+
+/*
+ * Exports from xlat.c.
+ */
+unsigned char xlat_kbd2tty(unsigned char c);
+unsigned char xlat_tty2scr(unsigned char c);
+unsigned char xlat_latkbd2win(unsigned char c);
 
 /*
  * A debug system.
