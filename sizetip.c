@@ -1,10 +1,8 @@
-#include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <tchar.h>
 
 #include "putty.h"
-#include "winstuff.h"
 
 static ATOM tip_class = 0;
 
@@ -43,7 +41,7 @@ static LRESULT CALLBACK SizeTipWndProc(HWND hWnd,
     Rectangle(hdc, cr.left, cr.top, cr.right, cr.bottom);
 
     wtlen = GetWindowTextLength(hWnd);
-    wt = (LPTSTR)smalloc((wtlen + 1) * sizeof(TCHAR));
+    wt = (LPTSTR)snewn(wtlen + 1, TCHAR);
     GetWindowText(hWnd, wt, wtlen + 1);
 
     SetTextColor(hdc, tip_text);

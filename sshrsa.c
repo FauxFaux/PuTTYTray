@@ -1,8 +1,5 @@
 /*
- * RSA implementation just sufficient for ssh client-side
- * initialisation step
- *
- * Rewritten for more speed by Joris van Rantwijk, Jun 1999.
+ * RSA implementation for PuTTY.
  */
 
 #include <stdio.h>
@@ -96,11 +93,143 @@ void rsaencrypt(unsigned char *data, int length, struct RSAKey *key)
   freebn(b2);
 }
 
+static void sha512_mpint(SHA512_State *s, Bignum b)
+{
+  unsigned char lenbuf[4];
+  int len;
+  len = (bignum_bitcount(b) + 8) / 8;
+  PUT_32BIT(lenbuf, len);
+  SHA512_Bytes(s, lenbuf, 4);
+  while (len-- > 0) {
+    lenbuf[0] = bignum_byte(b, len);
+    SHA512_Bytes(s, lenbuf, 1);
+  }
+  memset(lenbuf, 0, sizeof(lenbuf));
+}
+
+/*
+ * This function is a wrapper on modpow(). It has the same effect
+ * as modpow(), but employs RSA blinding to protect against timing
+ * attacks.
+ */
+static Bignum rsa_privkey_op(Bignum input, struct RSAKey *key)
+{
+  Bignum random, random_encrypted, random_inverse;
+  Bignum input_blinded, ret_blinded;
+  Bignum ret;
+
+  SHA512_State ss;
+  unsigned char digest512[64];
+  int digestused = lenof(digest512);
+  int hashseq = 0;
+
+  /*
+   * Start by inventing a random number chosen uniformly from the
+   * range 2..modulus-1. (We do this by preparing a random number
+   * of the right length and retrying if it's greater than the
+   * modulus, to prevent any potential Bleichenbacher-like
+   * attacks making use of the uneven distribution within the
+   * range that would arise from just reducing our number mod n.
+   * There are timing implications to the potential retries, of
+   * course, but all they tell you is the modulus, which you
+   * already knew.)
+   *
+   * To preserve determinism and avoid Pageant needing to share
+   * the random number pool, we actually generate this `random'
+   * number by hashing stuff with the private key.
+   */
+  while (1) {
+    int bits, byte, bitsleft, v;
+    random = copybn(key->modulus);
+    /*
+     * Find the topmost set bit. (This function will return its
+     * index plus one.) Then we'll set all bits from that one
+     * downwards randomly.
+     */
+    bits = bignum_bitcount(random);
+    byte = 0;
+    bitsleft = 0;
+    while (bits--) {
+      if (bitsleft <= 0) {
+        bitsleft = 8;
+        /*
+         * Conceptually the following few lines are equivalent to
+         *    byte = random_byte();
+         */
+        if (digestused >= lenof(digest512)) {
+          unsigned char seqbuf[4];
+          PUT_32BIT(seqbuf, hashseq);
+          SHA512_Init(&ss);
+          SHA512_Bytes(&ss, "RSA deterministic blinding", 26);
+          SHA512_Bytes(&ss, seqbuf, sizeof(seqbuf));
+          sha512_mpint(&ss, key->private_exponent);
+          SHA512_Final(&ss, digest512);
+          hashseq++;
+
+          /*
+           * Now hash that digest plus the signature
+           * input.
+           */
+          SHA512_Init(&ss);
+          SHA512_Bytes(&ss, digest512, sizeof(digest512));
+          sha512_mpint(&ss, input);
+          SHA512_Final(&ss, digest512);
+
+          digestused = 0;
+        }
+        byte = digest512[digestused++];
+      }
+      v = byte & 1;
+      byte >>= 1;
+      bitsleft--;
+      bignum_set_bit(random, bits, v);
+    }
+
+    /*
+     * Now check that this number is strictly greater than
+     * zero, and strictly less than modulus.
+     */
+    if (bignum_cmp(random, Zero) <= 0 ||
+        bignum_cmp(random, key->modulus) >= 0) {
+      freebn(random);
+      continue;
+    } else {
+      break;
+    }
+  }
+
+  /*
+   * RSA blinding relies on the fact that (xy)^d mod n is equal
+   * to (x^d mod n) * (y^d mod n) mod n. We invent a random pair
+   * y and y^d; then we multiply x by y, raise to the power d mod
+   * n as usual, and divide by y^d to recover x^d. Thus an
+   * attacker can't correlate the timing of the modpow with the
+   * input, because they don't know anything about the number
+   * that was input to the actual modpow.
+   *
+   * The clever bit is that we don't have to do a huge modpow to
+   * get y and y^d; we will use the number we just invented as
+   * _y^d_, and use the _public_ exponent to compute (y^d)^e = y
+   * from it, which is much faster to do.
+   */
+  random_encrypted = modpow(random, key->exponent, key->modulus);
+  random_inverse = modinv(random, key->modulus);
+  input_blinded = modmul(input, random_encrypted, key->modulus);
+  ret_blinded = modpow(input_blinded, key->private_exponent, key->modulus);
+  ret = modmul(ret_blinded, random_inverse, key->modulus);
+
+  freebn(ret_blinded);
+  freebn(input_blinded);
+  freebn(random_inverse);
+  freebn(random_encrypted);
+  freebn(random);
+
+  return ret;
+}
+
 Bignum rsadecrypt(Bignum input, struct RSAKey *key)
 {
-  Bignum ret;
-  ret = modpow(input, key->private_exponent, key->modulus);
-  return ret;
+  return rsa_privkey_op(input, key);
 }
 
 int rsastr_len(struct RSAKey *key)
@@ -240,7 +369,7 @@ unsigned char *rsa_public_blob(struct RSAKey *key, int *len)
 
   length = (ssh1_bignum_length(key->modulus) +
             ssh1_bignum_length(key->exponent) + 4);
-  ret = smalloc(length);
+  ret = snewn(length, unsigned char);
 
   PUT_32BIT(ret, bignum_bitcount(key->modulus));
   pos = 4;
@@ -255,7 +384,6 @@ unsigned char *rsa_public_blob(struct RSAKey *key, int *len)
 int rsa_public_blob_len(void *data)
 {
   unsigned char *p = (unsigned char *)data;
-  int ret;
 
   p += 4;                         /* length word */
   p += ssh1_read_bignum(p, NULL); /* exponent */
@@ -303,7 +431,7 @@ static Bignum getmp(char **data, int *datalen)
   getstring(data, datalen, &p, &length);
   if (!p)
     return NULL;
-  b = bignum_from_bytes(p, length);
+  b = bignum_from_bytes((unsigned char *)p, length);
   return b;
 }
 
@@ -313,7 +441,7 @@ static void *rsa2_newkey(char *data, int len)
   int slen;
   struct RSAKey *rsa;
 
-  rsa = smalloc(sizeof(struct RSAKey));
+  rsa = snew(struct RSAKey);
   if (!rsa)
     return NULL;
   getstring(&data, &len, &p, &slen);
@@ -344,7 +472,7 @@ static char *rsa2_fmtkey(void *key)
   int len;
 
   len = rsastr_len(rsa);
-  p = smalloc(len);
+  p = snewn(len, char);
   rsastr_fmt(p, rsa);
   return p;
 }
@@ -364,7 +492,7 @@ static unsigned char *rsa2_public_blob(void *key, int *len)
    * (three length fields, 12+7=19).
    */
   bloblen = 19 + elen + mlen;
-  blob = smalloc(bloblen);
+  blob = snewn(bloblen, unsigned char);
   p = blob;
   PUT_32BIT(p, 7);
   p += 4;
@@ -400,7 +528,7 @@ static unsigned char *rsa2_private_blob(void *key, int *len)
    * sum of lengths.
    */
   bloblen = 16 + dlen + plen + qlen + ulen;
-  blob = smalloc(bloblen);
+  blob = snewn(bloblen, unsigned char);
   p = blob;
   PUT_32BIT(p, dlen);
   p += 4;
@@ -450,7 +578,7 @@ static void *rsa2_openssh_createkey(unsigned char **blob, int *len)
   char **b = (char **)blob;
   struct RSAKey *rsa;
 
-  rsa = smalloc(sizeof(struct RSAKey));
+  rsa = snew(struct RSAKey);
   if (!rsa)
     return NULL;
   rsa->comment = NULL;
@@ -507,6 +635,18 @@ static int rsa2_openssh_fmtkey(void *key, unsigned char *blob, int len)
   return bloblen;
 }
 
+static int rsa2_pubkey_bits(void *blob, int len)
+{
+  struct RSAKey *rsa;
+  int ret;
+
+  rsa = rsa2_newkey((char *)blob, len);
+  ret = bignum_bitcount(rsa->modulus);
+  rsa2_freekey(rsa);
+
+  return ret;
+}
+
 static char *rsa2_fingerprint(void *key)
 {
   struct RSAKey *rsa = (struct RSAKey *)key;
@@ -517,7 +657,7 @@ static char *rsa2_fingerprint(void *key)
   int numlen, i;
 
   MD5Init(&md5c);
-  MD5Update(&md5c, "\0\0\0\7ssh-rsa", 11);
+  MD5Update(&md5c, (unsigned char *)"\0\0\0\7ssh-rsa", 11);
 
 #define ADD_BIGNUM(bignum)                                                     \
   numlen = (bignum_bitcount(bignum) + 8) / 8;                                  \
@@ -536,7 +676,7 @@ static char *rsa2_fingerprint(void *key)
   sprintf(buffer, "ssh-rsa %d ", bignum_bitcount(rsa->modulus));
   for (i = 0; i < 16; i++)
     sprintf(buffer + strlen(buffer), "%s%02x", i ? ":" : "", digest[i]);
-  ret = smalloc(strlen(buffer) + 1);
+  ret = snewn(strlen(buffer) + 1, char);
   if (ret)
     strcpy(ret, buffer);
   return ret;
@@ -566,7 +706,7 @@ static char *rsa2_fingerprint(void *key)
  *    iso(1) identified-organization(3) oiw(14) secsig(3)
  *    algorithms(2) 26 }
  */
-static unsigned char asn1_weird_stuff[] = {
+static const unsigned char asn1_weird_stuff[] = {
     0x00,
     0x30,
     0x21,
@@ -607,7 +747,7 @@ static int rsa2_verifysig(
 
   ret = 1;
 
-  bytes = bignum_bitcount(rsa->modulus) / 8;
+  bytes = (bignum_bitcount(rsa->modulus) + 7) / 8;
   /* Top (partial) byte should be zero. */
   if (bignum_byte(out, bytes - 1) != 0)
     ret = 0;
@@ -630,11 +770,12 @@ static int rsa2_verifysig(
     if (bignum_byte(out, i) != hash[j])
       ret = 0;
   }
+  freebn(out);
 
   return ret;
 }
 
-unsigned char *rsa2_sign(void *key, char *data, int datalen, int *siglen)
+static unsigned char *rsa2_sign(void *key, char *data, int datalen, int *siglen)
 {
   struct RSAKey *rsa = (struct RSAKey *)key;
   unsigned char *bytes;
@@ -646,7 +787,7 @@ unsigned char *rsa2_sign(void *key, char *data, int datalen, int *siglen)
   SHA_Simple(data, datalen, hash);
 
   nbytes = (bignum_bitcount(rsa->modulus) - 1) / 8;
-  bytes = smalloc(nbytes);
+  bytes = snewn(nbytes, unsigned char);
 
   bytes[0] = 1;
   for (i = 1; i < nbytes - 20 - ASN1_LEN; i++)
@@ -659,11 +800,11 @@ unsigned char *rsa2_sign(void *key, char *data, int datalen, int *siglen)
   in = bignum_from_bytes(bytes, nbytes);
   sfree(bytes);
 
-  out = modpow(in, rsa->private_exponent, rsa->modulus);
+  out = rsa_privkey_op(in, rsa);
   freebn(in);
 
   nbytes = (bignum_bitcount(out) + 7) / 8;
-  bytes = smalloc(4 + 7 + 4 + nbytes);
+  bytes = snewn(4 + 7 + 4 + nbytes, unsigned char);
   PUT_32BIT(bytes, 7);
   memcpy(bytes + 4, "ssh-rsa", 7);
   PUT_32BIT(bytes + 4 + 7, nbytes);
@@ -683,6 +824,7 @@ const struct ssh_signkey ssh_rsa = {rsa2_newkey,
                                     rsa2_createkey,
                                     rsa2_openssh_createkey,
                                     rsa2_openssh_fmtkey,
+                                    rsa2_pubkey_bits,
                                     rsa2_fingerprint,
                                     rsa2_verifysig,
                                     rsa2_sign,

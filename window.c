@@ -1,23 +1,3 @@
-#include <windows.h>
-#include <imm.h>
-#include <commctrl.h>
-#include <richedit.h>
-#include <mmsystem.h>
-#ifndef AUTO_WINSOCK
-#ifdef WINSOCK_TWO
-#include <winsock2.h>
-#else
-#include <winsock.h>
-#endif
-#endif
-
-#ifndef NO_MULTIMON
-#if WINVER < 0x0500
-#define COMPILE_MULTIMON_STUBS
-#include <multimon.h>
-#endif
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -26,9 +6,21 @@
 
 #define PUTTY_DO_GLOBALS /* actually _define_ globals */
 #include "putty.h"
-#include "winstuff.h"
+#include "terminal.h"
 #include "storage.h"
 #include "win_res.h"
+
+#ifndef NO_MULTIMON
+#if WINVER < 0x0500
+#define COMPILE_MULTIMON_STUBS
+#include <multimon.h>
+#endif
+#endif
+
+#include <imm.h>
+#include <commctrl.h>
+#include <richedit.h>
+#include <mmsystem.h>
 
 #define IDM_SHOWLOG 0x0010
 #define IDM_NEWSESS 0x0020
@@ -36,33 +28,26 @@
 #define IDM_RECONF 0x0040
 #define IDM_CLRSB 0x0050
 #define IDM_RESET 0x0060
-#define IDM_TEL_AYT 0x0070
-#define IDM_TEL_BRK 0x0080
-#define IDM_TEL_SYNCH 0x0090
-#define IDM_TEL_EC 0x00a0
-#define IDM_TEL_EL 0x00b0
-#define IDM_TEL_GA 0x00c0
-#define IDM_TEL_NOP 0x00d0
-#define IDM_TEL_ABORT 0x00e0
-#define IDM_TEL_AO 0x00f0
-#define IDM_TEL_IP 0x0100
-#define IDM_TEL_SUSP 0x0110
-#define IDM_TEL_EOR 0x0120
-#define IDM_TEL_EOF 0x0130
 #define IDM_HELP 0x0140
 #define IDM_ABOUT 0x0150
 #define IDM_SAVEDSESS 0x0160
 #define IDM_COPYALL 0x0170
 #define IDM_FULLSCREEN 0x0180
+#define IDM_PASTE 0x0190
 
 #define IDM_SESSLGP 0x0250 /* log type printable */
 #define IDM_SESSLGA 0x0260 /* log type all chars */
 #define IDM_SESSLGE 0x0270 /* log end */
+
+#define IDM_SPECIAL_MIN 0x0400
+#define IDM_SPECIAL_MAX 0x0800
+
 #define IDM_SAVED_MIN 0x1000
 #define IDM_SAVED_MAX 0x2000
 
 #define WM_IGNORE_CLIP (WM_XUSER + 2)
 #define WM_FULLSCR_ON_MAX (WM_XUSER + 3)
+#define WM_AGENT_CALLBACK (WM_XUSER + 4)
 
 /* Needed for Chinese support and apparently not always defined. */
 #ifndef VK_PROCESSKEY
@@ -77,18 +62,19 @@
 #define WHEEL_DELTA 120
 #endif
 
+static Mouse_Button translate_button(Mouse_Button button);
 static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 static int TranslateKey(UINT message,
                         WPARAM wParam,
                         LPARAM lParam,
                         unsigned char *output);
 static void cfgtopalette(void);
+static void systopalette(void);
 static void init_palette(void);
 static void init_fonts(int, int);
 static void another_font(int);
 static void deinit_fonts(void);
 static void set_input_locale(HKL);
-static int do_mouse_wheel_msg(UINT message, WPARAM wParam, LPARAM lParam);
 
 static int is_full_screen(void);
 static void make_full_screen(void);
@@ -109,11 +95,44 @@ static LPARAM pend_netevent_lParam = 0;
 static void enact_pending_netevent(void);
 static void flash_window(int mode);
 static void sys_cursor_update(void);
+static int is_shift_pressed(void);
 static int get_fullscreen_rect(RECT *ss);
 
 static time_t last_movement = 0;
 
 static int caret_x = -1, caret_y = -1;
+
+static int kbd_codepage;
+
+static void *ldisc;
+static Backend *back;
+static void *backhandle;
+
+static struct unicode_data ucsdata;
+static int session_closed;
+
+static const struct telnet_special *specials;
+
+static struct {
+  HMENU menu;
+  int specials_submenu_pos;
+} popup_menus[2];
+enum
+{
+  SYSMENU,
+  CTXMENU
+};
+
+Config cfg; /* exported to windlg.c */
+
+extern struct sesslist sesslist; /* imported from windlg.c */
+
+struct agent_callback {
+  void (*callback)(void *, void *, int);
+  void *callback_ctx;
+  void *data;
+  int len;
+};
 
 #define FONT_NORMAL 0
 #define FONT_BOLD 1
@@ -158,22 +177,15 @@ static char *window_name, *icon_name;
 
 static int compose_state = 0;
 
-static int wsa_started = 0;
-
-static OSVERSIONINFO osVersion;
-
 static UINT wm_mousewheel = WM_MOUSEWHEEL;
 
 /* Dummy routine, only required in plink. */
-void ldisc_update(int echo, int edit)
+void ldisc_update(void *frontend, int echo, int edit)
 {
 }
 
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
-  static char appname[] = "PuTTY";
-  WORD winsock_ver;
-  WSADATA wsadata;
   WNDCLASS wndclass;
   MSG msg;
   int guess_width, guess_height;
@@ -181,24 +193,6 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   hinst = inst;
   flags = FLAG_VERBOSE | FLAG_INTERACTIVE;
 
-  winsock_ver = MAKEWORD(1, 1);
-  if (WSAStartup(winsock_ver, &wsadata)) {
-    MessageBox(NULL,
-               "Unable to initialise WinSock",
-               "WinSock Error",
-               MB_OK | MB_ICONEXCLAMATION);
-    return 1;
-  }
-  if (LOBYTE(wsadata.wVersion) != 1 || HIBYTE(wsadata.wVersion) != 1) {
-    MessageBox(NULL,
-               "WinSock version is incompatible with 1.1",
-               "WinSock Error",
-               MB_OK | MB_ICONEXCLAMATION);
-    WSACleanup();
-    return 1;
-  }
-  wsa_started = 1;
-  /* WISHLIST: maybe allow config tweaking even if winsock not present? */
   sk_init();
 
   InitCommonControls();
@@ -207,16 +201,14 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
    * config box. */
   defuse_showwindow();
 
-  {
-    ZeroMemory(&osVersion, sizeof(osVersion));
-    osVersion.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    if (!GetVersionEx((OSVERSIONINFO *)&osVersion)) {
-      MessageBox(NULL,
-                 "Windows refuses to report a version",
-                 "PuTTY Fatal Error",
-                 MB_OK | MB_ICONEXCLAMATION);
-      return 1;
-    }
+  if (!init_winver()) {
+    char *str = dupprintf("%s Fatal Error", appname);
+    MessageBox(NULL,
+               "Windows refuses to report a version",
+               str,
+               MB_OK | MB_ICONEXCLAMATION);
+    sfree(str);
+    return 1;
   }
 
   /*
@@ -264,8 +256,17 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     char *p;
     int got_host = 0;
 
-    default_protocol = DEFAULT_PROTOCOL;
-    default_port = DEFAULT_PORT;
+    default_protocol = be_default_protocol;
+    /* Find the appropriate default port. */
+    {
+      int i;
+      default_port = 0; /* illegal */
+      for (i = 0; backends[i].backend != NULL; i++)
+        if (backends[i].protocol == default_protocol) {
+          default_port = backends[i].backend->default_port;
+          break;
+        }
+    }
     cfg.logtype = LGTYP_NONE;
 
     do_defaults(NULL, &cfg);
@@ -288,8 +289,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
       p[i] = '\0';
       do_defaults(p + 1, &cfg);
       if (!*cfg.host && !do_config()) {
-        WSACleanup();
-        return 0;
+        cleanup_exit(0);
       }
     } else if (*p == '&') {
       /*
@@ -307,8 +307,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
         UnmapViewOfFile(cp);
         CloseHandle(filemap);
       } else if (!do_config()) {
-        WSACleanup();
-        return 0;
+        cleanup_exit(0);
       }
     } else {
       /*
@@ -324,7 +323,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
         char *p = argv[i];
         int ret;
 
-        ret = cmdline_process_param(p, i + 1 < argc ? argv[i + 1] : NULL, 1);
+        ret = cmdline_process_param(
+            p, i + 1 < argc ? argv[i + 1] : NULL, 1, &cfg);
         if (ret == -2) {
           cmdline_error("option \"%s\" requires an argument", p);
         } else if (ret == 2) {
@@ -337,18 +337,21 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
            * entries associated with PuTTY, and also find
            * and delete the random seed file.
            */
-          if (MessageBox(NULL,
-                         "This procedure will remove ALL Registry\n"
-                         "entries associated with PuTTY, and will\n"
-                         "also remove the PuTTY random seed file.\n"
+          char *s1, *s2;
+          s1 = dupprintf("This procedure will remove ALL Registry\n"
+                         "entries associated with %s, and will\n"
+                         "also remove the random seed file.\n"
                          "\n"
                          "THIS PROCESS WILL DESTROY YOUR SAVED\n"
                          "SESSIONS. Are you really sure you want\n"
                          "to continue?",
-                         "PuTTY Warning",
-                         MB_YESNO | MB_ICONWARNING) == IDYES) {
+                         appname);
+          s2 = dupprintf("%s Warning", appname);
+          if (MessageBox(NULL, s1, s2, MB_YESNO | MB_ICONWARNING) == IDYES) {
             cleanup_all();
           }
+          sfree(s1);
+          sfree(s2);
           exit(0);
         } else if (*p != '-') {
           char *q = p;
@@ -360,7 +363,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
              * argument, so that it will be deferred
              * until it's a good moment to run it.
              */
-            int ret = cmdline_process_param("-P", p, 1);
+            int ret = cmdline_process_param("-P", p, 1, &cfg);
             assert(ret == 2);
           } else if (!strncmp(q, "telnet:", 7)) {
             /*
@@ -400,15 +403,16 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
             cfg.host[sizeof(cfg.host) - 1] = '\0';
             got_host = 1;
           }
+        } else {
+          cmdline_error("unknown option \"%s\"", p);
         }
       }
     }
 
-    cmdline_run_saved();
+    cmdline_run_saved(&cfg);
 
     if (!*cfg.host && !do_config()) {
-      WSACleanup();
-      return 0;
+      cleanup_exit(0);
     }
 
     /*
@@ -436,6 +440,21 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
      * Trim a colon suffix off the hostname if it's there.
      */
     cfg.host[strcspn(cfg.host, ":")] = '\0';
+
+    /*
+     * Remove any remaining whitespace from the hostname.
+     */
+    {
+      int p1 = 0, p2 = 0;
+      while (cfg.host[p2] != '\0') {
+        if (cfg.host[p2] != ' ' && cfg.host[p2] != '\t') {
+          cfg.host[p1] = cfg.host[p2];
+          p1++;
+        }
+        p2++;
+      }
+      cfg.host[p1] = '\0';
+    }
   }
 
   /*
@@ -451,23 +470,22 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
         break;
       }
     if (back == NULL) {
+      char *str = dupprintf("%s Internal Error", appname);
       MessageBox(NULL,
                  "Unsupported protocol number found",
-                 "PuTTY Internal Error",
+                 str,
                  MB_OK | MB_ICONEXCLAMATION);
-      WSACleanup();
-      return 1;
+      sfree(str);
+      cleanup_exit(1);
     }
   }
 
   /* Check for invalid Port number (i.e. zero) */
   if (cfg.port == 0) {
-    MessageBox(NULL,
-               "Invalid Port Number",
-               "PuTTY Internal Error",
-               MB_OK | MB_ICONEXCLAMATION);
-    WSACleanup();
-    return 1;
+    char *str = dupprintf("%s Internal Error", appname);
+    MessageBox(NULL, "Invalid Port Number", str, MB_OK | MB_ICONEXCLAMATION);
+    sfree(str);
+    cleanup_exit(1);
   }
 
   if (!prev) {
@@ -487,8 +505,11 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
   hwnd = NULL;
 
-  savelines = cfg.savelines;
-  term_init();
+  memset(&ucsdata, 0, sizeof(ucsdata));
+
+  term = term_init(&cfg, &ucsdata, NULL);
+  logctx = log_init(NULL, &cfg);
+  term_provide_logctx(term, logctx);
 
   cfgtopalette();
 
@@ -503,9 +524,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   font_height = 20;
   extra_width = 25;
   extra_height = 28;
-  term_size(cfg.height, cfg.width, cfg.savelines);
-  guess_width = extra_width + font_width * cols;
-  guess_height = extra_height + font_height * rows;
+  term_size(term, cfg.height, cfg.width, cfg.savelines);
+  guess_width = extra_width + font_width * term->cols;
+  guess_height = extra_height + font_height * term->rows;
   {
     RECT r;
     get_fullscreen_rect(&r);
@@ -562,8 +583,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
    * Resize the window, now we know what size we _really_ want it
    * to be.
    */
-  guess_width = extra_width + font_width * cols;
-  guess_height = extra_height + font_height * rows;
+  guess_width = extra_width + font_width * term->cols;
+  guess_height = extra_height + font_height * term->rows;
   SetWindowPos(hwnd,
                NULL,
                0,
@@ -578,7 +599,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   {
     char *bits;
     int size = (font_width + 15) / 16 * 2 * font_height;
-    bits = smalloc(size);
+    bits = snewn(size, char);
     memset(bits, 0, size);
     caretbm = CreateBitmap(font_width, font_height, 1, 1, bits);
     sfree(bits);
@@ -594,8 +615,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     si.cbSize = sizeof(si);
     si.fMask = SIF_ALL | SIF_DISABLENOSCROLL;
     si.nMin = 0;
-    si.nMax = rows - 1;
-    si.nPage = rows;
+    si.nMax = term->rows - 1;
+    si.nPage = term->rows;
     si.nPos = 0;
     SetScrollInfo(hwnd, SB_VERT, &si, FALSE);
   }
@@ -604,32 +625,51 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
    * Start up the telnet connection.
    */
   {
-    char *error;
+    const char *error;
     char msg[1024], *title;
     char *realhost;
 
-    error = back->init(cfg.host, cfg.port, &realhost, cfg.tcp_nodelay);
+    error = back->init(NULL,
+                       &backhandle,
+                       &cfg,
+                       cfg.host,
+                       cfg.port,
+                       &realhost,
+                       cfg.tcp_nodelay);
+    back->provide_logctx(backhandle, logctx);
     if (error) {
+      char *str = dupprintf("%s Error", appname);
       sprintf(msg,
               "Unable to open connection to\n"
               "%.800s\n"
               "%s",
               cfg.host,
               error);
-      MessageBox(NULL, msg, "PuTTY Error", MB_ICONERROR | MB_OK);
+      MessageBox(NULL, msg, str, MB_ICONERROR | MB_OK);
+      sfree(str);
       return 0;
     }
     window_name = icon_name = NULL;
     if (*cfg.wintitle) {
       title = cfg.wintitle;
     } else {
-      sprintf(msg, "%s - PuTTY", realhost);
+      sprintf(msg, "%s - %s", realhost, appname);
       title = msg;
     }
     sfree(realhost);
-    set_title(title);
-    set_icon(title);
+    set_title(NULL, title);
+    set_icon(NULL, title);
   }
+
+  /*
+   * Connect the terminal to the backend for resize purposes.
+   */
+  term_provide_resize_fn(term, back->size, backhandle);
+
+  /*
+   * Set up a line discipline.
+   */
+  ldisc = ldisc_create(&cfg, term, back, backhandle, NULL);
 
   session_closed = FALSE;
 
@@ -644,56 +684,51 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
    * Set up the session-control options on the system menu.
    */
   {
-    HMENU m = GetSystemMenu(hwnd, FALSE);
-    HMENU p, s;
-    int i;
+    HMENU s, m;
+    int i, j;
+    char *str;
 
-    AppendMenu(m, MF_SEPARATOR, 0, 0);
-    if (cfg.protocol == PROT_TELNET) {
-      p = CreateMenu();
-      AppendMenu(p, MF_ENABLED, IDM_TEL_AYT, "Are You There");
-      AppendMenu(p, MF_ENABLED, IDM_TEL_BRK, "Break");
-      AppendMenu(p, MF_ENABLED, IDM_TEL_SYNCH, "Synch");
-      AppendMenu(p, MF_SEPARATOR, 0, 0);
-      AppendMenu(p, MF_ENABLED, IDM_TEL_EC, "Erase Character");
-      AppendMenu(p, MF_ENABLED, IDM_TEL_EL, "Erase Line");
-      AppendMenu(p, MF_ENABLED, IDM_TEL_GA, "Go Ahead");
-      AppendMenu(p, MF_ENABLED, IDM_TEL_NOP, "No Operation");
-      AppendMenu(p, MF_SEPARATOR, 0, 0);
-      AppendMenu(p, MF_ENABLED, IDM_TEL_ABORT, "Abort Process");
-      AppendMenu(p, MF_ENABLED, IDM_TEL_AO, "Abort Output");
-      AppendMenu(p, MF_ENABLED, IDM_TEL_IP, "Interrupt Process");
-      AppendMenu(p, MF_ENABLED, IDM_TEL_SUSP, "Suspend Process");
-      AppendMenu(p, MF_SEPARATOR, 0, 0);
-      AppendMenu(p, MF_ENABLED, IDM_TEL_EOR, "End Of Record");
-      AppendMenu(p, MF_ENABLED, IDM_TEL_EOF, "End Of File");
-      AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT)p, "Telnet Command");
-      AppendMenu(m, MF_SEPARATOR, 0, 0);
-    }
-    AppendMenu(m, MF_ENABLED, IDM_SHOWLOG, "&Event Log");
-    AppendMenu(m, MF_SEPARATOR, 0, 0);
-    AppendMenu(m, MF_ENABLED, IDM_NEWSESS, "Ne&w Session...");
-    AppendMenu(m, MF_ENABLED, IDM_DUPSESS, "&Duplicate Session");
+    popup_menus[SYSMENU].menu = GetSystemMenu(hwnd, FALSE);
+    popup_menus[CTXMENU].menu = CreatePopupMenu();
+    AppendMenu(popup_menus[CTXMENU].menu, MF_ENABLED, IDM_PASTE, "&Paste");
+
     s = CreateMenu();
-    get_sesslist(TRUE);
-    for (i = 1; i < ((nsessions < 256) ? nsessions : 256); i++)
-      AppendMenu(s, MF_ENABLED, IDM_SAVED_MIN + (16 * i), sessions[i]);
-    AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT)s, "Sa&ved Sessions");
-    AppendMenu(m, MF_ENABLED, IDM_RECONF, "Chan&ge Settings...");
-    AppendMenu(m, MF_SEPARATOR, 0, 0);
-    AppendMenu(m, MF_ENABLED, IDM_COPYALL, "C&opy All to Clipboard");
-    AppendMenu(m, MF_ENABLED, IDM_CLRSB, "C&lear Scrollback");
-    AppendMenu(m, MF_ENABLED, IDM_RESET, "Rese&t Terminal");
-    AppendMenu(m, MF_SEPARATOR, 0, 0);
-    AppendMenu(m,
-               (cfg.resize_action == RESIZE_DISABLED) ? MF_GRAYED : MF_ENABLED,
-               IDM_FULLSCREEN,
-               "&Full Screen");
-    AppendMenu(m, MF_SEPARATOR, 0, 0);
-    if (help_path)
-      AppendMenu(m, MF_ENABLED, IDM_HELP, "&Help");
-    AppendMenu(m, MF_ENABLED, IDM_ABOUT, "&About PuTTY");
+    get_sesslist(&sesslist, TRUE);
+    for (i = 1; i < ((sesslist.nsessions < 256) ? sesslist.nsessions : 256);
+         i++)
+      AppendMenu(s, MF_ENABLED, IDM_SAVED_MIN + (16 * i), sesslist.sessions[i]);
+
+    for (j = 0; j < lenof(popup_menus); j++) {
+      m = popup_menus[j].menu;
+
+      AppendMenu(m, MF_SEPARATOR, 0, 0);
+      popup_menus[j].specials_submenu_pos = GetMenuItemCount(m);
+      AppendMenu(m, MF_ENABLED, IDM_SHOWLOG, "&Event Log");
+      AppendMenu(m, MF_SEPARATOR, 0, 0);
+      AppendMenu(m, MF_ENABLED, IDM_NEWSESS, "Ne&w Session...");
+      AppendMenu(m, MF_ENABLED, IDM_DUPSESS, "&Duplicate Session");
+      AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT)s, "Sa&ved Sessions");
+      AppendMenu(m, MF_ENABLED, IDM_RECONF, "Chan&ge Settings...");
+      AppendMenu(m, MF_SEPARATOR, 0, 0);
+      AppendMenu(m, MF_ENABLED, IDM_COPYALL, "C&opy All to Clipboard");
+      AppendMenu(m, MF_ENABLED, IDM_CLRSB, "C&lear Scrollback");
+      AppendMenu(m, MF_ENABLED, IDM_RESET, "Rese&t Terminal");
+      AppendMenu(m, MF_SEPARATOR, 0, 0);
+      AppendMenu(m,
+                 (cfg.resize_action == RESIZE_DISABLED) ? MF_GRAYED
+                                                        : MF_ENABLED,
+                 IDM_FULLSCREEN,
+                 "&Full Screen");
+      AppendMenu(m, MF_SEPARATOR, 0, 0);
+      if (help_path)
+        AppendMenu(m, MF_ENABLED, IDM_HELP, "&Help");
+      str = dupprintf("&About %s", appname);
+      AppendMenu(m, MF_ENABLED, IDM_ABOUT, str);
+      sfree(str);
+    }
   }
+
+  update_specials_menu(NULL);
 
   /*
    * Set up the initial input locale.
@@ -703,7 +738,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   /*
    * Open the initial log file if there is one.
    */
-  logfopen();
+  logfopen(logctx);
 
   /*
    * Finally show the window!
@@ -718,7 +753,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   logpal = NULL;
   init_palette();
 
-  has_focus = (GetForegroundWindow() == hwnd);
+  term->has_focus = (GetForegroundWindow() == hwnd);
   UpdateWindow(hwnd);
 
   if (GetMessage(&msg, NULL, 0, 0) == 1) {
@@ -741,10 +776,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
         DispatchMessage(&msg);
 
       /* Make sure we blink everything that needs it. */
-      term_blink(0);
+      term_blink(term, 0);
 
       /* Send the paste buffer if there's anything to send */
-      term_paste();
+      term_paste(term);
 
       /* If there's nothing new in the queue then we can do everything
        * we've delayed, reading the socket, writing, and repainting
@@ -755,9 +790,6 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
       if (pending_netevent) {
         enact_pending_netevent();
-
-        /* Force the cursor blink on */
-        term_blink(1);
 
         if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
           continue;
@@ -774,19 +806,19 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
       HideCaret(hwnd);
       if (GetCapture() != hwnd ||
           (send_raw_mouse && !(cfg.mouse_override && is_shift_pressed())))
-        term_out();
-      term_update();
+        term_out(term);
+      term_update(term);
       ShowCaret(hwnd);
 
       flash_window(1); /* maintain */
 
       /* The messages seem unreliable; especially if we're being tricky */
-      has_focus = (GetForegroundWindow() == hwnd);
+      term->has_focus = (GetForegroundWindow() == hwnd);
 
-      if (in_vbell)
+      if (term->in_vbell)
         /* Hmm, term_update didn't want to do an update too soon ... */
         timer_id = SetTimer(hwnd, 1, 50, NULL);
-      else if (!has_focus)
+      else if (!term->has_focus)
         timer_id = SetTimer(hwnd, 1, 500, NULL);
       else
         timer_id = SetTimer(hwnd, 1, 100, NULL);
@@ -818,8 +850,6 @@ void cleanup_exit(int code)
   if (pal)
     DeleteObject(pal);
   sk_cleanup();
-  if (wsa_started)
-    WSACleanup();
 
   if (cfg.protocol == PROT_SSH) {
     random_save_seed();
@@ -845,8 +875,8 @@ char *do_select(SOCKET skt, int startup)
   }
   if (!hwnd)
     return "do_select(): internal error (hwnd==NULL)";
-  if (WSAAsyncSelect(skt, hwnd, msg, events) == SOCKET_ERROR) {
-    switch (WSAGetLastError()) {
+  if (p_WSAAsyncSelect(skt, hwnd, msg, events) == SOCKET_ERROR) {
+    switch (p_WSAGetLastError()) {
     case WSAENETDOWN:
       return "Network is down";
     default:
@@ -857,9 +887,48 @@ char *do_select(SOCKET skt, int startup)
 }
 
 /*
+ * Update the Special Commands submenu.
+ */
+void update_specials_menu(void *frontend)
+{
+  HMENU m = GetSystemMenu(hwnd, FALSE);
+  int menu_already_exists = (specials != NULL);
+  int i, j;
+
+  specials = back->get_specials(backhandle);
+  if (specials) {
+    HMENU p = CreateMenu();
+    for (i = 0; specials[i].name; i++) {
+      assert(IDM_SPECIAL_MIN + 0x10 * i < IDM_SPECIAL_MAX);
+      if (*specials[i].name)
+        AppendMenu(p, MF_ENABLED, IDM_SPECIAL_MIN + 0x10 * i, specials[i].name);
+      else
+        AppendMenu(p, MF_SEPARATOR, 0, 0);
+    }
+    for (j = 0; j < lenof(popup_menus); j++) {
+      if (menu_already_exists)
+        DeleteMenu(popup_menus[j].menu,
+                   popup_menus[j].specials_submenu_pos,
+                   MF_BYPOSITION);
+      else
+        InsertMenu(popup_menus[j].menu,
+                   popup_menus[j].specials_submenu_pos,
+                   MF_BYPOSITION | MF_SEPARATOR,
+                   0,
+                   0);
+      InsertMenu(popup_menus[j].menu,
+                 popup_menus[j].specials_submenu_pos,
+                 MF_BYPOSITION | MF_POPUP | MF_ENABLED,
+                 (UINT)p,
+                 "Special Command");
+    }
+  }
+}
+
+/*
  * set or clear the "raw mouse message" mode
  */
-void set_raw_mouse_mode(int activate)
+void set_raw_mouse_mode(void *frontend, int activate)
 {
   activate = activate && !cfg.no_mouse_rep;
   send_raw_mouse = activate;
@@ -869,20 +938,25 @@ void set_raw_mouse_mode(int activate)
 /*
  * Print a message box and close the connection.
  */
-void connection_fatal(char *fmt, ...)
+void connection_fatal(void *frontend, char *fmt, ...)
 {
   va_list ap;
-  char stuff[200];
+  char *stuff, morestuff[100];
 
   va_start(ap, fmt);
-  vsprintf(stuff, fmt, ap);
+  stuff = dupvprintf(fmt, ap);
   va_end(ap);
-  MessageBox(hwnd, stuff, "PuTTY Fatal Error", MB_ICONERROR | MB_OK);
-  if (cfg.close_on_exit == COE_ALWAYS)
+  sprintf(morestuff, "%.70s Fatal Error", appname);
+  MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
+  sfree(stuff);
+
+  if (cfg.close_on_exit == FORCE_ON)
     PostQuitMessage(1);
   else {
     session_closed = TRUE;
-    SetWindowText(hwnd, "PuTTY (inactive)");
+    sprintf(morestuff, "%.70s (inactive)", appname);
+    set_icon(NULL, morestuff);
+    set_title(NULL, morestuff);
   }
 }
 
@@ -892,12 +966,14 @@ void connection_fatal(char *fmt, ...)
 void cmdline_error(char *fmt, ...)
 {
   va_list ap;
-  char stuff[200];
+  char *stuff, morestuff[100];
 
   va_start(ap, fmt);
-  vsprintf(stuff, fmt, ap);
+  stuff = dupvprintf(fmt, ap);
   va_end(ap);
-  MessageBox(hwnd, stuff, "PuTTY Command Line Error", MB_ICONERROR | MB_OK);
+  sprintf(morestuff, "%.70s Command Line Error", appname);
+  MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
+  sfree(stuff);
   exit(1);
 }
 
@@ -922,14 +998,17 @@ static void enact_pending_netevent(void)
   if (ret == 0 && !session_closed) {
     /* Abnormal exits will already have set session_closed and taken
      * appropriate action. */
-    if (cfg.close_on_exit == COE_ALWAYS || cfg.close_on_exit == COE_NORMAL)
+    if (cfg.close_on_exit == FORCE_ON || cfg.close_on_exit == AUTO)
       PostQuitMessage(0);
     else {
+      char morestuff[100];
       session_closed = TRUE;
-      SetWindowText(hwnd, "PuTTY (inactive)");
+      sprintf(morestuff, "%.70s (inactive)", appname);
+      set_icon(NULL, morestuff);
+      set_title(NULL, morestuff);
       MessageBox(hwnd,
                  "Connection closed by remote host",
-                 "PuTTY",
+                 appname,
                  MB_OK | MB_ICONINFORMATION);
     }
   }
@@ -951,6 +1030,41 @@ static void cfgtopalette(void)
     defpal[i].rgbtGreen = cfg.colours[w][1];
     defpal[i].rgbtBlue = cfg.colours[w][2];
   }
+
+  /* Override with system colours if appropriate */
+  if (cfg.system_colour)
+    systopalette();
+}
+
+/*
+ * Override bit of defpal with colours from the system.
+ * (NB that this takes a copy the system colours at the time this is called,
+ * so subsequent colour scheme changes don't take effect. To fix that we'd
+ * probably want to be using GetSysColorBrush() and the like.)
+ */
+static void systopalette(void)
+{
+  int i;
+  static const struct {
+    int nIndex;
+    int norm;
+    int bold;
+  } or [] = {
+      {COLOR_WINDOWTEXT, 16, 17},    /* Default Foreground */
+      {COLOR_WINDOW, 18, 19},        /* Default Background */
+      {COLOR_HIGHLIGHTTEXT, 20, 21}, /* Cursor Text */
+      {COLOR_HIGHLIGHT, 22, 23},     /* Cursor Colour */
+  };
+
+  for (i = 0; i < (sizeof(or) / sizeof(or [0])); i++) {
+    COLORREF colour = GetSysColor(or [i].nIndex);
+    defpal[or [i].norm].rgbtRed = defpal[or [i].bold].rgbtRed =
+        GetRValue(colour);
+    defpal[or [i].norm].rgbtGreen = defpal[or [i].bold].rgbtGreen =
+        GetGValue(colour);
+    defpal[or [i].norm].rgbtBlue = defpal[or [i].bold].rgbtBlue =
+        GetBValue(colour);
+  }
 }
 
 /*
@@ -962,6 +1076,10 @@ static void init_palette(void)
   HDC hdc = GetDC(hwnd);
   if (hdc) {
     if (cfg.try_palette && GetDeviceCaps(hdc, RASTERCAPS) & RC_PALETTE) {
+      /*
+       * This is a genuine case where we must use smalloc
+       * because the snew macros can't cope.
+       */
       logpal = smalloc(sizeof(*logpal) - sizeof(logpal->palPalEntry) +
                        NCOLOURS * sizeof(PALETTEENTRY));
       logpal->palVersion = 0x300;
@@ -1023,7 +1141,7 @@ static void init_fonts(int pick_width, int pick_height)
   bold_mode = cfg.bold_colour ? BOLD_COLOURS : BOLD_FONT;
   und_mode = UND_FONT;
 
-  if (cfg.fontisbold) {
+  if (cfg.font.isbold) {
     fw_dontcare = FW_BOLD;
     fw_bold = FW_HEAVY;
   } else {
@@ -1036,7 +1154,7 @@ static void init_fonts(int pick_width, int pick_height)
   if (pick_height)
     font_height = pick_height;
   else {
-    font_height = cfg.fontheight;
+    font_height = cfg.font.height;
     if (font_height > 0) {
       font_height = -MulDiv(font_height, GetDeviceCaps(hdc, LOGPIXELSY), 72);
     }
@@ -1057,9 +1175,9 @@ static void init_fonts(int pick_width, int pick_height)
                         CLIP_DEFAULT_PRECIS,                                   \
                         DEFAULT_QUALITY,                                       \
                         FIXED_PITCH | FF_DONTCARE,                             \
-                        cfg.font)
+                        cfg.font.name)
 
-  f(FONT_NORMAL, cfg.fontcharset, fw_dontcare, FALSE);
+  f(FONT_NORMAL, cfg.font.charset, fw_dontcare, FALSE);
 
   lfont.lfHeight = font_height;
   lfont.lfWidth = font_width;
@@ -1069,12 +1187,12 @@ static void init_fonts(int pick_width, int pick_height)
   lfont.lfItalic = FALSE;
   lfont.lfUnderline = FALSE;
   lfont.lfStrikeOut = FALSE;
-  lfont.lfCharSet = cfg.fontcharset;
+  lfont.lfCharSet = cfg.font.charset;
   lfont.lfOutPrecision = OUT_DEFAULT_PRECIS;
   lfont.lfClipPrecision = CLIP_DEFAULT_PRECIS;
   lfont.lfQuality = DEFAULT_QUALITY;
   lfont.lfPitchAndFamily = FIXED_PITCH | FF_DONTCARE;
-  strncpy(lfont.lfFaceName, cfg.font, LF_FACESIZE);
+  strncpy(lfont.lfFaceName, cfg.font.name, LF_FACESIZE);
 
   SelectObject(hdc, fonts[FONT_NORMAL]);
   GetTextMetrics(hdc, &tm);
@@ -1100,17 +1218,17 @@ static void init_fonts(int pick_width, int pick_height)
 
     /* !!! Yes the next line is right */
     if (cset == OEM_CHARSET)
-      font_codepage = GetOEMCP();
+      ucsdata.font_codepage = GetOEMCP();
     else if (TranslateCharsetInfo((DWORD *)cset, &info, TCI_SRCCHARSET))
-      font_codepage = info.ciACP;
+      ucsdata.font_codepage = info.ciACP;
     else
-      font_codepage = -1;
+      ucsdata.font_codepage = -1;
 
-    GetCPInfo(font_codepage, &cpinfo);
-    dbcs_screenfont = (cpinfo.MaxCharSize > 1);
+    GetCPInfo(ucsdata.font_codepage, &cpinfo);
+    ucsdata.dbcs_screenfont = (cpinfo.MaxCharSize > 1);
   }
 
-  f(FONT_UNDERLINE, cfg.fontcharset, fw_dontcare, TRUE);
+  f(FONT_UNDERLINE, cfg.font.charset, fw_dontcare, TRUE);
 
   /*
    * Some fonts, e.g. 9-pt Courier, draw their underlines
@@ -1161,7 +1279,7 @@ static void init_fonts(int pick_width, int pick_height)
   }
 
   if (bold_mode == BOLD_FONT) {
-    f(FONT_BOLD, cfg.fontcharset, fw_bold, FALSE);
+    f(FONT_BOLD, cfg.font.charset, fw_bold, FALSE);
   }
 #undef f
 
@@ -1194,7 +1312,7 @@ static void init_fonts(int pick_width, int pick_height)
   }
   fontflag[0] = fontflag[1] = fontflag[2] = 1;
 
-  init_ucs_tables();
+  init_ucs(&cfg, &ucsdata);
 }
 
 static void another_font(int fontno)
@@ -1211,7 +1329,7 @@ static void another_font(int fontno)
   if (basefont != fontno && !fontflag[basefont])
     another_font(basefont);
 
-  if (cfg.fontisbold) {
+  if (cfg.font.isbold) {
     fw_dontcare = FW_BOLD;
     fw_bold = FW_HEAVY;
   } else {
@@ -1219,10 +1337,10 @@ static void another_font(int fontno)
     fw_bold = FW_BOLD;
   }
 
-  c = cfg.fontcharset;
+  c = cfg.font.charset;
   w = fw_dontcare;
   u = FALSE;
-  s = cfg.font;
+  s = cfg.font.name;
   x = font_width;
 
   if (fontno & FONT_WIDE)
@@ -1265,7 +1383,7 @@ static void deinit_fonts(void)
   }
 }
 
-void request_resize(int w, int h)
+void request_resize(void *frontend, int w, int h)
 {
   int width, height;
 
@@ -1277,7 +1395,7 @@ void request_resize(int w, int h)
 
   if (cfg.resize_action == RESIZE_DISABLED)
     return;
-  if (h == rows && w == cols)
+  if (h == term->rows && w == term->cols)
     return;
 
   /* Sanity checks ... */
@@ -1308,7 +1426,7 @@ void request_resize(int w, int h)
     }
   }
 
-  term_size(h, w, cfg.savelines);
+  term_size(term, h, w, cfg.savelines);
 
   if (cfg.resize_action != RESIZE_FONT && !IsZoomed(hwnd)) {
     width = extra_width + font_width * w;
@@ -1367,10 +1485,11 @@ static void reset_window(int reinit)
     return;
 
   /* Is the window out of position ? */
-  if (!reinit && (offset_width != (win_width - font_width * cols) / 2 ||
-                  offset_height != (win_height - font_height * rows) / 2)) {
-    offset_width = (win_width - font_width * cols) / 2;
-    offset_height = (win_height - font_height * rows) / 2;
+  if (!reinit &&
+      (offset_width != (win_width - font_width * term->cols) / 2 ||
+       offset_height != (win_height - font_height * term->rows) / 2)) {
+    offset_width = (win_width - font_width * term->cols) / 2;
+    offset_height = (win_height - font_height * term->rows) / 2;
     InvalidateRect(hwnd, NULL, TRUE);
 #ifdef RDB_DEBUG_PATCH
     debug((27, "reset_window() -> Reposition terminal"));
@@ -1386,11 +1505,12 @@ static void reset_window(int reinit)
     extra_height = wr.bottom - wr.top - cr.bottom + cr.top;
 
     if (cfg.resize_action != RESIZE_TERM) {
-      if (font_width != win_width / cols || font_height != win_height / rows) {
+      if (font_width != win_width / term->cols ||
+          font_height != win_height / term->rows) {
         deinit_fonts();
-        init_fonts(win_width / cols, win_height / rows);
-        offset_width = (win_width - font_width * cols) / 2;
-        offset_height = (win_height - font_height * rows) / 2;
+        init_fonts(win_width / term->cols, win_height / term->rows);
+        offset_width = (win_width - font_width * term->cols) / 2;
+        offset_height = (win_height - font_height * term->rows) / 2;
         InvalidateRect(hwnd, NULL, TRUE);
 #ifdef RDB_DEBUG_PATCH
         debug((25,
@@ -1400,14 +1520,17 @@ static void reset_window(int reinit)
 #endif
       }
     } else {
-      if (font_width != win_width / cols || font_height != win_height / rows) {
+      if (font_width != win_width / term->cols ||
+          font_height != win_height / term->rows) {
         /* Our only choice at this point is to change the
          * size of the terminal; Oh well.
          */
-        term_size(
-            win_height / font_height, win_width / font_width, cfg.savelines);
-        offset_width = (win_width - font_width * cols) / 2;
-        offset_height = (win_height - font_height * rows) / 2;
+        term_size(term,
+                  win_height / font_height,
+                  win_width / font_width,
+                  cfg.savelines);
+        offset_width = (win_width - font_width * term->cols) / 2;
+        offset_height = (win_height - font_height * term->rows) / 2;
         InvalidateRect(hwnd, NULL, TRUE);
 #ifdef RDB_DEBUG_PATCH
         debug((27, "reset_window() -> Zoomed term_size"));
@@ -1429,8 +1552,8 @@ static void reset_window(int reinit)
     extra_width = wr.right - wr.left - cr.right + cr.left + offset_width * 2;
     extra_height = wr.bottom - wr.top - cr.bottom + cr.top + offset_height * 2;
 
-    if (win_width != font_width * cols + offset_width * 2 ||
-        win_height != font_height * rows + offset_height * 2) {
+    if (win_width != font_width * term->cols + offset_width * 2 ||
+        win_height != font_height * term->rows + offset_height * 2) {
 
       /* If this is too large windows will resize it to the maximum
        * allowed window size, we will then be back in here and resize
@@ -1440,8 +1563,8 @@ static void reset_window(int reinit)
                    NULL,
                    0,
                    0,
-                   font_width * cols + extra_width,
-                   font_height * rows + extra_height,
+                   font_width * term->cols + extra_width,
+                   font_height * term->rows + extra_height,
                    SWP_NOMOVE | SWP_NOZORDER);
     }
 
@@ -1459,8 +1582,8 @@ static void reset_window(int reinit)
     extra_width = wr.right - wr.left - cr.right + cr.left + offset_width * 2;
     extra_height = wr.bottom - wr.top - cr.bottom + cr.top + offset_height * 2;
 
-    if (win_width != font_width * cols + offset_width * 2 ||
-        win_height != font_height * rows + offset_height * 2) {
+    if (win_width != font_width * term->cols + offset_width * 2 ||
+        win_height != font_height * term->rows + offset_height * 2) {
 
       static RECT ss;
       int width, height;
@@ -1471,13 +1594,13 @@ static void reset_window(int reinit)
       height = (ss.bottom - ss.top - extra_height) / font_height;
 
       /* Grrr too big */
-      if (rows > height || cols > width) {
+      if (term->rows > height || term->cols > width) {
         if (cfg.resize_action == RESIZE_EITHER) {
           /* Make the font the biggest we can */
-          if (cols > width)
-            font_width = (ss.right - ss.left - extra_width) / cols;
-          if (rows > height)
-            font_height = (ss.bottom - ss.top - extra_height) / rows;
+          if (term->cols > width)
+            font_width = (ss.right - ss.left - extra_width) / term->cols;
+          if (term->rows > height)
+            font_height = (ss.bottom - ss.top - extra_height) / term->rows;
 
           deinit_fonts();
           init_fonts(font_width, font_height);
@@ -1485,11 +1608,11 @@ static void reset_window(int reinit)
           width = (ss.right - ss.left - extra_width) / font_width;
           height = (ss.bottom - ss.top - extra_height) / font_height;
         } else {
-          if (height > rows)
-            height = rows;
-          if (width > cols)
-            width = cols;
-          term_size(height, width, cfg.savelines);
+          if (height > term->rows)
+            height = term->rows;
+          if (width > term->cols)
+            width = term->cols;
+          term_size(term, height, width, cfg.savelines);
 #ifdef RDB_DEBUG_PATCH
           debug(
               (27, "reset_window() -> term resize to (%d,%d)", height, width));
@@ -1501,16 +1624,16 @@ static void reset_window(int reinit)
                    NULL,
                    0,
                    0,
-                   font_width * cols + extra_width,
-                   font_height * rows + extra_height,
+                   font_width * term->cols + extra_width,
+                   font_height * term->rows + extra_height,
                    SWP_NOMOVE | SWP_NOZORDER);
 
       InvalidateRect(hwnd, NULL, TRUE);
 #ifdef RDB_DEBUG_PATCH
       debug((27,
              "reset_window() -> window resize to (%d,%d)",
-             font_width * cols + extra_width,
-             font_height * rows + extra_height));
+             font_width * term->cols + extra_width,
+             font_height * term->rows + extra_height));
 #endif
     }
     return;
@@ -1518,14 +1641,14 @@ static void reset_window(int reinit)
 
   /* We're allowed to or must change the font but do we want to ?  */
 
-  if (font_width != (win_width - cfg.window_border * 2) / cols ||
-      font_height != (win_height - cfg.window_border * 2) / rows) {
+  if (font_width != (win_width - cfg.window_border * 2) / term->cols ||
+      font_height != (win_height - cfg.window_border * 2) / term->rows) {
 
     deinit_fonts();
-    init_fonts((win_width - cfg.window_border * 2) / cols,
-               (win_height - cfg.window_border * 2) / rows);
-    offset_width = (win_width - font_width * cols) / 2;
-    offset_height = (win_height - font_height * rows) / 2;
+    init_fonts((win_width - cfg.window_border * 2) / term->cols,
+               (win_height - cfg.window_border * 2) / term->rows);
+    offset_width = (win_width - font_width * term->cols) / 2;
+    offset_height = (win_height - font_height * term->rows) / 2;
 
     extra_width = wr.right - wr.left - cr.right + cr.left + offset_width * 2;
     extra_height = wr.bottom - wr.top - cr.bottom + cr.top + offset_height * 2;
@@ -1555,7 +1678,7 @@ static void click(Mouse_Button b, int x, int y, int shift, int ctrl, int alt)
 
   if (send_raw_mouse && !(cfg.mouse_override && shift)) {
     lastbtn = MBT_NOTHING;
-    term_mouse(b, MA_CLICK, x, y, shift, ctrl, alt);
+    term_mouse(term, b, translate_button(b), MA_CLICK, x, y, shift, ctrl, alt);
     return;
   }
 
@@ -1570,7 +1693,7 @@ static void click(Mouse_Button b, int x, int y, int shift, int ctrl, int alt)
     lastact = MA_CLICK;
   }
   if (lastact != MA_NOTHING)
-    term_mouse(b, lastact, x, y, shift, ctrl, alt);
+    term_mouse(term, b, translate_button(b), lastact, x, y, shift, ctrl, alt);
   lasttime = thistime;
 }
 
@@ -1578,14 +1701,14 @@ static void click(Mouse_Button b, int x, int y, int shift, int ctrl, int alt)
  * Translate a raw mouse button designation (LEFT, MIDDLE, RIGHT)
  * into a cooked one (SELECT, EXTEND, PASTE).
  */
-Mouse_Button translate_button(Mouse_Button button)
+static Mouse_Button translate_button(Mouse_Button button)
 {
   if (button == MBT_LEFT)
     return MBT_SELECT;
   if (button == MBT_MIDDLE)
-    return cfg.mouse_is_xterm ? MBT_PASTE : MBT_EXTEND;
+    return cfg.mouse_is_xterm == 1 ? MBT_PASTE : MBT_EXTEND;
   if (button == MBT_RIGHT)
-    return cfg.mouse_is_xterm ? MBT_EXTEND : MBT_PASTE;
+    return cfg.mouse_is_xterm == 1 ? MBT_EXTEND : MBT_PASTE;
   return 0; /* shouldn't happen */
 }
 
@@ -1643,16 +1766,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       enact_pending_netevent();
     if (GetCapture() != hwnd ||
         (send_raw_mouse && !(cfg.mouse_override && is_shift_pressed())))
-      term_out();
+      term_out(term);
     noise_regular();
     HideCaret(hwnd);
-    term_update();
+    term_update(term);
     ShowCaret(hwnd);
     if (cfg.ping_interval > 0) {
       time_t now;
       time(&now);
       if (now - last_movement > cfg.ping_interval) {
-        back->special(TS_PING);
+        back->special(backhandle, TS_PING);
         last_movement = now;
       }
     }
@@ -1660,19 +1783,24 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     return 0;
   case WM_CREATE:
     break;
-  case WM_CLOSE:
+  case WM_CLOSE: {
+    char *str;
     show_mouseptr(1);
+    str = dupprintf("%s Exit Confirmation", appname);
     if (!cfg.warn_on_close || session_closed ||
         MessageBox(hwnd,
                    "Are you sure you want to close this session?",
-                   "PuTTY Exit Confirmation",
+                   str,
                    MB_ICONWARNING | MB_OKCANCEL) == IDOK)
       DestroyWindow(hwnd);
+    sfree(str);
+  }
     return 0;
   case WM_DESTROY:
     show_mouseptr(1);
     PostQuitMessage(0);
     return 0;
+  case WM_COMMAND:
   case WM_SYSCOMMAND:
     switch (wParam & ~0xF) { /* low 4 bits reserved to Windows */
     case IDM_SHOWLOG:
@@ -1712,9 +1840,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
         sprintf(c, "putty &%p", filemap);
         cl = c;
       } else if (wParam == IDM_SAVEDSESS) {
-        if ((lParam - IDM_SAVED_MIN) / 16 < nsessions) {
-          char *session = sessions[(lParam - IDM_SAVED_MIN) / 16];
-          cl = smalloc(16 + strlen(session));
+        if ((lParam - IDM_SAVED_MIN) / 16 < sesslist.nsessions) {
+          char *session = sesslist.sessions[(lParam - IDM_SAVED_MIN) / 16];
+          cl = snewn(16 + strlen(session), char);
           /* 8, but play safe */
           if (!cl)
             cl = NULL;
@@ -1768,18 +1896,15 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
         }
       }
 
-      if (strcmp(prev_cfg.logfilename, cfg.logfilename) ||
-          prev_cfg.logtype != cfg.logtype) {
-        logfclose(); /* reset logging */
-        logfopen();
-      }
+      /* Pass new config data to the logging module */
+      log_reconfig(logctx, &cfg);
 
       sfree(logpal);
       /*
        * Flush the line discipline's edit buffer in the
        * case where local editing has just been disabled.
        */
-      ldisc_send(NULL, 0, 0);
+      ldisc_send(ldisc, NULL, 0, 0);
       if (pal)
         DeleteObject(pal);
       logpal = NULL;
@@ -1787,8 +1912,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       cfgtopalette();
       init_palette();
 
-      /* Give terminal a heads-up on miscellaneous stuff */
-      term_reconfig();
+      /* Pass new config data to the terminal */
+      term_reconfig(term, &cfg);
+
+      /* Pass new config data to the back end */
+      back->reconfig(backhandle, &cfg);
 
       /* Screen size changed ? */
       if (cfg.height != prev_cfg.height || cfg.width != prev_cfg.width ||
@@ -1796,7 +1924,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
           cfg.resize_action == RESIZE_FONT ||
           (cfg.resize_action == RESIZE_EITHER && IsZoomed(hwnd)) ||
           cfg.resize_action == RESIZE_DISABLED)
-        term_size(cfg.height, cfg.width, cfg.savelines);
+        term_size(term, cfg.height, cfg.width, cfg.savelines);
 
       /* Enable or disable the scroll bar, etc */
       {
@@ -1861,16 +1989,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
         init_lvl = 2;
       }
 
-      set_title(cfg.wintitle);
+      set_title(NULL, cfg.wintitle);
       if (IsIconic(hwnd)) {
         SetWindowText(hwnd, cfg.win_name_always ? window_name : icon_name);
       }
 
-      if (strcmp(cfg.font, prev_cfg.font) != 0 ||
+      if (strcmp(cfg.font.name, prev_cfg.font.name) != 0 ||
           strcmp(cfg.line_codepage, prev_cfg.line_codepage) != 0 ||
-          cfg.fontisbold != prev_cfg.fontisbold ||
-          cfg.fontheight != prev_cfg.fontheight ||
-          cfg.fontcharset != prev_cfg.fontcharset ||
+          cfg.font.isbold != prev_cfg.font.isbold ||
+          cfg.font.height != prev_cfg.font.height ||
+          cfg.font.charset != prev_cfg.font.charset ||
           cfg.vtmode != prev_cfg.vtmode ||
           cfg.bold_colour != prev_cfg.bold_colour ||
           cfg.resize_action == RESIZE_DISABLED ||
@@ -1883,65 +2011,17 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       net_pending_errors();
     } break;
     case IDM_COPYALL:
-      term_copyall();
+      term_copyall(term);
+      break;
+    case IDM_PASTE:
+      term_do_paste(term);
       break;
     case IDM_CLRSB:
-      term_clrsb();
+      term_clrsb(term);
       break;
     case IDM_RESET:
-      term_pwron();
-      break;
-    case IDM_TEL_AYT:
-      back->special(TS_AYT);
-      net_pending_errors();
-      break;
-    case IDM_TEL_BRK:
-      back->special(TS_BRK);
-      net_pending_errors();
-      break;
-    case IDM_TEL_SYNCH:
-      back->special(TS_SYNCH);
-      net_pending_errors();
-      break;
-    case IDM_TEL_EC:
-      back->special(TS_EC);
-      net_pending_errors();
-      break;
-    case IDM_TEL_EL:
-      back->special(TS_EL);
-      net_pending_errors();
-      break;
-    case IDM_TEL_GA:
-      back->special(TS_GA);
-      net_pending_errors();
-      break;
-    case IDM_TEL_NOP:
-      back->special(TS_NOP);
-      net_pending_errors();
-      break;
-    case IDM_TEL_ABORT:
-      back->special(TS_ABORT);
-      net_pending_errors();
-      break;
-    case IDM_TEL_AO:
-      back->special(TS_AO);
-      net_pending_errors();
-      break;
-    case IDM_TEL_IP:
-      back->special(TS_IP);
-      net_pending_errors();
-      break;
-    case IDM_TEL_SUSP:
-      back->special(TS_SUSP);
-      net_pending_errors();
-      break;
-    case IDM_TEL_EOR:
-      back->special(TS_EOR);
-      net_pending_errors();
-      break;
-    case IDM_TEL_EOF:
-      back->special(TS_EOF);
-      net_pending_errors();
+      term_pwron(term);
+      ldisc_send(ldisc, NULL, 0, 0);
       break;
     case IDM_ABOUT:
       showabout(hwnd);
@@ -1977,6 +2057,22 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       if (wParam >= IDM_SAVED_MIN && wParam <= IDM_SAVED_MAX) {
         SendMessage(hwnd, WM_SYSCOMMAND, IDM_SAVEDSESS, wParam);
       }
+      if (wParam >= IDM_SPECIAL_MIN && wParam <= IDM_SPECIAL_MAX) {
+        int i = (wParam - IDM_SPECIAL_MIN) / 0x10;
+        int j;
+        /*
+         * Ensure we haven't been sent a bogus SYSCOMMAND
+         * which would cause us to reference invalid memory
+         * and crash. Perhaps I'm just too paranoid here.
+         */
+        for (j = 0; j < i; j++)
+          if (!specials || !specials[j].name)
+            break;
+        if (j == i) {
+          back->special(backhandle, specials[i].code);
+          net_pending_errors();
+        }
+      }
     }
     break;
 
@@ -1992,68 +2088,116 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
   case WM_RBUTTONDOWN:
   case WM_LBUTTONUP:
   case WM_MBUTTONUP:
-  case WM_RBUTTONUP: {
-    int button, press;
+  case WM_RBUTTONUP:
+    if (message == WM_RBUTTONDOWN &&
+        ((wParam & MK_CONTROL) || (cfg.mouse_is_xterm == 2))) {
+      POINT cursorpos;
 
-    switch (message) {
-    case WM_LBUTTONDOWN:
-      button = MBT_LEFT;
-      press = 1;
+      show_mouseptr(1); /* make sure pointer is visible */
+      GetCursorPos(&cursorpos);
+      TrackPopupMenu(popup_menus[CTXMENU].menu,
+                     TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON,
+                     cursorpos.x,
+                     cursorpos.y,
+                     0,
+                     hwnd,
+                     NULL);
       break;
-    case WM_MBUTTONDOWN:
-      button = MBT_MIDDLE;
-      press = 1;
-      break;
-    case WM_RBUTTONDOWN:
-      button = MBT_RIGHT;
-      press = 1;
-      break;
-    case WM_LBUTTONUP:
-      button = MBT_LEFT;
-      press = 0;
-      break;
-    case WM_MBUTTONUP:
-      button = MBT_MIDDLE;
-      press = 0;
-      break;
-    case WM_RBUTTONUP:
-      button = MBT_RIGHT;
-      press = 0;
-      break;
-    default:
-      button = press = 0; /* shouldn't happen */
     }
-    show_mouseptr(1);
-    /*
-     * Special case: in full-screen mode, if the left
-     * button is clicked in the very top left corner of the
-     * window, we put up the System menu instead of doing
-     * selection.
-     */
-    if (is_full_screen() && press && button == MBT_LEFT && X_POS(lParam) == 0 &&
-        Y_POS(lParam) == 0) {
-      SendMessage(hwnd, WM_SYSCOMMAND, SC_MOUSEMENU, 0);
-      return 0;
+    {
+      int button, press;
+
+      switch (message) {
+      case WM_LBUTTONDOWN:
+        button = MBT_LEFT;
+        press = 1;
+        break;
+      case WM_MBUTTONDOWN:
+        button = MBT_MIDDLE;
+        press = 1;
+        break;
+      case WM_RBUTTONDOWN:
+        button = MBT_RIGHT;
+        press = 1;
+        break;
+      case WM_LBUTTONUP:
+        button = MBT_LEFT;
+        press = 0;
+        break;
+      case WM_MBUTTONUP:
+        button = MBT_MIDDLE;
+        press = 0;
+        break;
+      case WM_RBUTTONUP:
+        button = MBT_RIGHT;
+        press = 0;
+        break;
+      default:
+        button = press = 0; /* shouldn't happen */
+      }
+      show_mouseptr(1);
+      /*
+       * Special case: in full-screen mode, if the left
+       * button is clicked in the very top left corner of the
+       * window, we put up the System menu instead of doing
+       * selection.
+       */
+      {
+        char mouse_on_hotspot = 0;
+        POINT pt;
+
+        GetCursorPos(&pt);
+#ifndef NO_MULTIMON
+        {
+          HMONITOR mon;
+          MONITORINFO mi;
+
+          mon = MonitorFromPoint(pt, MONITOR_DEFAULTTONULL);
+
+          if (mon != NULL) {
+            mi.cbSize = sizeof(MONITORINFO);
+            GetMonitorInfo(mon, &mi);
+
+            if (mi.rcMonitor.left == pt.x && mi.rcMonitor.top == pt.y) {
+              mouse_on_hotspot = 1;
+            }
+            CloseHandle(mon);
+          }
+        }
+#else
+        if (pt.x == 0 && pt.y == 0) {
+          mouse_on_hotspot = 1;
+        }
+#endif
+        if (is_full_screen() && press && button == MBT_LEFT &&
+            mouse_on_hotspot) {
+          SendMessage(
+              hwnd, WM_SYSCOMMAND, SC_MOUSEMENU, MAKELPARAM(pt.x, pt.y));
+          return 0;
+        }
+      }
+
+      if (press) {
+        click(button,
+              TO_CHR_X(X_POS(lParam)),
+              TO_CHR_Y(Y_POS(lParam)),
+              wParam & MK_SHIFT,
+              wParam & MK_CONTROL,
+              is_alt_pressed());
+        SetCapture(hwnd);
+      } else {
+        term_mouse(term,
+                   button,
+                   translate_button(button),
+                   MA_RELEASE,
+                   TO_CHR_X(X_POS(lParam)),
+                   TO_CHR_Y(Y_POS(lParam)),
+                   wParam & MK_SHIFT,
+                   wParam & MK_CONTROL,
+                   is_alt_pressed());
+        ReleaseCapture();
+      }
     }
-    if (press) {
-      click(button,
-            TO_CHR_X(X_POS(lParam)),
-            TO_CHR_Y(Y_POS(lParam)),
-            wParam & MK_SHIFT,
-            wParam & MK_CONTROL,
-            is_alt_pressed());
-      SetCapture(hwnd);
-    } else {
-      term_mouse(button,
-                 MA_RELEASE,
-                 TO_CHR_X(X_POS(lParam)),
-                 TO_CHR_Y(Y_POS(lParam)),
-                 wParam & MK_SHIFT,
-                 wParam & MK_CONTROL,
-                 is_alt_pressed());
-      ReleaseCapture();
-    }
-  }
     return 0;
   case WM_MOUSEMOVE:
     show_mouseptr(1);
@@ -2072,7 +2216,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
         b = MBT_MIDDLE;
       else
         b = MBT_RIGHT;
-      term_mouse(b,
+      term_mouse(term,
+                 b,
+                 translate_button(b),
                  MA_DRAG,
                  TO_CHR_X(X_POS(lParam)),
                  TO_CHR_Y(Y_POS(lParam)),
@@ -2084,13 +2230,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
   case WM_NCMOUSEMOVE:
     show_mouseptr(1);
     noise_ultralight(lParam);
-    return 0;
+    break;
   case WM_IGNORE_CLIP:
     ignore_clip = wParam; /* don't panic on DESTROYCLIPBOARD */
     break;
   case WM_DESTROYCLIPBOARD:
     if (!ignore_clip)
-      term_deselect();
+      term_deselect(term);
     ignore_clip = FALSE;
     return 0;
   case WM_PAINT: {
@@ -2101,16 +2247,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       SelectPalette(hdc, pal, TRUE);
       RealizePalette(hdc);
     }
-    term_paint(hdc,
+    term_paint(term,
+               hdc,
                (p.rcPaint.left - offset_width) / font_width,
                (p.rcPaint.top - offset_height) / font_height,
                (p.rcPaint.right - offset_width - 1) / font_width,
-               (p.rcPaint.bottom - offset_height - 1) / font_height);
+               (p.rcPaint.bottom - offset_height - 1) / font_height,
+               is_alt_pressed());
 
     if (p.fErase || p.rcPaint.left < offset_width ||
         p.rcPaint.top < offset_height ||
-        p.rcPaint.right >= offset_width + font_width * cols ||
-        p.rcPaint.bottom >= offset_height + font_height * rows) {
+        p.rcPaint.right >= offset_width + font_width * term->cols ||
+        p.rcPaint.bottom >= offset_height + font_height * term->rows) {
       HBRUSH fillcolour, oldbrush;
       HPEN edge, oldpen;
       fillcolour = CreateSolidBrush(colours[(ATTR_DEFBG >> ATTR_BGSHIFT) * 2]);
@@ -2134,8 +2282,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       ExcludeClipRect(hdc,
                       offset_width,
                       offset_height,
-                      offset_width + font_width * cols,
-                      offset_height + font_height * rows);
+                      offset_width + font_width * term->cols,
+                      offset_height + font_height * term->rows);
 
       Rectangle(hdc,
                 p.rcPaint.left,
@@ -2173,21 +2321,21 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     time(&last_movement);
     return 0;
   case WM_SETFOCUS:
-    has_focus = TRUE;
+    term->has_focus = TRUE;
     CreateCaret(hwnd, caretbm, font_width, font_height);
     ShowCaret(hwnd);
     flash_window(0); /* stop */
     compose_state = 0;
-    term_out();
-    term_update();
+    term_out(term);
+    term_update(term);
     break;
   case WM_KILLFOCUS:
     show_mouseptr(1);
-    has_focus = FALSE;
+    term->has_focus = FALSE;
     DestroyCaret();
     caret_x = caret_y = -1; /* ensure caret is replaced next time */
-    term_out();
-    term_update();
+    term_out(term);
+    term_update(term);
     break;
   case WM_ENTERSIZEMOVE:
 #ifdef RDB_DEBUG_PATCH
@@ -2204,7 +2352,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     debug((27, "WM_EXITSIZEMOVE"));
 #endif
     if (need_backend_resize) {
-      term_size(cfg.height, cfg.width, cfg.savelines);
+      term_size(term, cfg.height, cfg.width, cfg.savelines);
       InvalidateRect(hwnd, NULL, TRUE);
     }
     break;
@@ -2214,12 +2362,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
      * 1) Keep the sizetip uptodate
      * 2) Make sure the window size is _stepped_ in units of the font size.
      */
-    if (cfg.resize_action != RESIZE_FONT && !alt_pressed) {
+    if (cfg.resize_action != RESIZE_FONT && !is_alt_pressed()) {
       int width, height, w, h, ew, eh;
       LPRECT r = (LPRECT)lParam;
 
       if (!need_backend_resize && cfg.resize_action == RESIZE_EITHER &&
-          (cfg.height != rows || cfg.width != cols)) {
+          (cfg.height != term->rows || cfg.width != term->cols)) {
         /*
          * Great! It seems that both the terminal size and the
          * font size have been changed and the user is now dragging.
@@ -2229,11 +2377,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
          *
          * This would be easier but it seems to be too confusing.
 
-        term_size(cfg.height, cfg.width, cfg.savelines);
+        term_size(term, cfg.height, cfg.width, cfg.savelines);
         reset_window(2);
          */
-        cfg.height = rows;
-        cfg.width = cols;
+        cfg.height = term->rows;
+        cfg.width = term->cols;
 
         InvalidateRect(hwnd, NULL, TRUE);
         need_backend_resize = TRUE;
@@ -2277,25 +2425,25 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       width = r->right - r->left - ex_width;
       height = r->bottom - r->top - ex_height;
 
-      w = (width + cols / 2) / cols;
-      h = (height + rows / 2) / rows;
-      if (r->right != r->left + w * cols + ex_width)
+      w = (width + term->cols / 2) / term->cols;
+      h = (height + term->rows / 2) / term->rows;
+      if (r->right != r->left + w * term->cols + ex_width)
         rv = 1;
 
       if (wParam == WMSZ_LEFT || wParam == WMSZ_BOTTOMLEFT ||
           wParam == WMSZ_TOPLEFT)
-        r->left = r->right - w * cols - ex_width;
+        r->left = r->right - w * term->cols - ex_width;
       else
-        r->right = r->left + w * cols + ex_width;
+        r->right = r->left + w * term->cols + ex_width;
 
-      if (r->bottom != r->top + h * rows + ex_height)
+      if (r->bottom != r->top + h * term->rows + ex_height)
         rv = 1;
 
       if (wParam == WMSZ_TOP || wParam == WMSZ_TOPRIGHT ||
           wParam == WMSZ_TOPLEFT)
-        r->top = r->bottom - h * rows - ex_height;
+        r->top = r->bottom - h * term->rows - ex_height;
       else
-        r->bottom = r->top + h * rows + ex_height;
+        r->bottom = r->top + h * term->rows + ex_height;
 
       return rv;
     }
@@ -2345,8 +2493,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       if (!resizing) {
         if (wParam == SIZE_MAXIMIZED && !was_zoomed) {
           was_zoomed = 1;
-          prev_rows = rows;
-          prev_cols = cols;
+          prev_rows = term->rows;
+          prev_cols = term->cols;
           if (cfg.resize_action == RESIZE_TERM) {
             w = width / font_width;
             if (w < 1)
@@ -2355,13 +2503,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
             if (h < 1)
               h = 1;
 
-            term_size(h, w, cfg.savelines);
+            term_size(term, h, w, cfg.savelines);
           }
           reset_window(0);
         } else if (wParam == SIZE_RESTORED && was_zoomed) {
           was_zoomed = 0;
           if (cfg.resize_action == RESIZE_TERM)
-            term_size(prev_rows, prev_cols, cfg.savelines);
+            term_size(term, prev_rows, prev_cols, cfg.savelines);
           if (cfg.resize_action != RESIZE_FONT)
             reset_window(2);
           else
@@ -2383,7 +2531,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
        * down the connection during an NT opaque drag.)
        */
       if (resizing) {
-        if (cfg.resize_action != RESIZE_FONT && !alt_pressed) {
+        if (cfg.resize_action != RESIZE_FONT && !is_alt_pressed()) {
           need_backend_resize = TRUE;
           w = (width - cfg.window_border * 2) / font_width;
           if (w < 1)
@@ -2403,32 +2551,32 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
   case WM_VSCROLL:
     switch (LOWORD(wParam)) {
     case SB_BOTTOM:
-      term_scroll(-1, 0);
+      term_scroll(term, -1, 0);
       break;
     case SB_TOP:
-      term_scroll(+1, 0);
+      term_scroll(term, +1, 0);
       break;
     case SB_LINEDOWN:
-      term_scroll(0, +1);
+      term_scroll(term, 0, +1);
       break;
     case SB_LINEUP:
-      term_scroll(0, -1);
+      term_scroll(term, 0, -1);
       break;
     case SB_PAGEDOWN:
-      term_scroll(0, +rows / 2);
+      term_scroll(term, 0, +term->rows / 2);
       break;
     case SB_PAGEUP:
-      term_scroll(0, -rows / 2);
+      term_scroll(term, 0, -term->rows / 2);
       break;
     case SB_THUMBPOSITION:
     case SB_THUMBTRACK:
-      term_scroll(1, HIWORD(wParam));
+      term_scroll(term, 1, HIWORD(wParam));
       break;
     }
     break;
   case WM_PALETTECHANGED:
     if ((HWND)wParam != hwnd && pal != NULL) {
-      HDC hdc = get_ctx();
+      HDC hdc = get_ctx(NULL);
       if (hdc) {
         if (RealizePalette(hdc) > 0)
           UpdateColors(hdc);
@@ -2438,7 +2586,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     break;
   case WM_QUERYNEWPALETTE:
     if (pal != NULL) {
-      HDC hdc = get_ctx();
+      HDC hdc = get_ctx(NULL);
       if (hdc) {
         if (RealizePalette(hdc) > 0)
           UpdateColors(hdc);
@@ -2487,7 +2635,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
            * preferable to having to faff about buffering
            * things.
            */
-          term_nopaste();
+          term_nopaste(term);
 
           /*
            * We need not bother about stdin backlogs
@@ -2497,7 +2645,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
            * messages. We _have_ to buffer everything
            * we're sent.
            */
-          ldisc_send(buf, len, 1);
+          term_seen_key_event(term);
+          ldisc_send(ldisc, buf, len, 1);
           show_mouseptr(0);
         }
       }
@@ -2535,7 +2684,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
 
     if (n > 0) {
       int i;
-      buff = (char *)smalloc(n);
+      buff = snewn(n, char);
       ImmGetCompositionStringW(hIMC, GCS_RESULTSTR, buff, n);
       /*
        * Jaeyoun Chung reports that Korean character
@@ -2543,8 +2692,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
        * luni_send() covering the whole of buff. So
        * instead we luni_send the characters one by one.
        */
-      for (i = 0; i < n; i += 2)
-        luni_send((unsigned short *)(buff + i), 1, 1);
+      term_seen_key_event(term);
+      for (i = 0; i < n; i += 2) {
+        luni_send(ldisc, (unsigned short *)(buff + i), 1, 1);
+      }
       free(buff);
     }
     ImmReleaseContext(hwnd, hIMC);
@@ -2557,10 +2708,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
 
       buf[1] = wParam;
       buf[0] = wParam >> 8;
-      lpage_send(kbd_codepage, buf, 2, 1);
+      term_seen_key_event(term);
+      lpage_send(ldisc, kbd_codepage, buf, 2, 1);
     } else {
       char c = (unsigned char)wParam;
-      lpage_send(kbd_codepage, &c, 1, 1);
+      term_seen_key_event(term);
+      lpage_send(ldisc, kbd_codepage, &c, 1, 1);
     }
     return (0);
   case WM_CHAR:
@@ -2573,7 +2726,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
      */
     {
       char c = (unsigned char)wParam;
-      lpage_send(CP_ACP, &c, 1, 1);
+      term_seen_key_event(term);
+      lpage_send(ldisc, CP_ACP, &c, 1, 1);
     }
     return 0;
   case WM_SETCURSOR:
@@ -2581,9 +2735,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       SetCursor(LoadCursor(NULL, IDC_ARROW));
       return TRUE;
     }
+    break;
+  case WM_AGENT_CALLBACK: {
+    struct agent_callback *c = (struct agent_callback *)lParam;
+    c->callback(c->callback_ctx, c->data, c->len);
+    sfree(c);
+  }
+    return 0;
   default:
     if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
-      int shift_pressed = 0, control_pressed = 0, alt_pressed = 0;
+      int shift_pressed = 0, control_pressed = 0;
 
       if (message == WM_MOUSEWHEEL) {
         wheel_accumulator += (short)HIWORD(wParam);
@@ -2614,14 +2775,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
 
         if (send_raw_mouse && !(cfg.mouse_override && shift_pressed)) {
           /* send a mouse-down followed by a mouse up */
-          term_mouse(b,
+          term_mouse(term,
+                     b,
+                     translate_button(b),
                      MA_CLICK,
                      TO_CHR_X(X_POS(lParam)),
                      TO_CHR_Y(Y_POS(lParam)),
                      shift_pressed,
                      control_pressed,
                      is_alt_pressed());
-          term_mouse(b,
+          term_mouse(term,
+                     b,
+                     translate_button(b),
                      MA_RELEASE,
                      TO_CHR_X(X_POS(lParam)),
                      TO_CHR_Y(Y_POS(lParam)),
@@ -2630,7 +2795,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
                      is_alt_pressed());
         } else {
           /* trigger a scroll */
-          term_scroll(0, b == MBT_WHEEL_UP ? -rows / 2 : rows / 2);
+          term_scroll(
+              term, 0, b == MBT_WHEEL_UP ? -term->rows / 2 : term->rows / 2);
         }
       }
       return 0;
@@ -2646,11 +2812,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
  * helper software tracks the system caret, so we should arrange to
  * have one.)
  */
-void sys_cursor(int x, int y)
+void sys_cursor(void *frontend, int x, int y)
 {
   int cx, cy;
 
-  if (!has_focus)
+  if (!term->has_focus)
     return;
 
   /*
@@ -2672,7 +2838,7 @@ static void sys_cursor_update(void)
   COMPOSITIONFORM cf;
   HIMC hIMC;
 
-  if (!has_focus)
+  if (!term->has_focus)
     return;
 
   if (caret_x < 0 || caret_y < 0)
@@ -2729,7 +2895,7 @@ void do_text(Context ctx,
     int i;
     if (len > IpDxLEN) {
       sfree(IpDx);
-      IpDx = smalloc((len + 16) * sizeof(int));
+      IpDx = snewn(len + 16, int);
       IpDxLEN = (len + 16);
     }
     for (i = 0; i < IpDxLEN; i++)
@@ -2737,7 +2903,7 @@ void do_text(Context ctx,
   }
 
   /* Only want the left half of double width lines */
-  if (lattr != LATTR_NORM && x * 2 >= cols)
+  if (lattr != LATTR_NORM && x * 2 >= term->cols)
     return;
 
   x *= fnt_width;
@@ -2745,7 +2911,7 @@ void do_text(Context ctx,
   x += offset_width;
   y += offset_height;
 
-  if ((attr & TATTR_ACTCURS) && (cfg.cursor_type == 0 || big_cursor)) {
+  if ((attr & TATTR_ACTCURS) && (cfg.cursor_type == 0 || term->big_cursor)) {
     attr &= ATTR_CUR_AND | (bold_mode != BOLD_COLOURS ? ATTR_BOLD : 0);
     attr ^= ATTR_CUR_XOR;
   }
@@ -2788,8 +2954,8 @@ void do_text(Context ctx,
       if (lattr == LATTR_TOP || lattr == LATTR_BOT)
         text_adjust *= 2;
       attr &= ~CSET_MASK;
-      text[0] = (char)(unitab_xterm['q'] & CHAR_MASK);
-      attr |= (unitab_xterm['q'] & CSET_MASK);
+      text[0] = (char)(ucsdata.unitab_xterm['q'] & CHAR_MASK);
+      attr |= (ucsdata.unitab_xterm['q'] & CSET_MASK);
       if (attr & ATTR_UNDER) {
         attr &= ~ATTR_UNDER;
         force_manual_underline = 1;
@@ -2808,8 +2974,10 @@ void do_text(Context ctx,
   if ((attr & CSET_MASK) == ATTR_OEMCP)
     nfont |= FONT_OEM;
 
-  nfg = 2 * ((attr & ATTR_FGMASK) >> ATTR_FGSHIFT);
-  nbg = 2 * ((attr & ATTR_BGMASK) >> ATTR_BGSHIFT);
+  nfg = ((attr & ATTR_FGMASK) >> ATTR_FGSHIFT);
+  nfg = 2 * (nfg & 0xF) + (nfg & 0x10 ? 1 : 0);
+  nbg = ((attr & ATTR_BGMASK) >> ATTR_BGSHIFT);
+  nbg = 2 * (nbg & 0xF) + (nbg & 0x10 ? 1 : 0);
   if (bold_mode == BOLD_FONT && (attr & ATTR_BOLD))
     nfont |= FONT_BOLD;
   if (und_mode == UND_FONT && (attr & ATTR_UNDER))
@@ -2831,9 +2999,9 @@ void do_text(Context ctx,
     nbg = t;
   }
   if (bold_mode == BOLD_COLOURS && (attr & ATTR_BOLD))
-    nfg++;
+    nfg |= 1;
   if (bold_mode == BOLD_COLOURS && (attr & ATTR_BLINK))
-    nbg++;
+    nbg |= 1;
   fg = colours[nfg];
   bg = colours[nbg];
   SelectObject(hdc, fonts[nfont]);
@@ -2846,11 +3014,11 @@ void do_text(Context ctx,
   line_box.bottom = y + font_height;
 
   /* Only want the left half of double width lines */
-  if (line_box.right > font_width * cols + offset_width)
-    line_box.right = font_width * cols + offset_width;
+  if (line_box.right > font_width * term->cols + offset_width)
+    line_box.right = font_width * term->cols + offset_width;
 
   /* We're using a private area for direct to font. (512 chars.) */
-  if (dbcs_screenfont && (attr & CSET_MASK) == ATTR_ACP) {
+  if (ucsdata.dbcs_screenfont && (attr & CSET_MASK) == ATTR_ACP) {
     /* Ho Hum, dbcs fonts are a PITA! */
     /* To display on W9x I have to convert to UCS */
     static wchar_t *uni_buf = 0;
@@ -2858,19 +3026,28 @@ void do_text(Context ctx,
     int nlen, mptr;
     if (len > uni_len) {
       sfree(uni_buf);
-      uni_buf = smalloc((uni_len = len) * sizeof(wchar_t));
+      uni_len = len;
+      uni_buf = snewn(uni_len, wchar_t);
     }
 
     for (nlen = mptr = 0; mptr < len; mptr++) {
       uni_buf[nlen] = 0xFFFD;
-      if (IsDBCSLeadByteEx(font_codepage, (BYTE)text[mptr])) {
+      if (IsDBCSLeadByteEx(ucsdata.font_codepage, (BYTE)text[mptr])) {
         IpDx[nlen] += char_width;
-        MultiByteToWideChar(
-            font_codepage, MB_USEGLYPHCHARS, text + mptr, 2, uni_buf + nlen, 1);
+        MultiByteToWideChar(ucsdata.font_codepage,
+                            MB_USEGLYPHCHARS,
+                            text + mptr,
+                            2,
+                            uni_buf + nlen,
+                            1);
         mptr++;
       } else {
-        MultiByteToWideChar(
-            font_codepage, MB_USEGLYPHCHARS, text + mptr, 1, uni_buf + nlen, 1);
+        MultiByteToWideChar(ucsdata.font_codepage,
+                            MB_USEGLYPHCHARS,
+                            text + mptr,
+                            1,
+                            uni_buf + nlen,
+                            1);
       }
       nlen++;
     }
@@ -2934,7 +3111,7 @@ void do_text(Context ctx,
     if (wlen < len) {
       sfree(wbuf);
       wlen = len;
-      wbuf = smalloc(wlen * sizeof(WCHAR));
+      wbuf = snewn(wlen, WCHAR);
     }
     for (i = 0; i < len; i++)
       wbuf[i] = (WCHAR)((attr & CSET_MASK) + (text[i] & CHAR_MASK));
@@ -2990,7 +3167,7 @@ void do_cursor(Context ctx,
   HDC hdc = ctx;
   int ctype = cfg.cursor_type;
 
-  if ((attr & TATTR_ACTCURS) && (ctype == 0 || big_cursor)) {
+  if ((attr & TATTR_ACTCURS) && (ctype == 0 || term->big_cursor)) {
     if (((attr & CSET_MASK) | (unsigned char)*text) != UCSWIDE) {
       do_text(ctx, x, y, text, len, attr, lattr);
       return;
@@ -3007,7 +3184,7 @@ void do_cursor(Context ctx,
   x += offset_width;
   y += offset_height;
 
-  if ((attr & TATTR_PASCURS) && (ctype == 0 || big_cursor)) {
+  if ((attr & TATTR_PASCURS) && (ctype == 0 || term->big_cursor)) {
     POINT pts[5];
     HPEN oldpen;
     pts[0].x = pts[1].x = pts[4].x = x;
@@ -3057,7 +3234,7 @@ void do_cursor(Context ctx,
 
 /* This function gets the actual width of a character in the normal font.
  */
-int CharWidth(Context ctx, int uc)
+int char_width(Context ctx, int uc)
 {
   HDC hdc = ctx;
   int ibuf = 0;
@@ -3070,17 +3247,17 @@ int CharWidth(Context ctx, int uc)
 
   switch (uc & CSET_MASK) {
   case ATTR_ASCII:
-    uc = unitab_line[uc & 0xFF];
+    uc = ucsdata.unitab_line[uc & 0xFF];
     break;
   case ATTR_LINEDRW:
-    uc = unitab_xterm[uc & 0xFF];
+    uc = ucsdata.unitab_xterm[uc & 0xFF];
     break;
   case ATTR_SCOACS:
-    uc = unitab_scoacs[uc & 0xFF];
+    uc = ucsdata.unitab_scoacs[uc & 0xFF];
     break;
   }
   if (DIRECT_FONT(uc)) {
-    if (dbcs_screenfont)
+    if (ucsdata.dbcs_screenfont)
       return 1;
 
     /* Speedup, I know of no font where ascii is the wrong width */
@@ -3228,7 +3405,7 @@ static int TranslateKey(UINT message,
 
     /* Nastyness with NUMLock - Shift-NUMLock is left alone though */
     if ((cfg.funky_type == 3 ||
-         (cfg.funky_type <= 1 && app_keypad_keys && !cfg.no_applic_k)) &&
+         (cfg.funky_type <= 1 && term->app_keypad_keys && !cfg.no_applic_k)) &&
         wParam == VK_NUMLOCK && !(keystate[VK_SHIFT] & 0x80)) {
 
       wParam = VK_EXECUTE;
@@ -3243,7 +3420,7 @@ static int TranslateKey(UINT message,
   }
 
   /* Disable Auto repeat if required */
-  if (repeat_off && (HIWORD(lParam) & (KF_UP | KF_REPEAT)) == KF_REPEAT)
+  if (term->repeat_off && (HIWORD(lParam) & (KF_UP | KF_REPEAT)) == KF_REPEAT)
     return 0;
 
   if ((HIWORD(lParam) & KF_ALTDOWN) && (keystate[VK_RMENU] & 0x80) == 0)
@@ -3260,8 +3437,6 @@ static int TranslateKey(UINT message,
       left_alt = 0;
     }
   }
-
-  alt_pressed = (left_alt && key_down);
 
   scan = (HIWORD(lParam) & (KF_UP | KF_EXTENDED | 0xFF));
   shift_state = ((keystate[VK_SHIFT] & 0x80) != 0) +
@@ -3288,21 +3463,12 @@ static int TranslateKey(UINT message,
   } else if (compose_state == 1 && wParam != VK_CONTROL)
     compose_state = 0;
 
-  /*
-   * Record that we pressed key so the scroll window can be reset, but
-   * be careful to avoid Shift-UP/Down
-   */
-  if (wParam != VK_SHIFT && wParam != VK_PRIOR && wParam != VK_NEXT &&
-      wParam != VK_MENU && wParam != VK_CONTROL) {
-    seen_key_event = 1;
-  }
-
   if (compose_state > 1 && left_alt)
     compose_state = 0;
 
   /* Sanitize the number pad if not using a PC NumPad */
   if (left_alt ||
-      (app_keypad_keys && !cfg.no_applic_k && cfg.funky_type != 2) ||
+      (term->app_keypad_keys && !cfg.no_applic_k && cfg.funky_type != 2) ||
       cfg.funky_type == 3 || cfg.nethack_keypad || compose_state) {
     if ((HIWORD(lParam) & KF_EXTENDED) == 0) {
       int nParam = 0;
@@ -3360,12 +3526,20 @@ static int TranslateKey(UINT message,
       SendMessage(hwnd, WM_VSCROLL, SB_PAGEUP, 0);
       return 0;
     }
+    if (wParam == VK_PRIOR && shift_state == 2) {
+      SendMessage(hwnd, WM_VSCROLL, SB_LINEUP, 0);
+      return 0;
+    }
     if (wParam == VK_NEXT && shift_state == 1) {
       SendMessage(hwnd, WM_VSCROLL, SB_PAGEDOWN, 0);
       return 0;
     }
+    if (wParam == VK_NEXT && shift_state == 2) {
+      SendMessage(hwnd, WM_VSCROLL, SB_LINEDOWN, 0);
+      return 0;
+    }
     if (wParam == VK_INSERT && shift_state == 1) {
-      term_do_paste();
+      term_do_paste(term);
       return 0;
     }
     if (left_alt && wParam == VK_F4 && cfg.alt_f4) {
@@ -3383,7 +3557,7 @@ static int TranslateKey(UINT message,
     }
     /* Control-Numlock for app-keypad mode switch */
     if (wParam == VK_PAUSE && shift_state == 2) {
-      app_keypad_keys ^= 1;
+      term->app_keypad_keys ^= 1;
       return 0;
     }
 
@@ -3425,7 +3599,7 @@ static int TranslateKey(UINT message,
       int xkey = 0;
 
       if (cfg.funky_type == 3 ||
-          (cfg.funky_type <= 1 && app_keypad_keys && !cfg.no_applic_k))
+          (cfg.funky_type <= 1 && term->app_keypad_keys && !cfg.no_applic_k))
         switch (wParam) {
         case VK_EXECUTE:
           xkey = 'P';
@@ -3440,7 +3614,7 @@ static int TranslateKey(UINT message,
           xkey = 'S';
           break;
         }
-      if (app_keypad_keys && !cfg.no_applic_k)
+      if (term->app_keypad_keys && !cfg.no_applic_k)
         switch (wParam) {
         case VK_NUMPAD0:
           xkey = 'p';
@@ -3507,7 +3681,7 @@ static int TranslateKey(UINT message,
           break;
         }
       if (xkey) {
-        if (vt52_mode) {
+        if (term->vt52_mode) {
           if (xkey >= 'P' && xkey <= 'S')
             p += sprintf((char *)p, "\x1B%c", xkey);
           else
@@ -3520,6 +3694,12 @@ static int TranslateKey(UINT message,
 
     if (wParam == VK_BACK && shift_state == 0) { /* Backspace */
       *p++ = (cfg.bksp_is_delete ? 0x7F : 0x08);
+      *p++ = 0;
+      return -2;
+    }
+    if (wParam == VK_BACK && shift_state == 1) { /* Shift Backspace */
+      /* We do the opposite of what is configured */
+      *p++ = (cfg.bksp_is_delete ? 0x08 : 0x7F);
       *p++ = 0;
       return -2;
     }
@@ -3552,7 +3732,7 @@ static int TranslateKey(UINT message,
       *p++ = "\000\033\034\035\036\037\177"[wParam - '2'];
       return p - output;
     }
-    if (shift_state == 2 && wParam == 0xBD) {
+    if (shift_state == 2 && (wParam == 0xBD || wParam == 0xBF)) {
       *p++ = 0x1F;
       return p - output;
     }
@@ -3560,7 +3740,11 @@ static int TranslateKey(UINT message,
       *p++ = 0x1C;
       return p - output;
     }
-    if (shift_state == 0 && wParam == VK_RETURN && cr_lf_return) {
+    if (shift_state == 3 && wParam == 0xDE) {
+      *p++ = 0x1E; /* Ctrl-~ == Ctrl-^ in xterm at least */
+      return p - output;
+    }
+    if (shift_state == 0 && wParam == VK_RETURN && term->cr_lf_return) {
       *p++ = '\r';
       *p++ = '\n';
       return p - output;
@@ -3663,7 +3847,7 @@ static int TranslateKey(UINT message,
     if (cfg.funky_type == 3 && code <= 6)
       code = "\0\2\1\4\5\3\6"[code];
 
-    if (vt52_mode && code > 0 && code <= 6) {
+    if (term->vt52_mode && code > 0 && code <= 6) {
       p += sprintf((char *)p, "\x1B%c", " HLMEIG"[code]);
       return p - output;
     }
@@ -3727,13 +3911,13 @@ static int TranslateKey(UINT message,
       }
       return p - output;
     }
-    if ((vt52_mode || cfg.funky_type == 4) && code >= 11 && code <= 24) {
+    if ((term->vt52_mode || cfg.funky_type == 4) && code >= 11 && code <= 24) {
       int offt = 0;
       if (code > 15)
         offt++;
       if (code > 21)
         offt++;
-      if (vt52_mode)
+      if (term->vt52_mode)
         p += sprintf((char *)p, "\x1B%c", code + 'P' - 11 - offt);
       else
         p += sprintf((char *)p, "\x1BO%c", code + 'P' - 11 - offt);
@@ -3744,7 +3928,7 @@ static int TranslateKey(UINT message,
       return p - output;
     }
     if (cfg.funky_type == 2 && code >= 11 && code <= 14) {
-      if (vt52_mode)
+      if (term->vt52_mode)
         p += sprintf((char *)p, "\x1B%c", code + 'P' - 11);
       else
         p += sprintf((char *)p, "\x1BO%c", code + 'P' - 11);
@@ -3783,10 +3967,10 @@ static int TranslateKey(UINT message,
         break;
       }
       if (xkey) {
-        if (vt52_mode)
+        if (term->vt52_mode)
           p += sprintf((char *)p, "\x1B%c", xkey);
         else {
-          int app_flg = (app_cursor_keys && !cfg.no_applic_c);
+          int app_flg = (term->app_cursor_keys && !cfg.no_applic_c);
 #if 0
 		    /*
 		     * RDB: VT100 & VT102 manuals both state the
@@ -3802,7 +3986,7 @@ static int TranslateKey(UINT message,
 		     * _this_ I'll have to put in a configurable
 		     * option.
 		     */
-		    if (!app_keypad_keys)
+		    if (!term->app_keypad_keys)
 			app_flg = 0;
 #endif
           /* Useful mapping of Ctrl-arrows */
@@ -3849,7 +4033,7 @@ static int TranslateKey(UINT message,
 #ifdef SHOW_TOASCII_RESULT
     if (r == 1 && !key_down) {
       if (alt_sum) {
-        if (in_utf || dbcs_screenfont)
+        if (in_utf(term) || ucsdata.dbcs_screenfont)
           debug((", (U+%04x)", alt_sum));
         else
           debug((", LCH(%d)", alt_sum));
@@ -3873,7 +4057,7 @@ static int TranslateKey(UINT message,
        * sensible, but for the moment it's preferable to
        * having to faff about buffering things.
        */
-      term_nopaste();
+      term_nopaste(term);
 
       p = output;
       for (i = 0; i < r; i++) {
@@ -3893,7 +4077,8 @@ static int TranslateKey(UINT message,
             return 0;
           }
           keybuf = nc;
-          luni_send(&keybuf, 1, 1);
+          term_seen_key_event(term);
+          luni_send(ldisc, &keybuf, 1, 1);
           continue;
         }
 
@@ -3901,9 +4086,10 @@ static int TranslateKey(UINT message,
 
         if (!key_down) {
           if (alt_sum) {
-            if (in_utf || dbcs_screenfont) {
+            if (in_utf(term) || ucsdata.dbcs_screenfont) {
               keybuf = alt_sum;
-              luni_send(&keybuf, 1, 1);
+              term_seen_key_event(term);
+              luni_send(ldisc, &keybuf, 1, 1);
             } else {
               ch = (char)alt_sum;
               /*
@@ -3915,22 +4101,28 @@ static int TranslateKey(UINT message,
                * messages. We _have_ to buffer
                * everything we're sent.
                */
-              ldisc_send(&ch, 1, 1);
+              term_seen_key_event(term);
+              ldisc_send(ldisc, &ch, 1, 1);
             }
             alt_sum = 0;
-          } else
-            lpage_send(kbd_codepage, &ch, 1, 1);
+          } else {
+            term_seen_key_event(term);
+            lpage_send(ldisc, kbd_codepage, &ch, 1, 1);
+          }
         } else {
           if (capsOn && ch < 0x80) {
             WCHAR cbuf[2];
             cbuf[0] = 27;
             cbuf[1] = xlat_uskbd2cyrllic(ch);
-            luni_send(cbuf + !left_alt, 1 + !!left_alt, 1);
+            term_seen_key_event(term);
+            luni_send(ldisc, cbuf + !left_alt, 1 + !!left_alt, 1);
           } else {
             char cbuf[2];
             cbuf[0] = '\033';
             cbuf[1] = ch;
-            lpage_send(kbd_codepage, cbuf + !left_alt, 1 + !!left_alt, 1);
+            term_seen_key_event(term);
+            lpage_send(
+                ldisc, kbd_codepage, cbuf + !left_alt, 1 + !!left_alt, 1);
           }
         }
         show_mouseptr(0);
@@ -3945,7 +4137,7 @@ static int TranslateKey(UINT message,
     if (!left_alt)
       keys[0] = 0;
     /* If we will be using alt_sum fix the 256s */
-    else if (keys[0] && (in_utf || dbcs_screenfont))
+    else if (keys[0] && (in_utf(term) || ucsdata.dbcs_screenfont))
       keys[0] = 10;
   }
 
@@ -3962,25 +4154,35 @@ static int TranslateKey(UINT message,
   return -1;
 }
 
-void set_title(char *title)
+void request_paste(void *frontend)
+{
+  /*
+   * In Windows, pasting is synchronous: we can read the
+   * clipboard with no difficulty, so request_paste() can just go
+   * ahead and paste.
+   */
+  term_do_paste(term);
+}
+
+void set_title(void *frontend, char *title)
 {
   sfree(window_name);
-  window_name = smalloc(1 + strlen(title));
+  window_name = snewn(1 + strlen(title), char);
   strcpy(window_name, title);
   if (cfg.win_name_always || !IsIconic(hwnd))
     SetWindowText(hwnd, title);
 }
 
-void set_icon(char *title)
+void set_icon(void *frontend, char *title)
 {
   sfree(icon_name);
-  icon_name = smalloc(1 + strlen(title));
+  icon_name = snewn(1 + strlen(title), char);
   strcpy(icon_name, title);
   if (!cfg.win_name_always && IsIconic(hwnd))
     SetWindowText(hwnd, title);
 }
 
-void set_sbar(int total, int start, int page)
+void set_sbar(void *frontend, int total, int start, int page)
 {
   SCROLLINFO si;
 
@@ -3997,7 +4199,7 @@ void set_sbar(int total, int start, int page)
     SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
 }
 
-Context get_ctx(void)
+Context get_ctx(void *frontend)
 {
   HDC hdc;
   if (hwnd) {
@@ -4028,7 +4230,7 @@ static void real_palette_set(int n, int r, int g, int b)
     colours[n] = RGB(r, g, b);
 }
 
-void palette_set(int n, int r, int g, int b)
+void palette_set(void *frontend, int n, int r, int g, int b)
 {
   static const int first[21] = {0, 2, 4,  6,  8,  10, 12, 14, 1,  3, 5,
                                 7, 9, 11, 13, 15, 16, 17, 18, 20, 22};
@@ -4036,14 +4238,14 @@ void palette_set(int n, int r, int g, int b)
   if (first[n] >= 18)
     real_palette_set(first[n] + 1, r, g, b);
   if (pal) {
-    HDC hdc = get_ctx();
+    HDC hdc = get_ctx(frontend);
     UnrealizeObject(pal);
     RealizePalette(hdc);
     free_ctx(hdc);
   }
 }
 
-void palette_reset(void)
+void palette_reset(void *frontend)
 {
   int i;
 
@@ -4063,13 +4265,13 @@ void palette_reset(void)
   if (pal) {
     HDC hdc;
     SetPaletteEntries(pal, 0, NCOLOURS, logpal->palPalEntry);
-    hdc = get_ctx();
+    hdc = get_ctx(frontend);
     RealizePalette(hdc);
     free_ctx(hdc);
   }
 }
 
-void write_aclip(char *data, int len, int must_deselect)
+void write_aclip(void *frontend, char *data, int len, int must_deselect)
 {
   HGLOBAL clipdata;
   void *lock;
@@ -4101,7 +4303,7 @@ void write_aclip(char *data, int len, int must_deselect)
 /*
  * Note: unlike write_aclip() this will not append a nul.
  */
-void write_clip(wchar_t *data, int len, int must_deselect)
+void write_clip(void *frontend, wchar_t *data, int len, int must_deselect)
 {
   HGLOBAL clipdata, clipdata2, clipdata3;
   int len2;
@@ -4139,12 +4341,12 @@ void write_clip(wchar_t *data, int len, int must_deselect)
 
     get_unitab(CP_ACP, unitab, 0);
 
-    rtfsize = 100 + strlen(cfg.font);
-    rtf = smalloc(rtfsize);
+    rtfsize = 100 + strlen(cfg.font.name);
+    rtf = snewn(rtfsize, char);
     sprintf(rtf,
             "{\\rtf1\\ansi%d{\\fonttbl\\f0\\fmodern %s;}\\f0",
             GetACP(),
-            cfg.font);
+            cfg.font.name);
     rtflen = strlen(rtf);
 
     /*
@@ -4205,7 +4407,7 @@ void write_clip(wchar_t *data, int len, int must_deselect)
 
       if (rtfsize < rtflen + totallen + 3) {
         rtfsize = rtflen + totallen + 512;
-        rtf = srealloc(rtf, rtfsize);
+        rtf = sresize(rtf, rtfsize, char);
       }
 
       strcpy(rtf + rtflen, before);
@@ -4264,7 +4466,7 @@ void write_clip(wchar_t *data, int len, int must_deselect)
     SendMessage(hwnd, WM_IGNORE_CLIP, FALSE, 0);
 }
 
-void get_clip(wchar_t **p, int *len)
+void get_clip(void *frontend, wchar_t **p, int *len)
 {
   static HGLOBAL clipdata = NULL;
   static wchar_t *converted = 0;
@@ -4295,7 +4497,7 @@ void get_clip(wchar_t **p, int *len)
       CloseClipboard();
       s = GlobalLock(clipdata);
       i = MultiByteToWideChar(CP_ACP, 0, s, strlen(s) + 1, 0, 0);
-      *p = converted = smalloc(i * sizeof(wchar_t));
+      *p = converted = snewn(i, wchar_t);
       MultiByteToWideChar(CP_ACP, 0, s, strlen(s) + 1, converted, i);
       *len = i - 1;
       return;
@@ -4312,7 +4514,7 @@ void get_clip(wchar_t **p, int *len)
  * Move `lines' lines from position `from' to position `to' in the
  * window.
  */
-void optimised_move(int to, int from, int lines)
+void optimised_move(void *frontend, int to, int from, int lines)
 {
     RECT r;
     int min, max;
@@ -4321,7 +4523,7 @@ void optimised_move(int to, int from, int lines)
     max = to + from - min;
 
     r.left = offset_width;
-    r.right = offset_width + cols * font_width;
+    r.right = offset_width + term->cols * font_width;
     r.top = offset_height + min * font_height;
     r.bottom = offset_height + (max + lines) * font_height;
     ScrollWindow(hwnd, 0, (to - from) * font_height, &r, &r);
@@ -4334,12 +4536,31 @@ void optimised_move(int to, int from, int lines)
 void fatalbox(char *fmt, ...)
 {
   va_list ap;
-  char stuff[200];
+  char *stuff, morestuff[100];
 
   va_start(ap, fmt);
-  vsprintf(stuff, fmt, ap);
+  stuff = dupvprintf(fmt, ap);
   va_end(ap);
-  MessageBox(hwnd, stuff, "PuTTY Fatal Error", MB_ICONERROR | MB_OK);
+  sprintf(morestuff, "%.70s Fatal Error", appname);
+  MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
+  sfree(stuff);
+  cleanup_exit(1);
+}
+
+/*
+ * Print a modal (Really Bad) message box and perform a fatal exit.
+ */
+void modalfatalbox(char *fmt, ...)
+{
+  va_list ap;
+  char *stuff, morestuff[100];
+
+  va_start(ap, fmt);
+  stuff = dupvprintf(fmt, ap);
+  va_end(ap);
+  sprintf(morestuff, "%.70s Fatal Error", appname);
+  MessageBox(hwnd, stuff, morestuff, MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
+  sfree(stuff);
   cleanup_exit(1);
 }
 
@@ -4382,7 +4603,7 @@ static void flash_window(int mode)
 /*
  * Beep.
  */
-void beep(int mode)
+void beep(void *frontend, int mode)
 {
   if (mode == BELL_DEFAULT) {
     /*
@@ -4404,18 +4625,37 @@ void beep(int mode)
      */
     lastbeep = GetTickCount();
   } else if (mode == BELL_WAVEFILE) {
-    if (!PlaySound(cfg.bell_wavefile, NULL, SND_ASYNC | SND_FILENAME)) {
-      char buf[sizeof(cfg.bell_wavefile) + 80];
+    if (!PlaySound(cfg.bell_wavefile.path, NULL, SND_ASYNC | SND_FILENAME)) {
+      char buf[sizeof(cfg.bell_wavefile.path) + 80];
+      char otherbuf[100];
       sprintf(buf,
               "Unable to play sound file\n%s\n"
               "Using default sound instead",
-              cfg.bell_wavefile);
-      MessageBox(hwnd, buf, "PuTTY Sound Error", MB_OK | MB_ICONEXCLAMATION);
+              cfg.bell_wavefile.path);
+      sprintf(otherbuf, "%.70s Sound Error", appname);
+      MessageBox(hwnd, buf, otherbuf, MB_OK | MB_ICONEXCLAMATION);
       cfg.beep = BELL_DEFAULT;
     }
+  } else if (mode == BELL_PCSPEAKER) {
+    static long lastbeep = 0;
+    long beepdiff;
+
+    beepdiff = GetTickCount() - lastbeep;
+    if (beepdiff >= 0 && beepdiff < 50)
+      return;
+
+    /*
+     * We must beep in different ways depending on whether this
+     * is a 95-series or NT-series OS.
+     */
+    if (osVersion.dwPlatformId == VER_PLATFORM_WIN32_NT)
+      Beep(800, 100);
+    else
+      MessageBeep(-1);
+    lastbeep = GetTickCount();
   }
   /* Otherwise, either visual bell or disabled; do nothing here */
-  if (!has_focus) {
+  if (!term->has_focus) {
     flash_window(2); /* start */
   }
 }
@@ -4424,7 +4664,7 @@ void beep(int mode)
  * Minimise or restore the window in response to a server-side
  * request.
  */
-void set_iconic(int iconic)
+void set_iconic(void *frontend, int iconic)
 {
   if (IsIconic(hwnd)) {
     if (!iconic)
@@ -4438,7 +4678,7 @@ void set_iconic(int iconic)
 /*
  * Move the window in response to a server-side request.
  */
-void move_window(int x, int y)
+void move_window(void *frontend, int x, int y)
 {
   if (cfg.resize_action == RESIZE_DISABLED ||
       cfg.resize_action == RESIZE_FONT || IsZoomed(hwnd))
@@ -4451,7 +4691,7 @@ void move_window(int x, int y)
  * Move the window to the top or bottom of the z-order in response
  * to a server-side request.
  */
-void set_zorder(int top)
+void set_zorder(void *frontend, int top)
 {
   if (cfg.alwaysontop)
     return; /* ignore */
@@ -4462,7 +4702,7 @@ void set_zorder(int top)
 /*
  * Refresh the window in response to a server-side request.
  */
-void refresh_window(void)
+void refresh_window(void *frontend)
 {
   InvalidateRect(hwnd, NULL, TRUE);
 }
@@ -4471,7 +4711,7 @@ void refresh_window(void)
  * Maximise or restore the window in response to a server-side
  * request.
  */
-void set_zoomed(int zoomed)
+void set_zoomed(void *frontend, int zoomed)
 {
   if (IsZoomed(hwnd)) {
     if (!zoomed)
@@ -4485,7 +4725,7 @@ void set_zoomed(int zoomed)
 /*
  * Report whether the window is iconic, for terminal reports.
  */
-int is_iconic(void)
+int is_iconic(void *frontend)
 {
   return IsIconic(hwnd);
 }
@@ -4493,7 +4733,7 @@ int is_iconic(void)
 /*
  * Report the window's position, for terminal reports.
  */
-void get_window_pos(int *x, int *y)
+void get_window_pos(void *frontend, int *x, int *y)
 {
   RECT r;
   GetWindowRect(hwnd, &r);
@@ -4504,7 +4744,7 @@ void get_window_pos(int *x, int *y)
 /*
  * Report the window's pixel size, for terminal reports.
  */
-void get_window_pixels(int *x, int *y)
+void get_window_pixels(void *frontend, int *x, int *y)
 {
   RECT r;
   GetWindowRect(hwnd, &r);
@@ -4515,7 +4755,7 @@ void get_window_pixels(int *x, int *y)
 /*
  * Return the window or icon title.
  */
-char *get_window_title(int icon)
+char *get_window_title(void *frontend, int icon)
 {
   return icon ? icon_name : window_name;
 }
@@ -4523,7 +4763,7 @@ char *get_window_title(int icon)
 /*
  * See if we're in full-screen mode.
  */
-int is_full_screen()
+static int is_full_screen()
 {
   if (!IsZoomed(hwnd))
     return FALSE;
@@ -4537,7 +4777,7 @@ int is_full_screen()
  * one monitor is present. */
 static int get_fullscreen_rect(RECT *ss)
 {
-#ifdef MONITOR_DEFAULTTONEAREST
+#if defined(MONITOR_DEFAULTTONEAREST) && !defined(NO_MULTIMON)
   HMONITOR mon;
   MONITORINFO mi;
   mon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
@@ -4561,7 +4801,7 @@ static int get_fullscreen_rect(RECT *ss)
  * Go full-screen. This should only be called when we are already
  * maximised.
  */
-void make_full_screen()
+static void make_full_screen()
 {
   DWORD style;
   RECT ss;
@@ -4597,7 +4837,7 @@ void make_full_screen()
 /*
  * Clear the full-screen attributes.
  */
-void clear_full_screen()
+static void clear_full_screen()
 {
   DWORD oldstyle, style;
 
@@ -4630,7 +4870,7 @@ void clear_full_screen()
 /*
  * Toggle full-screen mode.
  */
-void flip_full_screen()
+static void flip_full_screen()
 {
   if (is_full_screen()) {
     ShowWindow(hwnd, SW_RESTORE);
@@ -4640,4 +4880,33 @@ void flip_full_screen()
     SendMessage(hwnd, WM_FULLSCR_ON_MAX, 0, 0);
     ShowWindow(hwnd, SW_MAXIMIZE);
   }
+}
+
+void frontend_keypress(void *handle)
+{
+  /*
+   * Keypress termination in non-Close-On-Exit mode is not
+   * currently supported in PuTTY proper, because the window
+   * always has a perfectly good Close button anyway. So we do
+   * nothing here.
+   */
+  return;
+}
+
+int from_backend(void *frontend, int is_stderr, const char *data, int len)
+{
+  return term_data(term, is_stderr, data, len);
+}
+
+void agent_schedule_callback(void (*callback)(void *, void *, int),
+                             void *callback_ctx,
+                             void *data,
+                             int len)
+{
+  struct agent_callback *c = snew(struct agent_callback);
+  c->callback = callback;
+  c->callback_ctx = callback_ctx;
+  c->data = data;
+  c->len = len;
+  PostMessage(hwnd, WM_AGENT_CALLBACK, 0, (LPARAM)c);
 }

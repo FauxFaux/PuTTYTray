@@ -3,6 +3,8 @@
 
 #include "puttymem.h"
 
+#include <stdarg.h> /* for va_list */
+
 #ifndef FALSE
 #define FALSE 0
 #endif
@@ -10,8 +12,13 @@
 #define TRUE 1
 #endif
 
-char *dupstr(char *s);
-char *dupcat(char *s1, ...);
+typedef struct Filename Filename;
+typedef struct FontSpec FontSpec;
+
+char *dupstr(const char *s);
+char *dupcat(const char *s1, ...);
+char *dupprintf(const char *fmt, ...);
+char *dupvprintf(const char *fmt, va_list ap);
 
 void base64_encode_atom(unsigned char *data, int n, char *out);
 
@@ -24,7 +31,7 @@ typedef struct bufchain_tag {
 void bufchain_init(bufchain *ch);
 void bufchain_clear(bufchain *ch);
 int bufchain_size(bufchain *ch);
-void bufchain_add(bufchain *ch, void *data, int len);
+void bufchain_add(bufchain *ch, const void *data, int len);
 void bufchain_prefix(bufchain *ch, void **data, int *len);
 void bufchain_consume(bufchain *ch, int len);
 void bufchain_fetch(bufchain *ch, void *data, int len);
@@ -43,9 +50,9 @@ void bufchain_fetch(bufchain *ch, void *data, int len);
  */
 
 #ifdef DEBUG
-void dprintf(char *fmt, ...);
+void debug_printf(char *fmt, ...);
 void debug_memdump(void *buf, int len, int L);
-#define debug(x) (dprintf x)
+#define debug(x) (debug_printf x)
 #define dmemdump(buf, len) debug_memdump(buf, len, 0);
 #define dmemdumpl(buf, len) debug_memdump(buf, len, 1);
 #else
@@ -56,6 +63,13 @@ void debug_memdump(void *buf, int len, int L);
 
 #ifndef lenof
 #define lenof(x) ((sizeof((x))) / (sizeof(*(x))))
+#endif
+
+#ifndef min
+#define min(x, y) ((x) < (y) ? (x) : (y))
+#endif
+#ifndef max
+#define max(x, y) ((x) > (y) ? (x) : (y))
 #endif
 
 #endif

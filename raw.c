@@ -1,4 +1,3 @@
-#include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -13,43 +12,53 @@
 
 #define RAW_MAX_BACKLOG 4096
 
-static Socket s = NULL;
-static int raw_bufsize;
+typedef struct raw_backend_data {
+  const struct plug_function_table *fn;
+  /* the above field _must_ be first in the structure */
 
-static void raw_size(void);
+  Socket s;
+  int bufsize;
+  void *frontend;
+} * Raw;
 
-static void c_write(char *buf, int len)
+static void raw_size(void *handle, int width, int height);
+
+static void c_write(Raw raw, char *buf, int len)
 {
-  int backlog = from_backend(0, buf, len);
-  sk_set_frozen(s, backlog > RAW_MAX_BACKLOG);
+  int backlog = from_backend(raw->frontend, 0, buf, len);
+  sk_set_frozen(raw->s, backlog > RAW_MAX_BACKLOG);
 }
 
 static int raw_closing(Plug plug,
-                       char *error_msg,
+                       const char *error_msg,
                        int error_code,
                        int calling_back)
 {
-  if (s) {
-    sk_close(s);
-    s = NULL;
+  Raw raw = (Raw)plug;
+
+  if (raw->s) {
+    sk_close(raw->s);
+    raw->s = NULL;
   }
   if (error_msg) {
     /* A socket error has occurred. */
-    logevent(error_msg);
-    connection_fatal("%s", error_msg);
+    logevent(raw->frontend, error_msg);
+    connection_fatal(raw->frontend, "%s", error_msg);
   } /* Otherwise, the remote side closed the connection normally. */
   return 0;
 }
 
 static int raw_receive(Plug plug, int urgent, char *data, int len)
 {
-  c_write(data, len);
+  Raw raw = (Raw)plug;
+  c_write(raw, data, len);
   return 1;
 }
 
 static void raw_sent(Plug plug, int bufsize)
 {
-  raw_bufsize = bufsize;
+  Raw raw = (Raw)plug;
+  raw->bufsize = bufsize;
 }
 
 /*
@@ -60,27 +69,41 @@ static void raw_sent(Plug plug, int bufsize)
  * Also places the canonical host name into `realhost'. It must be
  * freed by the caller.
  */
-static char *raw_init(char *host, int port, char **realhost, int nodelay)
+static const char *raw_init(void *frontend_handle,
+                            void **backend_handle,
+                            Config *cfg,
+                            char *host,
+                            int port,
+                            char **realhost,
+                            int nodelay)
 {
-  static struct plug_function_table fn_table = {raw_closing,
-                                                raw_receive,
-                                                raw_sent},
-                                    *fn_table_ptr = &fn_table;
-
+  static const struct plug_function_table fn_table = {
+      raw_closing, raw_receive, raw_sent};
   SockAddr addr;
-  char *err;
+  const char *err;
+  Raw raw;
+
+  raw = snew(struct raw_backend_data);
+  raw->fn = &fn_table;
+  raw->s = NULL;
+  *backend_handle = raw;
+
+  raw->frontend = frontend_handle;
 
   /*
    * Try to find host.
    */
   {
-    char buf[200];
-    sprintf(buf, "Looking up host \"%.170s\"", host);
-    logevent(buf);
+    char *buf;
+    buf = dupprintf("Looking up host \"%s\"", host);
+    logevent(raw->frontend, buf);
+    sfree(buf);
   }
-  addr = sk_namelookup(host, realhost);
-  if ((err = sk_addr_error(addr)))
+  addr = name_lookup(host, port, realhost, cfg);
+  if ((err = sk_addr_error(addr)) != NULL) {
+    sk_addr_free(addr);
     return err;
+  }
 
   if (port < 0)
     port = 23; /* default telnet port */
@@ -89,45 +112,63 @@ static char *raw_init(char *host, int port, char **realhost, int nodelay)
    * Open socket.
    */
   {
-    char buf[200], addrbuf[100];
+    char *buf, addrbuf[100];
     sk_getaddr(addr, addrbuf, 100);
-    sprintf(buf, "Connecting to %.100s port %d", addrbuf, port);
-    logevent(buf);
+    buf = dupprintf("Connecting to %s port %d", addrbuf, port);
+    logevent(raw->frontend, buf);
+    sfree(buf);
   }
-  s = new_connection(addr, *realhost, port, 0, 1, nodelay, &fn_table_ptr);
-  if ((err = sk_socket_error(s)))
+  raw->s = new_connection(addr, *realhost, port, 0, 1, nodelay, (Plug)raw, cfg);
+  if ((err = sk_socket_error(raw->s)) != NULL)
     return err;
 
-  sk_addr_free(addr);
-
   return NULL;
+}
+
+static void raw_free(void *handle)
+{
+  Raw raw = (Raw)handle;
+
+  if (raw->s)
+    sk_close(raw->s);
+  sfree(raw);
+}
+
+/*
+ * Stub routine (we don't have any need to reconfigure this backend).
+ */
+static void raw_reconfig(void *handle, Config *cfg)
+{
 }
 
 /*
  * Called to send data down the raw connection.
  */
-static int raw_send(char *buf, int len)
+static int raw_send(void *handle, char *buf, int len)
 {
-  if (s == NULL)
+  Raw raw = (Raw)handle;
+
+  if (raw->s == NULL)
     return 0;
 
-  raw_bufsize = sk_write(s, buf, len);
+  raw->bufsize = sk_write(raw->s, buf, len);
 
-  return raw_bufsize;
+  return raw->bufsize;
 }
 
 /*
  * Called to query the current socket sendability status.
  */
-static int raw_sendbuffer(void)
+static int raw_sendbuffer(void *handle)
 {
-  return raw_bufsize;
+  Raw raw = (Raw)handle;
+  return raw->bufsize;
 }
 
 /*
  * Called to set the size of the window
  */
-static void raw_size(void)
+static void raw_size(void *handle, int width, int height)
 {
   /* Do nothing! */
   return;
@@ -136,48 +177,78 @@ static void raw_size(void)
 /*
  * Send raw special codes.
  */
-static void raw_special(Telnet_Special code)
+static void raw_special(void *handle, Telnet_Special code)
 {
   /* Do nothing! */
   return;
 }
 
-static Socket raw_socket(void)
+/*
+ * Return a list of the special codes that make sense in this
+ * protocol.
+ */
+static const struct telnet_special *raw_get_specials(void *handle)
 {
-  return s;
+  return NULL;
 }
 
-static int raw_sendok(void)
+static Socket raw_socket(void *handle)
+{
+  Raw raw = (Raw)handle;
+  return raw->s;
+}
+
+static int raw_sendok(void *handle)
 {
   return 1;
 }
 
-static void raw_unthrottle(int backlog)
+static void raw_unthrottle(void *handle, int backlog)
 {
-  sk_set_frozen(s, backlog > RAW_MAX_BACKLOG);
+  Raw raw = (Raw)handle;
+  sk_set_frozen(raw->s, backlog > RAW_MAX_BACKLOG);
 }
 
-static int raw_ldisc(int option)
+static int raw_ldisc(void *handle, int option)
 {
   if (option == LD_EDIT || option == LD_ECHO)
     return 1;
   return 0;
 }
 
-static int raw_exitcode(void)
+static void raw_provide_ldisc(void *handle, void *ldisc)
 {
-  /* Exit codes are a meaningless concept in the Raw protocol */
-  return 0;
+  /* This is a stub. */
+}
+
+static void raw_provide_logctx(void *handle, void *logctx)
+{
+  /* This is a stub. */
+}
+
+static int raw_exitcode(void *handle)
+{
+  Raw raw = (Raw)handle;
+  if (raw->s != NULL)
+    return -1; /* still connected */
+  else
+    /* Exit codes are a meaningless concept in the Raw protocol */
+    return 0;
 }
 
 Backend raw_backend = {raw_init,
+                       raw_free,
+                       raw_reconfig,
                        raw_send,
                        raw_sendbuffer,
                        raw_size,
                        raw_special,
+                       raw_get_specials,
                        raw_socket,
                        raw_exitcode,
                        raw_sendok,
                        raw_ldisc,
+                       raw_provide_ldisc,
+                       raw_provide_logctx,
                        raw_unthrottle,
                        1};

@@ -13,10 +13,21 @@
 #ifndef PUTTY_NETWORK_H
 #define PUTTY_NETWORK_H
 
+#ifndef DONE_TYPEDEFS
+#define DONE_TYPEDEFS
+typedef struct config_tag Config;
+typedef struct backend_tag Backend;
+typedef struct terminal_tag Terminal;
+#endif
+
 typedef struct SockAddr_tag *SockAddr;
 /* pay attention to levels of indirection */
 typedef struct socket_function_table **Socket;
 typedef struct plug_function_table **Plug;
+
+#ifndef OSSOCKET_DEFINED
+typedef void *OSSocket;
+#endif
 
 struct socket_function_table {
   Plug (*plug)(Socket s, Plug p);
@@ -24,18 +35,21 @@ struct socket_function_table {
   /* if p is NULL, it doesn't change the plug */
   /* but it does return the one it's using */
   void (*close)(Socket s);
-  int (*write)(Socket s, char *data, int len);
-  int (*write_oob)(Socket s, char *data, int len);
+  int (*write)(Socket s, const char *data, int len);
+  int (*write_oob)(Socket s, const char *data, int len);
   void (*flush)(Socket s);
   void (*set_private_ptr)(Socket s, void *ptr);
   void *(*get_private_ptr)(Socket s);
   void (*set_frozen)(Socket s, int is_frozen);
   /* ignored by tcp, but vital for ssl */
-  char *(*socket_error)(Socket s);
+  const char *(*socket_error)(Socket s);
 };
 
 struct plug_function_table {
-  int (*closing)(Plug p, char *error_msg, int error_code, int calling_back);
+  int (*closing)(Plug p,
+                 const char *error_msg,
+                 int error_code,
+                 int calling_back);
   /* error_msg is NULL iff it is not an error (ie it closed normally) */
   /* calling_back != 0 iff there is a Plug function */
   /* currently running (would cure the fixme in try_send()) */
@@ -56,7 +70,7 @@ struct plug_function_table {
    * on a socket is cleared or partially cleared. The new backlog
    * size is passed in the `bufsize' parameter.
    */
-  int (*accepting)(Plug p, void *sock);
+  int (*accepting)(Plug p, OSSocket sock);
   /*
    * returns 0 if the host at address addr is a valid host for connecting or
    * error
@@ -64,32 +78,62 @@ struct plug_function_table {
 };
 
 /* proxy indirection layer */
+/* NB, control of 'addr' is passed via new_connection, which takes
+ * responsibility for freeing it */
 Socket new_connection(SockAddr addr,
                       char *hostname,
                       int port,
                       int privport,
                       int oobinline,
                       int nodelay,
-                      Plug plug);
-Socket new_listener(int port, Plug plug, int local_host_only);
+                      Plug plug,
+                      const Config *cfg);
+Socket new_listener(
+    char *srcaddr, int port, Plug plug, int local_host_only, const Config *cfg);
+SockAddr name_lookup(char *host,
+                     int port,
+                     char **canonicalname,
+                     const Config *cfg);
+
+/* platform-dependent callback from new_connection() */
+/* (same caveat about addr as new_connection()) */
+Socket platform_new_connection(SockAddr addr,
+                               char *hostname,
+                               int port,
+                               int privport,
+                               int oobinline,
+                               int nodelay,
+                               Plug plug,
+                               const Config *cfg);
 
 /* socket functions */
 
 void sk_init(void);    /* called once at program startup */
 void sk_cleanup(void); /* called just before program exit */
 
-SockAddr sk_namelookup(char *host, char **canonicalname);
+SockAddr sk_namelookup(const char *host, char **canonicalname);
+SockAddr sk_nonamelookup(const char *host);
 void sk_getaddr(SockAddr addr, char *buf, int buflen);
+int sk_hostname_is_local(char *name);
+int sk_address_is_local(SockAddr addr);
+enum
+{
+  ADDRTYPE_IPV4,
+  ADDRTYPE_IPV6,
+  ADDRTYPE_NAME
+};
 int sk_addrtype(SockAddr addr);
 void sk_addrcopy(SockAddr addr, char *buf);
 void sk_addr_free(SockAddr addr);
 
+/* NB, control of 'addr' is passed via sk_new, which takes responsibility
+ * for freeing it, as for new_connection() */
 Socket sk_new(
     SockAddr addr, int port, int privport, int oobinline, int nodelay, Plug p);
 
-Socket sk_newlistener(int port, Plug plug, int local_host_only);
+Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only);
 
-Socket sk_register(void *sock, Plug plug);
+Socket sk_register(OSSocket sock, Plug plug);
 
 #define sk_plug(s, p) (((*s)->plug)(s, p))
 #define sk_close(s) (((*s)->close)(s))
@@ -120,7 +164,7 @@ Socket sk_register(void *sock, Plug plug);
  * if there's a problem. These functions extract an error message,
  * or return NULL if there's no problem.
  */
-char *sk_addr_error(SockAddr addr);
+const char *sk_addr_error(SockAddr addr);
 #define sk_socket_error(s) (((*s)->socket_error)(s))
 
 /*
@@ -147,6 +191,15 @@ char *sk_addr_error(SockAddr addr);
  * socket, to clean up any pending network errors.
  */
 void net_pending_errors(void);
+
+/*
+ * Simple wrapper on getservbyname(), needed by ssh.c. Returns the
+ * port number, in host byte order (suitable for printf and so on).
+ * Returns 0 on failure. Any platform not supporting getservbyname
+ * can just return 0 - this function is not required to handle
+ * numeric port specifications.
+ */
+int net_service_lookup(char *service);
 
 /********** SSL stuff **********/
 

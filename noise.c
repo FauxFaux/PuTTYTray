@@ -3,7 +3,6 @@
  * generator.
  */
 
-#include <windows.h>
 #include <stdio.h>
 
 #include "putty.h"
@@ -40,6 +39,8 @@ void noise_get_heavy(void (*func)(void *, int))
   }
 
   read_random_seed(func);
+  /* Update the seed immediately, in case another instance uses it. */
+  random_save_seed();
 
   gsps = NULL;
   mod = GetModuleHandle("KERNEL32");
@@ -56,6 +57,7 @@ void random_save_seed(void)
   if (random_active) {
     random_get_savedata(&data, &len);
     write_random_seed(data, len);
+    sfree(data);
   }
 }
 
@@ -127,7 +129,7 @@ void noise_regular(void)
  * counter to the noise pool. It gets the scan code or mouse
  * position passed in.
  */
-void noise_ultralight(DWORD data)
+void noise_ultralight(unsigned long data)
 {
   DWORD wintime;
   LARGE_INTEGER perftime;

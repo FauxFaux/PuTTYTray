@@ -4,8 +4,7 @@
  * A proxy layer, if necessary, wedges itself between the
  * network code and the higher level backend.
  *
- * Supported proxies: HTTP CONNECT, generic telnet
- * In progress: SOCKS
+ * Supported proxies: HTTP CONNECT, generic telnet, SOCKS 4 & 5
  */
 
 #ifndef PUTTY_PROXY_H
@@ -17,7 +16,7 @@
 typedef struct Socket_proxy_tag *Proxy_Socket;
 
 struct Socket_proxy_tag {
-  struct socket_function_table *fn;
+  const struct socket_function_table *fn;
   /* the above variable absolutely *must* be the first in this structure */
 
   char *error;
@@ -65,7 +64,7 @@ struct Socket_proxy_tag {
    */
 
   /* closing */
-  char *closing_error_msg;
+  const char *closing_error_msg;
   int closing_error_code;
   int closing_calling_back;
 
@@ -78,13 +77,16 @@ struct Socket_proxy_tag {
   int sent_bufsize;
 
   /* accepting */
-  void *accepting_sock;
+  OSSocket accepting_sock;
+
+  /* configuration, used to look up proxy settings */
+  Config cfg;
 };
 
 typedef struct Plug_proxy_tag *Proxy_Plug;
 
 struct Plug_proxy_tag {
-  struct plug_function_table *fn;
+  const struct plug_function_table *fn;
   /* the above variable absolutely *must* be the first in this structure */
 
   Proxy_Socket proxy_socket;
@@ -96,5 +98,11 @@ extern int proxy_http_negotiate(Proxy_Socket, int);
 extern int proxy_telnet_negotiate(Proxy_Socket, int);
 extern int proxy_socks4_negotiate(Proxy_Socket, int);
 extern int proxy_socks5_negotiate(Proxy_Socket, int);
+
+/*
+ * This may be reused by local-command proxies on individual
+ * platforms.
+ */
+char *format_telnet_command(SockAddr addr, int port, const Config *cfg);
 
 #endif

@@ -3,9 +3,12 @@
  * including ssh.
  */
 
-#include <windows.h>
 #include <stdio.h>
 #include "putty.h"
+
+const int be_default_protocol = PROT_TELNET;
+
+const char *const appname = "PuTTYtel";
 
 struct backend_list backends[] = {{PROT_TELNET, "telnet", &telnet_backend},
                                   {PROT_RLOGIN, "rlogin", &rlogin_backend},
@@ -23,7 +26,7 @@ void random_destroy_seed(void)
 {
 }
 
-void noise_ultralight(DWORD data)
+void noise_ultralight(unsigned long data)
 {
 }
 

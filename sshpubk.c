@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "putty.h"
 #include "ssh.h"
 #include "misc.h"
 
@@ -40,7 +41,8 @@ static int loadrsakey_main(FILE *fp,
                            struct RSAKey *key,
                            int pub_only,
                            char **commentptr,
-                           char *passphrase)
+                           char *passphrase,
+                           const char **error)
 {
   unsigned char buf[16384];
   unsigned char keybuf[16];
@@ -50,13 +52,18 @@ static int loadrsakey_main(FILE *fp,
   struct MD5Context md5c;
   char *comment;
 
+  *error = NULL;
+
   /* Slurp the whole file (minus the header) into a buffer. */
   len = fread(buf, 1, sizeof(buf), fp);
   fclose(fp);
-  if (len < 0 || len == sizeof(buf))
+  if (len < 0 || len == sizeof(buf)) {
+    *error = "error reading file";
     goto end; /* file too big or not read */
+  }
 
   i = 0;
+  *error = "file format error";
 
   /*
    * A zero byte. (The signature includes a terminating NUL.)
@@ -93,7 +100,7 @@ static int loadrsakey_main(FILE *fp,
   i += 4;
   if (len - i < j)
     goto end;
-  comment = smalloc(j + 1);
+  comment = snewn(j + 1, char);
   if (comment) {
     memcpy(comment, buf + i, j);
     comment[j] = '\0';
@@ -104,7 +111,9 @@ static int loadrsakey_main(FILE *fp,
   if (key)
     key->comment = comment;
   if (!key) {
-    return ciphertype != 0;
+    ret = ciphertype != 0;
+    *error = NULL;
+    goto end;
   }
 
   /*
@@ -112,7 +121,7 @@ static int loadrsakey_main(FILE *fp,
    */
   if (ciphertype) {
     MD5Init(&md5c);
-    MD5Update(&md5c, passphrase, strlen(passphrase));
+    MD5Update(&md5c, (unsigned char *)passphrase, strlen(passphrase));
     MD5Final(keybuf, &md5c);
     des3_decrypt_pubkey(keybuf, buf + i, (len - i + 7) & ~7);
     memset(keybuf, 0, sizeof(keybuf)); /* burn the evidence */
@@ -125,6 +134,7 @@ static int loadrsakey_main(FILE *fp,
   if (len - i < 4)
     goto end;
   if (buf[i] != buf[i + 2] || buf[i + 1] != buf[i + 3]) {
+    *error = "wrong passphrase";
     ret = -1;
     goto end;
   }
@@ -149,6 +159,7 @@ static int loadrsakey_main(FILE *fp,
     goto end;
 
   if (!rsa_verify(key)) {
+    *error = "rsa_verify failed";
     freersakey(key);
     ret = 0;
   } else
@@ -159,40 +170,58 @@ end:
   return ret;
 }
 
-int loadrsakey(char *filename, struct RSAKey *key, char *passphrase)
+int loadrsakey(const Filename *filename,
+               struct RSAKey *key,
+               char *passphrase,
+               const char **errorstr)
 {
   FILE *fp;
-  unsigned char buf[64];
+  char buf[64];
+  int ret = 0;
+  const char *error = NULL;
 
-  fp = fopen(filename, "rb");
-  if (!fp)
-    return 0; /* doesn't even exist */
+  fp = f_open(*filename, "rb");
+  if (!fp) {
+    error = "can't open file";
+    goto end;
+  }
 
   /*
    * Read the first line of the file and see if it's a v1 private
    * key file.
    */
   if (fgets(buf, sizeof(buf), fp) && !strcmp(buf, rsa_signature)) {
-    return loadrsakey_main(fp, key, FALSE, NULL, passphrase);
+    /*
+     * This routine will take care of calling fclose() for us.
+     */
+    ret = loadrsakey_main(fp, key, FALSE, NULL, passphrase, &error);
+    fp = NULL;
+    goto end;
   }
 
   /*
    * Otherwise, we have nothing. Return empty-handed.
    */
-  fclose(fp);
-  return 0;
+  error = "not an SSH-1 RSA file";
+
+end:
+  if (fp)
+    fclose(fp);
+  if ((ret != 1) && errorstr)
+    *errorstr = error;
+  return ret;
 }
 
 /*
  * See whether an RSA key is encrypted. Return its comment field as
  * well.
  */
-int rsakey_encrypted(char *filename, char **comment)
+int rsakey_encrypted(const Filename *filename, char **comment)
 {
   FILE *fp;
-  unsigned char buf[64];
+  char buf[64];
 
-  fp = fopen(filename, "rb");
+  fp = f_open(*filename, "rb");
   if (!fp)
     return 0; /* doesn't even exist */
 
@@ -201,7 +230,11 @@ int rsakey_encrypted(char *filename, char **comment)
    * key file.
    */
   if (fgets(buf, sizeof(buf), fp) && !strcmp(buf, rsa_signature)) {
-    return loadrsakey_main(fp, NULL, FALSE, comment, NULL);
+    const char *dummy;
+    /*
+     * This routine will take care of calling fclose() for us.
+     */
+    return loadrsakey_main(fp, NULL, FALSE, comment, NULL, &dummy);
   }
   fclose(fp);
   return 0; /* wasn't the right kind of file */
@@ -212,21 +245,27 @@ int rsakey_encrypted(char *filename, char **comment)
  * an RSA key, as given in the agent protocol (modulus bits,
  * exponent, modulus).
  */
-int rsakey_pubblob(char *filename, void **blob, int *bloblen)
+int rsakey_pubblob(const Filename *filename,
+                   void **blob,
+                   int *bloblen,
+                   const char **errorstr)
 {
   FILE *fp;
-  unsigned char buf[64];
+  char buf[64];
   struct RSAKey key;
   int ret;
+  const char *error = NULL;
 
   /* Default return if we fail. */
   *blob = NULL;
   *bloblen = 0;
   ret = 0;
 
-  fp = fopen(filename, "rb");
-  if (!fp)
-    return 0; /* doesn't even exist */
+  fp = f_open(*filename, "rb");
+  if (!fp) {
+    error = "can't open file";
+    goto end;
+  }
 
   /*
    * Read the first line of the file and see if it's a v1 private
@@ -234,20 +273,28 @@ int rsakey_pubblob(char *filename, void **blob, int *bloblen)
    */
   if (fgets(buf, sizeof(buf), fp) && !strcmp(buf, rsa_signature)) {
     memset(&key, 0, sizeof(key));
-    if (loadrsakey_main(fp, &key, TRUE, NULL, NULL)) {
+    if (loadrsakey_main(fp, &key, TRUE, NULL, NULL, &error)) {
       *blob = rsa_public_blob(&key, bloblen);
       freersakey(&key);
       ret = 1;
+      fp = NULL;
     }
+  } else {
+    error = "not an SSH-1 RSA file";
   }
-  fclose(fp);
+
+end:
+  if (fp)
+    fclose(fp);
+  if ((ret != 1) && errorstr)
+    *errorstr = error;
   return ret;
 }
 
 /*
  * Save an RSA key file. Return nonzero on success.
  */
-int saversakey(char *filename, struct RSAKey *key, char *passphrase)
+int saversakey(const Filename *filename, struct RSAKey *key, char *passphrase)
 {
   unsigned char buf[16384];
   unsigned char keybuf[16];
@@ -328,7 +375,7 @@ int saversakey(char *filename, struct RSAKey *key, char *passphrase)
    */
   if (passphrase) {
     MD5Init(&md5c);
-    MD5Update(&md5c, passphrase, strlen(passphrase));
+    MD5Update(&md5c, (unsigned char *)passphrase, strlen(passphrase));
     MD5Final(keybuf, &md5c);
     des3_encrypt_pubkey(keybuf, estart, p - estart);
     memset(keybuf, 0, sizeof(keybuf)); /* burn the evidence */
@@ -337,7 +384,7 @@ int saversakey(char *filename, struct RSAKey *key, char *passphrase)
   /*
    * Done. Write the result to the file.
    */
-  fp = fopen(filename, "wb");
+  fp = f_open(*filename, "wb");
   if (fp) {
     int ret = (fwrite(buf, 1, p - buf, fp) == (size_t)(p - buf));
     ret = ret && (fclose(fp) == 0);
@@ -407,8 +454,7 @@ int saversakey(char *filename, struct RSAKey *key, char *passphrase)
  *    data    "putty-private-key-file-mac-key"
  *    data    passphrase
  *
- * Encrypted keys should have a MAC, whereas unencrypted ones must
- * have a hash.
+ * (An empty passphrase is used for unencrypted keys.)
  *
  * If the key is encrypted, the encryption key is derived from the
  * passphrase by means of a succession of SHA-1 hashes. Each hash
@@ -463,7 +509,7 @@ static char *read_body(FILE *fp)
   int c;
 
   size = 128;
-  text = smalloc(size);
+  text = snewn(size, char);
   len = 0;
   text[len] = '\0';
 
@@ -481,7 +527,7 @@ static char *read_body(FILE *fp)
     }
     if (len + 1 > size) {
       size += 128;
-      text = srealloc(text, size);
+      text = sresize(text, size, char);
     }
     text[len++] = c;
     text[len] = '\0';
@@ -536,7 +582,7 @@ int base64_decode_atom(char *atom, unsigned char *out)
   return len;
 }
 
-static char *read_blob(FILE *fp, int nlines, int *bloblen)
+static unsigned char *read_blob(FILE *fp, int nlines, int *bloblen)
 {
   unsigned char *blob;
   char *line;
@@ -544,7 +590,7 @@ static char *read_blob(FILE *fp, int nlines, int *bloblen)
   int i, j, k;
 
   /* We expect at most 64 base64 characters, ie 48 real bytes, per line. */
-  blob = smalloc(48 * nlines);
+  blob = snewn(48 * nlines, unsigned char);
   len = 0;
   for (i = 0; i < nlines; i++) {
     line = read_body(fp);
@@ -578,7 +624,19 @@ static char *read_blob(FILE *fp, int nlines, int *bloblen)
  */
 struct ssh2_userkey ssh2_wrong_passphrase = {NULL, NULL, NULL};
 
-struct ssh2_userkey *ssh2_load_userkey(char *filename, char *passphrase)
+const struct ssh_signkey *find_pubkey_alg(const char *name)
+{
+  if (!strcmp(name, "ssh-rsa"))
+    return &ssh_rsa;
+  else if (!strcmp(name, "ssh-dss"))
+    return &ssh_dss;
+  else
+    return NULL;
+}
+
+struct ssh2_userkey *ssh2_load_userkey(const Filename *filename,
+                                       char *passphrase,
+                                       const char **errorstr)
 {
   FILE *fp;
   char header[40], *b, *encryption, *comment, *mac;
@@ -589,14 +647,17 @@ struct ssh2_userkey *ssh2_load_userkey(char *filename, char *passphrase)
   int public_blob_len, private_blob_len;
   int i, is_mac, old_fmt;
   int passlen = passphrase ? strlen(passphrase) : 0;
+  const char *error = NULL;
 
   ret = NULL; /* return NULL for most errors */
-  comment = mac = NULL;
+  encryption = comment = mac = NULL;
   public_blob = private_blob = NULL;
 
-  fp = fopen(filename, "rb");
-  if (!fp)
+  fp = f_open(*filename, "rb");
+  if (!fp) {
+    error = "can't open file";
     goto error;
+  }
 
   /* Read the first header line which contains the key type. */
   if (!read_header(fp, header))
@@ -607,16 +668,16 @@ struct ssh2_userkey *ssh2_load_userkey(char *filename, char *passphrase)
     /* this is an old key file; warn and then continue */
     old_keyfile_warning();
     old_fmt = 1;
-  } else
+  } else {
+    error = "not a PuTTY SSH-2 private key";
     goto error;
+  }
+  error = "file format error";
   if ((b = read_body(fp)) == NULL)
     goto error;
   /* Select key algorithm structure. */
-  if (!strcmp(b, "ssh-rsa"))
-    alg = &ssh_rsa;
-  else if (!strcmp(b, "ssh-dss"))
-    alg = &ssh_dss;
-  else {
+  alg = find_pubkey_alg(b);
+  if (!alg) {
     sfree(b);
     goto error;
   }
@@ -727,7 +788,7 @@ struct ssh2_userkey *ssh2_load_userkey(char *filename, char *passphrase)
       int commlen = strlen(comment);
       maclen = (4 + namelen + 4 + enclen + 4 + commlen + 4 + public_blob_len +
                 4 + private_blob_len);
-      macdata = smalloc(maclen);
+      macdata = snewn(maclen, unsigned char);
       p = macdata;
 #define DO_STR(s, len)                                                         \
   PUT_32BIT(p, (len));                                                         \
@@ -749,7 +810,7 @@ struct ssh2_userkey *ssh2_load_userkey(char *filename, char *passphrase)
 
       SHA_Init(&s);
       SHA_Bytes(&s, header, sizeof(header) - 1);
-      if (passphrase)
+      if (cipher && passphrase)
         SHA_Bytes(&s, passphrase, passlen);
       SHA_Final(&s, mackey);
 
@@ -772,7 +833,13 @@ struct ssh2_userkey *ssh2_load_userkey(char *filename, char *passphrase)
     if (strcmp(mac, realmac)) {
       /* An incorrect MAC is an unconditional Error if the key is
        * unencrypted. Otherwise, it means Wrong Passphrase. */
-      ret = cipher ? SSH2_WRONG_PASSPHRASE : NULL;
+      if (cipher) {
+        error = "wrong passphrase";
+        ret = SSH2_WRONG_PASSPHRASE;
+      } else {
+        error = "MAC failed";
+        ret = NULL;
+      }
       goto error;
     }
   }
@@ -781,7 +848,7 @@ struct ssh2_userkey *ssh2_load_userkey(char *filename, char *passphrase)
   /*
    * Create and return the key.
    */
-  ret = smalloc(sizeof(struct ssh2_userkey));
+  ret = snew(struct ssh2_userkey);
   ret->alg = alg;
   ret->comment = comment;
   ret->data = alg->createkey(
@@ -790,10 +857,14 @@ struct ssh2_userkey *ssh2_load_userkey(char *filename, char *passphrase)
     sfree(ret->comment);
     sfree(ret);
     ret = NULL;
+    error = "createkey failed";
+    goto error;
   }
   sfree(public_blob);
   sfree(private_blob);
   sfree(encryption);
+  if (errorstr)
+    *errorstr = NULL;
   return ret;
 
   /*
@@ -812,10 +883,15 @@ error:
     sfree(public_blob);
   if (private_blob)
     sfree(private_blob);
+  if (errorstr)
+    *errorstr = error;
   return ret;
 }
 
-char *ssh2_userkey_loadpub(char *filename, char **algorithm, int *pub_blob_len)
+char *ssh2_userkey_loadpub(const Filename *filename,
+                           char **algorithm,
+                           int *pub_blob_len,
+                           const char **errorstr)
 {
   FILE *fp;
   char header[40], *b;
@@ -823,26 +899,29 @@ char *ssh2_userkey_loadpub(char *filename, char **algorithm, int *pub_blob_len)
   unsigned char *public_blob;
   int public_blob_len;
   int i;
+  const char *error = NULL;
 
   public_blob = NULL;
 
-  fp = fopen(filename, "rb");
-  if (!fp)
+  fp = f_open(*filename, "rb");
+  if (!fp) {
+    error = "can't open file";
     goto error;
+  }
 
   /* Read the first header line which contains the key type. */
   if (!read_header(fp, header) ||
       (0 != strcmp(header, "PuTTY-User-Key-File-2") &&
-       0 != strcmp(header, "PuTTY-User-Key-File-1")))
+       0 != strcmp(header, "PuTTY-User-Key-File-1"))) {
+    error = "not a PuTTY SSH-2 private key";
     goto error;
+  }
+  error = "file format error";
   if ((b = read_body(fp)) == NULL)
     goto error;
   /* Select key algorithm structure. Currently only ssh-rsa. */
-  if (!strcmp(b, "ssh-rsa"))
-    alg = &ssh_rsa;
-  else if (!strcmp(b, "ssh-dss"))
-    alg = &ssh_dss;
-  else {
+  alg = find_pubkey_alg(b);
+  if (!alg) {
     sfree(b);
     goto error;
   }
@@ -877,7 +956,7 @@ char *ssh2_userkey_loadpub(char *filename, char **algorithm, int *pub_blob_len)
     *pub_blob_len = public_blob_len;
   if (algorithm)
     *algorithm = alg->name;
-  return public_blob;
+  return (char *)public_blob;
 
   /*
    * Error processing.
@@ -887,10 +966,12 @@ error:
     fclose(fp);
   if (public_blob)
     sfree(public_blob);
+  if (errorstr)
+    *errorstr = error;
   return NULL;
 }
 
-int ssh2_userkey_encrypted(char *filename, char **commentptr)
+int ssh2_userkey_encrypted(const Filename *filename, char **commentptr)
 {
   FILE *fp;
   char header[40], *b, *comment;
@@ -899,7 +980,7 @@ int ssh2_userkey_encrypted(char *filename, char **commentptr)
   if (commentptr)
     *commentptr = NULL;
 
-  fp = fopen(filename, "rb");
+  fp = f_open(*filename, "rb");
   if (!fp)
     return 0;
   if (!read_header(fp, header) ||
@@ -976,7 +1057,7 @@ void base64_encode(FILE *fp, unsigned char *data, int datalen, int cpl)
   fputc('\n', fp);
 }
 
-int ssh2_save_userkey(char *filename,
+int ssh2_save_userkey(const Filename *filename,
                       struct ssh2_userkey *key,
                       char *passphrase)
 {
@@ -1012,7 +1093,7 @@ int ssh2_save_userkey(char *filename,
   }
   priv_encrypted_len = priv_blob_len + cipherblk - 1;
   priv_encrypted_len -= priv_encrypted_len % cipherblk;
-  priv_blob_encrypted = smalloc(priv_encrypted_len);
+  priv_blob_encrypted = snewn(priv_encrypted_len, unsigned char);
   memset(priv_blob_encrypted, 0, priv_encrypted_len);
   memcpy(priv_blob_encrypted, priv_blob, priv_blob_len);
   /* Create padding based on the SHA hash of the unpadded blob. This prevents
@@ -1037,7 +1118,7 @@ int ssh2_save_userkey(char *filename,
 
     maclen = (4 + namelen + 4 + enclen + 4 + commlen + 4 + pub_blob_len + 4 +
               priv_encrypted_len);
-    macdata = smalloc(maclen);
+    macdata = snewn(maclen, unsigned char);
     p = macdata;
 #define DO_STR(s, len)                                                         \
   PUT_32BIT(p, (len));                                                         \
@@ -1062,7 +1143,7 @@ int ssh2_save_userkey(char *filename,
   }
 
   if (passphrase) {
-    char key[40];
+    unsigned char key[40];
     SHA_State s;
 
     passlen = strlen(passphrase);
@@ -1081,7 +1162,7 @@ int ssh2_save_userkey(char *filename,
     memset(&s, 0, sizeof(s));
   }
 
-  fp = fopen(filename, "w");
+  fp = f_open(*filename, "w");
   if (!fp)
     return 0;
   fprintf(fp, "PuTTY-User-Key-File-2: %s\n", key->alg->name);
@@ -1108,7 +1189,7 @@ int ssh2_save_userkey(char *filename,
  * A function to determine the type of a private key file. Returns
  * 0 on failure, 1 or 2 on success.
  */
-int key_type(char *filename)
+int key_type(const Filename *filename)
 {
   FILE *fp;
   char buf[32];
@@ -1117,7 +1198,7 @@ int key_type(char *filename)
   const char openssh_sig[] = "-----BEGIN ";
   int i;
 
-  fp = fopen(filename, "r");
+  fp = f_open(*filename, "r");
   if (!fp)
     return SSH_KEYTYPE_UNOPENABLE;
   i = fread(buf, 1, sizeof(buf), fp);

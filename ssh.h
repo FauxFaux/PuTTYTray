@@ -1,8 +1,10 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "puttymem.h"
 #include "network.h"
 #include "int64.h"
+#include "misc.h"
 
 struct ssh_channel;
 
@@ -73,11 +75,16 @@ void freersakey(struct RSAKey *key);
 typedef unsigned int word32;
 typedef unsigned int uint32;
 
-unsigned long crc32(const void *s, size_t len);
+unsigned long crc32_compute(const void *s, size_t len);
 unsigned long crc32_update(unsigned long crc_input, const void *s, size_t len);
 
 /* SSH CRC compensation attack detector */
-int detect_attack(unsigned char *buf, uint32 len, unsigned char *IV);
+void *crcda_make_context(void);
+void crcda_free_context(void *handle);
+int detect_attack(void *handle,
+                  unsigned char *buf,
+                  uint32 len,
+                  unsigned char *IV);
 
 typedef struct {
   uint32 h[4];
@@ -126,22 +133,26 @@ void SHA512_Final(SHA512_State *s, unsigned char *output);
 void SHA512_Simple(const void *p, int len, unsigned char *output);
 
 struct ssh_cipher {
-  void (*sesskey)(unsigned char *key); /* for ssh 1 */
-  void (*encrypt)(unsigned char *blk, int len);
-  void (*decrypt)(unsigned char *blk, int len);
+  void *(*make_context)(void);
+  void (*free_context)(void *);
+  void (*sesskey)(void *, unsigned char *key); /* for ssh 1 */
+  void (*encrypt)(void *, unsigned char *blk, int len);
+  void (*decrypt)(void *, unsigned char *blk, int len);
   int blksize;
+  char *text_name;
 };
 
 struct ssh2_cipher {
-  void (*setcsiv)(unsigned char *key);  /* for ssh 2 */
-  void (*setcskey)(unsigned char *key); /* for ssh 2 */
-  void (*setsciv)(unsigned char *key);  /* for ssh 2 */
-  void (*setsckey)(unsigned char *key); /* for ssh 2 */
-  void (*encrypt)(unsigned char *blk, int len);
-  void (*decrypt)(unsigned char *blk, int len);
+  void *(*make_context)(void);
+  void (*free_context)(void *);
+  void (*setiv)(void *, unsigned char *key);  /* for ssh 2 */
+  void (*setkey)(void *, unsigned char *key); /* for ssh 2 */
+  void (*encrypt)(void *, unsigned char *blk, int len);
+  void (*decrypt)(void *, unsigned char *blk, int len);
   char *name;
   int blksize;
   int keylen;
+  char *text_name;
 };
 
 struct ssh2_ciphers {
@@ -150,10 +161,11 @@ struct ssh2_ciphers {
 };
 
 struct ssh_mac {
-  void (*setcskey)(unsigned char *key);
-  void (*setsckey)(unsigned char *key);
-  void (*generate)(unsigned char *blk, int len, unsigned long seq);
-  int (*verify)(unsigned char *blk, int len, unsigned long seq);
+  void *(*make_context)(void);
+  void (*free_context)(void *);
+  void (*setkey)(void *, unsigned char *key);
+  void (*generate)(void *, unsigned char *blk, int len, unsigned long seq);
+  int (*verify)(void *, unsigned char *blk, int len, unsigned long seq);
   char *name;
   int len;
 };
@@ -181,6 +193,7 @@ struct ssh_signkey {
                      int priv_len);
   void *(*openssh_createkey)(unsigned char **blob, int *len);
   int (*openssh_fmtkey)(void *key, unsigned char *blob, int len);
+  int (*pubkey_bits)(void *blob, int len);
   char *(*fingerprint)(void *key);
   int (*verifysig)(void *key, char *sig, int siglen, char *data, int datalen);
   unsigned char *(*sign)(void *key, char *data, int datalen, int *siglen);
@@ -190,17 +203,22 @@ struct ssh_signkey {
 
 struct ssh_compress {
   char *name;
-  void (*compress_init)(void);
-  int (*compress)(unsigned char *block,
+  void *(*compress_init)(void);
+  void (*compress_cleanup)(void *);
+  int (*compress)(void *,
+                  unsigned char *block,
                   int len,
                   unsigned char **outblock,
                   int *outlen);
-  void (*decompress_init)(void);
-  int (*decompress)(unsigned char *block,
+  void *(*decompress_init)(void);
+  void (*decompress_cleanup)(void *);
+  int (*decompress)(void *,
+                    unsigned char *block,
                     int len,
                     unsigned char **outblock,
                     int *outlen);
-  int (*disable_compression)(void);
+  int (*disable_compression)(void *);
+  char *text_name;
 };
 
 struct ssh2_userkey {
@@ -234,7 +252,7 @@ extern char sshver[];
  * that fails. This variable is the means by which scp.c can reach
  * into the SSH code and find out which one it got.
  */
-extern int ssh_fallback_cmd;
+extern int ssh_fallback_cmd(void *handle);
 
 #ifndef MSCRYPTOAPI
 void SHATransform(word32 *digest, word32 *data);
@@ -244,10 +262,45 @@ int random_byte(void);
 void random_add_noise(void *noise, int length);
 void random_add_heavynoise(void *noise, int length);
 
-void logevent(char *);
-void *new_sock_channel(
-    Socket s); // allocates and register a new channel for port forwarding
+void logevent(void *, const char *);
+
+/* Allocate and register a new channel for port forwarding */
+void *new_sock_channel(void *handle, Socket s);
 void ssh_send_port_open(void *channel, char *hostname, int port, char *org);
+
+/* Exports from portfwd.c */
+extern const char *pfd_newconnect(
+    Socket *s, char *hostname, int port, void *c, const Config *cfg);
+/* desthost == NULL indicates dynamic (SOCKS) port forwarding */
+extern const char *pfd_addforward(char *desthost,
+                                  int destport,
+                                  char *srcaddr,
+                                  int port,
+                                  void *backhandle,
+                                  const Config *cfg);
+extern void pfd_close(Socket s);
+extern int pfd_send(Socket s, char *data, int len);
+extern void pfd_confirm(Socket s);
+extern void pfd_unthrottle(Socket s);
+extern void pfd_override_throttle(Socket s, int enable);
+
+/* Exports from x11fwd.c */
+extern const char *x11_init(
+    Socket *, char *, void *, void *, const char *, int, const Config *);
+extern void x11_close(Socket);
+extern int x11_send(Socket, char *, int);
+extern void *x11_invent_auth(char *, int, char *, int, int);
+extern void x11_free_auth(void *);
+extern void x11_unthrottle(Socket s);
+extern void x11_override_throttle(Socket s, int enable);
+extern int x11_get_screen_number(char *display);
+void x11_get_real_auth(void *authv, char *display);
+
+/* Platfdorm-dependent X11 function */
+extern void platform_get_x11_auth(char *display,
+                                  int *proto,
+                                  unsigned char *data,
+                                  int *datalen);
 
 Bignum copybn(Bignum b);
 Bignum bn_power_2(int n);
@@ -258,8 +311,8 @@ Bignum modpow(Bignum base, Bignum exp, Bignum mod);
 Bignum modmul(Bignum a, Bignum b, Bignum mod);
 void decbn(Bignum n);
 extern Bignum Zero, One;
-Bignum bignum_from_bytes(unsigned char *data, int nbytes);
-int ssh1_read_bignum(unsigned char *data, Bignum *result);
+Bignum bignum_from_bytes(const unsigned char *data, int nbytes);
+int ssh1_read_bignum(const unsigned char *data, Bignum *result);
 int bignum_bitcount(Bignum bn);
 int ssh1_bignum_length(Bignum bn);
 int ssh2_bignum_length(Bignum bn);
@@ -280,30 +333,49 @@ Bignum bignum_rshift(Bignum number, int shift);
 int bignum_cmp(Bignum a, Bignum b);
 char *bignum_decimal(Bignum x);
 
-void dh_setup_group1(void);
-void dh_setup_group(Bignum pval, Bignum gval);
-void dh_cleanup(void);
-Bignum dh_create_e(int nbits);
-Bignum dh_find_K(Bignum f);
+#ifdef DEBUG
+void diagbn(char *prefix, Bignum md);
+#endif
 
-int loadrsakey(char *filename, struct RSAKey *key, char *passphrase);
-int rsakey_encrypted(char *filename, char **comment);
-int rsakey_pubblob(char *filename, void **blob, int *bloblen);
+void *dh_setup_group1(void);
+void *dh_setup_group(Bignum pval, Bignum gval);
+void dh_cleanup(void *);
+Bignum dh_create_e(void *, int nbits);
+Bignum dh_find_K(void *, Bignum f);
 
-int saversakey(char *filename, struct RSAKey *key, char *passphrase);
+int loadrsakey(const Filename *filename,
+               struct RSAKey *key,
+               char *passphrase,
+               const char **errorstr);
+int rsakey_encrypted(const Filename *filename, char **comment);
+int rsakey_pubblob(const Filename *filename,
+                   void **blob,
+                   int *bloblen,
+                   const char **errorstr);
 
-void base64_encode_atom(unsigned char *data, int n, char *out);
+int saversakey(const Filename *filename, struct RSAKey *key, char *passphrase);
+
+extern int base64_decode_atom(char *atom, unsigned char *out);
+extern int base64_lines(int datalen);
+extern void base64_encode_atom(unsigned char *data, int n, char *out);
+extern void base64_encode(FILE *fp, unsigned char *data, int datalen, int cpl);
 
 /* ssh2_load_userkey can return this as an error */
 extern struct ssh2_userkey ssh2_wrong_passphrase;
 #define SSH2_WRONG_PASSPHRASE (&ssh2_wrong_passphrase)
 
-int ssh2_userkey_encrypted(char *filename, char **comment);
-struct ssh2_userkey *ssh2_load_userkey(char *filename, char *passphrase);
-char *ssh2_userkey_loadpub(char *filename, char **algorithm, int *pub_blob_len);
-int ssh2_save_userkey(char *filename,
+int ssh2_userkey_encrypted(const Filename *filename, char **comment);
+struct ssh2_userkey *ssh2_load_userkey(const Filename *filename,
+                                       char *passphrase,
+                                       const char **errorstr);
+char *ssh2_userkey_loadpub(const Filename *filename,
+                           char **algorithm,
+                           int *pub_blob_len,
+                           const char **errorstr);
+int ssh2_save_userkey(const Filename *filename,
                       struct ssh2_userkey *key,
                       char *passphrase);
+const struct ssh_signkey *find_pubkey_alg(const char *name);
 
 enum
 {
@@ -314,16 +386,24 @@ enum
   SSH_KEYTYPE_OPENSSH,
   SSH_KEYTYPE_SSHCOM
 };
-int key_type(char *filename);
+int key_type(const Filename *filename);
 char *key_type_to_str(int type);
 
 int import_possible(int type);
 int import_target_type(int type);
-int import_encrypted(char *filename, int type, char **comment);
-int import_ssh1(char *filename, int type, struct RSAKey *key, char *passphrase);
-struct ssh2_userkey *import_ssh2(char *filename, int type, char *passphrase);
-int export_ssh1(char *filename, int type, struct RSAKey *key, char *passphrase);
-int export_ssh2(char *filename,
+int import_encrypted(const Filename *filename, int type, char **comment);
+int import_ssh1(const Filename *filename,
+                int type,
+                struct RSAKey *key,
+                char *passphrase);
+struct ssh2_userkey *import_ssh2(const Filename *filename,
+                                 int type,
+                                 char *passphrase);
+int export_ssh1(const Filename *filename,
+                int type,
+                struct RSAKey *key,
+                char *passphrase);
+int export_ssh2(const Filename *filename,
                 int type,
                 struct ssh2_userkey *key,
                 char *passphrase);
@@ -340,6 +420,9 @@ void des3_encrypt_pubkey_ossh(unsigned char *key,
                               int len);
 void aes256_encrypt_pubkey(unsigned char *key, unsigned char *blk, int len);
 void aes256_decrypt_pubkey(unsigned char *key, unsigned char *blk, int len);
+
+void des_encrypt_xdmauth(unsigned char *key, unsigned char *blk, int len);
+void des_decrypt_xdmauth(unsigned char *key, unsigned char *blk, int len);
 
 /*
  * For progress updates in the key generation utility.
@@ -365,13 +448,17 @@ Bignum primegen(int bits,
 /*
  * zlib compression.
  */
-void zlib_compress_init(void);
-void zlib_decompress_init(void);
-int zlib_compress_block(unsigned char *block,
+void *zlib_compress_init(void);
+void zlib_compress_cleanup(void *);
+void *zlib_decompress_init(void);
+void zlib_decompress_cleanup(void *);
+int zlib_compress_block(void *,
+                        unsigned char *block,
                         int len,
                         unsigned char **outblock,
                         int *outlen);
-int zlib_decompress_block(unsigned char *block,
+int zlib_decompress_block(void *,
+                          unsigned char *block,
                           int len,
                           unsigned char **outblock,
                           int *outlen);
