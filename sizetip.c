@@ -1,4 +1,11 @@
 #include <windows.h>
+#ifndef AUTO_WINSOCK
+#ifdef WINSOCK_TWO
+#include <winsock2.h>
+#else
+#include <winsock.h>
+#endif
+#endif
 #include <winreg.h>
 #include <tchar.h>
 #include <stdio.h>
@@ -6,16 +13,16 @@
 
 #include "putty.h"
 
-ATOM tip_class = 0;
+static ATOM tip_class = 0;
 
-HFONT tip_font;
-COLORREF tip_bg;
-COLORREF tip_text;
+static HFONT tip_font;
+static COLORREF tip_bg;
+static COLORREF tip_text;
 
-LRESULT CALLBACK SizeTipWndProc(HWND hWnd,
-                                UINT nMsg,
-                                WPARAM wParam,
-                                LPARAM lParam)
+static LRESULT CALLBACK SizeTipWndProc(HWND hWnd,
+                                       UINT nMsg,
+                                       WPARAM wParam,
+                                       LPARAM lParam)
 {
 
   switch (nMsg) {
@@ -92,8 +99,8 @@ LRESULT CALLBACK SizeTipWndProc(HWND hWnd,
   return DefWindowProc(hWnd, nMsg, wParam, lParam);
 }
 
-HWND tip_wnd = NULL;
-int tip_enabled = 0;
+static HWND tip_wnd = NULL;
+static int tip_enabled = 0;
 
 void UpdateSizeTip(HWND src, int cx, int cy)
 {

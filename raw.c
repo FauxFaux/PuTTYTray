@@ -1,7 +1,13 @@
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
+#ifndef AUTO_WINSOCK
+#ifdef WINSOCK_TWO
+#include <winsock2.h>
+#else
 #include <winsock.h>
+#endif
+#endif
 
 #include "putty.h"
 
@@ -13,8 +19,6 @@
 #endif
 
 static SOCKET s = INVALID_SOCKET;
-
-#define iswritable(x) ((x) != IAC && (x) != CR)
 
 static void raw_size(void);
 
@@ -53,19 +57,8 @@ static void s_write(void *buf, int len)
 
 static void c_write(char *buf, int len)
 {
-  while (len--) {
-    int new_head = (inbuf_head + 1) & INBUF_MASK;
-    if (new_head != inbuf_reap) {
-      inbuf[inbuf_head] = *buf++;
-      inbuf_head = new_head;
-    } else {
-      term_out();
-      if (inbuf_head == inbuf_reap)
-        len++;
-      else
-        break;
-    }
-  }
+  while (len--)
+    c_write1(*buf++);
 }
 
 /*
@@ -155,15 +148,21 @@ static char *raw_init(HWND hwnd, char *host, int port, char **realhost)
       return "connect(): unknown error";
     }
 
-  if (WSAAsyncSelect(
+  if (hwnd &&
+      WSAAsyncSelect(
           s, hwnd, WM_NETEVENT, FD_READ | FD_WRITE | FD_OOB | FD_CLOSE) ==
-      SOCKET_ERROR)
+          SOCKET_ERROR)
     switch (WSAGetLastError()) {
     case WSAENETDOWN:
       return "Network is down";
     default:
       return "WSAAsyncSelect(): unknown error";
     }
+
+  /*
+   * We have no pre-session phase.
+   */
+  begin_session();
 
   return NULL;
 }
@@ -184,8 +183,11 @@ static int raw_msg(WPARAM wParam, LPARAM lParam)
    * the queue; so it's possible that we can get here even with s
    * invalid. If so, we return 1 and don't worry about it.
    */
-  if (s == INVALID_SOCKET)
+  if (s == INVALID_SOCKET) {
+    closesocket(s);
+    s = INVALID_SOCKET;
     return 1;
+  }
 
   if (WSAGETSELECTERROR(lParam) != 0)
     return -WSAGETSELECTERROR(lParam);
@@ -196,8 +198,11 @@ static int raw_msg(WPARAM wParam, LPARAM lParam)
     ret = recv(s, buf, sizeof(buf), 0);
     if (ret < 0 && WSAGetLastError() == WSAEWOULDBLOCK)
       return 1;
-    if (ret < 0) /* any _other_ error */
+    if (ret < 0) { /* any _other_ error */
+      closesocket(s);
+      s = INVALID_SOCKET;
       return -10000 - WSAGetLastError();
+    }
     if (ret == 0) {
       s = INVALID_SOCKET;
       return 0;
@@ -253,4 +258,21 @@ static void raw_special(Telnet_Special code)
   return;
 }
 
-Backend raw_backend = {raw_init, raw_msg, raw_send, raw_size, raw_special};
+static SOCKET raw_socket(void)
+{
+  return s;
+}
+
+static int raw_sendok(void)
+{
+  return 1;
+}
+
+Backend raw_backend = {raw_init,
+                       raw_msg,
+                       raw_send,
+                       raw_size,
+                       raw_special,
+                       raw_socket,
+                       raw_sendok,
+                       1};

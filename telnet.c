@@ -1,7 +1,13 @@
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
+#ifndef AUTO_WINSOCK
+#ifdef WINSOCK_TWO
+#include <winsock2.h>
+#else
 #include <winsock.h>
+#endif
+#endif
 
 #include "putty.h"
 
@@ -209,23 +215,6 @@ static void s_write(void *buf, int len)
     }
   }
   try_write();
-}
-
-static void c_write(char *buf, int len)
-{
-  while (len--) {
-    int new_head = (inbuf_head + 1) & INBUF_MASK;
-    if (new_head != inbuf_reap) {
-      inbuf[inbuf_head] = *buf++;
-      inbuf_head = new_head;
-    } else {
-      term_out();
-      if (inbuf_head == inbuf_reap)
-        len++;
-      else
-        break;
-    }
-  }
 }
 
 static void log_option(char *sender, int cmd, int option)
@@ -476,7 +465,6 @@ static enum {
 
 static void do_telnet_read(char *buf, int len)
 {
-  unsigned char b[10];
 
   while (len--) {
     int c = (unsigned char)*buf++;
@@ -489,9 +477,8 @@ static void do_telnet_read(char *buf, int len)
       else if (c == IAC)
         telnet_state = SEENIAC;
       else {
-        b[0] = c;
         if (!in_synch)
-          c_write(b, 1);
+          c_write1(c);
 
 #if 1
         /* I can't get the F***ing winsock to insert the urgent IAC
@@ -528,8 +515,7 @@ static void do_telnet_read(char *buf, int len)
       } else {
         /* ignore everything else; print it if it's IAC */
         if (c == IAC) {
-          b[0] = c;
-          c_write(b, 1);
+          c_write1(c);
         }
         telnet_state = TOPLEVEL;
       }
@@ -563,7 +549,7 @@ static void do_telnet_read(char *buf, int len)
         if (sb_len >= sb_size) {
           char *newbuf;
           sb_size += SB_DELTA;
-          newbuf = (sb_buf ? realloc(sb_buf, sb_size) : malloc(sb_size));
+          newbuf = (sb_buf ? srealloc(sb_buf, sb_size) : smalloc(sb_size));
           if (newbuf)
             sb_buf = newbuf;
           else
@@ -678,9 +664,10 @@ static char *telnet_init(HWND hwnd, char *host, int port, char **realhost)
       return "connect(): unknown error";
     }
 
-  if (WSAAsyncSelect(
+  if (hwnd &&
+      WSAAsyncSelect(
           s, hwnd, WM_NETEVENT, FD_READ | FD_WRITE | FD_OOB | FD_CLOSE) ==
-      SOCKET_ERROR)
+          SOCKET_ERROR)
     switch (WSAGetLastError()) {
     case WSAENETDOWN:
       return "Network is down";
@@ -709,6 +696,12 @@ static char *telnet_init(HWND hwnd, char *host, int port, char **realhost)
    * Set up SYNCH state.
    */
   in_synch = FALSE;
+
+  /*
+   * We have no pre-session phase.
+   */
+  begin_session();
+
   return NULL;
 }
 
@@ -719,7 +712,11 @@ static char *telnet_init(HWND hwnd, char *host, int port, char **realhost)
 static int telnet_msg(WPARAM wParam, LPARAM lParam)
 {
   int ret;
-  char buf[256];
+  /* This needs to be larger than the packet size now that inbuf
+   * cannot overflow, in fact the fewer calls we make to windows
+   * the faster we will run!
+   */
+  char buf[16384];
 
   /*
    * Because reading less than the whole of the available pending
@@ -731,15 +728,21 @@ static int telnet_msg(WPARAM wParam, LPARAM lParam)
   if (s == INVALID_SOCKET)
     return 1;
 
-  if (WSAGETSELECTERROR(lParam) != 0)
+  if (WSAGETSELECTERROR(lParam) != 0) {
+    closesocket(s);
+    s = INVALID_SOCKET;
     return -WSAGETSELECTERROR(lParam);
+  }
 
   switch (WSAGETSELECTEVENT(lParam)) {
   case FD_READ:
   case FD_CLOSE: {
     int clear_of_oob = 1;
-    if (ioctlsocket(s, SIOCATMARK, &clear_of_oob) < 0)
-      return -20000 - WSAGetLastError();
+
+    /* Don't check for error return; some shims don't support
+     * this ioctl.
+     */
+    ioctlsocket(s, SIOCATMARK, &clear_of_oob);
 
     in_synch = !clear_of_oob;
 
@@ -747,13 +750,15 @@ static int telnet_msg(WPARAM wParam, LPARAM lParam)
       ret = recv(s, buf, sizeof(buf), 0);
       if (ret < 0 && WSAGetLastError() == WSAEWOULDBLOCK)
         return 1;
-      if (ret < 0) /* any _other_ error */
+      if (ret < 0) { /* any _other_ error */
+        closesocket(s);
+        s = INVALID_SOCKET;
         return -10000 - WSAGetLastError();
+      }
       if (ret == 0) {
         s = INVALID_SOCKET;
         return 0;
       }
-
       do_telnet_read(buf, ret);
     } while (in_synch);
   }
@@ -898,8 +903,30 @@ static void telnet_special(Telnet_Special code)
       send_opt(o_echo.nsend, o_echo.option);
     }
     break;
+  case TS_PING:
+    if (o_they_sga.state == ACTIVE) {
+      b[1] = NOP;
+      s_write(b, 2);
+    }
+    break;
   }
 }
 
-Backend telnet_backend = {
-    telnet_init, telnet_msg, telnet_send, telnet_size, telnet_special};
+static SOCKET telnet_socket(void)
+{
+  return s;
+}
+
+static int telnet_sendok(void)
+{
+  return 1;
+}
+
+Backend telnet_backend = {telnet_init,
+                          telnet_msg,
+                          telnet_send,
+                          telnet_size,
+                          telnet_special,
+                          telnet_socket,
+                          telnet_sendok,
+                          23};

@@ -1,12 +1,20 @@
 #include <windows.h>
 #include <commctrl.h>
+#ifndef AUTO_WINSOCK
+#ifdef WINSOCK_TWO
+#include <winsock2.h>
+#else
 #include <winsock.h>
+#endif
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <time.h>
 
 #define PUTTY_DO_GLOBALS /* actually _define_ globals */
 #include "putty.h"
+#include "storage.h"
 #include "win_res.h"
 
 #define IDM_SHOWLOG 0x0010
@@ -38,7 +46,10 @@
 #define WM_IGNORE_CLIP (WM_XUSER + 2)
 
 static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
-static int TranslateKey(WPARAM wParam, LPARAM lParam, unsigned char *output);
+static int TranslateKey(UINT message,
+                        WPARAM wParam,
+                        LPARAM lParam,
+                        unsigned char *output);
 static void cfgtopalette(void);
 static void init_palette(void);
 static void init_fonts(int);
@@ -50,6 +61,8 @@ static WPARAM pend_netevent_wParam = 0;
 static LPARAM pend_netevent_lParam = 0;
 static void enact_pending_netevent(void);
 
+static time_t last_movement = 0;
+
 #define FONT_NORMAL 0
 #define FONT_BOLD 1
 #define FONT_UNDERLINE 2
@@ -59,6 +72,7 @@ static void enact_pending_netevent(void);
 #define FONT_OEMBOLDUND 6
 #define FONT_OEMUND 7
 static HFONT fonts[8];
+static int font_needs_hand_underlining;
 static enum { BOLD_COLOURS, BOLD_SHADOW, BOLD_FONT } bold_mode;
 static enum { UND_LINE, UND_FONT } und_mode;
 static int descent;
@@ -71,10 +85,19 @@ static RGBTRIPLE defpal[NCOLOURS];
 
 static HWND hwnd;
 
+static HBITMAP caretbm;
+
 static int dbltime, lasttime, lastact;
 static Mouse_Button lastbtn;
 
 static char *window_name, *icon_name;
+
+static Ldisc *real_ldisc;
+
+void begin_session(void)
+{
+  ldisc = real_ldisc;
+}
 
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
@@ -86,6 +109,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   int guess_width, guess_height;
 
   putty_inst = inst;
+  flags = FLAG_VERBOSE | FLAG_INTERACTIVE;
 
   winsock_ver = MAKEWORD(1, 1);
   if (WSAStartup(winsock_ver, &wsadata)) {
@@ -107,6 +131,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
   InitCommonControls();
 
+  /* Ensure a Maximize setting in Explorer doesn't maximise the
+   * config box. */
+  defuse_showwindow();
+
   /*
    * Process the command line.
    */
@@ -116,7 +144,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     default_protocol = DEFAULT_PROTOCOL;
     default_port = DEFAULT_PORT;
 
-    do_defaults(NULL);
+    do_defaults(NULL, &cfg);
 
     p = cmdline;
     while (*p && isspace(*p))
@@ -137,6 +165,28 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
       } else if (q == p + 3 && tolower(p[0]) == 'l' && tolower(p[1]) == 'o' &&
                  tolower(p[2]) == 'g') {
         logfile = "putty.log";
+      } else if (q == p + 7 && tolower(p[0]) == 'c' && tolower(p[1]) == 'l' &&
+                 tolower(p[2]) == 'e' && tolower(p[3]) == 'a' &&
+                 tolower(p[4]) == 'n' && tolower(p[5]) == 'u' &&
+                 tolower(p[6]) == 'p') {
+        /*
+         * `putty -cleanup'. Remove all registry entries
+         * associated with PuTTY, and also find and delete
+         * the random seed file.
+         */
+        if (MessageBox(NULL,
+                       "This procedure will remove ALL Registry\n"
+                       "entries associated with PuTTY, and will\n"
+                       "also remove the PuTTY random seed file.\n"
+                       "\n"
+                       "THIS PROCESS WILL DESTROY YOUR SAVED\n"
+                       "SESSIONS. Are you really sure you want\n"
+                       "to continue?",
+                       "PuTTY Warning",
+                       MB_YESNO | MB_ICONWARNING) == IDYES) {
+          cleanup_all();
+        }
+        exit(0);
       }
       p = q + strspn(q, " \t");
     }
@@ -145,7 +195,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
      * An initial @ means to activate a saved session.
      */
     if (*p == '@') {
-      do_defaults(p + 1);
+      do_defaults(p + 1, &cfg);
       if (!*cfg.host && !do_config()) {
         WSACleanup();
         return 0;
@@ -171,22 +221,61 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
       }
     } else if (*p) {
       char *q = p;
-      while (*p && !isspace(*p))
-        p++;
-      if (*p)
-        *p++ = '\0';
-      strncpy(cfg.host, q, sizeof(cfg.host) - 1);
-      cfg.host[sizeof(cfg.host) - 1] = '\0';
-      while (*p && isspace(*p))
-        p++;
-      if (*p)
-        cfg.port = atoi(p);
-      else
-        cfg.port = -1;
+      /*
+       * If the hostname starts with "telnet:", set the
+       * protocol to Telnet and process the string as a
+       * Telnet URL.
+       */
+      if (!strncmp(q, "telnet:", 7)) {
+        char c;
+
+        q += 7;
+        if (q[0] == '/' && q[1] == '/')
+          q += 2;
+        cfg.protocol = PROT_TELNET;
+        p = q;
+        while (*p && *p != ':' && *p != '/')
+          p++;
+        c = *p;
+        if (*p)
+          *p++ = '\0';
+        if (c == ':')
+          cfg.port = atoi(p);
+        else
+          cfg.port = -1;
+        strncpy(cfg.host, q, sizeof(cfg.host) - 1);
+        cfg.host[sizeof(cfg.host) - 1] = '\0';
+      } else {
+        while (*p && !isspace(*p))
+          p++;
+        if (*p)
+          *p++ = '\0';
+        strncpy(cfg.host, q, sizeof(cfg.host) - 1);
+        cfg.host[sizeof(cfg.host) - 1] = '\0';
+        while (*p && isspace(*p))
+          p++;
+        if (*p)
+          cfg.port = atoi(p);
+        else
+          cfg.port = -1;
+      }
     } else {
       if (!do_config()) {
         WSACleanup();
         return 0;
+      }
+    }
+
+    /* See if host is of the form user@host */
+    if (cfg.host[0] != '\0') {
+      char *atsign = strchr(cfg.host, '@');
+      /* Make sure we're not overflowing the user field */
+      if (atsign) {
+        if (atsign - cfg.host < sizeof cfg.username) {
+          strncpy(cfg.username, cfg.host, atsign - cfg.host);
+          cfg.username[atsign - cfg.host] = '\0';
+        }
+        memmove(cfg.host, atsign + 1, 1 + strlen(atsign + 1));
       }
     }
   }
@@ -213,7 +302,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     }
   }
 
-  ldisc = (cfg.ldisc_term ? &ldisc_term : &ldisc_simple);
+  real_ldisc = (cfg.ldisc_term ? &ldisc_term : &ldisc_simple);
+  /* To start with, we use the simple line discipline, so we can
+   * type passwords etc without fear of them being echoed... */
+  ldisc = &ldisc_simple;
 
   if (!prev) {
     wndclass.style = 0;
@@ -261,17 +353,24 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
       guess_height = r.bottom - r.top;
   }
 
-  hwnd = CreateWindow(appname,
-                      appname,
-                      WS_OVERLAPPEDWINDOW | WS_VSCROLL,
-                      CW_USEDEFAULT,
-                      CW_USEDEFAULT,
-                      guess_width,
-                      guess_height,
-                      NULL,
-                      NULL,
-                      inst,
-                      NULL);
+  {
+    int winmode = WS_OVERLAPPEDWINDOW | WS_VSCROLL;
+    if (!cfg.scrollbar)
+      winmode &= ~(WS_VSCROLL);
+    if (cfg.locksize)
+      winmode &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
+    hwnd = CreateWindow(appname,
+                        appname,
+                        winmode,
+                        CW_USEDEFAULT,
+                        CW_USEDEFAULT,
+                        guess_width,
+                        guess_height,
+                        NULL,
+                        NULL,
+                        inst,
+                        NULL);
+  }
 
   /*
    * Initialise the fonts, simultaneously correcting the guesses
@@ -308,13 +407,24 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
                SWP_NOMOVE | SWP_NOREDRAW | SWP_NOZORDER);
 
   /*
+   * Set up a caret bitmap, with no content.
+   */
+  {
+    char *bits;
+    int size = (font_width + 15) / 16 * 2 * font_height;
+    bits = calloc(size, 1);
+    caretbm = CreateBitmap(font_width, font_height, 1, 1, bits);
+    free(bits);
+  }
+
+  /*
    * Initialise the scroll bar.
    */
   {
     SCROLLINFO si;
 
     si.cbSize = sizeof(si);
-    si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS | SIF_DISABLENOSCROLL;
+    si.fMask = SIF_ALL | SIF_DISABLENOSCROLL;
     si.nMin = 0;
     si.nMax = rows - 1;
     si.nPage = rows;
@@ -327,7 +437,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
    */
   {
     char *error;
-    char msg[1024];
+    char msg[1024], *title;
     char *realhost;
 
     error = back->init(hwnd, cfg.host, cfg.port, &realhost);
@@ -337,9 +447,14 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
       return 0;
     }
     window_name = icon_name = NULL;
-    sprintf(msg, "%s - PuTTY", realhost);
-    set_title(msg);
-    set_icon(msg);
+    if (*cfg.wintitle) {
+      title = cfg.wintitle;
+    } else {
+      sprintf(msg, "%s - PuTTY", realhost);
+      title = msg;
+    }
+    set_title(title);
+    set_icon(title);
   }
 
   session_closed = FALSE;
@@ -347,13 +462,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   /*
    * Set up the input and output buffers.
    */
-  inbuf_reap = inbuf_head = 0;
+  inbuf_head = 0;
   outbuf_reap = outbuf_head = 0;
-
-  /*
-   * Choose unscroll method
-   */
-  unscroll_event = US_DISP;
 
   /*
    * Prepare the mouse handler.
@@ -424,10 +534,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   has_focus = (GetForegroundWindow() == hwnd);
   UpdateWindow(hwnd);
 
-  {
+  if (GetMessage(&msg, NULL, 0, 0) == 1) {
     int timer_id = 0, long_timer = 0;
 
-    while (GetMessage(&msg, NULL, 0, 0) == 1) {
+    while (msg.message != WM_QUIT) {
       /* Sometimes DispatchMessage calls routines that use their own
        * GetMessage loop, setup this timer so we get some control back.
        *
@@ -442,34 +552,54 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
         timer_id = SetTimer(hwnd, 1, 20, NULL);
       DispatchMessage(&msg);
 
-      /* This is too fast, but I'll leave it for now 'cause it shows
-       * how often term_update is called (far too often at times!)
-       */
+      /* Make sure we blink everything that needs it. */
       term_blink(0);
+
+      /* Send the paste buffer if there's anything to send */
+      term_paste();
 
       /* If there's nothing new in the queue then we can do everything
        * we've delayed, reading the socket, writing, and repainting
        * the window.
        */
-      if (!PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
-        if (pending_netevent) {
-          enact_pending_netevent();
-
-          term_blink(1);
-        }
-      } else
+      if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
         continue;
-      if (!PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
-        if (timer_id) {
-          KillTimer(hwnd, timer_id);
-          timer_id = 0;
-        }
-        if (inbuf_reap != inbuf_head)
-          term_out();
-        term_update();
-        timer_id = SetTimer(hwnd, 1, 500, NULL);
-        long_timer = 1;
+
+      if (pending_netevent) {
+        enact_pending_netevent();
+
+        /* Force the cursor blink on */
+        term_blink(1);
+
+        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+          continue;
       }
+
+      /* Okay there is now nothing to do so we make sure the screen is
+       * completely up to date then tell windows to call us in a little
+       * while.
+       */
+      if (timer_id) {
+        KillTimer(hwnd, timer_id);
+        timer_id = 0;
+      }
+      HideCaret(hwnd);
+      if (inbuf_head)
+        term_out();
+      term_update();
+      ShowCaret(hwnd);
+      if (!has_focus)
+        timer_id = SetTimer(hwnd, 1, 59500, NULL);
+      else
+        timer_id = SetTimer(hwnd, 1, 250, NULL);
+      long_timer = 1;
+
+      /* There's no point rescanning everything in the message queue
+       * so we do an apperently unneccesary wait here
+       */
+      WaitMessage();
+      if (GetMessage(&msg, NULL, 0, 0) != 1)
+        break;
     }
   }
 
@@ -498,13 +628,41 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 }
 
 /*
+ * Print a message box and close the connection.
+ */
+void connection_fatal(char *fmt, ...)
+{
+  va_list ap;
+  char stuff[200];
+
+  va_start(ap, fmt);
+  vsprintf(stuff, fmt, ap);
+  va_end(ap);
+  MessageBox(hwnd, stuff, "PuTTY Fatal Error", MB_ICONERROR | MB_OK);
+  if (cfg.close_on_exit)
+    PostQuitMessage(1);
+  else {
+    session_closed = TRUE;
+    SetWindowText(hwnd, "PuTTY (inactive)");
+  }
+}
+
+/*
  * Actually do the job requested by a WM_NETEVENT
  */
 static void enact_pending_netevent(void)
 {
   int i;
+  static int reentering = 0;
+
+  if (reentering)
+    return; /* don't unpend the pending */
+
   pending_netevent = FALSE;
+
+  reentering = 1;
   i = back->msg(pend_netevent_wParam, pend_netevent_lParam);
+  reentering = 0;
 
   if (i < 0) {
     char buf[1024];
@@ -512,13 +670,16 @@ static void enact_pending_netevent(void)
     case WSAECONNRESET:
       sprintf(buf, "Connection reset by peer");
       break;
+    case WSAECONNABORTED:
+      sprintf(buf, "Connection aborted");
+      break;
     default:
       sprintf(buf, "Unexpected network error %d", -i);
       break;
     }
-    MessageBox(hwnd, buf, "PuTTY Fatal Error", MB_ICONERROR | MB_OK);
-    PostQuitMessage(1);
-  } else if (i == 0) {
+    connection_fatal(buf);
+  }
+  if (i <= 0) {
     if (cfg.close_on_exit)
       PostQuitMessage(0);
     else {
@@ -619,7 +780,7 @@ font_messup:
 
   if (cfg.fontisbold) {
     fw_dontcare = FW_BOLD;
-    fw_bold = FW_BLACK;
+    fw_bold = FW_HEAVY;
   } else {
     fw_dontcare = FW_DONTCARE;
     fw_bold = FW_BOLD;
@@ -655,6 +816,50 @@ font_messup:
     font_width = tm.tmAveCharWidth;
 
     f(FONT_UNDERLINE, cfg.fontcharset, fw_dontcare, TRUE);
+
+    /*
+     * Some fonts, e.g. 9-pt Courier, draw their underlines
+     * outside their character cell. We successfully prevent
+     * screen corruption by clipping the text output, but then
+     * we lose the underline completely. Here we try to work
+     * out whether this is such a font, and if it is, we set a
+     * flag that causes underlines to be drawn by hand.
+     *
+     * Having tried other more sophisticated approaches (such
+     * as examining the TEXTMETRIC structure or requesting the
+     * height of a string), I think we'll do this the brute
+     * force way: we create a small bitmap, draw an underlined
+     * space on it, and test to see whether any pixels are
+     * foreground-coloured. (Since we expect the underline to
+     * go all the way across the character cell, we only search
+     * down a single column of the bitmap, half way across.)
+     */
+    {
+      HDC und_dc;
+      HBITMAP und_bm, und_oldbm;
+      int i, gotit;
+      COLORREF c;
+
+      und_dc = CreateCompatibleDC(hdc);
+      und_bm = CreateCompatibleBitmap(hdc, font_width, font_height);
+      und_oldbm = SelectObject(und_dc, und_bm);
+      SelectObject(und_dc, fonts[FONT_UNDERLINE]);
+      SetTextAlign(und_dc, TA_TOP | TA_LEFT | TA_NOUPDATECP);
+      SetTextColor(und_dc, RGB(255, 255, 255));
+      SetBkColor(und_dc, RGB(0, 0, 0));
+      SetBkMode(und_dc, OPAQUE);
+      ExtTextOut(und_dc, 0, 0, ETO_OPAQUE, NULL, " ", 1, NULL);
+      gotit = FALSE;
+      for (i = 0; i < font_height; i++) {
+        c = GetPixel(und_dc, font_width / 2, i);
+        if (c != RGB(0, 0, 0))
+          gotit = TRUE;
+      }
+      SelectObject(und_dc, und_oldbm);
+      DeleteObject(und_bm);
+      DeleteDC(und_dc);
+      font_needs_hand_underlining = !gotit;
+    }
 
     if (bold_mode == BOLD_FONT) {
       f(FONT_BOLD, cfg.fontcharset, fw_bold, FALSE);
@@ -760,6 +965,10 @@ void request_resize(int w, int h, int refont)
 {
   int width, height;
 
+  /* If the window is maximized supress resizing attempts */
+  if (IsZoomed(hwnd))
+    return;
+
 #ifdef CHECKOEMFONT
   /* Don't do this in OEMANSI, you may get disable messages */
   if (refont && w != cols && (cols == 80 || cols == 132) &&
@@ -782,6 +991,33 @@ void request_resize(int w, int h, int refont)
     bold_mode = cfg.bold_colour ? BOLD_COLOURS : BOLD_FONT;
     und_mode = UND_FONT;
     init_fonts(font_width);
+  } else {
+    static int first_time = 1;
+    static RECT ss;
+
+    switch (first_time) {
+    case 1:
+      /* Get the size of the screen */
+      if (GetClientRect(GetDesktopWindow(), &ss))
+        /* first_time = 0 */;
+      else {
+        first_time = 2;
+        break;
+      }
+    case 0:
+      /* Make sure the values are sane */
+      width = (ss.right - ss.left - extra_width) / font_width;
+      height = (ss.bottom - ss.top - extra_height) / font_height;
+
+      if (w > width)
+        w = width;
+      if (h > height)
+        h = height;
+      if (w < 15)
+        w = 15;
+      if (h < 1)
+        w = 1;
+    }
   }
 
   width = extra_width + font_width * w;
@@ -824,14 +1060,25 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
   static int ignore_size = FALSE;
   static int ignore_clip = FALSE;
   static int just_reconfigged = FALSE;
+  static int resizing = FALSE;
 
   switch (message) {
   case WM_TIMER:
     if (pending_netevent)
       enact_pending_netevent();
-    if (inbuf_reap != inbuf_head)
+    if (inbuf_head)
       term_out();
+    HideCaret(hwnd);
     term_update();
+    ShowCaret(hwnd);
+    if (cfg.ping_interval > 0) {
+      time_t now;
+      time(&now);
+      if (now - last_movement > cfg.ping_interval * 60 - 10) {
+        back->special(TS_PING);
+        last_movement = now;
+      }
+    }
     return 0;
   case WM_CREATE:
     break;
@@ -935,6 +1182,42 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       pal = NULL;
       cfgtopalette();
       init_palette();
+
+      /* Enable or disable the scroll bar, etc */
+      {
+        LONG nflg, flag = GetWindowLong(hwnd, GWL_STYLE);
+
+        nflg = flag;
+        if (cfg.scrollbar)
+          nflg |= WS_VSCROLL;
+        else
+          nflg &= ~WS_VSCROLL;
+        if (cfg.locksize)
+          nflg &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
+        else
+          nflg |= (WS_THICKFRAME | WS_MAXIMIZEBOX);
+
+        if (nflg != flag) {
+          RECT cr, wr;
+
+          SetWindowLong(hwnd, GWL_STYLE, nflg);
+          SendMessage(hwnd, WM_IGNORE_SIZE, 0, 0);
+          SetWindowPos(hwnd,
+                       NULL,
+                       0,
+                       0,
+                       0,
+                       0,
+                       SWP_NOACTIVATE | SWP_NOCOPYBITS | SWP_NOMOVE |
+                           SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+
+          GetWindowRect(hwnd, &wr);
+          GetClientRect(hwnd, &cr);
+          extra_width = wr.right - wr.left - cr.right + cr.left;
+          extra_height = wr.bottom - wr.top - cr.bottom + cr.top;
+        }
+      }
+
       term_size(cfg.height, cfg.width, cfg.savelines);
       InvalidateRect(hwnd, NULL, TRUE);
       SetWindowPos(hwnd,
@@ -1075,6 +1358,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     return 0;
   case WM_PAINT: {
     PAINTSTRUCT p;
+    HideCaret(hwnd);
     hdc = BeginPaint(hwnd, &p);
     if (pal) {
       SelectPalette(hdc, pal, TRUE);
@@ -1085,6 +1369,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     SelectObject(hdc, GetStockObject(SYSTEM_FONT));
     SelectObject(hdc, GetStockObject(WHITE_PEN));
     EndPaint(hwnd, &p);
+    ShowCaret(hwnd);
   }
     return 0;
   case WM_NETEVENT:
@@ -1098,14 +1383,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     pending_netevent = TRUE;
     pend_netevent_wParam = wParam;
     pend_netevent_lParam = lParam;
+    time(&last_movement);
     return 0;
   case WM_SETFOCUS:
     has_focus = TRUE;
+    CreateCaret(hwnd, caretbm, 0, 0);
+    ShowCaret(hwnd);
     term_out();
     term_update();
     break;
   case WM_KILLFOCUS:
     has_focus = FALSE;
+    DestroyCaret();
     term_out();
     term_update();
     break;
@@ -1114,9 +1403,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     break;
   case WM_ENTERSIZEMOVE:
     EnableSizeTip(1);
+    resizing = TRUE;
     break;
   case WM_EXITSIZEMOVE:
     EnableSizeTip(0);
+    resizing = FALSE;
+    back->size();
     break;
   case WM_SIZING: {
     int width, height, w, h, ew, eh;
@@ -1189,7 +1481,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       if (w != cols || h != rows || just_reconfigged) {
         term_invalidate();
         term_size(h, w, cfg.savelines);
-        back->size();
+        /*
+         * Don't call back->size in mid-resize. (To prevent
+         * massive numbers of resize events getting sent
+         * down the connection during an NT opaque drag.)
+         */
+        if (!resizing)
+          back->size();
         just_reconfigged = FALSE;
       }
     }
@@ -1244,6 +1542,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     return FALSE;
   case WM_KEYDOWN:
   case WM_SYSKEYDOWN:
+  case WM_KEYUP:
+  case WM_SYSKEYUP:
     /*
      * Add the scan code and keypress timing to the random
      * number noise, if we're using ssh.
@@ -1262,43 +1562,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       unsigned char buf[20];
       int len;
 
-      len = TranslateKey(wParam, lParam, buf);
+      len = TranslateKey(message, wParam, lParam, buf);
       if (len == -1)
         return DefWindowProc(hwnd, message, wParam, lParam);
       ldisc->send(buf, len);
     }
     return 0;
-  case WM_KEYUP:
-  case WM_SYSKEYUP:
-    /*
-     * We handle KEYUP ourselves in order to distinghish left
-     * and right Alt or Control keys, which Windows won't do
-     * right if left to itself. See also the special processing
-     * at the top of TranslateKey.
-     */
-    {
-      BYTE keystate[256];
-      int ret = GetKeyboardState(keystate);
-      if (ret && wParam == VK_MENU) {
-        if (lParam & 0x1000000)
-          keystate[VK_RMENU] = 0;
-        else
-          keystate[VK_LMENU] = 0;
-        SetKeyboardState(keystate);
-      }
-      if (ret && wParam == VK_CONTROL) {
-        if (lParam & 0x1000000)
-          keystate[VK_RCONTROL] = 0;
-        else
-          keystate[VK_LCONTROL] = 0;
-        SetKeyboardState(keystate);
-      }
-    }
-    /*
-     * We don't return here, in order to allow Windows to do
-     * its own KEYUP processing as well.
-     */
-    break;
   case WM_CHAR:
   case WM_SYSCHAR:
     /*
@@ -1318,41 +1587,55 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
 }
 
 /*
+ * Move the system caret. (We maintain one, even though it's
+ * invisible, for the benefit of blind people: apparently some
+ * helper software tracks the system caret, so we should arrange to
+ * have one.)
+ */
+void sys_cursor(int x, int y)
+{
+  SetCaretPos(x * font_width, y * font_height);
+}
+
+/*
  * Draw a line of text in the window, at given character
  * coordinates, in given attributes.
  *
  * We are allowed to fiddle with the contents of `text'.
  */
-void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
+void do_text(Context ctx,
+             int x,
+             int y,
+             char *text,
+             int len,
+             unsigned long attr,
+             int lattr)
 {
-  int lattr = 0; /* Will be arg later for line attribute type */
   COLORREF fg, bg, t;
   int nfg, nbg, nfont;
   HDC hdc = ctx;
   RECT line_box;
   int force_manual_underline = 0;
+  int fnt_width = font_width * (1 + (lattr != LATTR_NORM));
   static int *IpDx = 0, IpDxLEN = 0;
   ;
 
-  if (len > IpDxLEN || IpDx[0] != font_width * (1 + !lattr)) {
+  if (len > IpDxLEN || IpDx[0] != fnt_width) {
     int i;
     if (len > IpDxLEN) {
       sfree(IpDx);
       IpDx = smalloc((len + 16) * sizeof(int));
       IpDxLEN = (len + 16);
     }
-    for (i = 0; i < len; i++)
-      IpDx[i] = font_width;
+    for (i = 0; i < IpDxLEN; i++)
+      IpDx[i] = fnt_width;
   }
 
-  x *= font_width;
+  x *= fnt_width;
   y *= font_height;
 
-  if (lattr)
-    x *= 2;
-
   if (attr & ATTR_ACTCURS) {
-    attr &= (bold_mode == BOLD_COLOURS ? 0x200 : 0x300);
+    attr &= (bold_mode == BOLD_COLOURS ? 0x300200 : 0x300300);
     attr ^= ATTR_CUR_XOR;
   }
 
@@ -1402,16 +1685,7 @@ void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
       }
   }
 
-  if (attr & ATTR_GBCHR) {
-    int i;
-    /*
-     * GB mapping: map # to pound, and everything else stays
-     * normal.
-     */
-    for (i = 0; i < len; i++)
-      if (text[i] == '#')
-        text[i] = cfg.vtmode == VT_OEMONLY ? '\x9C' : '\xA3';
-  } else if (attr & ATTR_LINEDRW) {
+  if (attr & ATTR_LINEDRW) {
     int i;
     /* ISO 8859-1 */
     static const char poorman[] = "*#****\xB0\xB1**+++++-----++++|****\xA3\xB7";
@@ -1434,6 +1708,8 @@ void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
     /*
      * Line drawing mapping: map ` thru ~ (0x60 thru 0x7E) to
      * VT100 line drawing chars; everything else stays normal.
+     *
+     * Actually '_' maps to space too, but that's done before.
      */
     switch (cfg.vtmode) {
     case VT_XWINDOWS:
@@ -1472,6 +1748,8 @@ void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
 
     nfont &= ~(FONT_BOLD | FONT_UNDERLINE);
   }
+  if (font_needs_hand_underlining && (attr & ATTR_UNDER))
+    force_manual_underline = 1;
   if (attr & ATTR_REVERSE) {
     t = nfg;
     nfg = nbg;
@@ -1489,7 +1767,7 @@ void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
   SetBkMode(hdc, OPAQUE);
   line_box.left = x;
   line_box.top = y;
-  line_box.right = x + font_width * len;
+  line_box.right = x + fnt_width * len;
   line_box.bottom = y + font_height;
   ExtTextOut(hdc, x, y, ETO_CLIPPED | ETO_OPAQUE, &line_box, text, len, IpDx);
   if (bold_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
@@ -1497,14 +1775,18 @@ void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
 
     /* GRR: This draws the character outside it's box and can leave
      * 'droppings' even with the clip box! I suppose I could loop it
-     * one character at a time ... yuk. */
+     * one character at a time ... yuk.
+     *
+     * Or ... I could do a test print with "W", and use +1 or -1 for this
+     * shift depending on if the leftmost column is blank...
+     */
     ExtTextOut(hdc, x - 1, y, ETO_CLIPPED, &line_box, text, len, IpDx);
   }
   if (force_manual_underline || (und_mode == UND_LINE && (attr & ATTR_UNDER))) {
     HPEN oldpen;
     oldpen = SelectObject(hdc, CreatePen(PS_SOLID, 0, fg));
     MoveToEx(hdc, x, y + descent, NULL);
-    LineTo(hdc, x + len * font_width, y + descent);
+    LineTo(hdc, x + len * fnt_width, y + descent);
     oldpen = SelectObject(hdc, oldpen);
     DeleteObject(oldpen);
   }
@@ -1512,7 +1794,7 @@ void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
     POINT pts[5];
     HPEN oldpen;
     pts[0].x = pts[1].x = pts[4].x = x;
-    pts[2].x = pts[3].x = x + font_width - 1;
+    pts[2].x = pts[3].x = x + fnt_width - 1;
     pts[0].y = pts[3].y = pts[4].y = y;
     pts[1].y = pts[2].y = y + font_height - 1;
     oldpen = SelectObject(hdc, CreatePen(PS_SOLID, 0, colours[23]));
@@ -1522,22 +1804,185 @@ void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
   }
 }
 
-/*
- * Translate a WM_(SYS)?KEYDOWN message into a string of ASCII
- * codes. Returns number of bytes used.
- */
-static int TranslateKey(WPARAM wParam, LPARAM lParam, unsigned char *output)
+static int check_compose(int first, int second)
 {
-  unsigned char *p = output;
-  BYTE keystate[256];
-  int ret, code;
-  int cancel_alt = FALSE;
 
-  /*
-   * Get hold of the keyboard state, because we'll need it a few
-   * times shortly.
-   */
-  ret = GetKeyboardState(keystate);
+  static char *composetbl[] = {
+      "++#", "AA@",  "(([",  "//\\",  "))]", "(-{",  "-)}", "/^|",  "!!¡",
+      "C/¢", "C|¢",  "L-£",  "L=£",   "XO¤", "X0¤",  "Y-¥", "Y=¥",  "||¦",
+      "SO§", "S!§",  "S0§",  "\"\"¨", "CO©", "C0©",  "A_ª", "<<«",  ",-¬",
+      "--­", "RO®",  "-^¯",  "0^°",   "+-±", "2^²",  "3^³", "''´",  "/Uµ",
+      "P!¶", ".^·",  ",,¸",  "1^¹",   "O_º", ">>»",  "14¼", "12½",  "34¾",
+      "??¿", "`AÀ",  "'AÁ",  "^AÂ",   "~AÃ", "\"AÄ", "*AÅ", "AEÆ",  ",CÇ",
+      "`EÈ", "'EÉ",  "^EÊ",  "\"EË",  "`IÌ", "'IÍ",  "^IÎ", "\"IÏ", "-DÐ",
+      "~NÑ", "`OÒ",  "'OÓ",  "^OÔ",   "~OÕ", "\"OÖ", "XX×", "/OØ",  "`UÙ",
+      "'UÚ", "^UÛ",  "\"UÜ", "'YÝ",   "HTÞ", "ssß",  "`aà", "'aá",  "^aâ",
+      "~aã", "\"aä", "*aå",  "aeæ",   ",cç", "`eè",  "'eé", "^eê",  "\"eë",
+      "`iì", "'ií",  "^iî",  "\"iï",  "-dð", "~nñ",  "`oò", "'oó",  "^oô",
+      "~oõ", "\"oö", ":-÷",  "o/ø",   "`uù", "'uú",  "^uû", "\"uü", "'yý",
+      "htþ", "\"yÿ", 0};
+
+  char **c;
+  static int recurse = 0;
+  int nc = -1;
+
+  if (0) {
+    char buf[256];
+    char *p;
+    sprintf(buf, "cc(%d,%d)", first, second);
+    for (p = buf; *p; p++)
+      c_write1(*p);
+  }
+
+  for (c = composetbl; *c; c++) {
+    if ((*c)[0] == first && (*c)[1] == second) {
+      return (*c)[2] & 0xFF;
+    }
+  }
+
+  if (recurse == 0) {
+    recurse = 1;
+    nc = check_compose(second, first);
+    if (nc == -1)
+      nc = check_compose(toupper(first), toupper(second));
+    if (nc == -1)
+      nc = check_compose(toupper(second), toupper(first));
+    recurse = 0;
+  }
+  return nc;
+}
+
+/*
+ * Translate a WM_(SYS)?KEY(UP|DOWN) message into a string of ASCII
+ * codes. Returns number of bytes used or zero to drop the message
+ * or -1 to forward the message to windows.
+ */
+static int TranslateKey(UINT message,
+                        WPARAM wParam,
+                        LPARAM lParam,
+                        unsigned char *output)
+{
+  BYTE keystate[256];
+  int scan, left_alt = 0, key_down, shift_state;
+  int r, i, code;
+  unsigned char *p = output;
+
+  static WORD keys[3];
+  static int compose_state = 0;
+  static int compose_char = 0;
+  static WPARAM compose_key = 0;
+
+  r = GetKeyboardState(keystate);
+  if (!r)
+    memset(keystate, 0, sizeof(keystate));
+  else {
+#if 0
+       {  /* Tell us all about key events */
+	  static BYTE oldstate[256];
+	  static int first = 1;
+	  static int scan;
+	  int ch;
+	  if(first) memcpy(oldstate, keystate, sizeof(oldstate));
+	  first=0;
+
+	  if ((HIWORD(lParam)&(KF_UP|KF_REPEAT))==KF_REPEAT) {
+	     debug(("+"));
+	  } else if ((HIWORD(lParam)&KF_UP) && scan==(HIWORD(lParam) & 0xFF) ) {
+	     debug((". U"));
+	  } else {
+	     debug((".\n"));
+	     if (wParam >= VK_F1 && wParam <= VK_F20 )
+		debug(("K_F%d", wParam+1-VK_F1));
+	     else switch(wParam)
+	     {
+	     case VK_SHIFT:   debug(("SHIFT")); break;
+	     case VK_CONTROL: debug(("CTRL")); break;
+	     case VK_MENU:    debug(("ALT")); break;
+	     default:         debug(("VK_%02x", wParam));
+	     }
+	     if(message == WM_SYSKEYDOWN || message == WM_SYSKEYUP)
+		debug(("*"));
+	     debug((", S%02x", scan=(HIWORD(lParam) & 0xFF) ));
+
+	     ch = MapVirtualKey(wParam, 2);
+	     if (ch>=' ' && ch<='~') debug((", '%c'", ch));
+	     else if (ch)            debug((", $%02x", ch));
+
+	     if (keys[0]) debug((", KB0=%02x", keys[0]));
+	     if (keys[1]) debug((", KB1=%02x", keys[1]));
+	     if (keys[2]) debug((", KB2=%02x", keys[2]));
+
+	     if ( (keystate[VK_SHIFT]&0x80)!=0)     debug((", S"));
+	     if ( (keystate[VK_CONTROL]&0x80)!=0)   debug((", C"));
+	     if ( (HIWORD(lParam)&KF_EXTENDED) )    debug((", E"));
+	     if ( (HIWORD(lParam)&KF_UP) )          debug((", U"));
+	  }
+
+	  if ((HIWORD(lParam)&(KF_UP|KF_REPEAT))==KF_REPEAT)
+	     ;
+	  else if ( (HIWORD(lParam)&KF_UP) ) 
+	     oldstate[wParam&0xFF] ^= 0x80;
+	  else
+	     oldstate[wParam&0xFF] ^= 0x81;
+
+	  for(ch=0; ch<256; ch++)
+	     if (oldstate[ch] != keystate[ch])
+		debug((", M%02x=%02x", ch, keystate[ch]));
+
+	  memcpy(oldstate, keystate, sizeof(oldstate));
+       }
+#endif
+
+    /* Note if AltGr was pressed and if it was used as a compose key */
+    if (wParam == VK_MENU && (HIWORD(lParam) & KF_EXTENDED)) {
+      keystate[VK_RMENU] = keystate[VK_MENU];
+      if (!compose_state)
+        compose_key = wParam;
+    }
+    if (wParam == VK_APPS && !compose_state)
+      compose_key = wParam;
+
+    if (wParam == compose_key) {
+      if (compose_state == 0 && (HIWORD(lParam) & (KF_UP | KF_REPEAT)) == 0)
+        compose_state = 1;
+      else if (compose_state == 1 && (HIWORD(lParam) & KF_UP))
+        compose_state = 2;
+      else
+        compose_state = 0;
+    } else if (compose_state == 1 && wParam != VK_CONTROL)
+      compose_state = 0;
+
+    /* Nastyness with NUMLock - Shift-NUMLock is left alone though */
+    if ((cfg.funky_type == 3 || (cfg.funky_type <= 1 && app_keypad_keys)) &&
+        wParam == VK_NUMLOCK && !(keystate[VK_SHIFT] & 0x80)) {
+
+      wParam = VK_EXECUTE;
+
+      /* UnToggle NUMLock */
+      if ((HIWORD(lParam) & (KF_UP | KF_REPEAT)) == 0)
+        keystate[VK_NUMLOCK] ^= 1;
+    }
+
+    /* And write back the 'adjusted' state */
+    SetKeyboardState(keystate);
+  }
+
+  /* Disable Auto repeat if required */
+  if (repeat_off && (HIWORD(lParam) & (KF_UP | KF_REPEAT)) == KF_REPEAT)
+    return 0;
+
+  if ((HIWORD(lParam) & KF_ALTDOWN) && (keystate[VK_RMENU] & 0x80) == 0)
+    left_alt = 1;
+
+  key_down = ((HIWORD(lParam) & KF_UP) == 0);
+
+  /* Make sure Ctrl-ALT is not the same as AltGr for ToAscii */
+  if (left_alt && (keystate[VK_CONTROL] & 0x80))
+    keystate[VK_MENU] = 0;
+
+  scan = (HIWORD(lParam) & (KF_UP | KF_EXTENDED | 0xFF));
+  shift_state = ((keystate[VK_SHIFT] & 0x80) != 0) +
+                ((keystate[VK_CONTROL] & 0x80) != 0) * 2;
 
   /*
    * Record that we pressed key so the scroll window can be reset, but
@@ -1547,397 +1992,487 @@ static int TranslateKey(WPARAM wParam, LPARAM lParam, unsigned char *output)
     seen_key_event = 1;
   }
 
-  /*
-   * Windows does not always want to distinguish left and right
-   * Alt or Control keys. Thus we keep track of them ourselves.
-   * See also the WM_KEYUP handler.
-   */
-  if (wParam == VK_MENU) {
-    if (lParam & 0x1000000)
-      keystate[VK_RMENU] = 0x80;
-    else
-      keystate[VK_LMENU] = 0x80;
-    SetKeyboardState(keystate);
-    return 0;
-  }
-  if (wParam == VK_CONTROL) {
-    if (lParam & 0x1000000)
-      keystate[VK_RCONTROL] = 0x80;
-    else
-      keystate[VK_LCONTROL] = 0x80;
-    SetKeyboardState(keystate);
-    return 0;
+  /* Make sure we're not pasting */
+  if (key_down)
+    term_nopaste();
+
+  if (compose_state > 1 && left_alt)
+    compose_state = 0;
+
+  /* Sanitize the number pad if not using a PC NumPad */
+  if (left_alt || (app_keypad_keys && cfg.funky_type != 2) ||
+      cfg.funky_type == 3 || cfg.nethack_keypad || compose_state) {
+    if ((HIWORD(lParam) & KF_EXTENDED) == 0) {
+      int nParam = 0;
+      switch (wParam) {
+      case VK_INSERT:
+        nParam = VK_NUMPAD0;
+        break;
+      case VK_END:
+        nParam = VK_NUMPAD1;
+        break;
+      case VK_DOWN:
+        nParam = VK_NUMPAD2;
+        break;
+      case VK_NEXT:
+        nParam = VK_NUMPAD3;
+        break;
+      case VK_LEFT:
+        nParam = VK_NUMPAD4;
+        break;
+      case VK_CLEAR:
+        nParam = VK_NUMPAD5;
+        break;
+      case VK_RIGHT:
+        nParam = VK_NUMPAD6;
+        break;
+      case VK_HOME:
+        nParam = VK_NUMPAD7;
+        break;
+      case VK_UP:
+        nParam = VK_NUMPAD8;
+        break;
+      case VK_PRIOR:
+        nParam = VK_NUMPAD9;
+        break;
+      case VK_DELETE:
+        nParam = VK_DECIMAL;
+        break;
+      }
+      if (nParam) {
+        if (keystate[VK_NUMLOCK] & 1)
+          shift_state |= 1;
+        wParam = nParam;
+      }
+    }
   }
 
-  /*
-   * Prepend ESC, and cancel ALT, if ALT was pressed at the time
-   * and it wasn't AltGr.
-   */
-  if (lParam & 0x20000000 && (keystate[VK_LMENU] & 0x80)) {
-    *p++ = 0x1B;
-    cancel_alt = TRUE;
-  }
+  /* If a key is pressed and AltGr is not active */
+  if (key_down && (keystate[VK_RMENU] & 0x80) == 0 && !compose_state) {
+    /* Okay, prepare for most alts then ...*/
+    if (left_alt)
+      *p++ = '\033';
 
-  /*
-   * NetHack keypad mode. This may conflict with Shift-PgUp/PgDn,
-   * so we do it first.
-   */
-  if (cfg.nethack_keypad) {
-    int shift = keystate[VK_SHIFT] & 0x80;
+    /* Lets see if it's a pattern we know all about ... */
+    if (wParam == VK_PRIOR && shift_state == 1) {
+      SendMessage(hwnd, WM_VSCROLL, SB_PAGEUP, 0);
+      return 0;
+    }
+    if (wParam == VK_NEXT && shift_state == 1) {
+      SendMessage(hwnd, WM_VSCROLL, SB_PAGEDOWN, 0);
+      return 0;
+    }
+    if (wParam == VK_INSERT && shift_state == 1) {
+      term_mouse(MB_PASTE, MA_CLICK, 0, 0);
+      term_mouse(MB_PASTE, MA_RELEASE, 0, 0);
+      return 0;
+    }
+    if (left_alt && wParam == VK_F4 && cfg.alt_f4) {
+      return -1;
+    }
+    if (left_alt && wParam == VK_SPACE && cfg.alt_space) {
+
+      SendMessage(hwnd, WM_SYSCOMMAND, SC_KEYMENU, 0);
+      return -1;
+    }
+    /* Control-Numlock for app-keypad mode switch */
+    if (wParam == VK_PAUSE && shift_state == 2) {
+      app_keypad_keys ^= 1;
+      return 0;
+    }
+
+    /* Nethack keypad */
+    if (cfg.nethack_keypad && !left_alt) {
+      switch (wParam) {
+      case VK_NUMPAD1:
+        *p++ = shift_state ? 'B' : 'b';
+        return p - output;
+      case VK_NUMPAD2:
+        *p++ = shift_state ? 'J' : 'j';
+        return p - output;
+      case VK_NUMPAD3:
+        *p++ = shift_state ? 'N' : 'n';
+        return p - output;
+      case VK_NUMPAD4:
+        *p++ = shift_state ? 'H' : 'h';
+        return p - output;
+      case VK_NUMPAD5:
+        *p++ = shift_state ? '.' : '.';
+        return p - output;
+      case VK_NUMPAD6:
+        *p++ = shift_state ? 'L' : 'l';
+        return p - output;
+      case VK_NUMPAD7:
+        *p++ = shift_state ? 'Y' : 'y';
+        return p - output;
+      case VK_NUMPAD8:
+        *p++ = shift_state ? 'K' : 'k';
+        return p - output;
+      case VK_NUMPAD9:
+        *p++ = shift_state ? 'U' : 'u';
+        return p - output;
+      }
+    }
+
+    /* Application Keypad */
+    if (!left_alt) {
+      int xkey = 0;
+
+      if (cfg.funky_type == 3 || (cfg.funky_type <= 1 && app_keypad_keys))
+        switch (wParam) {
+        case VK_EXECUTE:
+          xkey = 'P';
+          break;
+        case VK_DIVIDE:
+          xkey = 'Q';
+          break;
+        case VK_MULTIPLY:
+          xkey = 'R';
+          break;
+        case VK_SUBTRACT:
+          xkey = 'S';
+          break;
+        }
+      if (app_keypad_keys)
+        switch (wParam) {
+        case VK_NUMPAD0:
+          xkey = 'p';
+          break;
+        case VK_NUMPAD1:
+          xkey = 'q';
+          break;
+        case VK_NUMPAD2:
+          xkey = 'r';
+          break;
+        case VK_NUMPAD3:
+          xkey = 's';
+          break;
+        case VK_NUMPAD4:
+          xkey = 't';
+          break;
+        case VK_NUMPAD5:
+          xkey = 'u';
+          break;
+        case VK_NUMPAD6:
+          xkey = 'v';
+          break;
+        case VK_NUMPAD7:
+          xkey = 'w';
+          break;
+        case VK_NUMPAD8:
+          xkey = 'x';
+          break;
+        case VK_NUMPAD9:
+          xkey = 'y';
+          break;
+
+        case VK_DECIMAL:
+          xkey = 'n';
+          break;
+        case VK_ADD:
+          if (cfg.funky_type == 2) {
+            if (shift_state)
+              xkey = 'l';
+            else
+              xkey = 'k';
+          } else if (shift_state)
+            xkey = 'm';
+          else
+            xkey = 'l';
+          break;
+
+        case VK_DIVIDE:
+          if (cfg.funky_type == 2)
+            xkey = 'o';
+          break;
+        case VK_MULTIPLY:
+          if (cfg.funky_type == 2)
+            xkey = 'j';
+          break;
+        case VK_SUBTRACT:
+          if (cfg.funky_type == 2)
+            xkey = 'm';
+          break;
+
+        case VK_RETURN:
+          if (HIWORD(lParam) & KF_EXTENDED)
+            xkey = 'M';
+          break;
+        }
+      if (xkey) {
+        if (vt52_mode) {
+          if (xkey >= 'P' && xkey <= 'S')
+            p += sprintf((char *)p, "\x1B%c", xkey);
+          else
+            p += sprintf((char *)p, "\x1B?%c", xkey);
+        } else
+          p += sprintf((char *)p, "\x1BO%c", xkey);
+        return p - output;
+      }
+    }
+
+    if (wParam == VK_BACK && shift_state == 0) /* Backspace */
+    {
+      *p++ = (cfg.bksp_is_delete ? 0x7F : 0x08);
+      return p - output;
+    }
+    if (wParam == VK_TAB && shift_state == 1) /* Shift tab */
+    {
+      *p++ = 0x1B;
+      *p++ = '[';
+      *p++ = 'Z';
+      return p - output;
+    }
+    if (wParam == VK_SPACE && shift_state == 2) /* Ctrl-Space */
+    {
+      *p++ = 0;
+      return p - output;
+    }
+    if (wParam == VK_SPACE && shift_state == 3) /* Ctrl-Shift-Space */
+    {
+      *p++ = 160;
+      return p - output;
+    }
+    if (wParam == VK_CANCEL && shift_state == 2) /* Ctrl-Break */
+    {
+      *p++ = 3;
+      return p - output;
+    }
+    /* Control-2 to Control-8 are special */
+    if (shift_state == 2 && wParam >= '2' && wParam <= '8') {
+      *p++ = "\000\033\034\035\036\037\177"[wParam - '2'];
+      return p - output;
+    }
+    if (shift_state == 2 && wParam == 0xBD) {
+      *p++ = 0x1F;
+      return p - output;
+    }
+    if (shift_state == 2 && wParam == 0xDF) {
+      *p++ = 0x1C;
+      return p - output;
+    }
+    if (shift_state == 0 && wParam == VK_RETURN && cr_lf_return) {
+      *p++ = '\r';
+      *p++ = '\n';
+      return p - output;
+    }
+
     /*
-     * NB the shifted versions only work with numlock off.
+     * Next, all the keys that do tilde codes. (ESC '[' nn '~',
+     * for integer decimal nn.)
+     *
+     * We also deal with the weird ones here. Linux VCs replace F1
+     * to F5 by ESC [ [ A to ESC [ [ E. rxvt doesn't do _that_, but
+     * does replace Home and End (1~ and 4~) by ESC [ H and ESC O w
+     * respectively.
      */
-    switch ((lParam >> 16) & 0x1FF) {
-    case 0x047:
-      *p++ = shift ? 'Y' : 'y';
-      return p - output;
-    case 0x048:
-      *p++ = shift ? 'K' : 'k';
-      return p - output;
-    case 0x049:
-      *p++ = shift ? 'U' : 'u';
-      return p - output;
-    case 0x04B:
-      *p++ = shift ? 'H' : 'h';
-      return p - output;
-    case 0x04C:
-      *p++ = '.';
-      return p - output;
-    case 0x04D:
-      *p++ = shift ? 'L' : 'l';
-      return p - output;
-    case 0x04F:
-      *p++ = shift ? 'B' : 'b';
-      return p - output;
-    case 0x050:
-      *p++ = shift ? 'J' : 'j';
-      return p - output;
-    case 0x051:
-      *p++ = shift ? 'N' : 'n';
-      return p - output;
-    case 0x053:
-      *p++ = '.';
+    code = 0;
+    switch (wParam) {
+    case VK_F1:
+      code = (keystate[VK_SHIFT] & 0x80 ? 23 : 11);
+      break;
+    case VK_F2:
+      code = (keystate[VK_SHIFT] & 0x80 ? 24 : 12);
+      break;
+    case VK_F3:
+      code = (keystate[VK_SHIFT] & 0x80 ? 25 : 13);
+      break;
+    case VK_F4:
+      code = (keystate[VK_SHIFT] & 0x80 ? 26 : 14);
+      break;
+    case VK_F5:
+      code = (keystate[VK_SHIFT] & 0x80 ? 28 : 15);
+      break;
+    case VK_F6:
+      code = (keystate[VK_SHIFT] & 0x80 ? 29 : 17);
+      break;
+    case VK_F7:
+      code = (keystate[VK_SHIFT] & 0x80 ? 31 : 18);
+      break;
+    case VK_F8:
+      code = (keystate[VK_SHIFT] & 0x80 ? 32 : 19);
+      break;
+    case VK_F9:
+      code = (keystate[VK_SHIFT] & 0x80 ? 33 : 20);
+      break;
+    case VK_F10:
+      code = (keystate[VK_SHIFT] & 0x80 ? 34 : 21);
+      break;
+    case VK_F11:
+      code = 23;
+      break;
+    case VK_F12:
+      code = 24;
+      break;
+    case VK_F13:
+      code = 25;
+      break;
+    case VK_F14:
+      code = 26;
+      break;
+    case VK_F15:
+      code = 28;
+      break;
+    case VK_F16:
+      code = 29;
+      break;
+    case VK_F17:
+      code = 31;
+      break;
+    case VK_F18:
+      code = 32;
+      break;
+    case VK_F19:
+      code = 33;
+      break;
+    case VK_F20:
+      code = 34;
+      break;
+    case VK_HOME:
+      code = 1;
+      break;
+    case VK_INSERT:
+      code = 2;
+      break;
+    case VK_DELETE:
+      code = 3;
+      break;
+    case VK_END:
+      code = 4;
+      break;
+    case VK_PRIOR:
+      code = 5;
+      break;
+    case VK_NEXT:
+      code = 6;
+      break;
+    }
+    /* Reorder edit keys to physical order */
+    if (cfg.funky_type == 3 && code <= 6)
+      code = "\0\2\1\4\5\3\6"[code];
+
+    if (cfg.funky_type == 1 && code >= 11 && code <= 15) {
+      p += sprintf((char *)p, "\x1B[[%c", code + 'A' - 11);
       return p - output;
     }
-  }
+    if (cfg.funky_type == 2 && code >= 11 && code <= 14) {
+      if (vt52_mode)
+        p += sprintf((char *)p, "\x1B%c", code + 'P' - 11);
+      else
+        p += sprintf((char *)p, "\x1BO%c", code + 'P' - 11);
+      return p - output;
+    }
+    if (cfg.rxvt_homeend && (code == 1 || code == 4)) {
+      p += sprintf((char *)p, code == 1 ? "\x1B[H" : "\x1BOw");
+      return p - output;
+    }
+    if (code) {
+      p += sprintf((char *)p, "\x1B[%d~", code);
+      return p - output;
+    }
 
-  /*
-   * Shift-PgUp, Shift-PgDn, and Alt-F4 all produce window
-   * events: we'll deal with those now.
-   */
-  if (ret && (keystate[VK_SHIFT] & 0x80) && wParam == VK_PRIOR) {
-    SendMessage(hwnd, WM_VSCROLL, SB_PAGEUP, 0);
-    return 0;
-  }
-  if (ret && (keystate[VK_SHIFT] & 0x80) && wParam == VK_NEXT) {
-    SendMessage(hwnd, WM_VSCROLL, SB_PAGEDOWN, 0);
-    return 0;
-  }
-  if ((lParam & 0x20000000) && wParam == VK_F4 && cfg.alt_f4) {
-    return -1;
-  }
-  if ((lParam & 0x20000000) && wParam == VK_SPACE && cfg.alt_space) {
-    SendMessage(hwnd, WM_SYSCOMMAND, SC_KEYMENU, 0);
-    return -1;
-  }
-
-  /*
-   * In general, the strategy is to see what the Windows keymap
-   * translation has to say for itself, and then process function
-   * keys and suchlike ourselves if that fails. But first we must
-   * deal with the small number of special cases which the
-   * Windows keymap translator thinks it can do but gets wrong.
-   *
-   * First special case: we might want the Backspace key to send
-   * 0x7F not 0x08.
-   */
-  if (wParam == VK_BACK) {
-    *p++ = (cfg.bksp_is_delete ? 0x7F : 0x08);
-    return p - output;
-  }
-
-  /*
-   * Control-Space should send ^@ (0x00), not Space.
-   */
-  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == VK_SPACE) {
-    *p++ = 0x00;
-    return p - output;
-  }
-
-  if (app_keypad_keys) {
     /*
-     * If we're in applications keypad mode, we have to process it
-     * before char-map translation, because it will pre-empt lots
-     * of stuff, even if NumLock is off.
+     * Now the remaining keys (arrows and Keypad 5. Keypad 5 for
+     * some reason seems to send VK_CLEAR to Windows...).
      */
-    if (ret) {
-      /*
-       * Hack to ensure NumLock doesn't interfere with
-       * perception of Shift for Keypad Plus. I don't pretend
-       * to understand this, but it seems to work as is.
-       * Leave it alone, or die.
-       */
-      keystate[VK_NUMLOCK] = 0;
-      SetKeyboardState(keystate);
-      GetKeyboardState(keystate);
+    {
+      char xkey = 0;
+      switch (wParam) {
+      case VK_UP:
+        xkey = 'A';
+        break;
+      case VK_DOWN:
+        xkey = 'B';
+        break;
+      case VK_RIGHT:
+        xkey = 'C';
+        break;
+      case VK_LEFT:
+        xkey = 'D';
+        break;
+      case VK_CLEAR:
+        xkey = 'G';
+        break;
+      }
+      if (xkey) {
+        if (vt52_mode)
+          p += sprintf((char *)p, "\x1B%c", xkey);
+        else if (app_cursor_keys)
+          p += sprintf((char *)p, "\x1BO%c", xkey);
+        else
+          p += sprintf((char *)p, "\x1B[%c", xkey);
+        return p - output;
+      }
     }
-    switch ((lParam >> 16) & 0x1FF) {
-    case 0x145:
-      p += sprintf((char *)p, "\x1BOP");
-      return p - output;
-    case 0x135:
-      p += sprintf((char *)p, "\x1BOQ");
-      return p - output;
-    case 0x037:
-      p += sprintf((char *)p, "\x1BOR");
-      return p - output;
-    case 0x047:
-      p += sprintf((char *)p, "\x1BOw");
-      return p - output;
-    case 0x048:
-      p += sprintf((char *)p, "\x1BOx");
-      return p - output;
-    case 0x049:
-      p += sprintf((char *)p, "\x1BOy");
-      return p - output;
-    case 0x04A:
-      p += sprintf((char *)p, "\x1BOS");
-      return p - output;
-    case 0x04B:
-      p += sprintf((char *)p, "\x1BOt");
-      return p - output;
-    case 0x04C:
-      p += sprintf((char *)p, "\x1BOu");
-      return p - output;
-    case 0x04D:
-      p += sprintf((char *)p, "\x1BOv");
-      return p - output;
-    case 0x04E: /* keypad + is ^[Ol, but ^[Om with Shift */
-      p += sprintf((char *)p,
-                   (ret && (keystate[VK_SHIFT] & 0x80)) ? "\x1BOm" : "\x1BOl");
-      return p - output;
-    case 0x04F:
-      p += sprintf((char *)p, "\x1BOq");
-      return p - output;
-    case 0x050:
-      p += sprintf((char *)p, "\x1BOr");
-      return p - output;
-    case 0x051:
-      p += sprintf((char *)p, "\x1BOs");
-      return p - output;
-    case 0x052:
-      p += sprintf((char *)p, "\x1BOp");
-      return p - output;
-    case 0x053:
-      p += sprintf((char *)p, "\x1BOn");
-      return p - output;
-    case 0x11C:
-      p += sprintf((char *)p, "\x1BOM");
+
+    /*
+     * Finally, deal with Return ourselves. (Win95 seems to
+     * foul it up when Alt is pressed, for some reason.)
+     */
+    if (wParam == VK_RETURN) /* Return */
+    {
+      *p++ = 0x0D;
       return p - output;
     }
   }
 
-  /*
-   * Shift-Tab should send ESC [ Z.
-   */
-  if (ret && (keystate[VK_SHIFT] & 0x80) && wParam == VK_TAB) {
-    *p++ = 0x1B; /* ESC */
-    *p++ = '[';
-    *p++ = 'Z';
-    return p - output;
-  }
-
-  /*
-   * Before doing Windows charmap translation, remove LeftALT
-   * from the keymap, since its sole effect should be to prepend
-   * ESC, which we've already done. Note that removal of LeftALT
-   * has to happen _after_ the above call to SetKeyboardState, or
-   * dire things will befall.
-   */
-  if (cancel_alt) {
-    keystate[VK_MENU] = keystate[VK_RMENU];
-    keystate[VK_LMENU] = 0;
-  }
-
-  /*
-   * Attempt the Windows char-map translation.
-   */
-  if (ret) {
-    WORD chr;
-    int r;
+  /* Okay we've done everything interesting; let windows deal with
+   * the boring stuff */
+  {
     BOOL capsOn = keystate[VK_CAPITAL] != 0;
 
     /* helg: clear CAPS LOCK state if caps lock switches to cyrillic */
     if (cfg.xlat_capslockcyr)
       keystate[VK_CAPITAL] = 0;
 
-    r = ToAscii(wParam, (lParam >> 16) & 0xFF, keystate, &chr, 0);
+    r = ToAscii(wParam, scan, keystate, keys, 0);
+    if (r > 0) {
+      p = output;
+      for (i = 0; i < r; i++) {
+        unsigned char ch = (unsigned char)keys[i];
 
-    if (capsOn)
-      chr = xlat_latkbd2win((unsigned char)(chr & 0xFF));
-    if (r == 1) {
-      *p++ = xlat_kbd2tty((unsigned char)(chr & 0xFF));
+        if (compose_state == 2 && (ch & 0x80) == 0 && ch > ' ') {
+          compose_char = ch;
+          compose_state++;
+          continue;
+        }
+        if (compose_state == 3 && (ch & 0x80) == 0 && ch > ' ') {
+          int nc;
+          compose_state = 0;
+
+          if ((nc = check_compose(compose_char, ch)) == -1) {
+            c_write1('\007');
+            return 0;
+          }
+          *p++ = xlat_kbd2tty((unsigned char)nc);
+          return p - output;
+        }
+
+        compose_state = 0;
+
+        if (left_alt && key_down)
+          *p++ = '\033';
+        if (!key_down)
+          *p++ = ch;
+        else {
+          if (capsOn)
+            ch = xlat_latkbd2win(ch);
+          *p++ = xlat_kbd2tty(ch);
+        }
+      }
+
+      /* This is so the ALT-Numpad and dead keys work correctly. */
+      keys[0] = 0;
+
       return p - output;
     }
   }
 
-  /*
-   * OK, we haven't had a key code from the keymap translation.
-   * We'll try our various special cases and function keys, and
-   * then give up. (There's nothing wrong with giving up:
-   * Scrollock, Pause/Break, and of course the various buckybit
-   * keys all produce KEYDOWN events that we really _do_ want to
-   * ignore.)
-   */
+  /* This stops ALT press-release doing a 'COMMAND MENU' function */
+  if (message == WM_SYSKEYUP && wParam == VK_MENU)
+    return 0;
 
-  /*
-   * Control-2 should return ^@ (0x00), Control-6 should return
-   * ^^ (0x1E), and Control-Minus should return ^_ (0x1F). Since
-   * the DOS keyboard handling did it, and we have nothing better
-   * to do with the key combo in question, we'll also map
-   * Control-Backquote to ^\ (0x1C).
-   *
-   * In addition a real VT100 maps Ctrl-3/4/5/7 and 8.
-   */
-  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '2') {
-    *p++ = 0x00;
-    return p - output;
-  }
-  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '3') {
-    *p++ = 0x1B;
-    return p - output;
-  }
-  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '4') {
-    *p++ = 0x1C;
-    return p - output;
-  }
-  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '5') {
-    *p++ = 0x1D;
-    return p - output;
-  }
-  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '6') {
-    *p++ = 0x1E;
-    return p - output;
-  }
-  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '7') {
-    *p++ = 0x1F;
-    return p - output;
-  }
-  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '8') {
-    *p++ = 0x7F;
-    return p - output;
-  }
-  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == 0xBD) {
-    *p++ = 0x1F;
-    return p - output;
-  }
-  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == 0xDF) {
-    *p++ = 0x1C;
-    return p - output;
-  }
-
-  /*
-   * First, all the keys that do tilde codes. (ESC '[' nn '~',
-   * for integer decimal nn.)
-   *
-   * We also deal with the weird ones here. Linux VCs replace F1
-   * to F5 by ESC [ [ A to ESC [ [ E. rxvt doesn't do _that_, but
-   * does replace Home and End (1~ and 4~) by ESC [ H and ESC O w
-   * respectively.
-   */
-  code = 0;
-  switch (wParam) {
-  case VK_F1:
-    code = (keystate[VK_SHIFT] & 0x80 ? 23 : 11);
-    break;
-  case VK_F2:
-    code = (keystate[VK_SHIFT] & 0x80 ? 24 : 12);
-    break;
-  case VK_F3:
-    code = (keystate[VK_SHIFT] & 0x80 ? 25 : 13);
-    break;
-  case VK_F4:
-    code = (keystate[VK_SHIFT] & 0x80 ? 26 : 14);
-    break;
-  case VK_F5:
-    code = (keystate[VK_SHIFT] & 0x80 ? 28 : 15);
-    break;
-  case VK_F6:
-    code = (keystate[VK_SHIFT] & 0x80 ? 29 : 17);
-    break;
-  case VK_F7:
-    code = (keystate[VK_SHIFT] & 0x80 ? 31 : 18);
-    break;
-  case VK_F8:
-    code = (keystate[VK_SHIFT] & 0x80 ? 32 : 19);
-    break;
-  case VK_F9:
-    code = (keystate[VK_SHIFT] & 0x80 ? 33 : 20);
-    break;
-  case VK_F10:
-    code = (keystate[VK_SHIFT] & 0x80 ? 34 : 21);
-    break;
-  case VK_F11:
-    code = 23;
-    break;
-  case VK_F12:
-    code = 24;
-    break;
-  case VK_HOME:
-    code = 1;
-    break;
-  case VK_INSERT:
-    code = 2;
-    break;
-  case VK_DELETE:
-    code = 3;
-    break;
-  case VK_END:
-    code = 4;
-    break;
-  case VK_PRIOR:
-    code = 5;
-    break;
-  case VK_NEXT:
-    code = 6;
-    break;
-  }
-  if (cfg.linux_funkeys && code >= 11 && code <= 15) {
-    p += sprintf((char *)p, "\x1B[[%c", code + 'A' - 11);
-    return p - output;
-  }
-  if (cfg.rxvt_homeend && (code == 1 || code == 4)) {
-    p += sprintf((char *)p, code == 1 ? "\x1B[H" : "\x1BOw");
-    return p - output;
-  }
-  if (code) {
-    p += sprintf((char *)p, "\x1B[%d~", code);
-    return p - output;
-  }
-
-  /*
-   * Now the remaining keys (arrows and Keypad 5. Keypad 5 for
-   * some reason seems to send VK_CLEAR to Windows...).
-   */
-  switch (wParam) {
-  case VK_UP:
-    p += sprintf((char *)p, app_cursor_keys ? "\x1BOA" : "\x1B[A");
-    return p - output;
-  case VK_DOWN:
-    p += sprintf((char *)p, app_cursor_keys ? "\x1BOB" : "\x1B[B");
-    return p - output;
-  case VK_RIGHT:
-    p += sprintf((char *)p, app_cursor_keys ? "\x1BOC" : "\x1B[C");
-    return p - output;
-  case VK_LEFT:
-    p += sprintf((char *)p, app_cursor_keys ? "\x1BOD" : "\x1B[D");
-    return p - output;
-  case VK_CLEAR:
-    p += sprintf((char *)p, "\x1B[G");
-    return p - output;
-  }
-
-  return 0;
+  return -1;
 }
 
 void set_title(char *title)
@@ -1961,8 +2496,12 @@ void set_icon(char *title)
 void set_sbar(int total, int start, int page)
 {
   SCROLLINFO si;
+
+  if (!cfg.scrollbar)
+    return;
+
   si.cbSize = sizeof(si);
-  si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS | SIF_DISABLENOSCROLL;
+  si.fMask = SIF_ALL | SIF_DISABLENOSCROLL;
   si.nMin = 0;
   si.nMax = total - 1;
   si.nPage = page;
@@ -2043,7 +2582,7 @@ void palette_reset(void)
   }
 }
 
-void write_clip(void *data, int len)
+void write_clip(void *data, int len, int must_deselect)
 {
   HGLOBAL clipdata;
   void *lock;
@@ -2058,14 +2597,18 @@ void write_clip(void *data, int len)
   ((unsigned char *)lock)[len] = 0;
   GlobalUnlock(clipdata);
 
-  SendMessage(hwnd, WM_IGNORE_CLIP, TRUE, 0);
+  if (!must_deselect)
+    SendMessage(hwnd, WM_IGNORE_CLIP, TRUE, 0);
+
   if (OpenClipboard(hwnd)) {
     EmptyClipboard();
     SetClipboardData(CF_TEXT, clipdata);
     CloseClipboard();
   } else
     GlobalFree(clipdata);
-  SendMessage(hwnd, WM_IGNORE_CLIP, FALSE, 0);
+
+  if (!must_deselect)
+    SendMessage(hwnd, WM_IGNORE_CLIP, FALSE, 0);
 }
 
 void get_clip(void **p, int *len)
@@ -2132,7 +2675,22 @@ void fatalbox(char *fmt, ...)
 /*
  * Beep.
  */
-void beep(void)
+void beep(int errorbeep)
 {
-  MessageBeep(MB_OK);
+  static long last_beep = 0;
+  long now, beep_diff;
+
+  now = GetTickCount();
+  beep_diff = now - last_beep;
+
+  /* Make sure we only respond to one beep per packet or so */
+  if (beep_diff >= 0 && beep_diff < 50)
+    return;
+
+  if (errorbeep)
+    MessageBeep(MB_ICONHAND);
+  else
+    MessageBeep(MB_OK);
+
+  last_beep = GetTickCount();
 }
