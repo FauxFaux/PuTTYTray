@@ -3,9 +3,9 @@
 
 #include "puttymem.h"
 
-#include <stdio.h>		       /* for FILE * */
-#include <stdarg.h>		       /* for va_list */
-#include <time.h>                      /* for struct tm */
+#include <stdio.h>  /* for FILE * */
+#include <stdarg.h> /* for va_list */
+#include <time.h>   /* for struct tm */
 
 #ifndef FALSE
 #define FALSE 0
@@ -30,8 +30,8 @@ void base64_encode_atom(unsigned char *data, int n, char *out);
 
 struct bufchain_granule;
 typedef struct bufchain_tag {
-    struct bufchain_granule *head, *tail;
-    int buffersize;		       /* current amount of buffered data */
+  struct bufchain_granule *head, *tail;
+  int buffersize; /* current amount of buffered data */
 } bufchain;
 
 void bufchain_init(bufchain *ch);
@@ -61,23 +61,23 @@ struct tm ltime(void);
 void debug_printf(char *fmt, ...);
 void debug_memdump(void *buf, int len, int L);
 #define debug(x) (debug_printf x)
-#define dmemdump(buf,len) debug_memdump (buf, len, 0);
-#define dmemdumpl(buf,len) debug_memdump (buf, len, 1);
+#define dmemdump(buf, len) debug_memdump(buf, len, 0);
+#define dmemdumpl(buf, len) debug_memdump(buf, len, 1);
 #else
 #define debug(x)
-#define dmemdump(buf,len)
-#define dmemdumpl(buf,len)
+#define dmemdump(buf, len)
+#define dmemdumpl(buf, len)
 #endif
 
 #ifndef lenof
-#define lenof(x) ( (sizeof((x))) / (sizeof(*(x))))
+#define lenof(x) ((sizeof((x))) / (sizeof(*(x))))
 #endif
 
 #ifndef min
-#define min(x,y) ( (x) < (y) ? (x) : (y) )
+#define min(x, y) ((x) < (y) ? (x) : (y))
 #endif
 #ifndef max
-#define max(x,y) ( (x) > (y) ? (x) : (y) )
+#define max(x, y) ((x) > (y) ? (x) : (y))
 #endif
 
 #endif
