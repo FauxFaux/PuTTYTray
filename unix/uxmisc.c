@@ -3,6 +3,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -10,15 +11,18 @@
 
 #include "putty.h"
 
+long tickcount_offset = 0;
+
 unsigned long getticks(void)
 {
   struct timeval tv;
   gettimeofday(&tv, NULL);
   /*
-   * This will wrap around approximately every 4000 seconds, i.e.
-   * just over an hour, which is more than enough.
+   * We want to use milliseconds rather than microseconds,
+   * because we need a decent number of them to fit into a 32-bit
+   * word so it can be used for keepalives.
    */
-  return tv.tv_sec * 1000000 + tv.tv_usec;
+  return tv.tv_sec * 1000 + tv.tv_usec / 1000 + tickcount_offset;
 }
 
 Filename filename_from_str(const char *str)
@@ -98,4 +102,23 @@ char *get_username(void)
   endpwent();
 
   return dupstr(ret);
+}
+
+/*
+ * Display the fingerprints of the PGP Master Keys to the user.
+ * (This is here rather than in uxcons because it's appropriate even for
+ * Unix GUI apps.)
+ */
+void pgp_fingerprints(void)
+{
+  fputs("These are the fingerprints of the PuTTY PGP Master Keys. They can\n"
+        "be used to establish a trust path from this executable to another\n"
+        "one. See the manual for more information.\n"
+        "(Note: these fingerprints have nothing to do with SSH!)\n"
+        "\n"
+        "PuTTY Master Key (RSA), 1024-bit:\n"
+        "  " PGP_RSA_MASTER_KEY_FP "\n"
+        "PuTTY Master Key (DSA), 1024-bit:\n"
+        "  " PGP_DSA_MASTER_KEY_FP "\n",
+        stdout);
 }

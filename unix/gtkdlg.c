@@ -2000,7 +2000,10 @@ int get_listitemheight(void)
   return req.height;
 }
 
-int do_config_box(const char *title, Config *cfg, int midsession)
+int do_config_box(const char *title,
+                  Config *cfg,
+                  int midsession,
+                  int protcfginfo)
 {
   GtkWidget *window, *hbox, *vbox, *cols, *label, *tree, *treescroll, *panels,
       *panelvbox;
@@ -2029,8 +2032,9 @@ int do_config_box(const char *title, Config *cfg, int midsession)
   window = gtk_dialog_new();
 
   ctrlbox = ctrl_new_box();
-  setup_config_box(ctrlbox, &sl, midsession, cfg->protocol);
-  unix_setup_config_box(ctrlbox, midsession, window);
+  setup_config_box(ctrlbox, &sl, midsession, cfg->protocol, protcfginfo);
+  unix_setup_config_box(ctrlbox, midsession);
+  gtk_setup_config_box(ctrlbox, midsession, window);
 
   gtk_window_set_title(GTK_WINDOW(window), title);
   hbox = gtk_hbox_new(FALSE, 4);
@@ -2358,12 +2362,14 @@ int reallyclose(void *frontend)
   return ret;
 }
 
-void verify_ssh_host_key(void *frontend,
-                         char *host,
-                         int port,
-                         char *keytype,
-                         char *keystr,
-                         char *fingerprint)
+int verify_ssh_host_key(void *frontend,
+                        char *host,
+                        int port,
+                        char *keytype,
+                        char *keystr,
+                        char *fingerprint,
+                        void (*callback)(void *ctx, int result),
+                        void *ctx)
 {
   static const char absenttxt[] =
       "The server's host key is not cached. You have no guarantee "
@@ -2400,7 +2406,7 @@ void verify_ssh_host_key(void *frontend,
   ret = verify_host_key(host, port, keytype, keystr);
 
   if (ret == 0) /* success - key matched OK */
-    return;
+    return 1;
 
   text = dupprintf((ret == 2 ? wrongtxt : absenttxt), keytype, fingerprint);
 
@@ -2424,30 +2430,32 @@ void verify_ssh_host_key(void *frontend,
 
   sfree(text);
 
-  if (ret == 0)
-    cleanup_exit(0);
-  else if (ret == 2)
+  if (ret == 2) {
     store_host_key(host, port, keytype, keystr);
+    return 1; /* continue with connection */
+  } else if (ret == 1)
+    return 1; /* continue with connection */
+  return 0;   /* do not continue with connection */
 }
 
 /*
- * Ask whether the selected cipher is acceptable (since it was
+ * Ask whether the selected algorithm is acceptable (since it was
  * below the configured 'warn' threshold).
- * cs: 0 = both ways, 1 = client->server, 2 = server->client
  */
-void askcipher(void *frontend, char *ciphername, int cs)
+int askalg(void *frontend,
+           const char *algtype,
+           const char *algname,
+           void (*callback)(void *ctx, int result),
+           void *ctx)
 {
   static const char msg[] =
-      "The first %scipher supported by the server is "
+      "The first %s supported by the server is "
       "%s, which is below the configured warning threshold.\n"
       "Continue with connection?";
   char *text;
   int ret;
 
-  text = dupprintf(
-      msg,
-      (cs == 0) ? "" : (cs == 1) ? "client-to-server " : "server-to-client ",
-      ciphername);
+  text = dupprintf(msg, algtype, algname);
   ret = messagebox(GTK_WIDGET(get_window(frontend)),
                    "PuTTY Security Alert",
                    text,
@@ -2464,9 +2472,9 @@ void askcipher(void *frontend, char *ciphername, int cs)
   sfree(text);
 
   if (ret) {
-    return;
+    return 1;
   } else {
-    cleanup_exit(0);
+    return 0;
   }
 }
 
@@ -2515,11 +2523,12 @@ static void licence_clicked(GtkButton *button, gpointer data)
   char *title;
 
   char *licence =
-      "Copyright 1997-2004 Simon Tatham.\n\n"
+      "Copyright 1997-2005 Simon Tatham.\n\n"
 
       "Portions copyright Robert de Bath, Joris van Rantwijk, Delian "
       "Delchev, Andreas Schultz, Jeroen Massar, Wez Furlong, Nicolas "
-      "Barry, Justin Bradford, Ben Harris, Malcolm Smith, and CORE SDI S.A.\n\n"
+      "Barry, Justin Bradford, Ben Harris, Malcolm Smith, Markus Kuhn, "
+      "and CORE SDI S.A.\n\n"
 
       "Permission is hereby granted, free of charge, to any person "
       "obtaining a copy of this software and associated documentation "
@@ -2603,7 +2612,7 @@ void about_box(void *window)
   gtk_box_pack_start(GTK_BOX(GTK_DIALOG(aboutbox)->vbox), w, FALSE, FALSE, 5);
   gtk_widget_show(w);
 
-  w = gtk_label_new("Copyright 1997-2004 Simon Tatham. All rights reserved");
+  w = gtk_label_new("Copyright 1997-2005 Simon Tatham. All rights reserved");
   gtk_box_pack_start(GTK_BOX(GTK_DIALOG(aboutbox)->vbox), w, FALSE, FALSE, 5);
   gtk_widget_show(w);
 
@@ -2841,15 +2850,15 @@ void logevent_dlg(void *estuff, const char *string)
   struct eventlog_stuff *es = (struct eventlog_stuff *)estuff;
 
   char timebuf[40];
-  time_t t;
+  struct tm tm;
 
   if (es->nevents >= es->negsize) {
     es->negsize += 64;
     es->events = sresize(es->events, es->negsize, char *);
   }
 
-  time(&t);
-  strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S\t", localtime(&t));
+  tm = ltime();
+  strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S\t", &tm);
 
   es->events[es->nevents] = snewn(strlen(timebuf) + strlen(string) + 1, char);
   strcpy(es->events[es->nevents], timebuf);
@@ -2860,7 +2869,10 @@ void logevent_dlg(void *estuff, const char *string)
   es->nevents++;
 }
 
-int askappend(void *frontend, Filename filename)
+int askappend(void *frontend,
+              Filename filename,
+              void (*callback)(void *ctx, int result),
+              void *ctx)
 {
   static const char msgtemplate[] =
       "The session log file \"%.*s\" already exists. "

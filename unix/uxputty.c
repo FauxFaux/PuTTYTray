@@ -13,6 +13,12 @@
 #include "storage.h"
 
 /*
+ * Stubs to avoid uxpty.c needing to be linked in.
+ */
+const int use_pty_argv = FALSE;
+char **pty_argv; /* never used */
+
+/*
  * Clean up and exit.
  */
 void cleanup_exit(int code)
@@ -40,7 +46,7 @@ Backend *select_backend(Config *cfg)
 
 int cfgbox(Config *cfg)
 {
-  return do_config_box("PuTTY Configuration", cfg, 0);
+  return do_config_box("PuTTY Configuration", cfg, 0, 0);
 }
 
 static int got_host = 0;

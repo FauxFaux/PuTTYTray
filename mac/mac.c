@@ -1,4 +1,4 @@
-/* $Id: mac.c,v 1.59 2003/05/10 12:27:38 ben Exp $ */
+/* $Id$ */
 /*
  * Copyright (c) 1999, 2003 Ben Harris
  * All rights reserved.
@@ -71,6 +71,7 @@ static int cold = 1;
 static int borednow = FALSE;
 struct mac_gestalts mac_gestalts;
 UInt32 sleeptime;
+static long timing_next_time;
 
 static void mac_startup(void);
 static void mac_eventloop(void);
@@ -258,17 +259,32 @@ static void mac_startup(void)
                         FALSE);
 }
 
+void timer_change_notify(long next)
+{
+  timing_next_time = next;
+}
+
 static void mac_eventloop(void)
 {
   Boolean gotevent;
   EventRecord event;
   RgnHandle cursrgn;
+  long next;
+  long ticksleft;
 
   cursrgn = NewRgn();
   sleeptime = 0;
   for (;;) {
-    mac_adjustcursor(cursrgn);
+    ticksleft = timing_next_time - GETTICKCOUNT();
+    if (sleeptime > ticksleft && ticksleft >= 0)
+      sleeptime = ticksleft;
     gotevent = WaitNextEvent(everyEvent, &event, sleeptime, cursrgn);
+    if (timing_next_time <= GETTICKCOUNT()) {
+      if (run_timers(timing_next_time, &next)) {
+        timer_change_notify(next);
+      }
+    }
+
     /*
      * XXX For now, limit sleep time to 1/10 s to work around
      * wake-before-sleep race in MacTCP code.
@@ -282,9 +298,8 @@ static void mac_eventloop(void)
       if (borednow)
         cleanup_exit(0);
     }
-    sk_poll();
     if (!gotevent)
-      mac_pollterm();
+      sk_poll();
     if (mac_gestalts.apprvers >= 0x100 && mac_frontwindow() != NULL)
       IdleControls(mac_frontwindow());
   }
@@ -475,6 +490,9 @@ static void mac_menucommand(long result)
     case iOpen:
       mac_opensession();
       goto done;
+    case iChange:
+      mac_reconfig();
+      goto done;
     case iClose:
       mac_closewindow(window);
       goto done;
@@ -572,6 +590,7 @@ static void mac_adjustmenus(void)
   if (window != NULL && mac_wininfo(window)->adjustmenus != NULL)
     (*mac_wininfo(window)->adjustmenus)(window);
   else {
+    DisableItem(menu, iChange);
     DisableItem(menu, iSave);
     DisableItem(menu, iSaveAs);
     DisableItem(menu, iDuplicate);
@@ -663,10 +682,11 @@ void cleanup_exit(int status)
 }
 
 /* This should only kill the current session, not the whole application. */
-void connection_fatal(void *fontend, char *fmt, ...)
+void connection_fatal(void *frontend, char *fmt, ...)
 {
   va_list ap;
   Str255 stuff;
+  Session *s = frontend;
 
   va_start(ap, fmt);
   /* We'd like stuff to be a Pascal string */
@@ -674,7 +694,11 @@ void connection_fatal(void *fontend, char *fmt, ...)
   va_end(ap);
   ParamText(stuff, NULL, NULL, NULL);
   StopAlert(128, NULL);
-  cleanup_exit(1);
+
+  s->session_closed = TRUE;
+
+  if (s->cfg.close_on_exit == FORCE_ON)
+    mac_closewindow(s->window);
 }
 
 /* Null SSH agent client -- never finds an agent. */
@@ -700,45 +724,78 @@ int agent_query(void *in,
 
 /* Temporary null routines for testing. */
 
-void verify_ssh_host_key(void *frontend,
-                         char *host,
-                         int port,
-                         char *keytype,
-                         char *keystr,
-                         char *fingerprint)
+int verify_ssh_host_key(void *frontend,
+                        char *host,
+                        int port,
+                        char *keytype,
+                        char *keystr,
+                        char *fingerprint,
+                        void (*callback)(void *ctx, int result),
+                        void *ctx)
 {
-  Str255 stuff;
+  Str255 pappname;
+  Str255 pfingerprint;
+  Str255 pkeytype;
   Session *s = frontend;
+  int ret, alertret;
+
+  c2pstrcpy(pappname, appname);
+  c2pstrcpy(pkeytype, keytype);
+  c2pstrcpy(pfingerprint, fingerprint);
 
   /*
-   * This function is horribly wrong.  For one thing, the alert
-   * shouldn't be modal, it should be movable modal, or a sheet in
-   * Aqua.  Also, PuTTY might be in the background, in which case we
-   * should use the Notification Manager to wake up the user.  In
-   * any case, we shouldn't hold up processing of other connections'
-   * data just because this one's waiting for the user.  It should
-   * also handle a host key cache, of course, and see the note below
-   * about closing the connection.  All in all, a bit of a mess
-   * really.
+   * The alert shouldn't be modal, it should be movable modal, or
+   * a sheet in Aqua.  Also, PuTTY might be in the background, in
+   * which case we should use the Notification Manager to wake up
+   * the user.  In any case, we shouldn't hold up processing of
+   * other connections' data just because this one's waiting for
+   * the user.
    */
 
-  stuff[0] = sprintf((char *)(&stuff[1]),
-                     "The server's key fingerprint is: %s\n"
-                     "Continue connecting?",
-                     fingerprint);
-  ParamText(stuff, NULL, NULL, NULL);
-  if (CautionAlert(wQuestion, NULL) == 2) {
-    /*
-     * User chose "Cancel".  Unfortunately, if I tear the
-     * connection down here, Bad Things happen when I return.  I
-     * think this function should actually return something
-     * telling the SSH code to abandon the connection.
-     */
+  /* Verify the key against the cache */
+
+  ret = verify_host_key(host, port, keytype, keystr);
+
+  if (ret == 0) { /* success - key matched OK */
+    return 1;
+  } else if (ret == 2) { /* key was different */
+    ParamText(pappname, pkeytype, pfingerprint, NULL);
+    alertret = CautionAlert(wWrong, NULL);
+    if (alertret == 8) {
+      /* Cancel */
+      return 0;
+    } else if (alertret == 9) {
+      /* Connect Just Once */
+      return 1;
+    } else {
+      /* Update Key */
+      store_host_key(host, port, keytype, keystr);
+      return 1;
+    }
+  } else /* ret == 1 */ { /* key was absent */
+    ParamText(pkeytype, pfingerprint, pappname, NULL);
+    alertret = CautionAlert(wAbsent, NULL);
+    if (alertret == 7) {
+      /* Cancel */
+      return 0;
+    } else if (alertret == 8) {
+      /* Connect Just Once */
+      return 1;
+    } else {
+      /* Update Key */
+      store_host_key(host, port, keytype, keystr);
+      return 1;
+    }
   }
 }
 
-void askcipher(void *frontend, char *ciphername, int cs)
+int askalg(void *frontend,
+           const char *algtype,
+           const char *algname,
+           void (*callback)(void *ctx, int result),
+           void *ctx)
 {
+  return 0;
 }
 
 void old_keyfile_warning(void)
@@ -815,6 +872,42 @@ void update_specials_menu(void *frontend)
   front = mac_frontwindow();
   if (front != NULL && mac_windowsession(front) == s)
     mac_adjustmenus();
+}
+
+void notify_remote_exit(void *frontend)
+{
+  Session *s = frontend;
+  int exitcode;
+
+  if (!s->session_closed &&
+      (exitcode = s->back->exitcode(s->backhandle)) >= 0) {
+    s->session_closed = TRUE;
+    if (s->cfg.close_on_exit == FORCE_ON ||
+        (s->cfg.close_on_exit == AUTO && exitcode == 0)) {
+      mac_closewindow(s->window);
+      return;
+    }
+
+    /* The session's dead */
+
+    if (s->ldisc) {
+      ldisc_free(s->ldisc);
+      s->ldisc = NULL;
+    }
+
+    if (s->back) {
+      s->back->free(s->backhandle);
+      s->backhandle = NULL;
+      s->back = NULL;
+      update_specials_menu(s);
+    }
+
+    {
+      char title[100];
+      sprintf(title, "%.70s (inactive)", appname);
+      set_title(s, title);
+    }
+  }
 }
 
 /*

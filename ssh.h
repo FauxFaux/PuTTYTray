@@ -111,7 +111,7 @@ void MD5Simple(void const *p, unsigned len, unsigned char output[16]);
 
 void *hmacmd5_make_context(void);
 void hmacmd5_free_context(void *handle);
-void hmacmd5_key(void *handle, unsigned char const *key, int len);
+void hmacmd5_key(void *handle, void const *key, int len);
 void hmacmd5_do_hmac(void *handle,
                      unsigned char const *blk,
                      int len,
@@ -145,7 +145,7 @@ void SHA512_Simple(const void *p, int len, unsigned char *output);
 struct ssh_cipher {
   void *(*make_context)(void);
   void (*free_context)(void *);
-  void (*sesskey)(void *, unsigned char *key); /* for ssh 1 */
+  void (*sesskey)(void *, unsigned char *key); /* for SSH-1 */
   void (*encrypt)(void *, unsigned char *blk, int len);
   void (*decrypt)(void *, unsigned char *blk, int len);
   int blksize;
@@ -155,8 +155,8 @@ struct ssh_cipher {
 struct ssh2_cipher {
   void *(*make_context)(void);
   void (*free_context)(void *);
-  void (*setiv)(void *, unsigned char *key);  /* for ssh 2 */
-  void (*setkey)(void *, unsigned char *key); /* for ssh 2 */
+  void (*setiv)(void *, unsigned char *key);  /* for SSH-2 */
+  void (*setkey)(void *, unsigned char *key); /* for SSH-2 */
   void (*encrypt)(void *, unsigned char *blk, int len);
   void (*decrypt)(void *, unsigned char *blk, int len);
   char *name;
@@ -185,11 +185,13 @@ struct ssh_kex {
   /*
    * Plugging in another KEX algorithm requires structural chaos,
    * so it's hard to abstract them into nice little structures
-   * like this. Hence, for the moment, this is just a
-   * placeholder. I claim justification in the fact that OpenSSH
-   * does this too :-)
+   * like this. Fortunately, all our KEXes are basically
+   * Diffie-Hellman at the moment, so in this structure I simply
+   * parametrise the DH exchange a bit.
    */
-  char *name;
+  char *name, *groupname;
+  const unsigned char *pdata, *gdata; /* NULL means use group exchange */
+  int plen, glen;
 };
 
 struct ssh_signkey {
@@ -245,7 +247,8 @@ extern const struct ssh2_ciphers ssh2_3des;
 extern const struct ssh2_ciphers ssh2_des;
 extern const struct ssh2_ciphers ssh2_aes;
 extern const struct ssh2_ciphers ssh2_blowfish;
-extern const struct ssh_kex ssh_diffiehellman;
+extern const struct ssh_kex ssh_diffiehellman_group1;
+extern const struct ssh_kex ssh_diffiehellman_group14;
 extern const struct ssh_kex ssh_diffiehellman_gex;
 extern const struct ssh_signkey ssh_dss;
 extern const struct ssh_signkey ssh_rsa;
@@ -280,16 +283,23 @@ void *new_sock_channel(void *handle, Socket s);
 void ssh_send_port_open(void *channel, char *hostname, int port, char *org);
 
 /* Exports from portfwd.c */
-extern const char *pfd_newconnect(
-    Socket *s, char *hostname, int port, void *c, const Config *cfg);
+extern const char *pfd_newconnect(Socket *s,
+                                  char *hostname,
+                                  int port,
+                                  void *c,
+                                  const Config *cfg,
+                                  int addressfamily);
 /* desthost == NULL indicates dynamic (SOCKS) port forwarding */
 extern const char *pfd_addforward(char *desthost,
                                   int destport,
                                   char *srcaddr,
                                   int port,
                                   void *backhandle,
-                                  const Config *cfg);
+                                  const Config *cfg,
+                                  void **sockdata,
+                                  int address_family);
 extern void pfd_close(Socket s);
+extern void pfd_terminate(void *sockdata);
 extern int pfd_send(Socket s, char *data, int len);
 extern void pfd_confirm(Socket s);
 extern void pfd_unthrottle(Socket s);
@@ -355,8 +365,8 @@ char *bignum_decimal(Bignum x);
 void diagbn(char *prefix, Bignum md);
 #endif
 
-void *dh_setup_group1(void);
-void *dh_setup_group(Bignum pval, Bignum gval);
+void *dh_setup_group(const struct ssh_kex *kex);
+void *dh_setup_gex(Bignum pval, Bignum gval);
 void dh_cleanup(void *);
 Bignum dh_create_e(void *, int nbits);
 Bignum dh_find_K(void *, Bignum f);
@@ -413,10 +423,12 @@ int import_encrypted(const Filename *filename, int type, char **comment);
 int import_ssh1(const Filename *filename,
                 int type,
                 struct RSAKey *key,
-                char *passphrase);
+                char *passphrase,
+                const char **errmsg_p);
 struct ssh2_userkey *import_ssh2(const Filename *filename,
                                  int type,
-                                 char *passphrase);
+                                 char *passphrase,
+                                 const char **errmsg_p);
 int export_ssh1(const Filename *filename,
                 int type,
                 struct RSAKey *key,
@@ -482,7 +494,7 @@ int zlib_decompress_block(void *,
                           int *outlen);
 
 /*
- * SSH1 agent messages.
+ * SSH-1 agent messages.
  */
 #define SSH1_AGENTC_REQUEST_RSA_IDENTITIES 1
 #define SSH1_AGENT_RSA_IDENTITIES_ANSWER 2
@@ -493,13 +505,13 @@ int zlib_decompress_block(void *,
 #define SSH1_AGENTC_REMOVE_ALL_RSA_IDENTITIES 9 /* openssh private? */
 
 /*
- * Messages common to SSH1 and OpenSSH's SSH2.
+ * Messages common to SSH-1 and OpenSSH's SSH-2.
  */
 #define SSH_AGENT_FAILURE 5
 #define SSH_AGENT_SUCCESS 6
 
 /*
- * OpenSSH's SSH2 agent messages.
+ * OpenSSH's SSH-2 agent messages.
  */
 #define SSH2_AGENTC_REQUEST_IDENTITIES 11
 #define SSH2_AGENT_IDENTITIES_ANSWER 12
@@ -510,7 +522,7 @@ int zlib_decompress_block(void *,
 #define SSH2_AGENTC_REMOVE_ALL_IDENTITIES 19
 
 /*
- * Need this to warn about support for the original SSH2 keyfile
+ * Need this to warn about support for the original SSH-2 keyfile
  * format.
  */
 void old_keyfile_warning(void);

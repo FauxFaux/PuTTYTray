@@ -201,19 +201,20 @@ int cmdline_process_param(char *p, char *value, int need_save, Config *cfg)
     dynamic = !strcmp(p, "-D");
     fwd = value;
     ptr = cfg->portfwd;
-    /* if multiple forwards, find end of list */
-    if (ptr[0] == 'R' || ptr[0] == 'L' || ptr[0] == 'D') {
-      for (i = 0; i < sizeof(cfg->portfwd) - 2; i++)
-        if (ptr[i] == '\000' && ptr[i + 1] == '\000')
-          break;
-      ptr = ptr + i + 1; /* point to next forward slot */
+    /* if existing forwards, find end of list */
+    while (*ptr) {
+      while (*ptr)
+        ptr++;
+      ptr++;
     }
+    i = ptr - cfg->portfwd;
     ptr[0] = p[1]; /* insert a 'L', 'R' or 'D' at the start */
-    if (strlen(fwd) > sizeof(cfg->portfwd) - i - 2) {
+    ptr++;
+    if (1 + strlen(fwd) + 2 > sizeof(cfg->portfwd) - i) {
       cmdline_error("out of space for port forwardings");
       return ret;
     }
-    strncpy(ptr + 1, fwd, sizeof(cfg->portfwd) - i);
+    strncpy(ptr, fwd, sizeof(cfg->portfwd) - i - 2);
     if (!dynamic) {
       /*
        * We expect _at least_ two colons in this string. The
@@ -236,7 +237,7 @@ int cmdline_process_param(char *p, char *value, int need_save, Config *cfg)
     }
     cfg->portfwd[sizeof(cfg->portfwd) - 1] = '\0';
     cfg->portfwd[sizeof(cfg->portfwd) - 2] = '\0';
-    ptr[strlen(ptr) + 1] = '\000'; /* append two '\000' */
+    ptr[strlen(ptr) + 1] = '\000'; /* append 2nd '\000' */
   }
   if (!strcmp(p, "-m")) {
     char *filename, *command;
@@ -327,6 +328,13 @@ int cmdline_process_param(char *p, char *value, int need_save, Config *cfg)
     cfg->nopty = 1;
   }
 
+  if (!strcmp(p, "-N")) {
+    RETURN(1);
+    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    cfg->ssh_no_shell = 1;
+  }
+
   if (!strcmp(p, "-C")) {
     RETURN(1);
     UNAVAILABLE_IN(TOOLTYPE_NONNETWORK);
@@ -352,6 +360,17 @@ int cmdline_process_param(char *p, char *value, int need_save, Config *cfg)
     UNAVAILABLE_IN(TOOLTYPE_NONNETWORK);
     SAVEABLE(0);
     cfg->keyfile = filename_from_str(value);
+  }
+
+  if (!strcmp(p, "-4") || !strcmp(p, "-ipv4")) {
+    RETURN(1);
+    SAVEABLE(1);
+    cfg->addressfamily = ADDRTYPE_IPV4;
+  }
+  if (!strcmp(p, "-6") || !strcmp(p, "-ipv6")) {
+    RETURN(1);
+    SAVEABLE(1);
+    cfg->addressfamily = ADDRTYPE_IPV6;
   }
 
   return ret; /* unrecognised */

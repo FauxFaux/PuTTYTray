@@ -15,11 +15,17 @@ struct keyval {
   int v;
 };
 
+/* The cipher order given here is the default order. */
 static const struct keyval ciphernames[] = {{"aes", CIPHER_AES},
                                             {"blowfish", CIPHER_BLOWFISH},
                                             {"3des", CIPHER_3DES},
                                             {"WARN", CIPHER_WARN},
                                             {"des", CIPHER_DES}};
+
+static const struct keyval kexnames[] = {{"dh-gex-sha1", KEX_DHGEX},
+                                         {"dh-group14-sha1", KEX_DHGROUP14},
+                                         {"dh-group1-sha1", KEX_DHGROUP1},
+                                         {"WARN", KEX_WARN}};
 
 static void gpps(
     void *handle, const char *name, const char *def, char *val, int len)
@@ -175,6 +181,7 @@ void save_open_settings(void *sesskey, int do_host, Config *cfg)
   write_setting_filename(sesskey, "LogFileName", cfg->logfilename);
   write_setting_i(sesskey, "LogType", cfg->logtype);
   write_setting_i(sesskey, "LogFileClash", cfg->logxfovr);
+  write_setting_i(sesskey, "LogFlush", cfg->logflush);
   write_setting_i(sesskey, "SSHLogOmitPasswords", cfg->logomitpass);
   write_setting_i(sesskey, "SSHLogOmitData", cfg->logomitdata);
   p = "raw";
@@ -197,6 +204,9 @@ void save_open_settings(void *sesskey, int do_host, Config *cfg)
   write_setting_i(sesskey, "TCPKeepalives", cfg->tcp_keepalives);
   write_setting_s(sesskey, "TerminalType", cfg->termtype);
   write_setting_s(sesskey, "TerminalSpeed", cfg->termspeed);
+
+  /* Address family selection */
+  write_setting_i(sesskey, "AddressFamily", cfg->addressfamily);
 
   /* proxy settings */
   write_setting_s(sesskey, "ProxyExcludeList", cfg->proxy_exclude_list);
@@ -235,8 +245,12 @@ void save_open_settings(void *sesskey, int do_host, Config *cfg)
   write_setting_i(sesskey, "AgentFwd", cfg->agentfwd);
   write_setting_i(sesskey, "ChangeUsername", cfg->change_username);
   wprefs(sesskey, "Cipher", ciphernames, CIPHER_MAX, cfg->ssh_cipherlist);
+  wprefs(sesskey, "KEX", kexnames, KEX_MAX, cfg->ssh_kexlist);
+  write_setting_i(sesskey, "RekeyTime", cfg->ssh_rekey_time);
+  write_setting_s(sesskey, "RekeyBytes", cfg->ssh_rekey_data);
   write_setting_i(sesskey, "AuthTIS", cfg->try_tis_auth);
   write_setting_i(sesskey, "AuthKI", cfg->try_ki_auth);
+  write_setting_i(sesskey, "SshNoShell", cfg->ssh_no_shell);
   write_setting_i(sesskey, "SshProt", cfg->sshprot);
   write_setting_i(sesskey, "SSH2DES", cfg->ssh2_des_cbc);
   write_setting_filename(sesskey, "PublicKeyFile", cfg->keyfile);
@@ -280,8 +294,20 @@ void save_open_settings(void *sesskey, int do_host, Config *cfg)
   write_setting_filename(sesskey, "BellWaveFile", cfg->bell_wavefile);
   write_setting_i(sesskey, "BellOverload", cfg->bellovl);
   write_setting_i(sesskey, "BellOverloadN", cfg->bellovl_n);
-  write_setting_i(sesskey, "BellOverloadT", cfg->bellovl_t);
-  write_setting_i(sesskey, "BellOverloadS", cfg->bellovl_s);
+  write_setting_i(sesskey,
+                  "BellOverloadT",
+                  cfg->bellovl_t
+#ifdef PUTTY_UNIX_H
+                      * 1000
+#endif
+  );
+  write_setting_i(sesskey,
+                  "BellOverloadS",
+                  cfg->bellovl_s
+#ifdef PUTTY_UNIX_H
+                      * 1000
+#endif
+  );
   write_setting_i(sesskey, "ScrollbackLines", cfg->savelines);
   write_setting_i(sesskey, "DECOriginMode", cfg->dec_om);
   write_setting_i(sesskey, "AutoWrapMode", cfg->wrap_mode);
@@ -296,6 +322,8 @@ void save_open_settings(void *sesskey, int do_host, Config *cfg)
   write_setting_i(sesskey, "FontVTMode", cfg->vtmode);
   write_setting_i(sesskey, "UseSystemColours", cfg->system_colour);
   write_setting_i(sesskey, "TryPalette", cfg->try_palette);
+  write_setting_i(sesskey, "ANSIColour", cfg->ansi_colour);
+  write_setting_i(sesskey, "Xterm256Colour", cfg->xterm_256_colour);
   write_setting_i(sesskey, "BoldAsColour", cfg->bold_colour);
 
   for (i = 0; i < 22; i++) {
@@ -325,6 +353,8 @@ void save_open_settings(void *sesskey, int do_host, Config *cfg)
     write_setting_s(sesskey, buf, buf2);
   }
   write_setting_s(sesskey, "LineCodePage", cfg->line_codepage);
+  write_setting_i(sesskey, "CJKAmbigWide", cfg->cjk_ambig_wide);
+  write_setting_i(sesskey, "UTF8Override", cfg->utf8_override);
   write_setting_s(sesskey, "Printer", cfg->printer);
   write_setting_i(sesskey, "CapsLockCyr", cfg->xlat_capslockcyr);
   write_setting_i(sesskey, "ScrollBar", cfg->scrollbar);
@@ -365,7 +395,6 @@ void save_open_settings(void *sesskey, int do_host, Config *cfg)
   write_setting_i(sesskey, "BugHMAC2", 2 - cfg->sshbug_hmac2);
   write_setting_i(sesskey, "BugDeriveKey2", 2 - cfg->sshbug_derivekey2);
   write_setting_i(sesskey, "BugRSAPad2", 2 - cfg->sshbug_rsapad2);
-  write_setting_i(sesskey, "BugDHGEx2", 2 - cfg->sshbug_dhgex2);
   write_setting_i(sesskey, "BugPKSessID2", 2 - cfg->sshbug_pksessid2);
   write_setting_i(sesskey, "StampUtmp", cfg->stamp_utmp);
   write_setting_i(sesskey, "LoginShell", cfg->login_shell);
@@ -392,7 +421,7 @@ void load_open_settings(void *sesskey, int do_host, Config *cfg)
   char prot[10];
 
   cfg->ssh_subsys = 0; /* FIXME: load this properly */
-  cfg->remote_cmd_ptr = cfg->remote_cmd;
+  cfg->remote_cmd_ptr = NULL;
   cfg->remote_cmd_ptr2 = NULL;
 
   if (do_host) {
@@ -403,6 +432,7 @@ void load_open_settings(void *sesskey, int do_host, Config *cfg)
   gppfile(sesskey, "LogFileName", &cfg->logfilename);
   gppi(sesskey, "LogType", 0, &cfg->logtype);
   gppi(sesskey, "LogFileClash", LGXF_ASK, &cfg->logxfovr);
+  gppi(sesskey, "LogFlush", 1, &cfg->logflush);
   gppi(sesskey, "SSHLogOmitPasswords", 1, &cfg->logomitpass);
   gppi(sesskey, "SSHLogOmitData", 0, &cfg->logomitdata);
 
@@ -415,6 +445,9 @@ void load_open_settings(void *sesskey, int do_host, Config *cfg)
       gppi(sesskey, "PortNumber", default_port, &cfg->port);
       break;
     }
+
+  /* Address family selection */
+  gppi(sesskey, "AddressFamily", ADDRTYPE_UNSPEC, &cfg->addressfamily);
 
   /* The CloseOnExit numbers are arranged in a different order from
    * the standard FORCE_ON / FORCE_OFF / AUTO. */
@@ -515,10 +548,31 @@ void load_open_settings(void *sesskey, int do_host, Config *cfg)
   gppi(sesskey, "AgentFwd", 0, &cfg->agentfwd);
   gppi(sesskey, "ChangeUsername", 0, &cfg->change_username);
   gprefs(sesskey, "Cipher", "\0", ciphernames, CIPHER_MAX, cfg->ssh_cipherlist);
+  {
+    /* Backward-compatibility: we used to have an option to
+     * disable gex under the "bugs" panel after one report of
+     * a server which offered it then choked, but we never got
+     * a server version string or any other reports. */
+    char *default_kexes;
+    gppi(sesskey, "BugDHGEx2", 0, &i);
+    i = 2 - i;
+    if (i == FORCE_ON)
+      default_kexes = "dh-group14-sha1,dh-group1-sha1,WARN,dh-gex-sha1";
+    else
+      default_kexes = "dh-gex-sha1,dh-group14-sha1,dh-group1-sha1,WARN";
+    gprefs(sesskey, "KEX", default_kexes, kexnames, KEX_MAX, cfg->ssh_kexlist);
+  }
+  gppi(sesskey, "RekeyTime", 60, &cfg->ssh_rekey_time);
+  gpps(sesskey,
+       "RekeyBytes",
+       "1G",
+       cfg->ssh_rekey_data,
+       sizeof(cfg->ssh_rekey_data));
   gppi(sesskey, "SshProt", 2, &cfg->sshprot);
   gppi(sesskey, "SSH2DES", 0, &cfg->ssh2_des_cbc);
   gppi(sesskey, "AuthTIS", 0, &cfg->try_tis_auth);
   gppi(sesskey, "AuthKI", 1, &cfg->try_ki_auth);
+  gppi(sesskey, "SshNoShell", 0, &cfg->ssh_no_shell);
   gppfile(sesskey, "PublicKeyFile", &cfg->keyfile);
   gpps(sesskey, "RemoteCommand", "", cfg->remote_cmd, sizeof(cfg->remote_cmd));
   gppi(sesskey, "RFCEnviron", 0, &cfg->rfc_environ);
@@ -562,8 +616,18 @@ void load_open_settings(void *sesskey, int do_host, Config *cfg)
   gppfile(sesskey, "BellWaveFile", &cfg->bell_wavefile);
   gppi(sesskey, "BellOverload", 1, &cfg->bellovl);
   gppi(sesskey, "BellOverloadN", 5, &cfg->bellovl_n);
-  gppi(sesskey, "BellOverloadT", 2 * TICKSPERSEC, &cfg->bellovl_t);
-  gppi(sesskey, "BellOverloadS", 5 * TICKSPERSEC, &cfg->bellovl_s);
+  gppi(sesskey, "BellOverloadT", 2 * TICKSPERSEC, &i);
+  cfg->bellovl_t = i
+#ifdef PUTTY_UNIX_H
+                   / 1000
+#endif
+      ;
+  gppi(sesskey, "BellOverloadS", 5 * TICKSPERSEC, &i);
+  cfg->bellovl_s = i
+#ifdef PUTTY_UNIX_H
+                   / 1000
+#endif
+      ;
   gppi(sesskey, "ScrollbackLines", 200, &cfg->savelines);
   gppi(sesskey, "DECOriginMode", 0, &cfg->dec_om);
   gppi(sesskey, "AutoWrapMode", 1, &cfg->wrap_mode);
@@ -578,6 +642,8 @@ void load_open_settings(void *sesskey, int do_host, Config *cfg)
   gppi(sesskey, "FontVTMode", VT_UNICODE, (int *)&cfg->vtmode);
   gppi(sesskey, "UseSystemColours", 0, &cfg->system_colour);
   gppi(sesskey, "TryPalette", 0, &cfg->try_palette);
+  gppi(sesskey, "ANSIColour", 1, &cfg->ansi_colour);
+  gppi(sesskey, "Xterm256Colour", 1, &cfg->xterm_256_colour);
   gppi(sesskey, "BoldAsColour", 1, &cfg->bold_colour);
 
   for (i = 0; i < 22; i++) {
@@ -635,6 +701,8 @@ void load_open_settings(void *sesskey, int do_host, Config *cfg)
        "",
        cfg->line_codepage,
        sizeof(cfg->line_codepage));
+  gppi(sesskey, "CJKAmbigWide", 0, &cfg->cjk_ambig_wide);
+  gppi(sesskey, "UTF8Override", 1, &cfg->utf8_override);
   gpps(sesskey, "Printer", "", cfg->printer, sizeof(cfg->printer));
   gppi(sesskey, "CapsLockCyr", 0, &cfg->xlat_capslockcyr);
   gppi(sesskey, "ScrollBar", 1, &cfg->scrollbar);
@@ -691,10 +759,10 @@ void load_open_settings(void *sesskey, int do_host, Config *cfg)
   cfg->sshbug_derivekey2 = 2 - i;
   gppi(sesskey, "BugRSAPad2", 0, &i);
   cfg->sshbug_rsapad2 = 2 - i;
-  gppi(sesskey, "BugDHGEx2", 0, &i);
-  cfg->sshbug_dhgex2 = 2 - i;
   gppi(sesskey, "BugPKSessID2", 0, &i);
   cfg->sshbug_pksessid2 = 2 - i;
+  gppi(sesskey, "BugRekey2", 0, &i);
+  cfg->sshbug_rekey2 = 2 - i;
   gppi(sesskey, "StampUtmp", 1, &cfg->stamp_utmp);
   gppi(sesskey, "LoginShell", 1, &cfg->login_shell);
   gppi(sesskey, "ScrollbarOnLeft", 0, &cfg->scrollbar_on_left);

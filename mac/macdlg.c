@@ -1,4 +1,4 @@
-/* $Id: macdlg.c,v 1.18 2003/04/05 15:01:16 ben Exp $ */
+/* $Id$ */
 /*
  * Copyright (c) 2002 Ben Harris
  * All rights reserved.
@@ -35,6 +35,7 @@
 #include <Navigation.h>
 #include <Resources.h>
 #include <StandardFile.h>
+#include <TextUtils.h>
 #include <Windows.h>
 
 #include <assert.h>
@@ -46,19 +47,43 @@
 #include "macresid.h"
 #include "storage.h"
 
+static void mac_config(int);
 static void mac_closedlg(WindowPtr);
-static void mac_enddlg(WindowPtr, int);
+static void mac_enddlg_config(WindowPtr, int);
+static void mac_enddlg_reconfig(WindowPtr, int);
 
 void mac_newsession(void)
+{
+  mac_config(FALSE);
+}
+
+void mac_reconfig(void)
+{
+  mac_config(TRUE);
+}
+
+static void mac_config(int midsession)
 {
   Session *s;
   WinInfo *wi;
   static struct sesslist sesslist;
+  Str255 mactitle;
+  char *str;
 
-  s = snew(Session);
-  memset(s, 0, sizeof(*s));
-  do_defaults(NULL, &s->cfg);
-  s->hasfile = FALSE;
+  if (midsession) {
+    s = mac_windowsession(FrontWindow());
+  } else {
+    s = snew(Session);
+    memset(s, 0, sizeof(*s));
+    do_defaults(NULL, &s->cfg);
+    s->hasfile = FALSE;
+    s->session_closed = FALSE;
+  }
+
+  /* Copy the configuration somewhere else in case this is a *
+   * reconfiguration and the user cancels the operation      */
+
+  s->temp_cfg = s->cfg;
 
   if (HAVE_COLOR_QD())
     s->settings_window = GetNewCWindow(wSettings, NULL, (WindowPtr)-1);
@@ -67,10 +92,14 @@ void mac_newsession(void)
 
   get_sesslist(&sesslist, TRUE);
   s->ctrlbox = ctrl_new_box();
-  setup_config_box(s->ctrlbox, &sesslist, FALSE, 0);
+  setup_config_box(s->ctrlbox, &sesslist, midsession, 0, 0);
 
-  s->settings_ctrls.data = &s->cfg;
-  s->settings_ctrls.end = &mac_enddlg;
+  s->settings_ctrls.data = &s->temp_cfg;
+  if (midsession)
+    s->settings_ctrls.end = &mac_enddlg_reconfig;
+  else
+    s->settings_ctrls.end = &mac_enddlg_config;
+
   macctrl_layoutbox(s->ctrlbox, s->settings_window, &s->settings_ctrls);
 
   wi = snew(WinInfo);
@@ -85,6 +114,13 @@ void mac_newsession(void)
   wi->adjustmenus = &macctrl_adjustmenus;
   wi->close = &mac_closedlg;
   SetWRefCon(s->settings_window, (long)wi);
+  if (midsession)
+    str = dupprintf("%s Reconfiguration", appname);
+  else
+    str = dupprintf("%s Configuration", appname);
+  c2pstrcpy(mactitle, str);
+  sfree(str);
+  SetWTitle(s->settings_window, mactitle);
   ShowWindow(s->settings_window);
 }
 
@@ -98,15 +134,68 @@ static void mac_closedlg(WindowPtr window)
     sfree(s);
 }
 
-static void mac_enddlg(WindowPtr window, int value)
+static void mac_enddlg_config(WindowPtr window, int value)
 {
   Session *s = mac_windowsession(window);
 
   if (value == 0)
     mac_closedlg(window);
   else {
+    s->cfg = s->temp_cfg;
     mac_startsession(s);
     mac_closedlg(window);
+  }
+}
+
+static void mac_enddlg_reconfig(WindowPtr window, int value)
+{
+  Session *s = mac_windowsession(window);
+
+  if (value == 0)
+    mac_closedlg(window);
+  else {
+    Config prev_cfg = s->cfg;
+    s->cfg = s->temp_cfg;
+    mac_closedlg(window);
+
+    /* Pass new config data to the logging module */
+    log_reconfig(s->logctx, &s->cfg);
+
+    /*
+     * Flush the line discipline's edit buffer in the
+     * case where local editing has just been disabled.
+     */
+    if (s->ldisc)
+      ldisc_send(s->ldisc, NULL, 0, 0);
+
+    /* Change the palette */
+    palette_reset(s);
+
+    /* Reinitialise line codepage */
+    init_ucs(s);
+
+    /* Pass new config data to the terminal */
+    term_reconfig(s->term, &s->cfg);
+
+    /* Pass new config data to the back end */
+    if (s->back)
+      s->back->reconfig(s->backhandle, &s->cfg);
+
+    /* Screen size changed ? */
+    if (s->cfg.height != prev_cfg.height || s->cfg.width != prev_cfg.width ||
+        s->cfg.savelines != prev_cfg.savelines) {
+      request_resize(s, s->cfg.width, s->cfg.height);
+    }
+
+    /* Set the window title */
+    if (s->cfg.wintitle[0])
+      set_title(s, s->cfg.wintitle);
+
+    /* Scroll bar */
+    if (s->cfg.scrollbar != prev_cfg.scrollbar)
+      request_resize(s, s->cfg.width, s->cfg.height);
+
+    /* TODO: zoom, font */
   }
 }
 

@@ -98,6 +98,8 @@ static void sk_localproxy_close(Socket s)
   del234(localproxy_by_fromfd, ps);
   del234(localproxy_by_tofd, ps);
 
+  uxsel_del(ps->to_cmd);
+  uxsel_del(ps->from_cmd);
   close(ps->to_cmd);
   close(ps->from_cmd);
 
@@ -282,7 +284,7 @@ Socket platform_new_connection(SockAddr addr,
       close(i);
     fcntl(0, F_SETFD, 0);
     fcntl(1, F_SETFD, 0);
-    execl("/bin/sh", "sh", "-c", cmd, NULL);
+    execl("/bin/sh", "sh", "-c", cmd, (void *)NULL);
     _exit(255);
   }
 

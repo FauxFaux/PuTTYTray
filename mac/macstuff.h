@@ -8,6 +8,7 @@ typedef void *Context; /* FIXME */
 #include <Files.h>
 
 #include <stdio.h>
+#include "charset.h"
 
 struct Filename {
   FSSpec fss;
@@ -51,9 +52,9 @@ struct FontSpec {
 /*
  * sk_getxdmdata() does not exist under the Mac (SGT: I have no
  * idea whatsoever how to write it, and furthermore I'm unconvinced
- * it's necessary), so it's a macro which always returns FALSE.
+ * it's necessary), so it's a macro which always returns NULL.
  */
-#define sk_getxdmdata(socket, ip, port) (0)
+#define sk_getxdmdata(socket, lenp) (NULL)
 
 /* To make it compile */
 
@@ -66,3 +67,5 @@ extern int strnicmp(char const *, char const *, size_t);
 #define HELPCTX(foo) I(0)
 
 #define FILTER_KEY_FILES "pAgt.PPK"
+
+#define CP_UTF8 CS_UTF8 /* from libcharset */

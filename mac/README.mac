@@ -1,7 +1,13 @@
-$Id: README.mac,v 1.28 2003/02/23 00:13:17 ben Exp $
+$Id$
 
 Information about PuTTY for the Mac OS
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+This is a port of PuTTY to the Classic Mac OS.  It is a work in
+progress and should be considered unfinished and insecure.  It is
+not considered to be of release quality, even if you found it (and
+you're reading this) in a PuTTY release source archive.  Unless you
+know what you're doing, don't use it.
 
 Compiling it:
 
@@ -70,22 +76,21 @@ Known bugs:
    font switch at this point.  This can be seen as a special case of
    the need to switch fonts to get odd characters.
  * Pasting large blocks of text doesn't work.
+ * The host key database is currently limited by its implementation to
+   2727 host keys.
 
 Unimplemented features (should be done before release):
  * TCP urgent data.
  * Listening sockets.
  * Changing font size in reponse to resize requests.
  * Full screen mode.
- * Session configuration.
- * Host key database.
+ * Session configuration. 
  * Entropy collection.
  * Private key files.
  * Pageant and PuTTYgen.
  * Do something with Open Application Apple Events.
- * Warn-on-close.
  * Close-on-exit.
  * Warn-on-quit.
- * Flashing things.
  * Non-block cursors.
 
 Wishlist (after release):

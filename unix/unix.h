@@ -48,8 +48,13 @@ extern Backend pty_backend;
 /* Simple wraparound timer function */
 unsigned long getticks(void); /* based on gettimeofday(2) */
 #define GETTICKCOUNT getticks
-#define TICKSPERSEC 1000000 /* gettimeofday returns microseconds */
-#define CURSORBLINK 450000  /* no standard way to set this */
+#define TICKSPERSEC 1000 /* we choose to use milliseconds */
+#define CURSORBLINK 450  /* no standard way to set this */
+/* getticks() works using gettimeofday(), so it's vulnerable to system clock
+ * changes causing chaos. Therefore, we provide a compensation mechanism. */
+#define TIMING_SYNC
+#define TIMING_SYNC_ANOW
+extern long tickcount_offset;
 
 #define WCHAR wchar_t
 #define BYTE unsigned char
@@ -63,7 +68,10 @@ long get_windowid(void *frontend);
 void *get_window(void *frontend); /* void * to avoid depending on gtk.h */
 
 /* Things pterm.c needs from gtkdlg.c */
-int do_config_box(const char *title, Config *cfg, int midsession);
+int do_config_box(const char *title,
+                  Config *cfg,
+                  int midsession,
+                  int protcfginfo);
 void fatal_message_box(void *window, char *msg);
 void about_box(void *window);
 void *eventlogstuff_new(void);
@@ -98,7 +106,10 @@ void uxsel_input_remove(int id);
 
 /* uxcfg.c */
 struct controlbox;
-void unix_setup_config_box(struct controlbox *b, int midsession, void *window);
+void unix_setup_config_box(struct controlbox *b, int midsession);
+
+/* gtkcfg.c */
+void gtk_setup_config_box(struct controlbox *b, int midsession, void *window);
 
 /*
  * In the Unix Unicode layer, DEFAULT_CODEPAGE is a special value
@@ -114,8 +125,9 @@ void unix_setup_config_box(struct controlbox *b, int midsession, void *window);
 #define strnicmp strncasecmp
 #define stricmp strcasecmp
 
-/* BSD-semantics version of signal() */
+/* BSD-semantics version of signal(), and another helpful function */
 void (*putty_signal(int sig, void (*func)(int)))(int);
+void block_signal(int sig, int block_it);
 
 /*
  * Exports from unicode.c.
@@ -123,13 +135,14 @@ void (*putty_signal(int sig, void (*func)(int)))(int);
 struct unicode_data;
 int init_ucs(struct unicode_data *ucsdata,
              char *line_codepage,
+             int utf8_override,
              int font_charset,
              int vtmode);
 
 /*
  * Spare function exported directly from uxnet.c.
  */
-int sk_getxdmdata(void *sock, unsigned long *ip, int *port);
+void *sk_getxdmdata(void *sock, int *lenp);
 
 /*
  * General helpful Unix stuff: more helpful version of the FD_SET

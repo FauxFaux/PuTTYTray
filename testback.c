@@ -1,4 +1,4 @@
-/* $Id: testback.c,v 1.10 2004/06/20 17:07:32 jacob Exp $ */
+/* $Id$ */
 /*
  * Copyright (c) 1999 Simon Tatham
  * Copyright (c) 1999 Ben Harris
@@ -53,6 +53,7 @@ static int null_ldisc(void *, int);
 static void null_provide_ldisc(void *, void *);
 static void null_provide_logctx(void *, void *);
 static void null_unthrottle(void *, int);
+static int null_cfg_info(void *);
 
 Backend null_backend = {null_init,
                         null_free,
@@ -69,6 +70,7 @@ Backend null_backend = {null_init,
                         null_provide_ldisc,
                         null_provide_logctx,
                         null_unthrottle,
+                        null_cfg_info,
                         0};
 
 Backend loop_backend = {loop_init,
@@ -86,6 +88,7 @@ Backend loop_backend = {loop_init,
                         null_provide_ldisc,
                         null_provide_logctx,
                         null_unthrottle,
+                        null_cfg_info,
                         0};
 
 struct loop_state {
@@ -202,6 +205,11 @@ static void null_provide_ldisc(void *handle, void *ldisc)
 
 static void null_provide_logctx(void *handle, void *logctx)
 {
+}
+
+static int null_cfg_info(void *handle)
+{
+  return 0;
 }
 
 /*

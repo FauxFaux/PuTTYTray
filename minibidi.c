@@ -1,5 +1,5 @@
 /************************************************************************
- * $Id: minibidi.c,v 1.1 2004/05/22 10:36:50 simon Exp $
+ * $Id$
  *
  * ------------
  * Description:
@@ -14,10 +14,9 @@
  * -----------------
  * Revision Details:    (Updated by Revision Control System)
  * -----------------
- *  $Date: 2004/05/22 10:36:50 $
- *  $Author: simon $
- *  $Revision: 1.1 $
- *  $Source: /u1/simon/svn-migration/cvs/putty/minibidi.c,v $
+ *  $Date$
+ *  $Author$
+ *  $Revision$
  *
  * (www.arabeyes.org - under MIT license)
  *
@@ -30,7 +29,138 @@
  * - Ligatures
  */
 
-#include "minibidi.h"
+#include <stdlib.h> /* definition of wchar_t*/
+
+#include "misc.h"
+
+#define LMASK 0x3F /* Embedding Level mask */
+#define OMASK 0xC0 /* Override mask */
+#define OISL 0x80  /* Override is L */
+#define OISR 0x40  /* Override is R */
+
+/* For standalone compilation in a testing mode.
+ * Still depends on the PuTTY headers for snewn and sfree, but can avoid
+ * _linking_ with any other PuTTY code. */
+#ifdef TEST_GETTYPE
+#define safemalloc malloc
+#define safefree free
+#endif
+
+/* Shaping Helpers */
+#define STYPE(xh)                                                              \
+  ((((xh) >= SHAPE_FIRST) && ((xh) <= SHAPE_LAST))                             \
+       ? shapetypes[(xh)-SHAPE_FIRST].type                                     \
+       : SU) /*))*/
+#define SISOLATED(xh) (shapetypes[(xh)-SHAPE_FIRST].form_b)
+#define SFINAL(xh) ((xh) + 1)
+#define SINITIAL(xh) ((xh) + 2)
+#define SMEDIAL(ch) ((ch) + 3)
+
+#define leastGreaterOdd(x) (((x) + 1) | 1)
+#define leastGreaterEven(x) (((x) + 2) & ~1)
+
+typedef struct bidi_char {
+  wchar_t origwc, wc;
+  unsigned short index;
+} bidi_char;
+
+/* function declarations */
+void flipThisRun(bidi_char *from, unsigned char *level, int max, int count);
+int findIndexOfRun(unsigned char *level, int start, int count, int tlevel);
+unsigned char getType(int ch);
+unsigned char setOverrideBits(unsigned char level, unsigned char override);
+int getPreviousLevel(unsigned char *level, int from);
+int do_shape(bidi_char *line, bidi_char *to, int count);
+int do_bidi(bidi_char *line, int count);
+void doMirror(wchar_t *ch);
+
+/* character types */
+enum
+{
+  L,
+  LRE,
+  LRO,
+  R,
+  AL,
+  RLE,
+  RLO,
+  PDF,
+  EN,
+  ES,
+  ET,
+  AN,
+  CS,
+  NSM,
+  BN,
+  B,
+  S,
+  WS,
+  ON
+};
+
+/* Shaping Types */
+enum
+{
+  SL, /* Left-Joining, doesnt exist in U+0600 - U+06FF */
+  SR, /* Right-Joining, ie has Isolated, Final */
+  SD, /* Dual-Joining, ie has Isolated, Final, Initial, Medial */
+  SU, /* Non-Joining */
+  SC  /* Join-Causing, like U+0640 (TATWEEL) */
+};
+
+typedef struct {
+  char type;
+  wchar_t form_b;
+} shape_node;
+
+/* Kept near the actual table, for verification. */
+#define SHAPE_FIRST 0x621
+#define SHAPE_LAST 0x64A
+
+const shape_node shapetypes[] = {
+    /* index, Typ, Iso, Ligature Index*/
+    /* 621 */ {SU, 0xFE80},
+    /* 622 */ {SR, 0xFE81},
+    /* 623 */ {SR, 0xFE83},
+    /* 624 */ {SR, 0xFE85},
+    /* 625 */ {SR, 0xFE87},
+    /* 626 */ {SD, 0xFE89},
+    /* 627 */ {SR, 0xFE8D},
+    /* 628 */ {SD, 0xFE8F},
+    /* 629 */ {SR, 0xFE93},
+    /* 62A */ {SD, 0xFE95},
+    /* 62B */ {SD, 0xFE99},
+    /* 62C */ {SD, 0xFE9D},
+    /* 62D */ {SD, 0xFEA1},
+    /* 62E */ {SD, 0xFEA5},
+    /* 62F */ {SR, 0xFEA9},
+    /* 630 */ {SR, 0xFEAB},
+    /* 631 */ {SR, 0xFEAD},
+    /* 632 */ {SR, 0xFEAF},
+    /* 633 */ {SD, 0xFEB1},
+    /* 634 */ {SD, 0xFEB5},
+    /* 635 */ {SD, 0xFEB9},
+    /* 636 */ {SD, 0xFEBD},
+    /* 637 */ {SD, 0xFEC1},
+    /* 638 */ {SD, 0xFEC5},
+    /* 639 */ {SD, 0xFEC9},
+    /* 63A */ {SD, 0xFECD},
+    /* 63B */ {SU, 0x0},
+    /* 63C */ {SU, 0x0},
+    /* 63D */ {SU, 0x0},
+    /* 63E */ {SU, 0x0},
+    /* 63F */ {SU, 0x0},
+    /* 640 */ {SC, 0x0},
+    /* 641 */ {SD, 0xFED1},
+    /* 642 */ {SD, 0xFED5},
+    /* 643 */ {SD, 0xFED9},
+    /* 644 */ {SD, 0xFEDD},
+    /* 645 */ {SD, 0xFEE1},
+    /* 646 */ {SD, 0xFEE5},
+    /* 647 */ {SD, 0xFEE9},
+    /* 648 */ {SR, 0xFEED},
+    /* 649 */ {SR, 0xFEEF}, /* SD */
+    /* 64A */ {SD, 0xFEF1}};
 
 /*
  * Flips the text buffer, according to max level, and
@@ -44,7 +174,7 @@
  */
 void flipThisRun(bidi_char *from, unsigned char *level, int max, int count)
 {
-  int i, j, rcount, tlevel;
+  int i, j, k, tlevel;
   bidi_char temp;
 
   j = i = 0;
@@ -54,14 +184,13 @@ void flipThisRun(bidi_char *from, unsigned char *level, int max, int count)
     tlevel = max;
     i = j = findIndexOfRun(level, i, count, max);
     /* find the end of the run */
-    while (tlevel <= level[i] && i < count) {
+    while (i < count && tlevel <= level[i]) {
       i++;
     }
-    rcount = i - j;
-    for (; rcount > ((i - j) / 2); rcount--) {
-      temp = from[j + rcount - 1];
-      from[j + rcount - 1] = from[i - rcount];
-      from[i - rcount] = temp;
+    for (k = i - 1; k > j; k--, j++) {
+      temp = from[k];
+      from[k] = from[j];
+      from[j] = temp;
     }
   }
 }
@@ -81,12 +210,262 @@ int findIndexOfRun(unsigned char *level, int start, int count, int tlevel)
 }
 
 /*
- * Returns character type of ch, by calling RLE table lookup
- * function
+ * Returns the bidi character type of ch.
+ *
+ * The data table in this function is constructed from the Unicode
+ * Character Database, downloadable from unicode.org at the URL
+ *
+ *     http://www.unicode.org/Public/UNIDATA/UnicodeData.txt
+ *
+ * by the following fragment of Perl:
+
+perl -ne 'split ";"; $num = hex $_[0]; $type = $_[4];' \
+      -e '$fl = ($_[1] =~ /First/ ? 1 : $_[1] =~ /Last/ ? 2 : 0);' \
+      -e 'if ($type eq $runtype and ($runend == $num-1 or ' \
+      -e '    ($fl==2 and $pfl==1))) {$runend = $num;} else { &reset; }' \
+      -e '$pfl=$fl; END { &reset }; sub reset {' \
+      -e 'printf"        {0x%04x, 0x%04x, %s},\n",$runstart,$runend,$runtype' \
+      -e '  if defined $runstart and $runtype ne "ON";' \
+      -e '$runstart=$runend=$num; $runtype=$type;}' \
+    UnicodeData.txt
+
  */
-unsigned char getType(wchar_t ch)
+unsigned char getType(int ch)
 {
-  return getRLE(ch);
+  static const struct {
+    int first, last, type;
+  } lookup[] = {
+      {0x0000, 0x0008, BN},    {0x0009, 0x0009, S},     {0x000a, 0x000a, B},
+      {0x000b, 0x000b, S},     {0x000c, 0x000c, WS},    {0x000d, 0x000d, B},
+      {0x000e, 0x001b, BN},    {0x001c, 0x001e, B},     {0x001f, 0x001f, S},
+      {0x0020, 0x0020, WS},    {0x0023, 0x0025, ET},    {0x002b, 0x002b, ES},
+      {0x002c, 0x002c, CS},    {0x002d, 0x002d, ES},    {0x002e, 0x002f, CS},
+      {0x0030, 0x0039, EN},    {0x003a, 0x003a, CS},    {0x0041, 0x005a, L},
+      {0x0061, 0x007a, L},     {0x007f, 0x0084, BN},    {0x0085, 0x0085, B},
+      {0x0086, 0x009f, BN},    {0x00a0, 0x00a0, CS},    {0x00a2, 0x00a5, ET},
+      {0x00aa, 0x00aa, L},     {0x00ad, 0x00ad, BN},    {0x00b0, 0x00b1, ET},
+      {0x00b2, 0x00b3, EN},    {0x00b5, 0x00b5, L},     {0x00b9, 0x00b9, EN},
+      {0x00ba, 0x00ba, L},     {0x00c0, 0x00d6, L},     {0x00d8, 0x00f6, L},
+      {0x00f8, 0x0236, L},     {0x0250, 0x02b8, L},     {0x02bb, 0x02c1, L},
+      {0x02d0, 0x02d1, L},     {0x02e0, 0x02e4, L},     {0x02ee, 0x02ee, L},
+      {0x0300, 0x0357, NSM},   {0x035d, 0x036f, NSM},   {0x037a, 0x037a, L},
+      {0x0386, 0x0386, L},     {0x0388, 0x038a, L},     {0x038c, 0x038c, L},
+      {0x038e, 0x03a1, L},     {0x03a3, 0x03ce, L},     {0x03d0, 0x03f5, L},
+      {0x03f7, 0x03fb, L},     {0x0400, 0x0482, L},     {0x0483, 0x0486, NSM},
+      {0x0488, 0x0489, NSM},   {0x048a, 0x04ce, L},     {0x04d0, 0x04f5, L},
+      {0x04f8, 0x04f9, L},     {0x0500, 0x050f, L},     {0x0531, 0x0556, L},
+      {0x0559, 0x055f, L},     {0x0561, 0x0587, L},     {0x0589, 0x0589, L},
+      {0x0591, 0x05a1, NSM},   {0x05a3, 0x05b9, NSM},   {0x05bb, 0x05bd, NSM},
+      {0x05be, 0x05be, R},     {0x05bf, 0x05bf, NSM},   {0x05c0, 0x05c0, R},
+      {0x05c1, 0x05c2, NSM},   {0x05c3, 0x05c3, R},     {0x05c4, 0x05c4, NSM},
+      {0x05d0, 0x05ea, R},     {0x05f0, 0x05f4, R},     {0x0600, 0x0603, AL},
+      {0x060c, 0x060c, CS},    {0x060d, 0x060d, AL},    {0x0610, 0x0615, NSM},
+      {0x061b, 0x061b, AL},    {0x061f, 0x061f, AL},    {0x0621, 0x063a, AL},
+      {0x0640, 0x064a, AL},    {0x064b, 0x0658, NSM},   {0x0660, 0x0669, AN},
+      {0x066a, 0x066a, ET},    {0x066b, 0x066c, AN},    {0x066d, 0x066f, AL},
+      {0x0670, 0x0670, NSM},   {0x0671, 0x06d5, AL},    {0x06d6, 0x06dc, NSM},
+      {0x06dd, 0x06dd, AL},    {0x06de, 0x06e4, NSM},   {0x06e5, 0x06e6, AL},
+      {0x06e7, 0x06e8, NSM},   {0x06ea, 0x06ed, NSM},   {0x06ee, 0x06ef, AL},
+      {0x06f0, 0x06f9, EN},    {0x06fa, 0x070d, AL},    {0x070f, 0x070f, BN},
+      {0x0710, 0x0710, AL},    {0x0711, 0x0711, NSM},   {0x0712, 0x072f, AL},
+      {0x0730, 0x074a, NSM},   {0x074d, 0x074f, AL},    {0x0780, 0x07a5, AL},
+      {0x07a6, 0x07b0, NSM},   {0x07b1, 0x07b1, AL},    {0x0901, 0x0902, NSM},
+      {0x0903, 0x0939, L},     {0x093c, 0x093c, NSM},   {0x093d, 0x0940, L},
+      {0x0941, 0x0948, NSM},   {0x0949, 0x094c, L},     {0x094d, 0x094d, NSM},
+      {0x0950, 0x0950, L},     {0x0951, 0x0954, NSM},   {0x0958, 0x0961, L},
+      {0x0962, 0x0963, NSM},   {0x0964, 0x0970, L},     {0x0981, 0x0981, NSM},
+      {0x0982, 0x0983, L},     {0x0985, 0x098c, L},     {0x098f, 0x0990, L},
+      {0x0993, 0x09a8, L},     {0x09aa, 0x09b0, L},     {0x09b2, 0x09b2, L},
+      {0x09b6, 0x09b9, L},     {0x09bc, 0x09bc, NSM},   {0x09bd, 0x09c0, L},
+      {0x09c1, 0x09c4, NSM},   {0x09c7, 0x09c8, L},     {0x09cb, 0x09cc, L},
+      {0x09cd, 0x09cd, NSM},   {0x09d7, 0x09d7, L},     {0x09dc, 0x09dd, L},
+      {0x09df, 0x09e1, L},     {0x09e2, 0x09e3, NSM},   {0x09e6, 0x09f1, L},
+      {0x09f2, 0x09f3, ET},    {0x09f4, 0x09fa, L},     {0x0a01, 0x0a02, NSM},
+      {0x0a03, 0x0a03, L},     {0x0a05, 0x0a0a, L},     {0x0a0f, 0x0a10, L},
+      {0x0a13, 0x0a28, L},     {0x0a2a, 0x0a30, L},     {0x0a32, 0x0a33, L},
+      {0x0a35, 0x0a36, L},     {0x0a38, 0x0a39, L},     {0x0a3c, 0x0a3c, NSM},
+      {0x0a3e, 0x0a40, L},     {0x0a41, 0x0a42, NSM},   {0x0a47, 0x0a48, NSM},
+      {0x0a4b, 0x0a4d, NSM},   {0x0a59, 0x0a5c, L},     {0x0a5e, 0x0a5e, L},
+      {0x0a66, 0x0a6f, L},     {0x0a70, 0x0a71, NSM},   {0x0a72, 0x0a74, L},
+      {0x0a81, 0x0a82, NSM},   {0x0a83, 0x0a83, L},     {0x0a85, 0x0a8d, L},
+      {0x0a8f, 0x0a91, L},     {0x0a93, 0x0aa8, L},     {0x0aaa, 0x0ab0, L},
+      {0x0ab2, 0x0ab3, L},     {0x0ab5, 0x0ab9, L},     {0x0abc, 0x0abc, NSM},
+      {0x0abd, 0x0ac0, L},     {0x0ac1, 0x0ac5, NSM},   {0x0ac7, 0x0ac8, NSM},
+      {0x0ac9, 0x0ac9, L},     {0x0acb, 0x0acc, L},     {0x0acd, 0x0acd, NSM},
+      {0x0ad0, 0x0ad0, L},     {0x0ae0, 0x0ae1, L},     {0x0ae2, 0x0ae3, NSM},
+      {0x0ae6, 0x0aef, L},     {0x0af1, 0x0af1, ET},    {0x0b01, 0x0b01, NSM},
+      {0x0b02, 0x0b03, L},     {0x0b05, 0x0b0c, L},     {0x0b0f, 0x0b10, L},
+      {0x0b13, 0x0b28, L},     {0x0b2a, 0x0b30, L},     {0x0b32, 0x0b33, L},
+      {0x0b35, 0x0b39, L},     {0x0b3c, 0x0b3c, NSM},   {0x0b3d, 0x0b3e, L},
+      {0x0b3f, 0x0b3f, NSM},   {0x0b40, 0x0b40, L},     {0x0b41, 0x0b43, NSM},
+      {0x0b47, 0x0b48, L},     {0x0b4b, 0x0b4c, L},     {0x0b4d, 0x0b4d, NSM},
+      {0x0b56, 0x0b56, NSM},   {0x0b57, 0x0b57, L},     {0x0b5c, 0x0b5d, L},
+      {0x0b5f, 0x0b61, L},     {0x0b66, 0x0b71, L},     {0x0b82, 0x0b82, NSM},
+      {0x0b83, 0x0b83, L},     {0x0b85, 0x0b8a, L},     {0x0b8e, 0x0b90, L},
+      {0x0b92, 0x0b95, L},     {0x0b99, 0x0b9a, L},     {0x0b9c, 0x0b9c, L},
+      {0x0b9e, 0x0b9f, L},     {0x0ba3, 0x0ba4, L},     {0x0ba8, 0x0baa, L},
+      {0x0bae, 0x0bb5, L},     {0x0bb7, 0x0bb9, L},     {0x0bbe, 0x0bbf, L},
+      {0x0bc0, 0x0bc0, NSM},   {0x0bc1, 0x0bc2, L},     {0x0bc6, 0x0bc8, L},
+      {0x0bca, 0x0bcc, L},     {0x0bcd, 0x0bcd, NSM},   {0x0bd7, 0x0bd7, L},
+      {0x0be7, 0x0bf2, L},     {0x0bf9, 0x0bf9, ET},    {0x0c01, 0x0c03, L},
+      {0x0c05, 0x0c0c, L},     {0x0c0e, 0x0c10, L},     {0x0c12, 0x0c28, L},
+      {0x0c2a, 0x0c33, L},     {0x0c35, 0x0c39, L},     {0x0c3e, 0x0c40, NSM},
+      {0x0c41, 0x0c44, L},     {0x0c46, 0x0c48, NSM},   {0x0c4a, 0x0c4d, NSM},
+      {0x0c55, 0x0c56, NSM},   {0x0c60, 0x0c61, L},     {0x0c66, 0x0c6f, L},
+      {0x0c82, 0x0c83, L},     {0x0c85, 0x0c8c, L},     {0x0c8e, 0x0c90, L},
+      {0x0c92, 0x0ca8, L},     {0x0caa, 0x0cb3, L},     {0x0cb5, 0x0cb9, L},
+      {0x0cbc, 0x0cbc, NSM},   {0x0cbd, 0x0cc4, L},     {0x0cc6, 0x0cc8, L},
+      {0x0cca, 0x0ccb, L},     {0x0ccc, 0x0ccd, NSM},   {0x0cd5, 0x0cd6, L},
+      {0x0cde, 0x0cde, L},     {0x0ce0, 0x0ce1, L},     {0x0ce6, 0x0cef, L},
+      {0x0d02, 0x0d03, L},     {0x0d05, 0x0d0c, L},     {0x0d0e, 0x0d10, L},
+      {0x0d12, 0x0d28, L},     {0x0d2a, 0x0d39, L},     {0x0d3e, 0x0d40, L},
+      {0x0d41, 0x0d43, NSM},   {0x0d46, 0x0d48, L},     {0x0d4a, 0x0d4c, L},
+      {0x0d4d, 0x0d4d, NSM},   {0x0d57, 0x0d57, L},     {0x0d60, 0x0d61, L},
+      {0x0d66, 0x0d6f, L},     {0x0d82, 0x0d83, L},     {0x0d85, 0x0d96, L},
+      {0x0d9a, 0x0db1, L},     {0x0db3, 0x0dbb, L},     {0x0dbd, 0x0dbd, L},
+      {0x0dc0, 0x0dc6, L},     {0x0dca, 0x0dca, NSM},   {0x0dcf, 0x0dd1, L},
+      {0x0dd2, 0x0dd4, NSM},   {0x0dd6, 0x0dd6, NSM},   {0x0dd8, 0x0ddf, L},
+      {0x0df2, 0x0df4, L},     {0x0e01, 0x0e30, L},     {0x0e31, 0x0e31, NSM},
+      {0x0e32, 0x0e33, L},     {0x0e34, 0x0e3a, NSM},   {0x0e3f, 0x0e3f, ET},
+      {0x0e40, 0x0e46, L},     {0x0e47, 0x0e4e, NSM},   {0x0e4f, 0x0e5b, L},
+      {0x0e81, 0x0e82, L},     {0x0e84, 0x0e84, L},     {0x0e87, 0x0e88, L},
+      {0x0e8a, 0x0e8a, L},     {0x0e8d, 0x0e8d, L},     {0x0e94, 0x0e97, L},
+      {0x0e99, 0x0e9f, L},     {0x0ea1, 0x0ea3, L},     {0x0ea5, 0x0ea5, L},
+      {0x0ea7, 0x0ea7, L},     {0x0eaa, 0x0eab, L},     {0x0ead, 0x0eb0, L},
+      {0x0eb1, 0x0eb1, NSM},   {0x0eb2, 0x0eb3, L},     {0x0eb4, 0x0eb9, NSM},
+      {0x0ebb, 0x0ebc, NSM},   {0x0ebd, 0x0ebd, L},     {0x0ec0, 0x0ec4, L},
+      {0x0ec6, 0x0ec6, L},     {0x0ec8, 0x0ecd, NSM},   {0x0ed0, 0x0ed9, L},
+      {0x0edc, 0x0edd, L},     {0x0f00, 0x0f17, L},     {0x0f18, 0x0f19, NSM},
+      {0x0f1a, 0x0f34, L},     {0x0f35, 0x0f35, NSM},   {0x0f36, 0x0f36, L},
+      {0x0f37, 0x0f37, NSM},   {0x0f38, 0x0f38, L},     {0x0f39, 0x0f39, NSM},
+      {0x0f3e, 0x0f47, L},     {0x0f49, 0x0f6a, L},     {0x0f71, 0x0f7e, NSM},
+      {0x0f7f, 0x0f7f, L},     {0x0f80, 0x0f84, NSM},   {0x0f85, 0x0f85, L},
+      {0x0f86, 0x0f87, NSM},   {0x0f88, 0x0f8b, L},     {0x0f90, 0x0f97, NSM},
+      {0x0f99, 0x0fbc, NSM},   {0x0fbe, 0x0fc5, L},     {0x0fc6, 0x0fc6, NSM},
+      {0x0fc7, 0x0fcc, L},     {0x0fcf, 0x0fcf, L},     {0x1000, 0x1021, L},
+      {0x1023, 0x1027, L},     {0x1029, 0x102a, L},     {0x102c, 0x102c, L},
+      {0x102d, 0x1030, NSM},   {0x1031, 0x1031, L},     {0x1032, 0x1032, NSM},
+      {0x1036, 0x1037, NSM},   {0x1038, 0x1038, L},     {0x1039, 0x1039, NSM},
+      {0x1040, 0x1057, L},     {0x1058, 0x1059, NSM},   {0x10a0, 0x10c5, L},
+      {0x10d0, 0x10f8, L},     {0x10fb, 0x10fb, L},     {0x1100, 0x1159, L},
+      {0x115f, 0x11a2, L},     {0x11a8, 0x11f9, L},     {0x1200, 0x1206, L},
+      {0x1208, 0x1246, L},     {0x1248, 0x1248, L},     {0x124a, 0x124d, L},
+      {0x1250, 0x1256, L},     {0x1258, 0x1258, L},     {0x125a, 0x125d, L},
+      {0x1260, 0x1286, L},     {0x1288, 0x1288, L},     {0x128a, 0x128d, L},
+      {0x1290, 0x12ae, L},     {0x12b0, 0x12b0, L},     {0x12b2, 0x12b5, L},
+      {0x12b8, 0x12be, L},     {0x12c0, 0x12c0, L},     {0x12c2, 0x12c5, L},
+      {0x12c8, 0x12ce, L},     {0x12d0, 0x12d6, L},     {0x12d8, 0x12ee, L},
+      {0x12f0, 0x130e, L},     {0x1310, 0x1310, L},     {0x1312, 0x1315, L},
+      {0x1318, 0x131e, L},     {0x1320, 0x1346, L},     {0x1348, 0x135a, L},
+      {0x1361, 0x137c, L},     {0x13a0, 0x13f4, L},     {0x1401, 0x1676, L},
+      {0x1680, 0x1680, WS},    {0x1681, 0x169a, L},     {0x16a0, 0x16f0, L},
+      {0x1700, 0x170c, L},     {0x170e, 0x1711, L},     {0x1712, 0x1714, NSM},
+      {0x1720, 0x1731, L},     {0x1732, 0x1734, NSM},   {0x1735, 0x1736, L},
+      {0x1740, 0x1751, L},     {0x1752, 0x1753, NSM},   {0x1760, 0x176c, L},
+      {0x176e, 0x1770, L},     {0x1772, 0x1773, NSM},   {0x1780, 0x17b6, L},
+      {0x17b7, 0x17bd, NSM},   {0x17be, 0x17c5, L},     {0x17c6, 0x17c6, NSM},
+      {0x17c7, 0x17c8, L},     {0x17c9, 0x17d3, NSM},   {0x17d4, 0x17da, L},
+      {0x17db, 0x17db, ET},    {0x17dc, 0x17dc, L},     {0x17dd, 0x17dd, NSM},
+      {0x17e0, 0x17e9, L},     {0x180b, 0x180d, NSM},   {0x180e, 0x180e, WS},
+      {0x1810, 0x1819, L},     {0x1820, 0x1877, L},     {0x1880, 0x18a8, L},
+      {0x18a9, 0x18a9, NSM},   {0x1900, 0x191c, L},     {0x1920, 0x1922, NSM},
+      {0x1923, 0x1926, L},     {0x1927, 0x192b, NSM},   {0x1930, 0x1931, L},
+      {0x1932, 0x1932, NSM},   {0x1933, 0x1938, L},     {0x1939, 0x193b, NSM},
+      {0x1946, 0x196d, L},     {0x1970, 0x1974, L},     {0x1d00, 0x1d6b, L},
+      {0x1e00, 0x1e9b, L},     {0x1ea0, 0x1ef9, L},     {0x1f00, 0x1f15, L},
+      {0x1f18, 0x1f1d, L},     {0x1f20, 0x1f45, L},     {0x1f48, 0x1f4d, L},
+      {0x1f50, 0x1f57, L},     {0x1f59, 0x1f59, L},     {0x1f5b, 0x1f5b, L},
+      {0x1f5d, 0x1f5d, L},     {0x1f5f, 0x1f7d, L},     {0x1f80, 0x1fb4, L},
+      {0x1fb6, 0x1fbc, L},     {0x1fbe, 0x1fbe, L},     {0x1fc2, 0x1fc4, L},
+      {0x1fc6, 0x1fcc, L},     {0x1fd0, 0x1fd3, L},     {0x1fd6, 0x1fdb, L},
+      {0x1fe0, 0x1fec, L},     {0x1ff2, 0x1ff4, L},     {0x1ff6, 0x1ffc, L},
+      {0x2000, 0x200a, WS},    {0x200b, 0x200d, BN},    {0x200e, 0x200e, L},
+      {0x200f, 0x200f, R},     {0x2028, 0x2028, WS},    {0x2029, 0x2029, B},
+      {0x202a, 0x202a, LRE},   {0x202b, 0x202b, RLE},   {0x202c, 0x202c, PDF},
+      {0x202d, 0x202d, LRO},   {0x202e, 0x202e, RLO},   {0x202f, 0x202f, WS},
+      {0x2030, 0x2034, ET},    {0x2044, 0x2044, CS},    {0x205f, 0x205f, WS},
+      {0x2060, 0x2063, BN},    {0x206a, 0x206f, BN},    {0x2070, 0x2070, EN},
+      {0x2071, 0x2071, L},     {0x2074, 0x2079, EN},    {0x207a, 0x207b, ET},
+      {0x207f, 0x207f, L},     {0x2080, 0x2089, EN},    {0x208a, 0x208b, ET},
+      {0x20a0, 0x20b1, ET},    {0x20d0, 0x20ea, NSM},   {0x2102, 0x2102, L},
+      {0x2107, 0x2107, L},     {0x210a, 0x2113, L},     {0x2115, 0x2115, L},
+      {0x2119, 0x211d, L},     {0x2124, 0x2124, L},     {0x2126, 0x2126, L},
+      {0x2128, 0x2128, L},     {0x212a, 0x212d, L},     {0x212e, 0x212e, ET},
+      {0x212f, 0x2131, L},     {0x2133, 0x2139, L},     {0x213d, 0x213f, L},
+      {0x2145, 0x2149, L},     {0x2160, 0x2183, L},     {0x2212, 0x2213, ET},
+      {0x2336, 0x237a, L},     {0x2395, 0x2395, L},     {0x2488, 0x249b, EN},
+      {0x249c, 0x24e9, L},     {0x2800, 0x28ff, L},     {0x3000, 0x3000, WS},
+      {0x3005, 0x3007, L},     {0x3021, 0x3029, L},     {0x302a, 0x302f, NSM},
+      {0x3031, 0x3035, L},     {0x3038, 0x303c, L},     {0x3041, 0x3096, L},
+      {0x3099, 0x309a, NSM},   {0x309d, 0x309f, L},     {0x30a1, 0x30fa, L},
+      {0x30fc, 0x30ff, L},     {0x3105, 0x312c, L},     {0x3131, 0x318e, L},
+      {0x3190, 0x31b7, L},     {0x31f0, 0x321c, L},     {0x3220, 0x3243, L},
+      {0x3260, 0x327b, L},     {0x327f, 0x32b0, L},     {0x32c0, 0x32cb, L},
+      {0x32d0, 0x32fe, L},     {0x3300, 0x3376, L},     {0x337b, 0x33dd, L},
+      {0x33e0, 0x33fe, L},     {0x3400, 0x4db5, L},     {0x4e00, 0x9fa5, L},
+      {0xa000, 0xa48c, L},     {0xac00, 0xd7a3, L},     {0xd800, 0xfa2d, L},
+      {0xfa30, 0xfa6a, L},     {0xfb00, 0xfb06, L},     {0xfb13, 0xfb17, L},
+      {0xfb1d, 0xfb1d, R},     {0xfb1e, 0xfb1e, NSM},   {0xfb1f, 0xfb28, R},
+      {0xfb29, 0xfb29, ET},    {0xfb2a, 0xfb36, R},     {0xfb38, 0xfb3c, R},
+      {0xfb3e, 0xfb3e, R},     {0xfb40, 0xfb41, R},     {0xfb43, 0xfb44, R},
+      {0xfb46, 0xfb4f, R},     {0xfb50, 0xfbb1, AL},    {0xfbd3, 0xfd3d, AL},
+      {0xfd50, 0xfd8f, AL},    {0xfd92, 0xfdc7, AL},    {0xfdf0, 0xfdfc, AL},
+      {0xfe00, 0xfe0f, NSM},   {0xfe20, 0xfe23, NSM},   {0xfe50, 0xfe50, CS},
+      {0xfe52, 0xfe52, CS},    {0xfe55, 0xfe55, CS},    {0xfe5f, 0xfe5f, ET},
+      {0xfe62, 0xfe63, ET},    {0xfe69, 0xfe6a, ET},    {0xfe70, 0xfe74, AL},
+      {0xfe76, 0xfefc, AL},    {0xfeff, 0xfeff, BN},    {0xff03, 0xff05, ET},
+      {0xff0b, 0xff0b, ET},    {0xff0c, 0xff0c, CS},    {0xff0d, 0xff0d, ET},
+      {0xff0e, 0xff0e, CS},    {0xff0f, 0xff0f, ES},    {0xff10, 0xff19, EN},
+      {0xff1a, 0xff1a, CS},    {0xff21, 0xff3a, L},     {0xff41, 0xff5a, L},
+      {0xff66, 0xffbe, L},     {0xffc2, 0xffc7, L},     {0xffca, 0xffcf, L},
+      {0xffd2, 0xffd7, L},     {0xffda, 0xffdc, L},     {0xffe0, 0xffe1, ET},
+      {0xffe5, 0xffe6, ET},    {0x10000, 0x1000b, L},   {0x1000d, 0x10026, L},
+      {0x10028, 0x1003a, L},   {0x1003c, 0x1003d, L},   {0x1003f, 0x1004d, L},
+      {0x10050, 0x1005d, L},   {0x10080, 0x100fa, L},   {0x10100, 0x10100, L},
+      {0x10102, 0x10102, L},   {0x10107, 0x10133, L},   {0x10137, 0x1013f, L},
+      {0x10300, 0x1031e, L},   {0x10320, 0x10323, L},   {0x10330, 0x1034a, L},
+      {0x10380, 0x1039d, L},   {0x1039f, 0x1039f, L},   {0x10400, 0x1049d, L},
+      {0x104a0, 0x104a9, L},   {0x10800, 0x10805, R},   {0x10808, 0x10808, R},
+      {0x1080a, 0x10835, R},   {0x10837, 0x10838, R},   {0x1083c, 0x1083c, R},
+      {0x1083f, 0x1083f, R},   {0x1d000, 0x1d0f5, L},   {0x1d100, 0x1d126, L},
+      {0x1d12a, 0x1d166, L},   {0x1d167, 0x1d169, NSM}, {0x1d16a, 0x1d172, L},
+      {0x1d173, 0x1d17a, BN},  {0x1d17b, 0x1d182, NSM}, {0x1d183, 0x1d184, L},
+      {0x1d185, 0x1d18b, NSM}, {0x1d18c, 0x1d1a9, L},   {0x1d1aa, 0x1d1ad, NSM},
+      {0x1d1ae, 0x1d1dd, L},   {0x1d400, 0x1d454, L},   {0x1d456, 0x1d49c, L},
+      {0x1d49e, 0x1d49f, L},   {0x1d4a2, 0x1d4a2, L},   {0x1d4a5, 0x1d4a6, L},
+      {0x1d4a9, 0x1d4ac, L},   {0x1d4ae, 0x1d4b9, L},   {0x1d4bb, 0x1d4bb, L},
+      {0x1d4bd, 0x1d4c3, L},   {0x1d4c5, 0x1d505, L},   {0x1d507, 0x1d50a, L},
+      {0x1d50d, 0x1d514, L},   {0x1d516, 0x1d51c, L},   {0x1d51e, 0x1d539, L},
+      {0x1d53b, 0x1d53e, L},   {0x1d540, 0x1d544, L},   {0x1d546, 0x1d546, L},
+      {0x1d54a, 0x1d550, L},   {0x1d552, 0x1d6a3, L},   {0x1d6a8, 0x1d7c9, L},
+      {0x1d7ce, 0x1d7ff, EN},  {0x20000, 0x2a6d6, L},   {0x2f800, 0x2fa1d, L},
+      {0xe0001, 0xe0001, BN},  {0xe0020, 0xe007f, BN},  {0xe0100, 0xe01ef, NSM},
+      {0xf0000, 0xffffd, L},   {0x100000, 0x10fffd, L}};
+
+  int i, j, k;
+
+  i = -1;
+  j = lenof(lookup);
+
+  while (j - i > 1) {
+    k = (i + j) / 2;
+    if (ch < lookup[k].first)
+      j = k;
+    else if (ch > lookup[k].last)
+      i = k;
+    else
+      return lookup[k].type;
+  }
+
+  /*
+   * If we reach here, the character was not in any of the
+   * intervals listed in the lookup table. This means we return
+   * ON (`Other Neutrals'). This is the appropriate code for any
+   * character genuinely not listed in the Unicode table, and
+   * also the table above has deliberately left out any
+   * characters _explicitly_ listed as ON (to save space!).
+   */
+  return ON;
 }
 
 /*
@@ -106,59 +485,25 @@ unsigned char setOverrideBits(unsigned char level, unsigned char override)
   return level;
 }
 
-/* Dont remember what this was used for :-) */
-unsigned char getPreviousLevel(unsigned char *level, int from)
-{
-  unsigned char current;
-  from--;
-  current = level[from];
-  while (from > 0 && level[from] == current) {
-    from--;
-  }
-  return level[++from];
-}
-
 /*
- * Returns the first odd value greater than x
+ * Find the most recent run of the same value in `level', and
+ * return the value _before_ it. Used to process U+202C POP
+ * DIRECTIONAL FORMATTING.
  */
-unsigned char leastGreaterOdd(unsigned char x)
+int getPreviousLevel(unsigned char *level, int from)
 {
-  if ((x % 2) == 0)
-    return x + 1;
-  else
-    return x + 2;
-}
+  if (from > 0) {
+    unsigned char current = level[--from];
 
-/*
- * Returns the first even value greater than x
- */
-unsigned char leastGreaterEven(unsigned char x)
-{
-  if ((x % 2) == 0)
-    return x + 2;
-  else
-    return x + 1;
-}
+    while (from >= 0 && level[from] == current)
+      from--;
 
-/*
- * Loops over the RLE_table array looking for the
- * type of ch
- */
-unsigned char getRLE(wchar_t ch)
-{
-  int offset, i, freq;
+    if (from >= 0)
+      return level[from];
 
-  freq = offset = 0;
-  for (i = 0; i < 0xFFFF; i++) {
-    freq = ((RLENode *)RLE_table)[i].f;
-    offset += freq;
-    if (offset == ch)
-      return ((RLENode *)RLE_table)[i].d;
-    else if (offset > ch)
-      return ((RLENode *)RLE_table)[i - 1].d;
-  }
-  /* this is here to stop compiler nagging */
-  return ON;
+    return -1;
+  } else
+    return -1;
 }
 
 /* The Main shaping function, and the only one to be used
@@ -183,7 +528,7 @@ int do_shape(bidi_char *line, bidi_char *to, int count)
       break;
 
     case SR:
-      tempShape = STYPE(line[i + 1].wc);
+      tempShape = (i + 1 < count ? STYPE(line[i + 1].wc) : SU);
       if ((tempShape == SL) || (tempShape == SD) || (tempShape == SC))
         to[i].wc = SFINAL((SISOLATED(line[i].wc)));
       else
@@ -192,38 +537,39 @@ int do_shape(bidi_char *line, bidi_char *to, int count)
 
     case SD:
       /* Make Ligatures */
-      tempShape = STYPE(line[i + 1].wc);
+      tempShape = (i + 1 < count ? STYPE(line[i + 1].wc) : SU);
       if (line[i].wc == 0x644) {
-        switch (line[i - 1].wc) {
-        case 0x622:
-          ligFlag = 1;
-          if ((tempShape == SL) || (tempShape == SD) || (tempShape == SC))
-            to[i].wc = 0xFEF6;
-          else
-            to[i].wc = 0xFEF5;
-          break;
-        case 0x623:
-          ligFlag = 1;
-          if ((tempShape == SL) || (tempShape == SD) || (tempShape == SC))
-            to[i].wc = 0xFEF8;
-          else
-            to[i].wc = 0xFEF7;
-          break;
-        case 0x625:
-          ligFlag = 1;
-          if ((tempShape == SL) || (tempShape == SD) || (tempShape == SC))
-            to[i].wc = 0xFEFA;
-          else
-            to[i].wc = 0xFEF9;
-          break;
-        case 0x627:
-          ligFlag = 1;
-          if ((tempShape == SL) || (tempShape == SD) || (tempShape == SC))
-            to[i].wc = 0xFEFC;
-          else
-            to[i].wc = 0xFEFB;
-          break;
-        }
+        if (i > 0)
+          switch (line[i - 1].wc) {
+          case 0x622:
+            ligFlag = 1;
+            if ((tempShape == SL) || (tempShape == SD) || (tempShape == SC))
+              to[i].wc = 0xFEF6;
+            else
+              to[i].wc = 0xFEF5;
+            break;
+          case 0x623:
+            ligFlag = 1;
+            if ((tempShape == SL) || (tempShape == SD) || (tempShape == SC))
+              to[i].wc = 0xFEF8;
+            else
+              to[i].wc = 0xFEF7;
+            break;
+          case 0x625:
+            ligFlag = 1;
+            if ((tempShape == SL) || (tempShape == SD) || (tempShape == SC))
+              to[i].wc = 0xFEFA;
+            else
+              to[i].wc = 0xFEF9;
+            break;
+          case 0x627:
+            ligFlag = 1;
+            if ((tempShape == SL) || (tempShape == SD) || (tempShape == SC))
+              to[i].wc = 0xFEFC;
+            else
+              to[i].wc = 0xFEFB;
+            break;
+          }
         if (ligFlag) {
           to[i - 1].wc = 0x20;
           ligFlag = 0;
@@ -232,7 +578,7 @@ int do_shape(bidi_char *line, bidi_char *to, int count)
       }
 
       if ((tempShape == SL) || (tempShape == SD) || (tempShape == SC)) {
-        tempShape = STYPE(line[i - 1].wc);
+        tempShape = (i > 0 ? STYPE(line[i - 1].wc) : SU);
         if ((tempShape == SR) || (tempShape == SD) || (tempShape == SC))
           to[i].wc = SMEDIAL((SISOLATED(line[i].wc)));
         else
@@ -240,7 +586,7 @@ int do_shape(bidi_char *line, bidi_char *to, int count)
         break;
       }
 
-      tempShape = STYPE(line[i - 1].wc);
+      tempShape = (i > 0 ? STYPE(line[i - 1].wc) : SU);
       if ((tempShape == SR) || (tempShape == SD) || (tempShape == SC))
         to[i].wc = SINITIAL((SISOLATED(line[i].wc)));
       else
@@ -272,7 +618,8 @@ int do_bidi(bidi_char *line, int count)
   /* Check the presence of R or AL types as optimization */
   yes = 0;
   for (i = 0; i < count; i++) {
-    if (getType(line[i].wc) == R || getType(line[i].wc) == AL) {
+    int type = getType(line[i].wc);
+    if (type == R || type == AL) {
       yes = 1;
       break;
     }
@@ -281,8 +628,8 @@ int do_bidi(bidi_char *line, int count)
     return L;
 
   /* Initialize types, levels */
-  types = malloc(sizeof(unsigned char) * count);
-  levels = malloc(sizeof(unsigned char) * count);
+  types = snewn(count, unsigned char);
+  levels = snewn(count, unsigned char);
 
   /* Rule (P1)  NOT IMPLEMENTED
    * P1. Split the text into separate paragraphs. A paragraph separator is
@@ -297,10 +644,11 @@ int do_bidi(bidi_char *line, int count)
    */
   paragraphLevel = 0;
   for (i = 0; i < count; i++) {
-    if (getType(line[i].wc) == R || getType(line[i].wc) == AL) {
+    int type = getType(line[i].wc);
+    if (type == R || type == AL) {
       paragraphLevel = 1;
       break;
-    } else if (getType(line[i].wc) == L)
+    } else if (type == L)
       break;
   }
 
@@ -357,10 +705,17 @@ int do_bidi(bidi_char *line, int count)
       bover = 1;
       break;
 
-    case PDF:
-      currentEmbedding = getPreviousLevel(levels, i);
-      currentOverride = currentEmbedding & OMASK;
-      currentEmbedding = currentEmbedding & ~OMASK;
+    case PDF: {
+      int prevlevel = getPreviousLevel(levels, i);
+
+      if (prevlevel == -1) {
+        currentEmbedding = paragraphLevel;
+        currentOverride = ON;
+      } else {
+        currentOverride = currentEmbedding & OMASK;
+        currentEmbedding = currentEmbedding & ~OMASK;
+      }
+    }
       levels[i] = currentEmbedding;
       break;
 
@@ -455,7 +810,7 @@ int do_bidi(bidi_char *line, int count)
    * to a European number. A single common separator between two numbers
    * of the same type changes to that type.
    */
-  for (i = 0; i < (count - 1); i++) {
+  for (i = 1; i < (count - 1); i++) {
     if (types[i] == ES) {
       if (types[i - 1] == EN && types[i + 1] == EN)
         types[i] = EN;
@@ -475,13 +830,13 @@ int do_bidi(bidi_char *line, int count)
    */
   for (i = 0; i < count; i++) {
     if (types[i] == ET) {
-      if (types[i - 1] == EN) {
+      if (i > 0 && types[i - 1] == EN) {
         types[i] = EN;
         continue;
-      } else if (types[i + 1] == EN) {
+      } else if (i < count - 1 && types[i + 1] == EN) {
         types[i] = EN;
         continue;
-      } else if (types[i + 1] == ET) {
+      } else if (i < count - 1 && types[i + 1] == ET) {
         j = i;
         while (j < count && types[j] == ET) {
           j++;
@@ -530,7 +885,7 @@ int do_bidi(bidi_char *line, int count)
    * strong text if the text on both sides has the same direction. European
    * and Arabic numbers are treated as though they were R.
    */
-  if (types[0] == ON) {
+  if (count >= 2 && types[0] == ON) {
     if ((types[1] == R) || (types[1] == EN) || (types[1] == AN))
       types[0] = R;
     else if (types[1] == L)
@@ -565,7 +920,7 @@ int do_bidi(bidi_char *line, int count)
       }
     }
   }
-  if (types[count - 1] == ON) {
+  if (count >= 2 && types[count - 1] == ON) {
     if (types[count - 2] == R || types[count - 2] == EN ||
         types[count - 2] == AN)
       types[count - 1] = R;
@@ -636,13 +991,14 @@ int do_bidi(bidi_char *line, int count)
       while (j < count && (getType(line[j].wc) == WS)) {
         j++;
       }
-      if (getType(line[j].wc) == B || getType(line[j].wc) == S) {
+      if (j == count || getType(line[j].wc) == B || getType(line[j].wc) == S) {
         for (j--; j >= i; j--) {
           levels[j] = paragraphLevel;
         }
       }
-    } else if (tempType == B || tempType == S)
+    } else if (tempType == B || tempType == S) {
       levels[i] = paragraphLevel;
+    }
   }
 
   /* Rule (L4) NOT IMPLEMENTED
@@ -673,8 +1029,8 @@ int do_bidi(bidi_char *line, int count)
     i++;
   }
   /* maximum level in tempType, its index in imax. */
-  while (tempType > 0) /* loop from highest level to the least odd, */
-  {                    /* which i assume is 1 */
+  while (tempType > 0) { /* loop from highest level to the least odd, */
+                         /* which i assume is 1 */
     flipThisRun(line, levels, tempType, count);
     tempType--;
   }
@@ -686,13 +1042,13 @@ int do_bidi(bidi_char *line, int count)
    * process, then the ordering of the marks and the base character must
    * be reversed.
    */
-  free(types);
-  free(levels);
+  sfree(types);
+  sfree(levels);
   return R;
 }
 
 /*
- * Bad, Horrible funtion
+ * Bad, Horrible function
  * takes a pointer to a character that is checked for
  * having a mirror glyph.
  */
@@ -1681,3 +2037,36 @@ void doMirror(wchar_t *ch)
     }
   }
 }
+
+#ifdef TEST_GETTYPE
+
+#include <stdio.h>
+#include <assert.h>
+
+int main(int argc, char **argv)
+{
+  static const struct {
+    int type;
+    char *name;
+  } typetoname[] = {
+#define TYPETONAME(X) {X, #X}
+      TYPETONAME(L),  TYPETONAME(LRE), TYPETONAME(LRO), TYPETONAME(R),
+      TYPETONAME(AL), TYPETONAME(RLE), TYPETONAME(RLO), TYPETONAME(PDF),
+      TYPETONAME(EN), TYPETONAME(ES),  TYPETONAME(ET),  TYPETONAME(AN),
+      TYPETONAME(CS), TYPETONAME(NSM), TYPETONAME(BN),  TYPETONAME(B),
+      TYPETONAME(S),  TYPETONAME(WS),  TYPETONAME(ON),
+#undef TYPETONAME
+  };
+  int i;
+
+  for (i = 1; i < argc; i++) {
+    unsigned long chr = strtoul(argv[i], NULL, 0);
+    int type = getType(chr);
+    assert(typetoname[type].type == type);
+    printf("U+%04x: %s\n", chr, typetoname[type].name);
+  }
+
+  return 0;
+}
+
+#endif

@@ -26,8 +26,6 @@
 #define X11_UNIX_PATH "/tmp/.X11-unix/X"
 #endif
 
-#define ipv4_is_loopback(addr) (inet_netof(addr) == IN_LOOPBACKNET)
-
 struct Socket_tag {
   struct socket_function_table *fn;
   /* the above variable absolutely *must* be the first in this structure */
@@ -36,7 +34,7 @@ struct Socket_tag {
   Plug plug;
   void *private_ptr;
   bufchain output_data;
-  int connected;
+  int connected; /* irrelevant for listening sockets */
   int writable;
   int frozen;          /* this causes readability notifications to be ignored */
   int frozen_readable; /* this means we missed at least one readability
@@ -48,6 +46,9 @@ struct Socket_tag {
   int oobinline;
   int pending_error; /* in case send() returns error */
   int listener;
+  int nodelay, keepalive; /* for connect()-type sockets */
+  int privport, port;     /* and again */
+  SockAddr addr;
 };
 
 /*
@@ -69,10 +70,12 @@ struct SockAddr_tag {
    * in this SockAddr structure.
    */
   int family;
-#ifdef IPV6
-  struct addrinfo *ai; /* Address IPv6 style. */
+#ifndef NO_IPV6
+  struct addrinfo *ais; /* Addresses IPv6 style. */
+  struct addrinfo *ai;  /* steps along the linked list */
 #else
-  unsigned long address; /* Address IPv4 style. */
+  unsigned long *addresses; /* Addresses IPv4 style. */
+  int naddresses, curraddr;
 #endif
   char hostname[512]; /* Store an unresolved host name. */
 };
@@ -120,20 +123,18 @@ void sk_cleanup(void)
   }
 }
 
-const char *error_string(int error)
-{
-  return strerror(error);
-}
-
-SockAddr sk_namelookup(const char *host, char **canonicalname)
+SockAddr sk_namelookup(const char *host,
+                       char **canonicalname,
+                       int address_family)
 {
   SockAddr ret = snew(struct SockAddr_tag);
-#ifdef IPV6
+#ifndef NO_IPV6
   struct addrinfo hints;
   int err;
 #else
   unsigned long a;
   struct hostent *h = NULL;
+  int n;
 #endif
   char realhost[8192];
 
@@ -143,16 +144,20 @@ SockAddr sk_namelookup(const char *host, char **canonicalname)
   *realhost = '\0';
   ret->error = NULL;
 
-#ifdef IPV6
+#ifndef NO_IPV6
   hints.ai_flags = AI_CANONNAME;
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = 0;
+  hints.ai_family =
+      (address_family == ADDRTYPE_IPV4
+           ? AF_INET
+           : address_family == ADDRTYPE_IPV6 ? AF_INET6 : AF_UNSPEC);
+  hints.ai_socktype = SOCK_STREAM;
   hints.ai_protocol = 0;
   hints.ai_addrlen = 0;
   hints.ai_addr = NULL;
   hints.ai_canonname = NULL;
   hints.ai_next = NULL;
-  err = getaddrinfo(host, NULL, NULL, &ret->ai);
+  err = getaddrinfo(host, NULL, &hints, &ret->ais);
+  ret->ai = ret->ais;
   if (err != 0) {
     ret->error = gai_strerror(err);
     return ret;
@@ -164,7 +169,7 @@ SockAddr sk_namelookup(const char *host, char **canonicalname)
   else
     strncat(realhost, host, sizeof(realhost) - 1);
 #else
-  if ((a = inet_addr(host)) == (unsigned long)INADDR_NONE) {
+  if ((a = inet_addr(host)) == (unsigned long)(in_addr_t)(-1)) {
     /*
      * Otherwise use the IPv4-only gethostbyname... (NOTE:
      * we don't use gethostbyname as a fallback!)
@@ -184,9 +189,16 @@ SockAddr sk_namelookup(const char *host, char **canonicalname)
                                       : "gethostbyname: unknown error");
       return ret;
     }
-    memcpy(&a, h->h_addr, sizeof(a));
     /* This way we are always sure the h->h_name is valid :) */
     strncpy(realhost, h->h_name, sizeof(realhost));
+    for (n = 0; h->h_addr_list[n]; n++)
+      ;
+    ret->addresses = snewn(n, unsigned long);
+    ret->naddresses = n;
+    for (n = 0; n < ret->naddresses; n++) {
+      memcpy(&a, h->h_addr_list[n], sizeof(a));
+      ret->addresses[n] = ntohl(a);
+    }
   } else {
     /*
      * This must be a numeric IPv4 address because it caused a
@@ -194,8 +206,11 @@ SockAddr sk_namelookup(const char *host, char **canonicalname)
      */
     ret->family = AF_INET;
     strncpy(realhost, host, sizeof(realhost));
+    ret->addresses = snew(unsigned long);
+    ret->naddresses = 1;
+    ret->addresses[0] = ntohl(a);
+    ret->curraddr = 0;
   }
-  ret->address = ntohl(a);
 #endif
   realhost[lenof(realhost) - 1] = '\0';
   *canonicalname = snewn(1 + strlen(realhost), char);
@@ -210,7 +225,31 @@ SockAddr sk_nonamelookup(const char *host)
   ret->family = AF_UNSPEC;
   strncpy(ret->hostname, host, lenof(ret->hostname));
   ret->hostname[lenof(ret->hostname) - 1] = '\0';
+#ifndef NO_IPV6
+  ret->ais = NULL;
+#else
+  ret->addresses = NULL;
+#endif
   return ret;
+}
+
+static int sk_nextaddr(SockAddr addr)
+{
+#ifndef NO_IPV6
+  if (addr->ai->ai_next) {
+    addr->ai = addr->ai->ai_next;
+    addr->family = addr->ai->ai_family;
+    return TRUE;
+  } else
+    return FALSE;
+#else
+  if (addr->curraddr + 1 < addr->naddresses) {
+    addr->curraddr++;
+    return TRUE;
+  } else {
+    return FALSE;
+  }
+#endif
 }
 
 void sk_getaddr(SockAddr addr, char *buf, int buflen)
@@ -220,7 +259,7 @@ void sk_getaddr(SockAddr addr, char *buf, int buflen)
     strncpy(buf, addr->hostname, buflen);
     buf[buflen - 1] = '\0';
   } else {
-#ifdef IPV6
+#ifndef NO_IPV6
     if (getnameinfo(addr->ai->ai_addr,
                     addr->ai->ai_addrlen,
                     buf,
@@ -234,7 +273,7 @@ void sk_getaddr(SockAddr addr, char *buf, int buflen)
 #else
     struct in_addr a;
     assert(addr->family == AF_INET);
-    a.s_addr = htonl(addr->address);
+    a.s_addr = htonl(addr->addresses[addr->curraddr]);
     strncpy(buf, inet_ntoa(a), buflen);
     buf[buflen - 1] = '\0';
 #endif
@@ -246,25 +285,44 @@ int sk_hostname_is_local(char *name)
   return !strcmp(name, "localhost");
 }
 
+#define ipv4_is_loopback(addr)                                                 \
+  (((addr).s_addr & htonl(0xff000000)) == htonl(0x7f000000))
+
+static int sockaddr_is_loopback(struct sockaddr *sa)
+{
+  struct sockaddr_in *sin;
+#ifndef NO_IPV6
+  struct sockaddr_in6 *sin6;
+#endif
+
+  switch (sa->sa_family) {
+  case AF_INET:
+    sin = (struct sockaddr_in *)sa;
+    return ipv4_is_loopback(sin->sin_addr);
+#ifndef NO_IPV6
+  case AF_INET6:
+    sin6 = (struct sockaddr_in6 *)sa;
+    return IN6_IS_ADDR_LOOPBACK(&sin6->sin6_addr);
+#endif
+  case AF_UNIX:
+    return TRUE;
+  default:
+    return FALSE;
+  }
+}
+
 int sk_address_is_local(SockAddr addr)
 {
 
   if (addr->family == AF_UNSPEC)
     return 0; /* we don't know; assume not */
   else {
-#ifdef IPV6
-    if (addr->family == AF_INET)
-      return ipv4_is_loopback(
-          ((struct sockaddr_in *)addr->ai->ai_addr)->sin_addr);
-    else if (addr->family == AF_INET6)
-      return IN6_IS_ADDR_LOOPBACK(
-          &((struct sockaddr_in6 *)addr->ai->ai_addr)->sin6_addr);
-    else
-      return 0;
+#ifndef NO_IPV6
+    return sockaddr_is_loopback(addr->ai->ai_addr);
 #else
     struct in_addr a;
     assert(addr->family == AF_INET);
-    a.s_addr = htonl(addr->address);
+    a.s_addr = htonl(addr->addresses[addr->curraddr]);
     return ipv4_is_loopback(a);
 #endif
   }
@@ -273,7 +331,7 @@ int sk_address_is_local(SockAddr addr)
 int sk_addrtype(SockAddr addr)
 {
   return (addr->family == AF_INET ? ADDRTYPE_IPV4 :
-#ifdef IPV6
+#ifndef NO_IPV6
                                   addr->family == AF_INET6 ? ADDRTYPE_IPV6 :
 #endif
                                                            ADDRTYPE_NAME);
@@ -282,7 +340,7 @@ int sk_addrtype(SockAddr addr)
 void sk_addrcopy(SockAddr addr, char *buf)
 {
 
-#ifdef IPV6
+#ifndef NO_IPV6
   if (addr->family == AF_INET)
     memcpy(buf,
            &((struct sockaddr_in *)addr->ai->ai_addr)->sin_addr,
@@ -297,7 +355,7 @@ void sk_addrcopy(SockAddr addr, char *buf)
   struct in_addr a;
 
   assert(addr->family == AF_INET);
-  a.s_addr = htonl(addr->address);
+  a.s_addr = htonl(addr->addresses[addr->curraddr]);
   memcpy(buf, (char *)&a.s_addr, 4);
 #endif
 }
@@ -305,9 +363,11 @@ void sk_addrcopy(SockAddr addr, char *buf)
 void sk_addr_free(SockAddr addr)
 {
 
-#ifdef IPV6
-  if (addr->ai != NULL)
-    freeaddrinfo(addr->ai);
+#ifndef NO_IPV6
+  if (addr->ais != NULL)
+    freeaddrinfo(addr->ais);
+#else
+  sfree(addr->addresses);
 #endif
   sfree(addr);
 }
@@ -367,11 +427,13 @@ Socket sk_register(OSSocket sockfd, Plug plug)
   ret->pending_error = 0;
   ret->oobpending = FALSE;
   ret->listener = 0;
+  ret->addr = NULL;
+  ret->connected = 1;
 
   ret->s = sockfd;
 
   if (ret->s < 0) {
-    ret->error = error_string(errno);
+    ret->error = strerror(errno);
     return (Socket)ret;
   }
 
@@ -383,68 +445,47 @@ Socket sk_register(OSSocket sockfd, Plug plug)
   return (Socket)ret;
 }
 
-Socket sk_new(SockAddr addr,
-              int port,
-              int privport,
-              int oobinline,
-              int nodelay,
-              int keepalive,
-              Plug plug)
+static int try_connect(Actual_Socket sock)
 {
   int s;
-#ifdef IPV6
+#ifndef NO_IPV6
   struct sockaddr_in6 a6;
 #endif
   struct sockaddr_in a;
   struct sockaddr_un au;
   const struct sockaddr *sa;
-  int err;
-  Actual_Socket ret;
+  int err = 0;
   short localport;
   int fl, salen;
 
-  /*
-   * Create Socket structure.
-   */
-  ret = snew(struct Socket_tag);
-  ret->fn = &tcp_fn_table;
-  ret->error = NULL;
-  ret->plug = plug;
-  bufchain_init(&ret->output_data);
-  ret->connected = 0; /* to start with */
-  ret->writable = 0;  /* to start with */
-  ret->sending_oob = 0;
-  ret->frozen = 0;
-  ret->frozen_readable = 0;
-  ret->localhost_only = 0; /* unused, but best init anyway */
-  ret->pending_error = 0;
-  ret->oobpending = FALSE;
-  ret->listener = 0;
+  if (sock->s >= 0)
+    close(sock->s);
+
+  plug_log(sock->plug, 0, sock->addr, sock->port, NULL, 0);
 
   /*
    * Open socket.
    */
-  assert(addr->family != AF_UNSPEC);
-  s = socket(addr->family, SOCK_STREAM, 0);
-  ret->s = s;
+  assert(sock->addr->family != AF_UNSPEC);
+  s = socket(sock->addr->family, SOCK_STREAM, 0);
+  sock->s = s;
 
   if (s < 0) {
-    ret->error = error_string(errno);
-    return (Socket)ret;
+    err = errno;
+    goto ret;
   }
 
-  ret->oobinline = oobinline;
-  if (oobinline) {
+  if (sock->oobinline) {
     int b = TRUE;
     setsockopt(s, SOL_SOCKET, SO_OOBINLINE, (void *)&b, sizeof(b));
   }
 
-  if (nodelay) {
+  if (sock->nodelay) {
     int b = TRUE;
     setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (void *)&b, sizeof(b));
   }
 
-  if (keepalive) {
+  if (sock->keepalive) {
     int b = TRUE;
     setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, (void *)&b, sizeof(b));
   }
@@ -452,26 +493,26 @@ Socket sk_new(SockAddr addr,
   /*
    * Bind to local address.
    */
-  if (privport)
+  if (sock->privport)
     localport = 1023; /* count from 1023 downwards */
   else
     localport = 0; /* just use port 0 (ie kernel picks) */
 
   /* BSD IP stacks need sockaddr_in zeroed before filling in */
   memset(&a, '\0', sizeof(struct sockaddr_in));
-#ifdef IPV6
+#ifndef NO_IPV6
   memset(&a6, '\0', sizeof(struct sockaddr_in6));
 #endif
 
   /* We don't try to bind to a local address for UNIX domain sockets.  (Why
    * do we bother doing the bind when localport == 0 anyway?) */
-  if (addr->family != AF_UNIX) {
+  if (sock->addr->family != AF_UNIX) {
     /* Loop round trying to bind */
     while (1) {
       int retcode;
 
-#ifdef IPV6
-      if (addr->family == AF_INET6) {
+#ifndef NO_IPV6
+      if (sock->addr->family == AF_INET6) {
         /* XXX use getaddrinfo to get a local address? */
         a6.sin6_family = AF_INET6;
         a6.sin6_addr = in6addr_any;
@@ -480,7 +521,7 @@ Socket sk_new(SockAddr addr,
       } else
 #endif
       {
-        assert(addr->family == AF_INET);
+        assert(sock->addr->family == AF_INET);
         a.sin_family = AF_INET;
         a.sin_addr.s_addr = htonl(INADDR_ANY);
         a.sin_port = htons(localport);
@@ -502,43 +543,43 @@ Socket sk_new(SockAddr addr,
         break; /* we might have got to the end */
     }
 
-    if (err) {
-      ret->error = error_string(err);
-      return (Socket)ret;
-    }
+    if (err)
+      goto ret;
   }
 
   /*
    * Connect to remote address.
    */
-  switch (addr->family) {
-#ifdef IPV6
+  switch (sock->addr->family) {
+#ifndef NO_IPV6
   case AF_INET:
     /* XXX would be better to have got getaddrinfo() to fill in the port. */
-    ((struct sockaddr_in *)addr->ai->ai_addr)->sin_port = htons(port);
-    sa = (const struct sockaddr *)addr->ai->ai_addr;
-    salen = addr->ai->ai_addrlen;
+    ((struct sockaddr_in *)sock->addr->ai->ai_addr)->sin_port =
+        htons(sock->port);
+    sa = (const struct sockaddr *)sock->addr->ai->ai_addr;
+    salen = sock->addr->ai->ai_addrlen;
     break;
   case AF_INET6:
-    ((struct sockaddr_in *)addr->ai->ai_addr)->sin_port = htons(port);
-    sa = (const struct sockaddr *)addr->ai->ai_addr;
-    salen = addr->ai->ai_addrlen;
+    ((struct sockaddr_in *)sock->addr->ai->ai_addr)->sin_port =
+        htons(sock->port);
+    sa = (const struct sockaddr *)sock->addr->ai->ai_addr;
+    salen = sock->addr->ai->ai_addrlen;
     break;
 #else
   case AF_INET:
     a.sin_family = AF_INET;
-    a.sin_addr.s_addr = htonl(addr->address);
-    a.sin_port = htons((short)port);
+    a.sin_addr.s_addr = htonl(sock->addr->addresses[sock->addr->curraddr]);
+    a.sin_port = htons((short)sock->port);
     sa = (const struct sockaddr *)&a;
     salen = sizeof a;
     break;
 #endif
   case AF_UNIX:
-    assert(port == 0); /* to catch confused people */
-    assert(strlen(addr->hostname) < sizeof au.sun_path);
+    assert(sock->port == 0); /* to catch confused people */
+    assert(strlen(sock->addr->hostname) < sizeof au.sun_path);
     memset(&au, 0, sizeof au);
     au.sun_family = AF_UNIX;
-    strcpy(au.sun_path, addr->hostname);
+    strcpy(au.sun_path, sock->addr->hostname);
     sa = (const struct sockaddr *)&au;
     salen = sizeof au;
     break;
@@ -553,38 +594,86 @@ Socket sk_new(SockAddr addr,
 
   if ((connect(s, sa, salen)) < 0) {
     if (errno != EINPROGRESS) {
-      ret->error = error_string(errno);
-      return (Socket)ret;
+      err = errno;
+      goto ret;
     }
   } else {
     /*
      * If we _don't_ get EWOULDBLOCK, the connect has completed
      * and we should set the socket as connected and writable.
      */
-    ret->connected = 1;
-    ret->writable = 1;
+    sock->connected = 1;
+    sock->writable = 1;
   }
 
-  uxsel_tell(ret);
-  add234(sktree, ret);
+  uxsel_tell(sock);
+  add234(sktree, sock);
 
-  sk_addr_free(addr);
+ret:
+  if (err)
+    plug_log(sock->plug, 1, sock->addr, sock->port, strerror(err), err);
+  return err;
+}
+
+Socket sk_new(SockAddr addr,
+              int port,
+              int privport,
+              int oobinline,
+              int nodelay,
+              int keepalive,
+              Plug plug)
+{
+  Actual_Socket ret;
+  int err;
+
+  /*
+   * Create Socket structure.
+   */
+  ret = snew(struct Socket_tag);
+  ret->fn = &tcp_fn_table;
+  ret->error = NULL;
+  ret->plug = plug;
+  bufchain_init(&ret->output_data);
+  ret->connected = 0; /* to start with */
+  ret->writable = 0;  /* to start with */
+  ret->sending_oob = 0;
+  ret->frozen = 0;
+  ret->frozen_readable = 0;
+  ret->localhost_only = 0; /* unused, but best init anyway */
+  ret->pending_error = 0;
+  ret->oobpending = FALSE;
+  ret->listener = 0;
+  ret->addr = addr;
+  ret->s = -1;
+  ret->oobinline = oobinline;
+  ret->nodelay = nodelay;
+  ret->keepalive = keepalive;
+  ret->privport = privport;
+  ret->port = port;
+
+  err = 0;
+  do {
+    err = try_connect(ret);
+  } while (err && sk_nextaddr(ret->addr));
+
+  if (err)
+    ret->error = strerror(err);
 
   return (Socket)ret;
 }
 
-Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only)
+Socket sk_newlistener(
+    char *srcaddr, int port, Plug plug, int local_host_only, int address_family)
 {
   int s;
-#ifdef IPV6
-#if 0
-    struct sockaddr_in6 a6;
-#endif
+#ifndef NO_IPV6
   struct addrinfo hints, *ai;
   char portstr[6];
+  struct sockaddr_in6 a6;
 #endif
+  struct sockaddr *addr;
+  int addrlen;
   struct sockaddr_in a;
-  int err;
   Actual_Socket ret;
   int retcode;
   int on = 1;
@@ -605,15 +694,41 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only)
   ret->pending_error = 0;
   ret->oobpending = FALSE;
   ret->listener = 1;
+  ret->addr = NULL;
+
+  /*
+   * Translate address_family from platform-independent constants
+   * into local reality.
+   */
+  address_family =
+      (address_family == ADDRTYPE_IPV4
+           ? AF_INET
+           : address_family == ADDRTYPE_IPV6 ? AF_INET6 : AF_UNSPEC);
+
+#ifndef NO_IPV6
+  /* Let's default to IPv6.
+   * If the stack doesn't support IPv6, we will fall back to IPv4. */
+  if (address_family == AF_UNSPEC)
+    address_family = AF_INET6;
+#else
+  /* No other choice, default to IPv4 */
+  if (address_family == AF_UNSPEC)
+    address_family = AF_INET;
+#endif
 
   /*
    * Open socket.
    */
-  s = socket(AF_INET, SOCK_STREAM, 0);
-  ret->s = s;
+  s = socket(address_family, SOCK_STREAM, 0);
+
+  /* If the host doesn't support IPv6 try fallback to IPv4. */
+  if (s < 0 && address_family == AF_INET6) {
+    address_family = AF_INET;
+    s = socket(address_family, SOCK_STREAM, 0);
+  }
 
   if (s < 0) {
-    ret->error = error_string(errno);
+    ret->error = strerror(errno);
     return (Socket)ret;
   }
 
@@ -621,85 +736,83 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only)
 
   setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&on, sizeof(on));
 
-  /* BSD IP stacks need sockaddr_in zeroed before filling in */
-  memset(&a, '\0', sizeof(struct sockaddr_in));
-#ifdef IPV6
-#if 0
-    memset(&a6,'\0',sizeof(struct sockaddr_in6));
+  retcode = -1;
+  addr = NULL;
+  addrlen = -1; /* placate optimiser */
+
+  if (srcaddr != NULL) {
+#ifndef NO_IPV6
+    hints.ai_flags = AI_NUMERICHOST;
+    hints.ai_family = address_family;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = 0;
+    hints.ai_addrlen = 0;
+    hints.ai_addr = NULL;
+    hints.ai_canonname = NULL;
+    hints.ai_next = NULL;
+    assert(port >= 0 && port <= 99999);
+    sprintf(portstr, "%d", port);
+    retcode = getaddrinfo(srcaddr, portstr, &hints, &ai);
+    if (retcode == 0) {
+      addr = ai->ai_addr;
+      addrlen = ai->ai_addrlen;
+    }
+#else
+    memset(&a, '\0', sizeof(struct sockaddr_in));
+    a.sin_family = AF_INET;
+    a.sin_port = htons(port);
+    a.sin_addr.s_addr = inet_addr(srcaddr);
+    if (a.sin_addr.s_addr != (in_addr_t)(-1)) {
+      /* Override localhost_only with specified listen addr. */
+      ret->localhost_only = ipv4_is_loopback(a.sin_addr);
+    }
+    addr = (struct sockaddr *)&a;
+    addrlen = sizeof(a);
+    retcode = 0;
 #endif
-  hints.ai_flags = AI_NUMERICHOST;
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = 0;
-  hints.ai_protocol = 0;
-  hints.ai_addrlen = 0;
-  hints.ai_addr = NULL;
-  hints.ai_canonname = NULL;
-  hints.ai_next = NULL;
-  sprintf(portstr, "%d", port);
-  if (srcaddr != NULL && getaddrinfo(srcaddr, portstr, &hints, &ai) == 0)
-    retcode = bind(s, ai->ai_addr, ai->ai_addrlen);
-  else
-#if 0
-    {
-	/*
-	 * FIXME: Need two listening sockets, in principle, one for v4
-	 * and one for v6
-	 */
-	if (local_host_only)
-	    a6.sin6_addr = in6addr_loopback;
-	else
-	    a6.sin6_addr = in6addr_any;
-	a6.sin6_port = htons(port);
+  }
+
+  if (retcode != 0) {
+#ifndef NO_IPV6
+    if (address_family == AF_INET6) {
+      memset(&a6, '\0', sizeof(struct sockaddr_in6));
+      a6.sin6_family = AF_INET6;
+      a6.sin6_port = htons(port);
+      if (local_host_only)
+        a6.sin6_addr = in6addr_loopback;
+      else
+        a6.sin6_addr = in6addr_any;
+      addr = (struct sockaddr *)&a6;
+      addrlen = sizeof(a6);
     } else
 #endif
-#endif
-  {
-    int got_addr = 0;
-    a.sin_family = AF_INET;
-
-    /*
-     * Bind to source address. First try an explicitly
-     * specified one...
-     */
-    if (srcaddr) {
-      a.sin_addr.s_addr = inet_addr(srcaddr);
-      if (a.sin_addr.s_addr != INADDR_NONE) {
-        /* Override localhost_only with specified listen addr. */
-        ret->localhost_only = ipv4_is_loopback(a.sin_addr);
-        got_addr = 1;
-      }
-    }
-
-    /*
-     * ... and failing that, go with one of the standard ones.
-     */
-    if (!got_addr) {
+    {
+      memset(&a, '\0', sizeof(struct sockaddr_in));
+      a.sin_family = AF_INET;
+      a.sin_port = htons(port);
       if (local_host_only)
         a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
       else
         a.sin_addr.s_addr = htonl(INADDR_ANY);
+      addr = (struct sockaddr *)&a;
+      addrlen = sizeof(a);
     }
-
-    a.sin_port = htons((short)port);
-    retcode = bind(s, (struct sockaddr *)&a, sizeof(a));
   }
 
-  if (retcode >= 0) {
-    err = 0;
-  } else {
-    err = errno;
-  }
-
-  if (err) {
-    ret->error = error_string(err);
+  retcode = bind(s, addr, addrlen);
+  if (retcode < 0) {
+    close(s);
+    ret->error = strerror(errno);
     return (Socket)ret;
   }
 
   if (listen(s, SOMAXCONN) < 0) {
     close(s);
-    ret->error = error_string(errno);
+    ret->error = strerror(errno);
     return (Socket)ret;
   }
+
+  ret->s = s;
 
   uxsel_tell(ret);
   add234(sktree, ret);
@@ -714,45 +827,77 @@ static void sk_tcp_close(Socket sock)
   uxsel_del(s->s);
   del234(sktree, s);
   close(s->s);
+  if (s->addr)
+    sk_addr_free(s->addr);
   sfree(s);
 }
 
-int sk_getxdmdata(void *sock, unsigned long *ip, int *port)
+#define PUT_32BIT_MSB_FIRST(cp, value)                                         \
+  ((cp)[0] = (char)((value) >> 24),                                            \
+   (cp)[1] = (char)((value) >> 16),                                            \
+   (cp)[2] = (char)((value) >> 8),                                             \
+   (cp)[3] = (char)(value))
+
+#define PUT_16BIT_MSB_FIRST(cp, value)                                         \
+  ((cp)[0] = (char)((value) >> 8), (cp)[1] = (char)(value))
+
+void *sk_getxdmdata(void *sock, int *lenp)
 {
   Actual_Socket s = (Actual_Socket)sock;
+#ifdef NO_IPV6
   struct sockaddr_in addr;
+#else
+  struct sockaddr_storage addr;
+  struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)&addr;
+#endif
+  struct sockaddr *sa = (struct sockaddr *)&addr;
+  struct sockaddr_in *sin = (struct sockaddr_in *)&addr;
   socklen_t addrlen;
+  char *buf;
+  static unsigned int unix_addr = 0xFFFFFFFF;
 
   /*
    * We must check that this socket really _is_ an Actual_Socket.
    */
   if (s->fn != &tcp_fn_table)
-    return 0; /* failure */
+    return NULL; /* failure */
 
   addrlen = sizeof(addr);
-  if (getsockname(s->s, (struct sockaddr *)&addr, &addrlen) < 0)
-    return 0;
-  switch (addr.sin_family) {
+  if (getsockname(s->s, sa, &addrlen) < 0)
+    return NULL;
+  switch (sa->sa_family) {
   case AF_INET:
-    *ip = ntohl(addr.sin_addr.s_addr);
-    *port = ntohs(addr.sin_port);
+    *lenp = 6;
+    buf = snewn(*lenp, char);
+    PUT_32BIT_MSB_FIRST(buf, ntohl(sin->sin_addr.s_addr));
+    PUT_16BIT_MSB_FIRST(buf + 4, ntohs(sin->sin_port));
     break;
+#ifndef NO_IPV6
+  case AF_INET6:
+    *lenp = 6;
+    buf = snewn(*lenp, char);
+    if (IN6_IS_ADDR_V4MAPPED(&sin6->sin6_addr)) {
+      memcpy(buf, sin6->sin6_addr.s6_addr + 12, 4);
+      PUT_16BIT_MSB_FIRST(buf + 4, ntohs(sin6->sin6_port));
+    } else
+      /* This is stupid, but it's what XLib does. */
+      memset(buf, 0, 6);
+    break;
+#endif
   case AF_UNIX:
-    /*
-     * For a Unix socket, we return 0xFFFFFFFF for the IP address and
-     * our current pid for the port. Bizarre, but such is life.
-     */
-    *ip = ntohl(0xFFFFFFFF);
-    *port = getpid();
+    *lenp = 6;
+    buf = snewn(*lenp, char);
+    PUT_32BIT_MSB_FIRST(buf, unix_addr--);
+    PUT_16BIT_MSB_FIRST(buf + 4, getpid());
     break;
 
     /* XXX IPV6 */
 
   default:
-    return 0;
+    return NULL;
   }
 
-  return 1;
+  return buf;
 }
 
 /*
@@ -785,10 +930,9 @@ void try_send(Actual_Socket s)
          */
         s->writable = FALSE;
         return;
-      } else if (nsent == 0 || err == ECONNABORTED || err == ECONNRESET) {
+      } else {
         /*
-         * If send() returns CONNABORTED or CONNRESET, we
-         * unfortunately can't just call plug_closing(),
+         * We unfortunately can't just call plug_closing(),
          * because it's quite likely that we're currently
          * _in_ a call from the code we'd be calling back
          * to, so we'd have to make half the SSH code
@@ -798,11 +942,6 @@ void try_send(Actual_Socket s)
          */
         s->pending_error = err;
         return;
-      } else {
-        /* We're inside the Unix frontend here, so we know
-         * that the frontend handle is unnecessary. */
-        logevent(NULL, error_string(err));
-        fatalbox("%s", error_string(err));
       }
     } else {
       if (s->sending_oob) {
@@ -874,7 +1013,6 @@ static int sk_tcp_write_oob(Socket sock, const char *buf, int len)
 static int net_select_result(int fd, int event)
 {
   int ret;
-  int err;
   char buf[20480]; /* nice big buffer for plenty of speed */
   Actual_Socket s;
   u_long atmark;
@@ -898,13 +1036,21 @@ static int net_select_result(int fd, int event)
       ret = recv(s->s, buf, sizeof(buf), MSG_OOB);
       noise_ultralight(ret);
       if (ret <= 0) {
-        const char *str =
-            (ret == 0 ? "Internal networking trouble" : error_string(errno));
-        /* We're inside the Unix frontend here, so we know
-         * that the frontend handle is unnecessary. */
-        logevent(NULL, str);
-        fatalbox("%s", str);
+        return plug_closing(s->plug,
+                            ret == 0 ? "Internal networking trouble"
+                                     : strerror(errno),
+                            errno,
+                            0);
       } else {
+        /*
+         * Receiving actual data on a socket means we can
+         * stop falling back through the candidate
+         * addresses to connect to.
+         */
+        if (s->addr) {
+          sk_addr_free(s->addr);
+          s->addr = NULL;
+        }
         return plug_receive(s->plug, 2, buf, ret);
       }
       break;
@@ -924,18 +1070,21 @@ static int net_select_result(int fd, int event)
        * On a listening socket, the readability event means a
        * connection is ready to be accepted.
        */
-      struct sockaddr_in isa;
-      int addrlen = sizeof(struct sockaddr_in);
+#ifdef NO_IPV6
+      struct sockaddr_in ss;
+#else
+      struct sockaddr_storage ss;
+#endif
+      socklen_t addrlen = sizeof(ss);
       int t; /* socket of connection */
 
-      memset(&isa, 0, sizeof(struct sockaddr_in));
-      err = 0;
-      t = accept(s->s, (struct sockaddr *)&isa, (socklen_t *)&addrlen);
+      memset(&ss, 0, addrlen);
+      t = accept(s->s, (struct sockaddr *)&ss, &addrlen);
       if (t < 0) {
         break;
       }
 
-      if (s->localhost_only && !ipv4_is_loopback(isa.sin_addr)) {
+      if (s->localhost_only && !sockaddr_is_loopback((struct sockaddr *)&ss)) {
         close(t); /* someone let nonlocal through?! */
       } else if (plug_accepting(s->plug, t)) {
         close(t); /* denied or error */
@@ -975,10 +1124,33 @@ static int net_select_result(int fd, int event)
       }
     }
     if (ret < 0) {
-      return plug_closing(s->plug, error_string(errno), errno, 0);
+      /*
+       * An error at this point _might_ be an error reported
+       * by a non-blocking connect(). So before we return a
+       * panic status to the user, let's just see whether
+       * that's the case.
+       */
+      int err = errno;
+      if (s->addr) {
+        plug_log(s->plug, 1, s->addr, s->port, strerror(err), err);
+        while (s->addr && sk_nextaddr(s->addr)) {
+          err = try_connect(s);
+        }
+      }
+      if (err != 0)
+        return plug_closing(s->plug, strerror(err), err, 0);
     } else if (0 == ret) {
       return plug_closing(s->plug, NULL, 0, 0);
     } else {
+      /*
+       * Receiving actual data on a socket means we can
+       * stop falling back through the candidate
+       * addresses to connect to.
+       */
+      if (s->addr) {
+        sk_addr_free(s->addr);
+        s->addr = NULL;
+      }
       return plug_receive(s->plug, atmark ? 0 : 1, buf, ret);
     }
     break;
@@ -1035,8 +1207,7 @@ void net_pending_errors(void)
          * An error has occurred on this socket. Pass it to the
          * plug.
          */
-        plug_closing(
-            s->plug, error_string(s->pending_error), s->pending_error, 0);
+        plug_closing(s->plug, strerror(s->pending_error), s->pending_error, 0);
         break;
       }
     }
@@ -1091,14 +1262,16 @@ static void sk_tcp_set_frozen(Socket sock, int is_frozen)
 static void uxsel_tell(Actual_Socket s)
 {
   int rwx = 0;
-  if (!s->connected)
-    rwx |= 2; /* write == connect */
-  if (s->connected && !s->frozen)
-    rwx |= 1 | 4; /* read, except */
-  if (bufchain_size(&s->output_data))
-    rwx |= 2; /* write */
-  if (s->listener)
+  if (s->listener) {
     rwx |= 1; /* read == accept */
+  } else {
+    if (!s->connected)
+      rwx |= 2; /* write == connect */
+    if (s->connected && !s->frozen)
+      rwx |= 1 | 4; /* read, except */
+    if (bufchain_size(&s->output_data))
+      rwx |= 2; /* write */
+  }
   uxsel_set(s->s, rwx, net_select_result);
 }
 
@@ -1127,5 +1300,10 @@ SockAddr platform_get_x11_unix_address(int displaynum, char **canonicalname)
     ret->error = "X11 UNIX name too long";
   else
     *canonicalname = dupstr(ret->hostname);
+#ifndef NO_IPV6
+  ret->ais = NULL;
+#else
+  ret->addresses = NULL;
+#endif
   return ret;
 }
