@@ -126,20 +126,19 @@ static void do_cmd(char *host, char *user, char *cmd)
     cfg.port = 22;
   }
 
-  if (portnumber)
-    cfg.port = portnumber;
-
   /* Set username */
   if (user != NULL && user[0] != '\0') {
     strncpy(cfg.username, user, sizeof(cfg.username) - 1);
     cfg.username[sizeof(cfg.username) - 1] = '\0';
-    cfg.port = 22;
   } else if (cfg.username[0] == '\0') {
     bump("Empty user name");
   }
 
   if (cfg.protocol != PROT_SSH)
     cfg.port = 22;
+
+  if (portnumber)
+    cfg.port = portnumber;
 
   err = ssh_init(cfg.host, cfg.port, cmd, &realhost);
   if (err != NULL)
@@ -173,7 +172,7 @@ static void print_stats(char *name,
     eta = size - done;
   else
     eta = (unsigned long)((size - done) / ratebs);
-  sprintf(etastr, "%02d:%02d:%02d", eta / 3600, (eta % 3600) / 60, eta % 60);
+  sprintf(etastr, "%02ld:%02ld:%02ld", eta / 3600, (eta % 3600) / 60, eta % 60);
 
   pct = (int)(100.0 * (float)done / size);
 
@@ -190,7 +189,7 @@ static void print_stats(char *name,
 
 /*
  *  Find a colon in str and return a pointer to the colon.
- *  This is used to seperate hostname from filename.
+ *  This is used to separate hostname from filename.
  */
 static char *colon(char *str)
 {
@@ -277,16 +276,31 @@ static void source(char *src)
   time_t stat_starttime, stat_lasttime;
 
   attr = GetFileAttributes(src);
-  if (attr == -1) {
+  if (attr == (DWORD)-1) {
     run_err("%s: No such file or directory", src);
     return;
   }
 
   if ((attr & FILE_ATTRIBUTE_DIRECTORY) != 0) {
-    if (recursive)
-      rsource(src);
-    else
+    if (recursive) {
+      /*
+       * Avoid . and .. directories.
+       */
+      char *p;
+      p = strrchr(src, '/');
+      if (!p)
+        p = strrchr(src, '\\');
+      if (!p)
+        p = src;
+      else
+        p++;
+      if (!strcmp(p, ".") || !strcmp(p, ".."))
+        /* skip . and .. */;
+      else
+        rsource(src);
+    } else {
       run_err("%s: not a regular file", src);
+    }
     return;
   }
 
@@ -301,7 +315,7 @@ static void source(char *src)
 
   f = CreateFile(src, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, 0);
   if (f == INVALID_HANDLE_VALUE) {
-    run_err("%s: Cannot open file");
+    run_err("%s: Cannot open file", src);
     return;
   }
 
@@ -414,7 +428,7 @@ static void sink(char *targ)
   char namebuf[2048];
   char ch;
   int targisdir = 0;
-  int settime = 0;
+  int settime;
   int exists;
   DWORD attr;
   HANDLE f;
@@ -427,7 +441,7 @@ static void sink(char *targ)
   char *stat_name;
 
   attr = GetFileAttributes(targ);
-  if (attr != -1 && (attr & FILE_ATTRIBUTE_DIRECTORY) != 0)
+  if (attr != (DWORD)-1 && (attr & FILE_ATTRIBUTE_DIRECTORY) != 0)
     targisdir = 1;
 
   if (targetshouldbedirectory && !targisdir)
@@ -460,7 +474,7 @@ static void sink(char *targ)
       ssh_send("", 1);
       return;
     case 'T':
-      if (sscanf(buf, "T%d %*d %d %*d", &mtime, &atime) == 2) {
+      if (sscanf(buf, "T%ld %*d %ld %*d", &mtime, &atime) == 2) {
         settime = 1;
         ssh_send("", 1);
         goto gottime;
@@ -473,7 +487,7 @@ static void sink(char *targ)
       bump("Protocol error: Expected control record");
     }
 
-    if (sscanf(buf + 1, "%u %u %[^\n]", &mode, &size, namebuf) != 3)
+    if (sscanf(buf + 1, "%u %lu %[^\n]", &mode, &size, namebuf) != 3)
       bump("Protocol error: Illegal file descriptor format");
     if (targisdir) {
       char t[2048];
@@ -486,7 +500,7 @@ static void sink(char *targ)
       strcpy(namebuf, targ);
     }
     attr = GetFileAttributes(namebuf);
-    exists = (attr != -1);
+    exists = (attr != (DWORD)-1);
 
     if (buf[0] == 'D') {
       if (exists && (attr & FILE_ATTRIBUTE_DIRECTORY) == 0) {
@@ -532,7 +546,7 @@ static void sink(char *targ)
 
     for (i = 0; i < size; i += 4096) {
       char transbuf[4096];
-      int j, k = 4096;
+      DWORD j, k = 4096;
       if (i + k > size)
         k = size - i;
       if (ssh_recv(transbuf, k) == 0)
@@ -585,7 +599,7 @@ static void toremote(int argc, char *argv[])
 
   targ = argv[argc - 1];
 
-  /* Seperate host from filename */
+  /* Separate host from filename */
   host = targ;
   targ = colon(targ);
   if (targ == NULL)
@@ -595,7 +609,7 @@ static void toremote(int argc, char *argv[])
     targ = ".";
   /* Substitute "." for emtpy target */
 
-  /* Seperate host and username */
+  /* Separate host and username */
   user = host;
   host = strrchr(host, '@');
   if (host == NULL) {
@@ -686,7 +700,7 @@ static void tolocal(int argc, char *argv[])
   src = argv[0];
   targ = argv[1];
 
-  /* Seperate host from filename */
+  /* Separate host from filename */
   host = src;
   src = colon(src);
   if (src == NULL)
@@ -696,7 +710,7 @@ static void tolocal(int argc, char *argv[])
     src = ".";
   /* Substitute "." for empty filename */
 
-  /* Seperate username and hostname */
+  /* Separate username and hostname */
   user = host;
   host = strrchr(host, '@');
   if (host == NULL) {
@@ -723,9 +737,65 @@ static void tolocal(int argc, char *argv[])
 }
 
 /*
+ *  We will issue a list command to get a remote directory.
+ */
+static void get_dir_list(int argc, char *argv[])
+{
+  char *src, *host, *user;
+  char *cmd, *p, *q;
+  char c;
+
+  src = argv[0];
+
+  /* Separate host from filename */
+  host = src;
+  src = colon(src);
+  if (src == NULL)
+    bump("Local to local copy not supported");
+  *src++ = '\0';
+  if (*src == '\0')
+    src = ".";
+  /* Substitute "." for empty filename */
+
+  /* Separate username and hostname */
+  user = host;
+  host = strrchr(host, '@');
+  if (host == NULL) {
+    host = user;
+    user = NULL;
+  } else {
+    *host++ = '\0';
+    if (*user == '\0')
+      user = NULL;
+  }
+
+  cmd = smalloc(4 * strlen(src) + 100);
+  strcpy(cmd, "ls -la '");
+  p = cmd + strlen(cmd);
+  for (q = src; *q; q++) {
+    if (*q == '\'') {
+      *p++ = '\'';
+      *p++ = '\\';
+      *p++ = '\'';
+      *p++ = '\'';
+    } else {
+      *p++ = *q;
+    }
+  }
+  *p++ = '\'';
+  *p = '\0';
+
+  do_cmd(host, user, cmd);
+  sfree(cmd);
+
+  while (ssh_recv(&c, 1) > 0)
+    fputc(c, stdout); /* thank heavens for buffered I/O */
+}
+
+/*
  *  Initialize the Win$ock driver.
  */
-static void init_winsock()
+static void init_winsock(void)
 {
   WORD winsock_ver;
   WSADATA wsadata;
@@ -740,12 +810,13 @@ static void init_winsock()
 /*
  *  Short description of parameters.
  */
-static void usage()
+static void usage(void)
 {
   printf("PuTTY Secure Copy client\n");
   printf("%s\n", ver);
-  printf("Usage: scp [options] [user@]host:source target\n");
-  printf("       scp [options] source [source...] [user@]host:target\n");
+  printf("Usage: pscp [options] [user@]host:source target\n");
+  printf("       pscp [options] source [source...] [user@]host:target\n");
+  printf("       pscp [options] -ls user@host:filespec\n");
   printf("Options:\n");
   printf("  -p        preserve file attributes\n");
   printf("  -q        quiet, don't show statistics\n");
@@ -762,6 +833,7 @@ static void usage()
 int main(int argc, char *argv[])
 {
   int i;
+  int list = 0;
 
   init_winsock();
 
@@ -782,6 +854,8 @@ int main(int argc, char *argv[])
       portnumber = atoi(argv[++i]);
     else if (strcmp(argv[i], "-pw") == 0 && i + 1 < argc)
       password = argv[++i];
+    else if (strcmp(argv[i], "-ls") == 0)
+      list = 1;
     else if (strcmp(argv[i], "--") == 0) {
       i++;
       break;
@@ -791,15 +865,23 @@ int main(int argc, char *argv[])
   argc -= i;
   argv += i;
 
-  if (argc < 2)
-    usage();
-  if (argc > 2)
-    targetshouldbedirectory = 1;
+  if (list) {
+    if (argc != 1)
+      usage();
+    get_dir_list(argc, argv);
 
-  if (colon(argv[argc - 1]) != NULL)
-    toremote(argc, argv);
-  else
-    tolocal(argc, argv);
+  } else {
+
+    if (argc < 2)
+      usage();
+    if (argc > 2)
+      targetshouldbedirectory = 1;
+
+    if (colon(argv[argc - 1]) != NULL)
+      toremote(argc, argv);
+    else
+      tolocal(argc, argv);
+  }
 
   if (connection_open) {
     char ch;

@@ -16,3 +16,11 @@ char *ssh_init(char *host, int port, char *cmd, char **realhost);
 int ssh_recv(unsigned char *buf, int len);
 void ssh_send(unsigned char *buf, int len);
 void ssh_send_eof(void);
+
+/*
+ * Exports from mscrypto.c
+ */
+#ifdef MSCRYPTOAPI
+int crypto_startup();
+void crypto_wrapup();
+#endif

@@ -3,6 +3,7 @@
 #include <winsock.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #define PUTTY_DO_GLOBALS /* actually _define_ globals */
 #include "putty.h"
@@ -33,16 +34,21 @@
 #define IDM_SAVED_MIN 0x1000
 #define IDM_SAVED_MAX 0x2000
 
-#define WM_IGNORE_SIZE (WM_USER + 2)
-#define WM_IGNORE_CLIP (WM_USER + 3)
+#define WM_IGNORE_SIZE (WM_XUSER + 1)
+#define WM_IGNORE_CLIP (WM_XUSER + 2)
 
-static int WINAPI WndProc(HWND, UINT, WPARAM, LPARAM);
+static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 static int TranslateKey(WPARAM wParam, LPARAM lParam, unsigned char *output);
 static void cfgtopalette(void);
 static void init_palette(void);
-static void init_fonts(void);
+static void init_fonts(int);
 
 static int extra_width, extra_height;
+
+static int pending_netevent = 0;
+static WPARAM pend_netevent_wParam = 0;
+static LPARAM pend_netevent_lParam = 0;
+static void enact_pending_netevent(void);
 
 #define FONT_NORMAL 0
 #define FONT_BOLD 1
@@ -128,6 +134,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
           tolower(p[2]) == 'h') {
         default_protocol = cfg.protocol = PROT_SSH;
         default_port = cfg.port = 22;
+      } else if (q == p + 3 && tolower(p[0]) == 'l' && tolower(p[1]) == 'o' &&
+                 tolower(p[2]) == 'g') {
+        logfile = "putty.log";
       }
       p = q + strspn(q, " \t");
     }
@@ -150,7 +159,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
        */
       HANDLE filemap;
       Config *cp;
-      if (sscanf(p + 1, "%x", &filemap) == 1 &&
+      if (sscanf(p + 1, "%p", &filemap) == 1 &&
           (cp = MapViewOfFile(filemap, FILE_MAP_READ, 0, 0, sizeof(Config))) !=
               NULL) {
         cfg = *cp;
@@ -182,9 +191,27 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     }
   }
 
-  back = (cfg.protocol == PROT_SSH
-              ? &ssh_backend
-              : cfg.protocol == PROT_TELNET ? &telnet_backend : &raw_backend);
+  /*
+   * Select protocol. This is farmed out into a table in a
+   * separate file to enable an ssh-free variant.
+   */
+  {
+    int i;
+    back = NULL;
+    for (i = 0; backends[i].backend != NULL; i++)
+      if (backends[i].protocol == cfg.protocol) {
+        back = backends[i].backend;
+        break;
+      }
+    if (back == NULL) {
+      MessageBox(NULL,
+                 "Unsupported protocol number found",
+                 "PuTTY Internal Error",
+                 MB_OK | MB_ICONEXCLAMATION);
+      WSACleanup();
+      return 1;
+    }
+  }
 
   ldisc = (cfg.ldisc_term ? &ldisc_term : &ldisc_simple);
 
@@ -252,7 +279,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
    */
   bold_mode = cfg.bold_colour ? BOLD_COLOURS : BOLD_FONT;
   und_mode = UND_FONT;
-  init_fonts();
+  init_fonts(0);
 
   /*
    * Correct the guesses for extra_{width,height}.
@@ -315,11 +342,18 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     set_icon(msg);
   }
 
+  session_closed = FALSE;
+
   /*
    * Set up the input and output buffers.
    */
   inbuf_reap = inbuf_head = 0;
   outbuf_reap = outbuf_head = 0;
+
+  /*
+   * Choose unscroll method
+   */
+  unscroll_event = US_DISP;
 
   /*
    * Prepare the mouse handler.
@@ -358,21 +392,21 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
       AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT)p, "Telnet Command");
       AppendMenu(m, MF_SEPARATOR, 0, 0);
     }
-    AppendMenu(m, MF_ENABLED, IDM_SHOWLOG, "Event Log");
+    AppendMenu(m, MF_ENABLED, IDM_SHOWLOG, "&Event Log");
     AppendMenu(m, MF_SEPARATOR, 0, 0);
-    AppendMenu(m, MF_ENABLED, IDM_NEWSESS, "New Session");
-    AppendMenu(m, MF_ENABLED, IDM_DUPSESS, "Duplicate Session");
+    AppendMenu(m, MF_ENABLED, IDM_NEWSESS, "Ne&w Session");
+    AppendMenu(m, MF_ENABLED, IDM_DUPSESS, "&Duplicate Session");
     s = CreateMenu();
     get_sesslist(TRUE);
     for (i = 1; i < ((nsessions < 256) ? nsessions : 256); i++)
       AppendMenu(s, MF_ENABLED, IDM_SAVED_MIN + (16 * i), sessions[i]);
-    AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT)s, "Saved Sessions");
-    AppendMenu(m, MF_ENABLED, IDM_RECONF, "Change Settings");
+    AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT)s, "Sa&ved Sessions");
+    AppendMenu(m, MF_ENABLED, IDM_RECONF, "Chan&ge Settings");
     AppendMenu(m, MF_SEPARATOR, 0, 0);
-    AppendMenu(m, MF_ENABLED, IDM_CLRSB, "Clear Scrollback");
-    AppendMenu(m, MF_ENABLED, IDM_RESET, "Reset Terminal");
+    AppendMenu(m, MF_ENABLED, IDM_CLRSB, "C&lear Scrollback");
+    AppendMenu(m, MF_ENABLED, IDM_RESET, "Rese&t Terminal");
     AppendMenu(m, MF_SEPARATOR, 0, 0);
-    AppendMenu(m, MF_ENABLED, IDM_ABOUT, "About PuTTY");
+    AppendMenu(m, MF_ENABLED, IDM_ABOUT, "&About PuTTY");
   }
 
   /*
@@ -390,13 +424,53 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   has_focus = (GetForegroundWindow() == hwnd);
   UpdateWindow(hwnd);
 
-  while (GetMessage(&msg, NULL, 0, 0)) {
-    DispatchMessage(&msg);
-    if (inbuf_reap != inbuf_head)
-      term_out();
-    /* In idle moments, do a full screen update */
-    if (!PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE))
-      term_update();
+  {
+    int timer_id = 0, long_timer = 0;
+
+    while (GetMessage(&msg, NULL, 0, 0) == 1) {
+      /* Sometimes DispatchMessage calls routines that use their own
+       * GetMessage loop, setup this timer so we get some control back.
+       *
+       * Also call term_update() from the timer so that if the host
+       * is sending data flat out we still do redraws.
+       */
+      if (timer_id && long_timer) {
+        KillTimer(hwnd, timer_id);
+        long_timer = timer_id = 0;
+      }
+      if (!timer_id)
+        timer_id = SetTimer(hwnd, 1, 20, NULL);
+      DispatchMessage(&msg);
+
+      /* This is too fast, but I'll leave it for now 'cause it shows
+       * how often term_update is called (far too often at times!)
+       */
+      term_blink(0);
+
+      /* If there's nothing new in the queue then we can do everything
+       * we've delayed, reading the socket, writing, and repainting
+       * the window.
+       */
+      if (!PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
+        if (pending_netevent) {
+          enact_pending_netevent();
+
+          term_blink(1);
+        }
+      } else
+        continue;
+      if (!PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
+        if (timer_id) {
+          KillTimer(hwnd, timer_id);
+          timer_id = 0;
+        }
+        if (inbuf_reap != inbuf_head)
+          term_out();
+        term_update();
+        timer_id = SetTimer(hwnd, 1, 500, NULL);
+        long_timer = 1;
+      }
+    }
   }
 
   /*
@@ -413,10 +487,49 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     DeleteObject(pal);
   WSACleanup();
 
-  if (cfg.protocol == PROT_SSH)
+  if (cfg.protocol == PROT_SSH) {
     random_save_seed();
+#ifdef MSCRYPTOAPI
+    crypto_wrapup();
+#endif
+  }
 
   return msg.wParam;
+}
+
+/*
+ * Actually do the job requested by a WM_NETEVENT
+ */
+static void enact_pending_netevent(void)
+{
+  int i;
+  pending_netevent = FALSE;
+  i = back->msg(pend_netevent_wParam, pend_netevent_lParam);
+
+  if (i < 0) {
+    char buf[1024];
+    switch (WSABASEERR + (-i) % 10000) {
+    case WSAECONNRESET:
+      sprintf(buf, "Connection reset by peer");
+      break;
+    default:
+      sprintf(buf, "Unexpected network error %d", -i);
+      break;
+    }
+    MessageBox(hwnd, buf, "PuTTY Fatal Error", MB_ICONERROR | MB_OK);
+    PostQuitMessage(1);
+  } else if (i == 0) {
+    if (cfg.close_on_exit)
+      PostQuitMessage(0);
+    else {
+      session_closed = TRUE;
+      MessageBox(hwnd,
+                 "Connection closed by remote host",
+                 "PuTTY",
+                 MB_OK | MB_ICONINFORMATION);
+      SetWindowText(hwnd, "PuTTY (inactive)");
+    }
+  }
 }
 
 /*
@@ -488,18 +601,19 @@ static void init_palette(void)
  * - verify that the underlined font is the same width as the
  *   ordinary one (manual underlining by means of line drawing can
  *   be done in a pinch).
- *
- * - verify, in OEM/ANSI combined mode, that the OEM and ANSI base
- *   fonts are the same size, and shift to OEM-only mode if not.
  */
-static void init_fonts(void)
+static void init_fonts(int pick_width)
 {
   TEXTMETRIC tm;
-  int i, j;
-  int widths[5];
+  int i;
+  int fsize[8];
   HDC hdc;
   int fw_dontcare, fw_bold;
+  int firstchar = ' ';
 
+#ifdef CHECKOEMFONT
+font_messup:
+#endif
   for (i = 0; i < 8; i++)
     fonts[i] = NULL;
 
@@ -511,9 +625,14 @@ static void init_fonts(void)
     fw_bold = FW_BOLD;
   }
 
+  hdc = GetDC(hwnd);
+
+  font_height = cfg.fontheight;
+  font_width = pick_width;
+
 #define f(i, c, w, u)                                                          \
-  fonts[i] = CreateFont(cfg.fontheight,                                        \
-                        0,                                                     \
+  fonts[i] = CreateFont(font_height,                                           \
+                        font_width,                                            \
                         0,                                                     \
                         0,                                                     \
                         w,                                                     \
@@ -526,85 +645,147 @@ static void init_fonts(void)
                         DEFAULT_QUALITY,                                       \
                         FIXED_PITCH | FF_DONTCARE,                             \
                         cfg.font)
+
   if (cfg.vtmode != VT_OEMONLY) {
     f(FONT_NORMAL, cfg.fontcharset, fw_dontcare, FALSE);
+
+    SelectObject(hdc, fonts[FONT_NORMAL]);
+    GetTextMetrics(hdc, &tm);
+    font_height = tm.tmHeight;
+    font_width = tm.tmAveCharWidth;
+
     f(FONT_UNDERLINE, cfg.fontcharset, fw_dontcare, TRUE);
-  }
-  if (cfg.vtmode == VT_OEMANSI || cfg.vtmode == VT_OEMONLY) {
-    f(FONT_OEM, OEM_CHARSET, fw_dontcare, FALSE);
-    f(FONT_OEMUND, OEM_CHARSET, fw_dontcare, TRUE);
-  }
-  if (bold_mode == BOLD_FONT) {
-    if (cfg.vtmode != VT_OEMONLY) {
+
+    if (bold_mode == BOLD_FONT) {
       f(FONT_BOLD, cfg.fontcharset, fw_bold, FALSE);
       f(FONT_BOLDUND, cfg.fontcharset, fw_bold, TRUE);
     }
-    if (cfg.vtmode == VT_OEMANSI || cfg.vtmode == VT_OEMONLY) {
-      f(FONT_OEMBOLD, OEM_CHARSET, fw_bold, FALSE);
-      f(FONT_OEMBOLDUND, OEM_CHARSET, fw_bold, TRUE);
+
+    if (cfg.vtmode == VT_OEMANSI) {
+      f(FONT_OEM, OEM_CHARSET, fw_dontcare, FALSE);
+      f(FONT_OEMUND, OEM_CHARSET, fw_dontcare, TRUE);
+
+      if (bold_mode == BOLD_FONT) {
+        f(FONT_OEMBOLD, OEM_CHARSET, fw_bold, FALSE);
+        f(FONT_OEMBOLDUND, OEM_CHARSET, fw_bold, TRUE);
+      }
     }
   } else {
-    fonts[FONT_BOLD] = fonts[FONT_BOLDUND] = NULL;
-    fonts[FONT_OEMBOLD] = fonts[FONT_OEMBOLDUND] = NULL;
+    f(FONT_OEM, cfg.fontcharset, fw_dontcare, FALSE);
+
+    SelectObject(hdc, fonts[FONT_OEM]);
+    GetTextMetrics(hdc, &tm);
+    font_height = tm.tmHeight;
+    font_width = tm.tmAveCharWidth;
+
+    f(FONT_OEMUND, cfg.fontcharset, fw_dontcare, TRUE);
+
+    if (bold_mode == BOLD_FONT) {
+      f(FONT_BOLD, cfg.fontcharset, fw_bold, FALSE);
+      f(FONT_BOLDUND, cfg.fontcharset, fw_bold, TRUE);
+    }
   }
 #undef f
 
-  hdc = GetDC(hwnd);
+  descent = tm.tmAscent + 1;
+  if (descent >= font_height)
+    descent = font_height - 1;
+  firstchar = tm.tmFirstChar;
 
-  if (cfg.vtmode == VT_OEMONLY)
-    j = 4;
-  else
-    j = 0;
-
-  for (i = 0; i < (cfg.vtmode == VT_OEMANSI ? 5 : 4); i++) {
-    if (fonts[i + j]) {
-      SelectObject(hdc, fonts[i + j]);
-      GetTextMetrics(hdc, &tm);
-      if (i == 0 || i == 4) {
-        font_height = tm.tmHeight;
-        font_width = tm.tmAveCharWidth;
-        descent = tm.tmAscent + 1;
-        if (descent >= font_height)
-          descent = font_height - 1;
-      }
-      widths[i] = tm.tmAveCharWidth;
-    }
+  for (i = 0; i < 8; i++) {
+    if (fonts[i]) {
+      if (SelectObject(hdc, fonts[i]) && GetTextMetrics(hdc, &tm))
+        fsize[i] = tm.tmAveCharWidth + 256 * tm.tmHeight;
+      else
+        fsize[i] = -i;
+    } else
+      fsize[i] = -i;
   }
 
   ReleaseDC(hwnd, hdc);
 
-  if (widths[FONT_UNDERLINE] != widths[FONT_NORMAL] ||
-      (bold_mode == BOLD_FONT && widths[FONT_BOLDUND] != widths[FONT_BOLD])) {
+  /* ... This is wrong in OEM only mode */
+  if (fsize[FONT_UNDERLINE] != fsize[FONT_NORMAL] ||
+      (bold_mode == BOLD_FONT && fsize[FONT_BOLDUND] != fsize[FONT_BOLD])) {
     und_mode = UND_LINE;
     DeleteObject(fonts[FONT_UNDERLINE]);
     if (bold_mode == BOLD_FONT)
       DeleteObject(fonts[FONT_BOLDUND]);
   }
 
-  if (bold_mode == BOLD_FONT && widths[FONT_BOLD] != widths[FONT_NORMAL]) {
+  if (bold_mode == BOLD_FONT && fsize[FONT_BOLD] != fsize[FONT_NORMAL]) {
     bold_mode = BOLD_SHADOW;
     DeleteObject(fonts[FONT_BOLD]);
     if (und_mode == UND_FONT)
       DeleteObject(fonts[FONT_BOLDUND]);
   }
 
-  if (cfg.vtmode == VT_OEMANSI && widths[FONT_OEM] != widths[FONT_NORMAL]) {
-    MessageBox(NULL,
-               "The OEM and ANSI versions of this font are\n"
-               "different sizes. Using OEM-only mode instead",
-               "Font Size Mismatch",
-               MB_ICONINFORMATION | MB_OK);
-    cfg.vtmode = VT_OEMONLY;
-    for (i = 0; i < 4; i++)
+#ifdef CHECKOEMFONT
+  /* With the fascist font painting it doesn't matter if the linedraw font
+   * isn't exactly the right size anymore so we don't have to check this.
+   */
+  if (cfg.vtmode == VT_OEMANSI && fsize[FONT_OEM] != fsize[FONT_NORMAL]) {
+    if (cfg.fontcharset == OEM_CHARSET) {
+      MessageBox(NULL,
+                 "The OEM and ANSI versions of this font are\n"
+                 "different sizes. Using OEM-only mode instead",
+                 "Font Size Mismatch",
+                 MB_ICONINFORMATION | MB_OK);
+      cfg.vtmode = VT_OEMONLY;
+    } else if (firstchar < ' ') {
+      MessageBox(NULL,
+                 "The OEM and ANSI versions of this font are\n"
+                 "different sizes. Using XTerm mode instead",
+                 "Font Size Mismatch",
+                 MB_ICONINFORMATION | MB_OK);
+      cfg.vtmode = VT_XWINDOWS;
+    } else {
+      MessageBox(NULL,
+                 "The OEM and ANSI versions of this font are\n"
+                 "different sizes. Using ISO8859-1 mode instead",
+                 "Font Size Mismatch",
+                 MB_ICONINFORMATION | MB_OK);
+      cfg.vtmode = VT_POORMAN;
+    }
+
+    for (i = 0; i < 8; i++)
       if (fonts[i])
         DeleteObject(fonts[i]);
+    goto font_messup;
   }
+#endif
 }
 
-void request_resize(int w, int h)
+void request_resize(int w, int h, int refont)
 {
-  int width = extra_width + font_width * w;
-  int height = extra_height + font_height * h;
+  int width, height;
+
+#ifdef CHECKOEMFONT
+  /* Don't do this in OEMANSI, you may get disable messages */
+  if (refont && w != cols && (cols == 80 || cols == 132) &&
+      cfg.vtmode != VT_OEMANSI)
+#else
+  if (refont && w != cols && (cols == 80 || cols == 132))
+#endif
+  {
+    /* If font width too big for screen should we shrink the font more ? */
+    if (w == 132)
+      font_width = ((font_width * cols + w / 2) / w);
+    else
+      font_width = 0;
+    {
+      int i;
+      for (i = 0; i < 8; i++)
+        if (fonts[i])
+          DeleteObject(fonts[i]);
+    }
+    bold_mode = cfg.bold_colour ? BOLD_COLOURS : BOLD_FONT;
+    und_mode = UND_FONT;
+    init_fonts(font_width);
+  }
+
+  width = extra_width + font_width * w;
+  height = extra_height + font_height * h;
 
   SetWindowPos(hwnd,
                NULL,
@@ -634,7 +815,10 @@ static void click(Mouse_Button b, int x, int y)
   lasttime = thistime;
 }
 
-static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+static LRESULT CALLBACK WndProc(HWND hwnd,
+                                UINT message,
+                                WPARAM wParam,
+                                LPARAM lParam)
 {
   HDC hdc;
   static int ignore_size = FALSE;
@@ -642,10 +826,17 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
   static int just_reconfigged = FALSE;
 
   switch (message) {
+  case WM_TIMER:
+    if (pending_netevent)
+      enact_pending_netevent();
+    if (inbuf_reap != inbuf_head)
+      term_out();
+    term_update();
+    return 0;
   case WM_CREATE:
     break;
   case WM_CLOSE:
-    if (!cfg.warn_on_close ||
+    if (!cfg.warn_on_close || session_closed ||
         MessageBox(hwnd,
                    "Are you sure you want to close this session?",
                    "PuTTY Exit Confirmation",
@@ -691,15 +882,17 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             UnmapViewOfFile(p);
           }
         }
-        sprintf(c, "putty &%08x", filemap);
+        sprintf(c, "putty &%p", filemap);
         cl = c;
       } else if (wParam == IDM_SAVEDSESS) {
         char *session = sessions[(lParam - IDM_SAVED_MIN) / 16];
         cl = malloc(16 + strlen(session)); /* 8, but play safe */
         if (!cl)
           cl = NULL; /* not a very important failure mode */
-        sprintf(cl, "putty @%s", session);
-        freecl = TRUE;
+        else {
+          sprintf(cl, "putty @%s", session);
+          freecl = TRUE;
+        }
       } else
         cl = NULL;
 
@@ -731,9 +924,11 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
       }
       bold_mode = cfg.bold_colour ? BOLD_COLOURS : BOLD_FONT;
       und_mode = UND_FONT;
-      init_fonts();
+      init_fonts(0);
       sfree(logpal);
-      ldisc = (cfg.ldisc_term ? &ldisc_term : &ldisc_simple);
+      /* Telnet will change local echo -> remote if the remote asks */
+      if (cfg.protocol != PROT_TELNET)
+        ldisc = (cfg.ldisc_term ? &ldisc_term : &ldisc_simple);
       if (pal)
         DeleteObject(pal);
       logpal = NULL;
@@ -892,32 +1087,17 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     EndPaint(hwnd, &p);
   }
     return 0;
-  case WM_NETEVENT: {
-    int i = back->msg(wParam, lParam);
-    if (i < 0) {
-      char buf[1024];
-      switch (WSABASEERR + (-i) % 10000) {
-      case WSAECONNRESET:
-        sprintf(buf, "Connection reset by peer");
-        break;
-      default:
-        sprintf(buf, "Unexpected network error %d", -i);
-        break;
-      }
-      MessageBox(hwnd, buf, "PuTTY Fatal Error", MB_ICONERROR | MB_OK);
-      PostQuitMessage(1);
-    } else if (i == 0) {
-      if (cfg.close_on_exit)
-        PostQuitMessage(0);
-      else {
-        MessageBox(hwnd,
-                   "Connection closed by remote host",
-                   "PuTTY",
-                   MB_OK | MB_ICONINFORMATION);
-        SetWindowText(hwnd, "PuTTY (inactive)");
-      }
-    }
-  }
+  case WM_NETEVENT:
+    /* Notice we can get multiple netevents, FD_READ, FD_WRITE etc
+     * but the only one that's likely to try to overload us is FD_READ.
+     * This means buffering just one is fine.
+     */
+    if (pending_netevent)
+      enact_pending_netevent();
+
+    pending_netevent = TRUE;
+    pend_netevent_wParam = wParam;
+    pend_netevent_lParam = lParam;
     return 0;
   case WM_SETFOCUS:
     has_focus = TRUE;
@@ -971,7 +1151,8 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
       return 1;
     else
       return 0;
-  } break;
+  }
+    /* break;  (never reached) */
   case WM_SIZE:
     if (wParam == SIZE_MINIMIZED) {
       SetWindowText(hwnd, cfg.win_name_always ? window_name : icon_name);
@@ -1144,12 +1325,31 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
  */
 void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
 {
+  int lattr = 0; /* Will be arg later for line attribute type */
   COLORREF fg, bg, t;
   int nfg, nbg, nfont;
   HDC hdc = ctx;
+  RECT line_box;
+  int force_manual_underline = 0;
+  static int *IpDx = 0, IpDxLEN = 0;
+  ;
+
+  if (len > IpDxLEN || IpDx[0] != font_width * (1 + !lattr)) {
+    int i;
+    if (len > IpDxLEN) {
+      sfree(IpDx);
+      IpDx = smalloc((len + 16) * sizeof(int));
+      IpDxLEN = (len + 16);
+    }
+    for (i = 0; i < len; i++)
+      IpDx[i] = font_width;
+  }
 
   x *= font_width;
   y *= font_height;
+
+  if (lattr)
+    x *= 2;
 
   if (attr & ATTR_ACTCURS) {
     attr &= (bold_mode == BOLD_COLOURS ? 0x200 : 0x300);
@@ -1162,27 +1362,42 @@ void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
 
   /*
    * Map high-half characters in order to approximate ISO using
-   * OEM character set. Characters missing are 0xC3 (Atilde) and
-   * 0xCC (Igrave).
+   * OEM character set. No characters are missing if the OEM codepage
+   * is CP850.
    */
   if (nfont & FONT_OEM) {
     int i;
     for (i = 0; i < len; i++)
       if (text[i] >= '\xA0' && text[i] <= '\xFF') {
-        static const char oemhighhalf[] =
-            "\x20\xAD\xBD\x9C\xCF\xBE\xDD\xF5" /* A0-A7 */
-            "\xF9\xB8\xA6\xAE\xAA\xF0\xA9\xEE" /* A8-AF */
-            "\xF8\xF1\xFD\xFC\xEF\xE6\xF4\xFA" /* B0-B7 */
-            "\xF7\xFB\xA7\xAF\xAC\xAB\xF3\xA8" /* B8-BF */
-            "\xB7\xB5\xB6\x41\x8E\x8F\x92\x80" /* C0-C7 */
-            "\xD4\x90\xD2\xD3\x49\xD6\xD7\xD8" /* C8-CF */
-            "\xD1\xA5\xE3\xE0\xE2\xE5\x99\x9E" /* D0-D7 */
-            "\x9D\xEB\xE9\xEA\x9A\xED\xE8\xE1" /* D8-DF */
-            "\x85\xA0\x83\xC6\x84\x86\x91\x87" /* E0-E7 */
-            "\x8A\x82\x88\x89\x8D\xA1\x8C\x8B" /* E8-EF */
-            "\xD0\xA4\x95\xA2\x93\xE4\x94\xF6" /* F0-F7 */
-            "\x9B\x97\xA3\x96\x81\xEC\xE7\x98" /* F8-FF */
-            ;
+#if 0
+		/* This is CP850 ... perfect translation */
+		static const char oemhighhalf[] =
+		    "\x20\xAD\xBD\x9C\xCF\xBE\xDD\xF5" /* A0-A7 */
+		    "\xF9\xB8\xA6\xAE\xAA\xF0\xA9\xEE" /* A8-AF */
+		    "\xF8\xF1\xFD\xFC\xEF\xE6\xF4\xFA" /* B0-B7 */
+		    "\xF7\xFB\xA7\xAF\xAC\xAB\xF3\xA8" /* B8-BF */
+		    "\xB7\xB5\xB6\xC7\x8E\x8F\x92\x80" /* C0-C7 */
+		    "\xD4\x90\xD2\xD3\xDE\xD6\xD7\xD8" /* C8-CF */
+		    "\xD1\xA5\xE3\xE0\xE2\xE5\x99\x9E" /* D0-D7 */
+		    "\x9D\xEB\xE9\xEA\x9A\xED\xE8\xE1" /* D8-DF */
+		    "\x85\xA0\x83\xC6\x84\x86\x91\x87" /* E0-E7 */
+		    "\x8A\x82\x88\x89\x8D\xA1\x8C\x8B" /* E8-EF */
+		    "\xD0\xA4\x95\xA2\x93\xE4\x94\xF6" /* F0-F7 */
+		    "\x9B\x97\xA3\x96\x81\xEC\xE7\x98" /* F8-FF */
+		    ;
+#endif
+        /* This is CP437 ... junk translation */
+        static const unsigned char oemhighhalf[] = {
+            0xff, 0xad, 0x9b, 0x9c, 0x6f, 0x9d, 0x7c, 0x15, 0x22, 0x43, 0xa6,
+            0xae, 0xaa, 0x2d, 0x52, 0xc4, 0xf8, 0xf1, 0xfd, 0x33, 0x27, 0xe6,
+            0x14, 0xfa, 0x2c, 0x31, 0xa7, 0xaf, 0xac, 0xab, 0x2f, 0xa8, 0x41,
+            0x41, 0x41, 0x41, 0x8e, 0x8f, 0x92, 0x80, 0x45, 0x90, 0x45, 0x45,
+            0x49, 0x49, 0x49, 0x49, 0x44, 0xa5, 0x4f, 0x4f, 0x4f, 0x4f, 0x99,
+            0x78, 0xed, 0x55, 0x55, 0x55, 0x9a, 0x59, 0x50, 0xe1, 0x85, 0xa0,
+            0x83, 0x61, 0x84, 0x86, 0x91, 0x87, 0x8a, 0x82, 0x88, 0x89, 0x8d,
+            0xa1, 0x8c, 0x8b, 0x0b, 0xa4, 0x95, 0xa2, 0x93, 0x6f, 0x94, 0xf6,
+            0xed, 0x97, 0xa3, 0x96, 0x81, 0x79, 0x70, 0x98};
+
         text[i] = oemhighhalf[(unsigned char)text[i] - 0xA0];
       }
   }
@@ -1198,7 +1413,20 @@ void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
         text[i] = cfg.vtmode == VT_OEMONLY ? '\x9C' : '\xA3';
   } else if (attr & ATTR_LINEDRW) {
     int i;
+    /* ISO 8859-1 */
     static const char poorman[] = "*#****\xB0\xB1**+++++-----++++|****\xA3\xB7";
+
+    /* CP437 */
+    static const char oemmap_437[] =
+        "\x04\xB1****\xF8\xF1**\xD9\xBF\xDA\xC0\xC5"
+        "\xC4\xC4\xC4\xC4\xC4\xC3\xB4\xC1\xC2\xB3\xF3\xF2\xE3*\x9C\xFA";
+
+    /* CP850 */
+    static const char oemmap_850[] =
+        "\x04\xB1****\xF8\xF1**\xD9\xBF\xDA\xC0\xC5"
+        "\xC4\xC4\xC4\xC4\xC4\xC3\xB4\xC1\xC2\xB3****\x9C\xFA";
+
+    /* Poor windows font ... eg: windows courier */
     static const char oemmap[] =
         "*\xB1****\xF8\xF1**\xD9\xBF\xDA\xC0\xC5"
         "\xC4\xC4\xC4\xC4\xC4\xC3\xB4\xC1\xC2\xB3****\x9C\xFA";
@@ -1214,12 +1442,15 @@ void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
           text[i] += '\x01' - '\x60';
       break;
     case VT_OEMANSI:
-    case VT_OEMONLY:
-      nfont |= FONT_OEM;
-      for (i = 0; i < len; i++)
-        if (text[i] >= '\x60' && text[i] <= '\x7E')
-          text[i] = oemmap[(unsigned char)text[i] - 0x60];
-      break;
+      /* Make sure we actually have an OEM font */
+      if (fonts[nfont | FONT_OEM]) {
+      case VT_OEMONLY:
+        nfont |= FONT_OEM;
+        for (i = 0; i < len; i++)
+          if (text[i] >= '\x60' && text[i] <= '\x7E')
+            text[i] = oemmap[(unsigned char)text[i] - 0x60];
+        break;
+      }
     case VT_POORMAN:
       for (i = 0; i < len; i++)
         if (text[i] >= '\x60' && text[i] <= '\x7E')
@@ -1234,6 +1465,13 @@ void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
     nfont |= FONT_BOLD;
   if (und_mode == UND_FONT && (attr & ATTR_UNDER))
     nfont |= FONT_UNDERLINE;
+  if (!fonts[nfont]) {
+    if (nfont & FONT_UNDERLINE)
+      force_manual_underline = 1;
+    /* Don't do the same for manual bold, it could be bad news. */
+
+    nfont &= ~(FONT_BOLD | FONT_UNDERLINE);
+  }
   if (attr & ATTR_REVERSE) {
     t = nfg;
     nfg = nbg;
@@ -1241,18 +1479,28 @@ void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
   }
   if (bold_mode == BOLD_COLOURS && (attr & ATTR_BOLD))
     nfg++;
+  if (bold_mode == BOLD_COLOURS && (attr & ATTR_BLINK))
+    nbg++;
   fg = colours[nfg];
   bg = colours[nbg];
   SelectObject(hdc, fonts[nfont]);
   SetTextColor(hdc, fg);
   SetBkColor(hdc, bg);
   SetBkMode(hdc, OPAQUE);
-  TextOut(hdc, x, y, text, len);
+  line_box.left = x;
+  line_box.top = y;
+  line_box.right = x + font_width * len;
+  line_box.bottom = y + font_height;
+  ExtTextOut(hdc, x, y, ETO_CLIPPED | ETO_OPAQUE, &line_box, text, len, IpDx);
   if (bold_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
     SetBkMode(hdc, TRANSPARENT);
-    TextOut(hdc, x - 1, y, text, len);
+
+    /* GRR: This draws the character outside it's box and can leave
+     * 'droppings' even with the clip box! I suppose I could loop it
+     * one character at a time ... yuk. */
+    ExtTextOut(hdc, x - 1, y, ETO_CLIPPED, &line_box, text, len, IpDx);
   }
-  if (und_mode == UND_LINE && (attr & ATTR_UNDER)) {
+  if (force_manual_underline || (und_mode == UND_LINE && (attr & ATTR_UNDER))) {
     HPEN oldpen;
     oldpen = SelectObject(hdc, CreatePen(PS_SOLID, 0, fg));
     MoveToEx(hdc, x, y + descent, NULL);
@@ -1290,6 +1538,14 @@ static int TranslateKey(WPARAM wParam, LPARAM lParam, unsigned char *output)
    * times shortly.
    */
   ret = GetKeyboardState(keystate);
+
+  /*
+   * Record that we pressed key so the scroll window can be reset, but
+   * be careful to avoid Shift-UP/Down
+   */
+  if (wParam != VK_SHIFT && wParam != VK_PRIOR && wParam != VK_NEXT) {
+    seen_key_event = 1;
+  }
 
   /*
    * Windows does not always want to distinguish left and right
@@ -1482,6 +1738,16 @@ static int TranslateKey(WPARAM wParam, LPARAM lParam, unsigned char *output)
   }
 
   /*
+   * Shift-Tab should send ESC [ Z.
+   */
+  if (ret && (keystate[VK_SHIFT] & 0x80) && wParam == VK_TAB) {
+    *p++ = 0x1B; /* ESC */
+    *p++ = '[';
+    *p++ = 'Z';
+    return p - output;
+  }
+
+  /*
    * Before doing Windows charmap translation, remove LeftALT
    * from the keymap, since its sole effect should be to prepend
    * ESC, which we've already done. Note that removal of LeftALT
@@ -1530,13 +1796,35 @@ static int TranslateKey(WPARAM wParam, LPARAM lParam, unsigned char *output)
    * the DOS keyboard handling did it, and we have nothing better
    * to do with the key combo in question, we'll also map
    * Control-Backquote to ^\ (0x1C).
+   *
+   * In addition a real VT100 maps Ctrl-3/4/5/7 and 8.
    */
   if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '2') {
     *p++ = 0x00;
     return p - output;
   }
+  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '3') {
+    *p++ = 0x1B;
+    return p - output;
+  }
+  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '4') {
+    *p++ = 0x1C;
+    return p - output;
+  }
+  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '5') {
+    *p++ = 0x1D;
+    return p - output;
+  }
   if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '6') {
     *p++ = 0x1E;
+    return p - output;
+  }
+  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '7') {
+    *p++ = 0x1F;
+    return p - output;
+  }
+  if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == '8') {
+    *p++ = 0x7F;
     return p - output;
   }
   if (ret && (keystate[VK_CONTROL] & 0x80) && wParam == 0xBD) {

@@ -1,4 +1,7 @@
+/* Some compilers, like Borland, don't have winresrc.h */
+#ifndef NO_WINRESRC_H
 #include <winresrc.h>
+#endif
 
 /* Some systems don't define this, so I do it myself if necessary */
 #ifndef TCS_MULTILINE
@@ -18,7 +21,7 @@ BEGIN
     PUSHBUTTON "View &Licence", IDA_LICENCE, 6, 52, 70, 14
     CTEXT "PuTTY", IDA_TEXT1, 10, 6, 120, 8
     CTEXT "", IDA_VERSION, 10, 16, 120, 16
-    CTEXT "\251 1997-9 Simon Tatham. All rights reserved.",
+    CTEXT "\251 1997-2000 Simon Tatham. All rights reserved.",
           IDA_TEXT2, 10, 34, 120, 16
 END
 
@@ -30,8 +33,13 @@ BEGIN
     DEFPUSHBUTTON "&Open", IDOK, 86, 199, 44, 14
     PUSHBUTTON "&Cancel", IDCANCEL, 133, 199, 44, 14
     PUSHBUTTON "&About", IDC_ABOUT, 3, 199, 44, 14, NOT WS_TABSTOP
-    CONTROL "", IDC_TAB, L"SysTabControl32", TCS_MULTILINE | WS_TABSTOP,
-	3, 3, 174, 193
+    CONTROL "", IDC_TAB,
+#ifdef ASCIICTLS
+        "SysTabControl32",
+#else
+        L"SysTabControl32",
+#endif
+	TCS_MULTILINE | WS_TABSTOP, 3, 3, 174, 193
 END
 
 IDD_RECONF DIALOG DISCARDABLE 0, 0, 180, 216
@@ -41,8 +49,13 @@ FONT 8, "MS Sans Serif"
 BEGIN
     DEFPUSHBUTTON "&Apply", IDOK, 86, 199, 44, 14
     PUSHBUTTON "&Cancel", IDCANCEL, 133, 199, 44, 14
-    CONTROL "", IDC_TAB, L"SysTabControl32", TCS_MULTILINE | WS_TABSTOP,
-	3, 3, 174, 193
+    CONTROL "", IDC_TAB,
+#ifdef ASCIICTLS
+        "SysTabControl32",
+#else
+        L"SysTabControl32",
+#endif
+	TCS_MULTILINE | WS_TABSTOP, 3, 3, 174, 193
 END
 
 IDD_PANEL0 DIALOG DISCARDABLE 6, 30, 168, 163
@@ -62,7 +75,9 @@ BEGIN
     RTEXT "Protocol:", IDC0_PROTSTATIC, 3, 29, 52, 8
     AUTORADIOBUTTON "&Raw", IDC0_PROTRAW, 61, 29, 33, 10, WS_GROUP
     AUTORADIOBUTTON "&Telnet", IDC0_PROTTELNET, 96, 29, 33, 10
+#ifndef NO_SSH
     AUTORADIOBUTTON "SS&H", IDC0_PROTSSH, 132, 29, 33, 10
+#endif
 #endif
     LTEXT "Stor&ed Sessions", IDC0_SESSSTATIC, 3, 40, 122, 8
     EDITTEXT IDC0_SESSEDIT, 3, 48, 122, 12, ES_AUTOHSCROLL
@@ -110,6 +125,8 @@ BEGIN
         IDC1_ALTSPACE, 3, 123, 162, 10
     AUTOCHECKBOX "&Use local terminal line discipline",
         IDC1_LDISCTERM, 3, 133, 162, 10
+    AUTOCHECKBOX "&Blinking cursor",
+        IDC1_BLINKCUR, 3, 143, 162, 10
 END
 
 IDD_PANEL2 DIALOG DISCARDABLE 6, 30, 168, 163
@@ -123,7 +140,7 @@ BEGIN
     LTEXT "Terminal screen dimensions:", IDC2_DIMSTATIC, 3, 48, 162, 8
     RTEXT "&Rows", IDC2_ROWSSTATIC, 10, 59, 32, 8
     EDITTEXT IDC2_ROWSEDIT, 50, 57, 30, 12
-    RTEXT "&Columns", IDC2_COLSSTATIC, 95, 59, 32, 8
+    RTEXT "Colu&mns", IDC2_COLSSTATIC, 95, 59, 32, 8
     EDITTEXT IDC2_COLSEDIT, 135, 57, 30, 12
     RTEXT "&Saved lines of scrollback", IDC2_SAVESTATIC, 20, 74, 107, 8
     EDITTEXT IDC2_SAVEEDIT, 135, 72, 30, 12
@@ -240,36 +257,35 @@ BEGIN
     LISTBOX IDN_LIST, 3, 3, 154, 95, LBS_HASSTRINGS | LBS_USETABSTOPS | WS_VSCROLL
 END
 
-IDD_LICENCEBOX DIALOG DISCARDABLE 50, 50, 226, 231
+IDD_LICENCEBOX DIALOG DISCARDABLE 50, 50, 226, 223
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "PuTTY Licence"
 FONT 8, "MS Sans Serif"
 BEGIN
-    DEFPUSHBUTTON "OK", IDOK, 98, 211, 44, 14
+    DEFPUSHBUTTON "OK", IDOK, 98, 203, 44, 14
 
-    LTEXT "Copyright \251 1997-9 Simon Tatham", 1000, 10, 10, 206, 8
-    LTEXT "Portions copyright Gary S. Brown and Eric Young", 1100, 10, 18, 206, 8
+    LTEXT "Copyright \251 1997-2000 Simon Tatham", 1000, 10, 10, 206, 8
 
-    LTEXT "Permission is hereby granted, free of charge, to any person", 1002, 10, 34, 206, 8
-    LTEXT "obtaining a copy of this software and associated documentation", 1003, 10, 42, 206, 8
-    LTEXT "files (the ""Software""), to deal in the Software without restriction,", 1004, 10, 50, 206, 8
-    LTEXT "including without limitation the rights to use, copy, modify, merge,", 1005, 10, 58, 206, 8
-    LTEXT "publish, distribute, sublicense, and/or sell copies of the Software,", 1006, 10, 66, 206, 8
-    LTEXT "and to permit persons to whom the Software is furnished to do so,", 1007, 10, 74, 206, 8
-    LTEXT "subject to the following conditions:", 1008, 10, 82, 206, 8
+    LTEXT "Permission is hereby granted, free of charge, to any person", 1002, 10, 26, 206, 8
+    LTEXT "obtaining a copy of this software and associated documentation", 1003, 10, 34, 206, 8
+    LTEXT "files (the ""Software""), to deal in the Software without restriction,", 1004, 10, 42, 206, 8
+    LTEXT "including without limitation the rights to use, copy, modify, merge,", 1005, 10, 50, 206, 8
+    LTEXT "publish, distribute, sublicense, and/or sell copies of the Software,", 1006, 10, 58, 206, 8
+    LTEXT "and to permit persons to whom the Software is furnished to do so,", 1007, 10, 66, 206, 8
+    LTEXT "subject to the following conditions:", 1008, 10, 74, 206, 8
 
-    LTEXT "The above copyright notice and this permission notice shall be", 1010, 10, 98, 206, 8
-    LTEXT "included in all copies or substantial portions of the Software.", 1011, 10, 106, 206, 8
+    LTEXT "The above copyright notice and this permission notice shall be", 1010, 10, 90, 206, 8
+    LTEXT "included in all copies or substantial portions of the Software.", 1011, 10, 98, 206, 8
 
-    LTEXT "THE SOFTWARE IS PROVIDED ""AS IS"", WITHOUT", 1013, 10, 122, 206, 8
-    LTEXT "WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,", 1014, 10, 130, 206, 8
-    LTEXT "INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF", 1015, 10, 138, 206, 8
-    LTEXT "MERCHANTABILITY, FITNESS FOR A PARTICULAR", 1016, 10, 146, 206, 8
-    LTEXT "PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL", 1017, 10, 154, 206, 8
-    LTEXT "SIMON TATHAM BE LIABLE FOR ANY CLAIM, DAMAGES OR", 1018, 10, 162, 206, 8
-    LTEXT "OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,", 1019, 10, 170, 206, 8
-    LTEXT "TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN", 1020, 10, 178, 206, 8
-    LTEXT "CONNECTION WITH THE SOFTWARE OR THE USE OR", 1021, 10, 186, 206, 8
-    LTEXT "OTHER DEALINGS IN THE SOFTWARE.", 1022, 10, 194, 206, 8
+    LTEXT "THE SOFTWARE IS PROVIDED ""AS IS"", WITHOUT", 1013, 10, 114, 206, 8
+    LTEXT "WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,", 1014, 10, 122, 206, 8
+    LTEXT "INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF", 1015, 10, 130, 206, 8
+    LTEXT "MERCHANTABILITY, FITNESS FOR A PARTICULAR", 1016, 10, 138, 206, 8
+    LTEXT "PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL", 1017, 10, 146, 206, 8
+    LTEXT "SIMON TATHAM BE LIABLE FOR ANY CLAIM, DAMAGES OR", 1018, 10, 154, 206, 8
+    LTEXT "OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,", 1019, 10, 162, 206, 8
+    LTEXT "TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN", 1020, 10, 170, 206, 8
+    LTEXT "CONNECTION WITH THE SOFTWARE OR THE USE OR", 1021, 10, 178, 206, 8
+    LTEXT "OTHER DEALINGS IN THE SOFTWARE.", 1022, 10, 186, 206, 8
 
 END

@@ -91,11 +91,12 @@ static int s_read(char *buf, int len)
 /*
  * Read and decrypt one incoming SSH packet.
  */
-static void get_packet()
+static void get_packet(void)
 {
   unsigned char buf[4];
   int ret;
   int len, pad, biglen;
+  unsigned long realcrc, gotcrc;
 
 next_packet:
 
@@ -124,8 +125,15 @@ next_packet:
   pktin.length = len;
   if (pktin.maxlen < biglen) {
     pktin.maxlen = biglen;
+#ifdef MSCRYPTOAPI
+    /* allocate enough buffer space for extra block
+     * for MS CryptEncrypt() */
+    pktin.data = (pktin.data == NULL) ? smalloc(biglen + 8)
+                                      : srealloc(pktin.data, biglen + 8);
+#else
     pktin.data =
         (pktin.data == NULL) ? smalloc(biglen) : srealloc(pktin.data, biglen);
+#endif
   }
 
   ret = s_read(pktin.data, biglen);
@@ -140,6 +148,15 @@ next_packet:
 
   pktin.type = pktin.data[pad];
   pktin.body = pktin.data + pad + 1;
+
+  realcrc = crc32(pktin.data, biglen - 4);
+  gotcrc = (pktin.data[biglen - 4] << 24);
+  gotcrc |= (pktin.data[biglen - 3] << 16);
+  gotcrc |= (pktin.data[biglen - 2] << 8);
+  gotcrc |= (pktin.data[biglen - 1] << 0);
+  if (gotcrc != realcrc) {
+    fatalbox("Incorrect CRC received on packet");
+  }
 
   if (pktin.type == SSH_MSG_DEBUG) {
     if (verbose) {
@@ -166,8 +183,15 @@ static void s_wrpkt_start(int type, int len)
   pktout.length = len - 5;
   if (pktout.maxlen < biglen) {
     pktout.maxlen = biglen;
+#ifdef MSCRYPTOAPI
+    /* Allocate enough buffer space for extra block
+     * for MS CryptEncrypt() */
+    pktout.data = (pktout.data == NULL ? malloc(biglen + 8)
+                                       : realloc(pktout.data, biglen + 8));
+#else
     pktout.data = (pktout.data == NULL ? malloc(biglen + 4)
                                        : realloc(pktout.data, biglen + 4));
+#endif
     if (!pktout.data)
       fatalbox("Out of memory");
   }
@@ -294,7 +318,21 @@ static void ssh_login(char *username, char *cmd)
   if (!rsabuf)
     fatalbox("Out of memory");
 
-  verify_ssh_host_key(savedhost, &hostkey);
+  /*
+   * Verify the host key.
+   */
+  {
+    /*
+     * First format the key into a string.
+     */
+    int len = rsastr_len(&hostkey);
+    char *keystr = malloc(len);
+    if (!keystr)
+      fatalbox("Out of memory");
+    rsastr_fmt(keystr, &hostkey);
+    verify_ssh_host_key(savedhost, keystr);
+    free(keystr);
+  }
 
   for (i = 0; i < 32; i++) {
     rsabuf[i] = session_key[i];
@@ -408,7 +446,11 @@ int ssh_recv(unsigned char *buf, int len)
       return 0;
     if (pktin.type == SSH_SMSG_STDOUT_DATA) {
       int plen = GET_32BIT(pktin.body);
-      if (plen <= to_read) {
+      if (plen + 4 != pktin.length) {
+        fprintf(stderr,
+                "Received data packet with bogus string length"
+                ", ignoring\n");
+      } else if (plen <= to_read) {
         memcpy(buf, pktin.body + 4, plen);
         buf += plen;
         to_read -= plen;
@@ -420,7 +462,12 @@ int ssh_recv(unsigned char *buf, int len)
       }
     } else if (pktin.type == SSH_SMSG_STDERR_DATA) {
       int plen = GET_32BIT(pktin.body);
-      fwrite(pktin.body + 4, plen, 1, stderr);
+      if (plen + 4 != pktin.length) {
+        fprintf(stderr,
+                "Received data packet with bogus string length"
+                ", ignoring\n");
+      } else
+        fwrite(pktin.body + 4, plen, 1, stderr);
     } else if (pktin.type == SSH_MSG_DISCONNECT) {
     } else if (pktin.type == SSH_SMSG_SUCCESS ||
                pktin.type == SSH_SMSG_FAILURE) {
@@ -480,6 +527,11 @@ char *ssh_init(char *host, int port, char *cmd, char **realhost)
 #ifdef FWHACK
   char *FWhost;
   int FWport;
+#endif
+
+#ifdef MSCRYPTOAPI
+  if (crypto_startup() == 0)
+    return "Microsoft high encryption pack not installed!";
 #endif
 
   savedhost = malloc(1 + strlen(host));
