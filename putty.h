@@ -1,6 +1,8 @@
 #ifndef PUTTY_PUTTY_H
 #define PUTTY_PUTTY_H
 
+#include "network.h"
+
 #define PUTTY_REG_POS "Software\\SimonTatham\\PuTTY"
 #define PUTTY_REG_PARENT "Software\\SimonTatham"
 #define PUTTY_REG_PARENT_CHILD "PuTTY"
@@ -17,8 +19,6 @@
 #else
 #define GLOBAL extern
 #endif
-
-GLOBAL HINSTANCE putty_inst;
 
 #define ATTR_ACTCURS 0x80000000UL /* active cursor (block) */
 #define ATTR_PASCURS 0x40000000UL /* passive cursor (box) */
@@ -62,12 +62,6 @@ GLOBAL int rows, cols, savelines;
 
 GLOBAL int font_width, font_height;
 
-#define c_write1(_C)                                                           \
-  do {                                                                         \
-    if (inbuf_head >= INBUF_SIZE)                                              \
-      term_out();                                                              \
-    inbuf[inbuf_head++] = (_C);                                                \
-  } while (0)
 #define INBUF_SIZE 2048
 GLOBAL unsigned char inbuf[INBUF_SIZE];
 GLOBAL int inbuf_head;
@@ -144,12 +138,11 @@ typedef enum
 } VT_Mode;
 
 typedef struct {
-  char *(*init)(HWND hwnd, char *host, int port, char **realhost);
-  int (*msg)(WPARAM wParam, LPARAM lParam);
+  char *(*init)(char *host, int port, char **realhost);
   void (*send)(char *buf, int len);
   void (*size)(void);
   void (*special)(Telnet_Special code);
-  SOCKET (*socket)(void);
+  Socket (*socket)(void);
   int (*sendok)(void);
   int default_port;
 } Backend;
@@ -184,6 +177,7 @@ typedef struct {
   /* SSH options */
   char remote_cmd[512];
   int nopty;
+  int compression;
   int agentfwd;
   enum
   {
@@ -205,13 +199,19 @@ typedef struct {
   int bksp_is_delete;
   int rxvt_homeend;
   int funky_type;
+  int no_applic_c; /* totally disable app cursor keys */
+  int no_applic_k; /* totally disable app keypad */
   int app_cursor;
   int app_keypad;
   int nethack_keypad;
   int alt_f4;    /* is it special? */
   int alt_space; /* is it special? */
+  int alt_only;  /* is it special? */
   int ldisc_term;
+  int alwaysontop;
   int scroll_on_key;
+  int scroll_on_disp;
+  int compose_key;
   char wintitle[256]; /* initial window title */
   /* Terminal options */
   int savelines;
@@ -308,6 +308,7 @@ void sys_cursor(int x, int y);
  */
 void noise_get_heavy(void (*func)(void *, int));
 void noise_get_light(void (*func)(void *, int));
+void noise_regular(void);
 void noise_ultralight(DWORD data);
 void random_save_seed(void);
 void random_destroy_seed(void);
@@ -315,7 +316,7 @@ void random_destroy_seed(void);
 /*
  * Exports from windlg.c.
  */
-int defuse_showwindow(void);
+void defuse_showwindow(void);
 int do_config(void);
 int do_reconfig(HWND);
 void do_defaults(char *, Config *);
@@ -354,6 +355,8 @@ void term_invalidate(void);
 void term_blink(int set_cursor);
 void term_paste(void);
 void term_nopaste(void);
+void from_backend(int is_stderr, char *data, int len);
+void term_copyall(void);
 
 /*
  * Exports from raw.c.
@@ -393,21 +396,7 @@ void random_get_savedata(void **data, int *len);
  * Exports from misc.c.
  */
 
-/* #define MALLOC_LOG  do this if you suspect putty of leaking memory */
-#ifdef MALLOC_LOG
-#define smalloc(z) (mlog(__FILE__, __LINE__), safemalloc(z))
-#define srealloc(y, z) (mlog(__FILE__, __LINE__), saferealloc(y, z))
-#define sfree(z) (mlog(__FILE__, __LINE__), safefree(z))
-void mlog(char *, int);
-#else
-#define smalloc safemalloc
-#define srealloc saferealloc
-#define sfree safefree
-#endif
-
-void *safemalloc(size_t);
-void *saferealloc(void *, size_t);
-void safefree(void *);
+#include "puttymem.h"
 
 /*
  * Exports from version.c.
@@ -441,29 +430,9 @@ void crypto_wrapup();
 void agent_query(void *in, int inlen, void **out, int *outlen);
 int agent_exists(void);
 
-/*
- * A debug system.
- */
 #ifdef DEBUG
-#include <stdarg.h>
+void dprintf(char *fmt, ...);
 #define debug(x) (dprintf x)
-static void dprintf(char *fmt, ...)
-{
-  char buf[2048];
-  DWORD dw;
-  va_list ap;
-  static int gotconsole = 0;
-
-  if (!gotconsole) {
-    AllocConsole();
-    gotconsole = 1;
-  }
-
-  va_start(ap, fmt);
-  vsprintf(buf, fmt, ap);
-  WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), buf, strlen(buf), &dw, NULL);
-  va_end(ap);
-}
 #else
 #define debug(x)
 #endif

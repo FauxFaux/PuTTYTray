@@ -3,14 +3,8 @@
  */
 
 #include <windows.h>
-#ifndef AUTO_WINSOCK
-#ifdef WINSOCK_TWO
-#include <winsock2.h>
-#else
-#include <winsock.h>
-#endif
-#endif
 #include <stdio.h>
+#include <stdlib.h>
 #include "putty.h"
 #include "storage.h"
 
@@ -75,6 +69,7 @@ void save_settings(char *section, int do_host, Config *cfg)
   }
   write_setting_s(sesskey, "UserName", cfg->username);
   write_setting_i(sesskey, "NoPTY", cfg->nopty);
+  write_setting_i(sesskey, "Compression", cfg->compression);
   write_setting_i(sesskey, "AgentFwd", cfg->agentfwd);
   write_setting_s(sesskey, "RemoteCmd", cfg->remote_cmd);
   write_setting_s(sesskey,
@@ -91,12 +86,17 @@ void save_settings(char *section, int do_host, Config *cfg)
   write_setting_i(sesskey, "BackspaceIsDelete", cfg->bksp_is_delete);
   write_setting_i(sesskey, "RXVTHomeEnd", cfg->rxvt_homeend);
   write_setting_i(sesskey, "LinuxFunctionKeys", cfg->funky_type);
+  write_setting_i(sesskey, "NoApplicationKeys", cfg->no_applic_k);
+  write_setting_i(sesskey, "NoApplicationCursors", cfg->no_applic_c);
   write_setting_i(sesskey, "ApplicationCursorKeys", cfg->app_cursor);
   write_setting_i(sesskey, "ApplicationKeypad", cfg->app_keypad);
   write_setting_i(sesskey, "NetHackKeypad", cfg->nethack_keypad);
   write_setting_i(sesskey, "AltF4", cfg->alt_f4);
   write_setting_i(sesskey, "AltSpace", cfg->alt_space);
+  write_setting_i(sesskey, "AltOnly", cfg->alt_only);
+  write_setting_i(sesskey, "ComposeKey", cfg->compose_key);
   write_setting_i(sesskey, "LdiscTerm", cfg->ldisc_term);
+  write_setting_i(sesskey, "AlwaysOnTop", cfg->alwaysontop);
   write_setting_i(sesskey, "BlinkCur", cfg->blink_cur);
   write_setting_i(sesskey, "Beep", cfg->beep);
   write_setting_i(sesskey, "ScrollbackLines", cfg->savelines);
@@ -142,6 +142,7 @@ void save_settings(char *section, int do_host, Config *cfg)
   write_setting_i(sesskey, "CapsLockCyr", cfg->xlat_capslockcyr);
   write_setting_i(sesskey, "ScrollBar", cfg->scrollbar);
   write_setting_i(sesskey, "ScrollOnKey", cfg->scroll_on_key);
+  write_setting_i(sesskey, "ScrollOnDisp", cfg->scroll_on_disp);
   write_setting_i(sesskey, "LockSize", cfg->locksize);
   write_setting_i(sesskey, "BCE", cfg->bce);
   write_setting_i(sesskey, "BlinkText", cfg->blinktext);
@@ -199,6 +200,7 @@ void load_settings(char *section, int do_host, Config *cfg)
   }
   gpps(sesskey, "UserName", "", cfg->username, sizeof(cfg->username));
   gppi(sesskey, "NoPTY", 0, &cfg->nopty);
+  gppi(sesskey, "Compression", 0, &cfg->compression);
   gppi(sesskey, "AgentFwd", 0, &cfg->agentfwd);
   gpps(sesskey, "RemoteCmd", "", cfg->remote_cmd, sizeof(cfg->remote_cmd));
   {
@@ -220,12 +222,17 @@ void load_settings(char *section, int do_host, Config *cfg)
   gppi(sesskey, "BackspaceIsDelete", 1, &cfg->bksp_is_delete);
   gppi(sesskey, "RXVTHomeEnd", 0, &cfg->rxvt_homeend);
   gppi(sesskey, "LinuxFunctionKeys", 0, &cfg->funky_type);
+  gppi(sesskey, "NoApplicationKeys", 0, &cfg->no_applic_k);
+  gppi(sesskey, "NoApplicationCursors", 0, &cfg->no_applic_c);
   gppi(sesskey, "ApplicationCursorKeys", 0, &cfg->app_cursor);
   gppi(sesskey, "ApplicationKeypad", 0, &cfg->app_keypad);
   gppi(sesskey, "NetHackKeypad", 0, &cfg->nethack_keypad);
   gppi(sesskey, "AltF4", 1, &cfg->alt_f4);
   gppi(sesskey, "AltSpace", 0, &cfg->alt_space);
+  gppi(sesskey, "AltOnly", 0, &cfg->alt_only);
+  gppi(sesskey, "ComposeKey", 0, &cfg->compose_key);
   gppi(sesskey, "LdiscTerm", 0, &cfg->ldisc_term);
+  gppi(sesskey, "AlwaysOnTop", 0, &cfg->alwaysontop);
   gppi(sesskey, "BlinkCur", 0, &cfg->blink_cur);
   gppi(sesskey, "Beep", 1, &cfg->beep);
   gppi(sesskey, "ScrollbackLines", 200, &cfg->savelines);
@@ -291,6 +298,7 @@ void load_settings(char *section, int do_host, Config *cfg)
   gppi(sesskey, "CapsLockCyr", 0, &cfg->xlat_capslockcyr);
   gppi(sesskey, "ScrollBar", 1, &cfg->scrollbar);
   gppi(sesskey, "ScrollOnKey", 0, &cfg->scroll_on_key);
+  gppi(sesskey, "ScrollOnDisp", 1, &cfg->scroll_on_disp);
   gppi(sesskey, "LockSize", 0, &cfg->locksize);
   gppi(sesskey, "BCE", 0, &cfg->bce);
   gppi(sesskey, "BlinkText", 0, &cfg->blinktext);
@@ -353,20 +361,29 @@ void get_sesslist(int allocate)
     buffer = srealloc(buffer, buflen + 1);
     buffer[buflen] = '\0';
 
+    /*
+     * Now set up the list of sessions. Note that "Default
+     * Settings" must always be claimed to exist, even if it
+     * doesn't really.
+     */
+
     p = buffer;
-    nsessions = 0;
+    nsessions = 1; /* "Default Settings" counts as one */
     while (*p) {
-      nsessions++;
+      if (strcmp(p, "Default Settings"))
+        nsessions++;
       while (*p)
         p++;
       p++;
     }
 
-    sessions = smalloc(nsessions * sizeof(char *));
+    sessions = smalloc((nsessions + 1) * sizeof(char *));
+    sessions[0] = "Default Settings";
     p = buffer;
-    i = 0;
+    i = 1;
     while (*p) {
-      sessions[i++] = p;
+      if (strcmp(p, "Default Settings"))
+        sessions[i++] = p;
       while (*p)
         p++;
       p++;

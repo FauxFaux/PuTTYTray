@@ -64,39 +64,19 @@ Bignum dh_create_e(void)
 
   x = newbn(Q[0]);
 
-tryagain:
-
-  /*
-   * Create a potential x, by ANDing a string of random bytes
-   * with Qmask.
-   */
-  for (i = 1; i <= x[0]; i++)
-    x[i] = ((random_byte() << 8) + random_byte()) & Qmask[i];
-
-  /*
-   * If x <= 1, go round again.
-   */
-  for (i = 2; i <= x[0]; i++)
-    if (x[i] != 0)
-      break;
-  if (i > x[0] && x[1] <= 1)
-    goto tryagain;
-
-  /*
-   * If x >= q, go round again.
-   */
-  for (i = x[0]; i > 0; i--) {
-    if (x[i] > Q[i])
-      goto tryagain;
-    if (x[i] < Q[i])
-      break;
-  }
+  do {
+    /*
+     * Create a potential x, by ANDing a string of random bytes
+     * with Qmask.
+     */
+    for (i = 1; i <= x[0]; i++)
+      x[i] = ((random_byte() << 8) + random_byte()) & Qmask[i];
+  } while (bignum_cmp(x, One) <= 0 || bignum_cmp(x, Q) >= 0);
 
   /*
    * Done. Now compute e = g^x mod p.
    */
-  e = newbn(P[0]);
-  modpow(G, x, P, e);
+  e = modpow(G, x, P);
 
   return e;
 }
@@ -106,7 +86,5 @@ tryagain:
  */
 Bignum dh_find_K(Bignum f)
 {
-  Bignum K = newbn(P[0]);
-  modpow(f, x, P, K);
-  return K;
+  return modpow(f, x, P);
 }

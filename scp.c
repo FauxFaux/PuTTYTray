@@ -26,6 +26,7 @@
 
 #define PUTTY_DO_GLOBALS
 #include "putty.h"
+#include "winstuff.h"
 #include "storage.h"
 
 #define TIME_POSIX_TO_WIN(t, ft)                                               \
@@ -54,19 +55,18 @@ static int statistics = 1;
 static int portnumber = 0;
 static char *password = NULL;
 static int errs = 0;
-static int connection_open = 0;
 /* GUI Adaptation - Sept 2000 */
 #define NAME_STR_MAX 2048
 static char statname[NAME_STR_MAX + 1];
 static unsigned long statsize = 0;
 static int statperct = 0;
-static time_t statelapsed = 0;
+static unsigned long statelapsed = 0;
 static int gui_mode = 0;
 static char *gui_hwnd = NULL;
 
 static void source(char *src);
 static void rsource(char *src);
-static void sink(char *targ);
+static void sink(char *targ, char *src);
 /* GUI Adaptation - Sept 2000 */
 static void tell_char(FILE *stream, char c);
 static void tell_str(FILE *stream, char *str);
@@ -76,7 +76,7 @@ static void send_str_msg(unsigned int msg_id, char *str);
 static void gui_update_stats(char *name,
                              unsigned long size,
                              int percentage,
-                             time_t elapsed);
+                             unsigned long elapsed);
 
 void begin_session(void)
 {
@@ -194,7 +194,7 @@ static void tell_user(FILE *stream, char *fmt, ...)
 static void gui_update_stats(char *name,
                              unsigned long size,
                              int percentage,
-                             time_t elapsed)
+                             unsigned long elapsed)
 {
   unsigned int i;
 
@@ -249,25 +249,45 @@ void connection_fatal(char *fmt, ...)
 }
 
 /*
+ * Be told what socket we're supposed to be using.
+ */
+static SOCKET scp_ssh_socket;
+char *do_select(SOCKET skt, int startup)
+{
+  if (startup)
+    scp_ssh_socket = skt;
+  else
+    scp_ssh_socket = INVALID_SOCKET;
+  return NULL;
+}
+extern int select_result(WPARAM, LPARAM);
+
+/*
  * Receive a block of data from the SSH link. Block until all data
  * is available.
  *
  * To do this, we repeatedly call the SSH protocol module, with our
- * own trap in term_out() to catch the data that comes back. We do
- * this until we have enough data.
+ * own trap in from_backend() to catch the data that comes back. We
+ * do this until we have enough data.
  */
+
 static unsigned char *outptr;              /* where to put the data */
 static unsigned outlen;                    /* how much data required */
 static unsigned char *pending = NULL;      /* any spare data */
 static unsigned pendlen = 0, pendsize = 0; /* length and phys. size of buffer */
-void term_out(void)
+void from_backend(int is_stderr, char *data, int datalen)
 {
+  unsigned char *p = (unsigned char *)data;
+  unsigned len = (unsigned)datalen;
+
   /*
-   * Here we must deal with a block of data, in `inbuf', size
-   * `inbuf_head'.
+   * stderr data is just spouted to local stderr and otherwise
+   * ignored.
    */
-  unsigned char *p = inbuf;
-  unsigned len = inbuf_head;
+  if (is_stderr) {
+    fwrite(data, 1, len, stderr);
+    return;
+  }
 
   inbuf_head = 0;
 
@@ -291,7 +311,7 @@ void term_out(void)
   if (len > 0) {
     if (pendsize < pendlen + len) {
       pendsize = pendlen + len + 4096;
-      pending = (pending ? realloc(pending, pendsize) : malloc(pendsize));
+      pending = (pending ? srealloc(pending, pendsize) : smalloc(pendsize));
       if (!pending)
         fatalbox("Out of memory");
     }
@@ -301,8 +321,6 @@ void term_out(void)
 }
 static int ssh_scp_recv(unsigned char *buf, int len)
 {
-  SOCKET s;
-
   outptr = buf;
   outlen = len;
 
@@ -321,7 +339,7 @@ static int ssh_scp_recv(unsigned char *buf, int len)
     pendlen -= pendused;
     if (pendlen == 0) {
       pendsize = 0;
-      free(pending);
+      sfree(pending);
       pending = NULL;
     }
     if (outlen == 0)
@@ -330,17 +348,12 @@ static int ssh_scp_recv(unsigned char *buf, int len)
 
   while (outlen > 0) {
     fd_set readfds;
-    s = back->socket();
-    if (s == INVALID_SOCKET) {
-      connection_open = FALSE;
-      return 0;
-    }
+
     FD_ZERO(&readfds);
-    FD_SET(s, &readfds);
+    FD_SET(scp_ssh_socket, &readfds);
     if (select(1, &readfds, NULL, NULL, NULL) < 0)
       return 0; /* doom */
-    back->msg(0, FD_READ);
-    term_out();
+    select_result((WPARAM)scp_ssh_socket, (LPARAM)FD_READ);
   }
 
   return len;
@@ -351,19 +364,15 @@ static int ssh_scp_recv(unsigned char *buf, int len)
  */
 static void ssh_scp_init(void)
 {
-  SOCKET s;
-
-  s = back->socket();
-  if (s == INVALID_SOCKET)
+  if (scp_ssh_socket == INVALID_SOCKET)
     return;
   while (!back->sendok()) {
     fd_set readfds;
     FD_ZERO(&readfds);
-    FD_SET(s, &readfds);
+    FD_SET(scp_ssh_socket, &readfds);
     if (select(1, &readfds, NULL, NULL, NULL) < 0)
       return; /* doom */
-    back->msg(0, FD_READ);
-    term_out();
+    select_result((WPARAM)scp_ssh_socket, (LPARAM)FD_READ);
   }
 }
 
@@ -381,7 +390,7 @@ static void bump(char *fmt, ...)
   strcat(str, "\n");
   tell_str(stderr, str);
 
-  if (connection_open) {
+  if (back != NULL && back->socket() != NULL) {
     char ch;
     back->special(TS_EOF);
     ssh_scp_recv(&ch, 1);
@@ -453,6 +462,7 @@ static void do_cmd(char *host, char *user, char *cmd)
   do_defaults(host, &cfg);
   if (cfg.host[0] == '\0') {
     /* No settings for this host; use defaults */
+    do_defaults(NULL, &cfg);
     strncpy(cfg.host, host, sizeof(cfg.host) - 1);
     cfg.host[sizeof(cfg.host) - 1] = '\0';
     cfg.port = 22;
@@ -478,14 +488,12 @@ static void do_cmd(char *host, char *user, char *cmd)
 
   back = &ssh_backend;
 
-  err = back->init(NULL, cfg.host, cfg.port, &realhost);
+  err = back->init(cfg.host, cfg.port, &realhost);
   if (err != NULL)
     bump("ssh_init: %s", err);
   ssh_scp_init();
   if (verbose && realhost != NULL)
     tell_user(stderr, "Connected to %s\n", realhost);
-
-  connection_open = 1;
 }
 
 /*
@@ -504,7 +512,10 @@ static void print_stats(char *name,
 
   /* GUI Adaptation - Sept 2000 */
   if (gui_mode)
-    gui_update_stats(name, size, ((done * 100) / size), now - start);
+    gui_update_stats(name,
+                     size,
+                     (int)(100 * (done * 1.0 / size)),
+                     (unsigned long)difftime(now, start));
   else {
     if (now > start)
       ratebs = (float)done / (now - start);
@@ -597,7 +608,7 @@ static void run_err(const char *fmt, ...)
   va_list ap;
   va_start(ap, fmt);
   errs++;
-  strcpy(str, "\01scp: ");
+  strcpy(str, "scp: ");
   vsprintf(str + strlen(str), fmt, ap);
   strcat(str, "\n");
   back->send(str, strlen(str));
@@ -766,7 +777,7 @@ static void rsource(char *src)
 /*
  *  Execute the sink part of the SCP protocol.
  */
-static void sink(char *targ)
+static void sink(char *targ, char *src)
 {
   char buf[2048];
   char namebuf[2048];
@@ -833,12 +844,17 @@ static void sink(char *targ)
 
     if (sscanf(buf + 1, "%u %lu %[^\n]", &mode, &size, namebuf) != 3)
       bump("Protocol error: Illegal file descriptor format");
+    /* Security fix: ensure the file ends up where we asked for it. */
     if (targisdir) {
       char t[2048];
+      char *p;
       strcpy(t, targ);
       if (targ[0] != '\0')
         strcat(t, "/");
-      strcat(t, namebuf);
+      p = namebuf + strlen(namebuf);
+      while (p > namebuf && p[-1] != '/' && p[-1] != '\\')
+        p--;
+      strcat(t, p);
       strcpy(namebuf, t);
     } else {
       strcpy(namebuf, targ);
@@ -857,7 +873,7 @@ static void sink(char *targ)
           continue;
         }
       }
-      sink(namebuf);
+      sink(namebuf, NULL);
       /* can we set the timestamp for directories ? */
       continue;
     }
@@ -1010,6 +1026,26 @@ static void toremote(int argc, char *argv[])
     do {
       char *last;
       char namebuf[2048];
+      /*
+       * Ensure that . and .. are never matched by wildcards,
+       * but only by deliberate action.
+       */
+      if (!strcmp(fdat.cFileName, ".") || !strcmp(fdat.cFileName, "..")) {
+        /*
+         * Find*File has returned a special dir. We require
+         * that _either_ `src' ends in a backslash followed
+         * by that string, _or_ `src' is precisely that
+         * string.
+         */
+        int len = strlen(src), dlen = strlen(fdat.cFileName);
+        if (len == dlen && !strcmp(src, fdat.cFileName)) {
+          /* ok */;
+        } else if (len > dlen + 1 && src[len - dlen - 1] == '\\' &&
+                   !strcmp(src + len - dlen, fdat.cFileName)) {
+          /* ok */;
+        } else
+          continue; /* ignore this one */
+      }
       if (strlen(src) + strlen(fdat.cFileName) >= sizeof(namebuf)) {
         tell_user(stderr, "%s: Name too long", src);
         continue;
@@ -1077,7 +1113,7 @@ static void tolocal(int argc, char *argv[])
   do_cmd(host, user, cmd);
   sfree(cmd);
 
-  sink(targ);
+  sink(targ, src);
 }
 
 /*
@@ -1187,6 +1223,7 @@ int main(int argc, char *argv[])
   flags = FLAG_STDERR;
   ssh_get_password = &get_password;
   init_winsock();
+  sk_init();
 
   for (i = 1; i < argc; i++) {
     if (argv[i][0] != '-')
@@ -1218,6 +1255,7 @@ int main(int argc, char *argv[])
   }
   argc -= i;
   argv += i;
+  back = NULL;
 
   if (list) {
     if (argc != 1)
@@ -1237,7 +1275,7 @@ int main(int argc, char *argv[])
       tolocal(argc, argv);
   }
 
-  if (connection_open) {
+  if (back != NULL && back->socket() != NULL) {
     char ch;
     back->special(TS_EOF);
     ssh_scp_recv(&ch, 1);
