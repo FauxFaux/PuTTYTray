@@ -1558,7 +1558,7 @@ void set_sbar(int total, int start, int page)
     SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
 }
 
-Context get_ctx()
+Context get_ctx(void)
 {
   HDC hdc;
   if (hwnd) {
@@ -1689,11 +1689,10 @@ void get_clip(void **p, int *len)
 void optimised_move(int to, int from, int lines)
 {
   RECT r;
-  int min, max, d;
+  int min, max;
 
   min = (to < from ? to : from);
   max = to + from - min;
-  d = max - min;
 
   r.left = 0;
   r.right = cols * font_width;

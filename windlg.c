@@ -44,8 +44,6 @@ static void mungestr(char *in, char *out)
 
 static void unmungestr(char *in, char *out)
 {
-  int candot = 0;
-
   while (*in) {
     if (*in == '%' && in[1] && in[2]) {
       int i, j;
@@ -235,7 +233,6 @@ static void load_settings(char *section, int do_host)
   }
 
   free(p);
-  RegCloseKey(subkey1);
 
   if (do_host) {
     char prot[10];
