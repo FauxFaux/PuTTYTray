@@ -214,6 +214,7 @@ static void usage(void)
   printf("Usage: plink [options] [user@]host [command]\n");
   printf("       (\"host\" can also be a PuTTY saved session name)\n");
   printf("Options:\n");
+  printf("  -V        print version information\n");
   printf("  -v        show verbose messages\n");
   printf("  -load sessname  Load settings from saved session\n");
   printf("  -ssh -telnet -rlogin -raw\n");
@@ -237,6 +238,12 @@ static void usage(void)
   printf("  -C        enable compression\n");
   printf("  -i key    private key file for authentication\n");
   printf("  -s        remote command is an SSH subsystem (SSH-2 only)\n");
+  exit(1);
+}
+
+static void version(void)
+{
+  printf("plink: %s\n", ver);
   exit(1);
 }
 
@@ -269,6 +276,7 @@ int main(int argc, char **argv)
    * Process the command line.
    */
   do_defaults(NULL, &cfg);
+  loaded_session = FALSE;
   default_protocol = cfg.protocol;
   default_port = cfg.port;
   errors = 0;
@@ -304,6 +312,8 @@ int main(int argc, char **argv)
       } else if (!strcmp(p, "-s")) {
         /* Save status to write to cfg later. */
         use_subsystem = 1;
+      } else if (!strcmp(p, "-V")) {
+        version();
       } else if (!strcmp(p, "-o")) {
         if (argc <= 1) {
           fprintf(stderr, "plink: option \"-o\" requires an argument\n");
@@ -386,13 +396,15 @@ int main(int argc, char **argv)
              */
             Config cfg2;
             do_defaults(p, &cfg2);
-            if (cfg2.host[0] == '\0') {
+            if (loaded_session || cfg2.host[0] == '\0') {
               /* No settings for this host; use defaults */
+              /* (or session was already loaded with -load) */
               strncpy(cfg.host, p, sizeof(cfg.host) - 1);
               cfg.host[sizeof(cfg.host) - 1] = '\0';
               cfg.port = default_port;
             } else {
               cfg = cfg2;
+              /* Ick: patch up internal pointer after copy */
               cfg.remote_cmd_ptr = cfg.remote_cmd;
             }
           } else {
@@ -547,8 +559,14 @@ int main(int argc, char **argv)
     /* nodelay is only useful if stdin is a terminal device */
     int nodelay = cfg.tcp_nodelay && isatty(0);
 
-    error = back->init(
-        NULL, &backhandle, &cfg, cfg.host, cfg.port, &realhost, nodelay);
+    error = back->init(NULL,
+                       &backhandle,
+                       &cfg,
+                       cfg.host,
+                       cfg.port,
+                       &realhost,
+                       nodelay,
+                       cfg.tcp_keepalives);
     if (error) {
       fprintf(stderr, "Unable to open connection:\n%s\n", error);
       return 1;

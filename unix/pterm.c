@@ -1600,7 +1600,7 @@ char *retrieve_cutbuffer(int *nbytes)
 {
   char *ptr;
   ptr = XFetchBytes(GDK_DISPLAY(), nbytes);
-  if (nbytes <= 0 && ptr != 0) {
+  if (*nbytes <= 0 && ptr != 0) {
     XFree(ptr);
     ptr = 0;
   }
@@ -1657,6 +1657,9 @@ void write_clip(void *frontend, wchar_t *data, int len, int must_deselect)
       memcpy(inst->pasteout_data_ctext, tp.value, tp.nitems);
       inst->pasteout_data_ctext_len = tp.nitems;
       XFree(tp.value);
+    } else {
+      inst->pasteout_data_ctext = NULL;
+      inst->pasteout_data_ctext_len = 0;
     }
   } else {
     inst->pasteout_data_utf8 = NULL;
@@ -3775,7 +3778,8 @@ int pt_main(int argc, char **argv)
                              inst->cfg.host,
                              inst->cfg.port,
                              &realhost,
-                             inst->cfg.tcp_nodelay);
+                             inst->cfg.tcp_nodelay,
+                             inst->cfg.tcp_keepalives);
 
     if (error) {
       char *msg = dupprintf(

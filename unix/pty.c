@@ -494,7 +494,8 @@ static const char *pty_init(void *frontend,
                             char *host,
                             int port,
                             char **realhost,
-                            int nodelay)
+                            int nodelay,
+                            int keepalive)
 {
   int slavefd;
   pid_t pid, pgrp;

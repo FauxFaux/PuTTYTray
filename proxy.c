@@ -366,6 +366,7 @@ Socket new_connection(SockAddr addr,
                       int privport,
                       int oobinline,
                       int nodelay,
+                      int keepalive,
                       Plug plug,
                       const Config *cfg)
 {
@@ -394,9 +395,15 @@ Socket new_connection(SockAddr addr,
     char *proxy_canonical_name;
     Socket sret;
 
-    if ((sret = platform_new_connection(
-             addr, hostname, port, privport, oobinline, nodelay, plug, cfg)) !=
-        NULL)
+    if ((sret = platform_new_connection(addr,
+                                        hostname,
+                                        port,
+                                        privport,
+                                        oobinline,
+                                        nodelay,
+                                        keepalive,
+                                        plug,
+                                        cfg)) != NULL)
       return sret;
 
     ret = snew(struct Socket_proxy_tag);
@@ -448,8 +455,13 @@ Socket new_connection(SockAddr addr,
     /* create the actual socket we will be using,
      * connected to our proxy server and port.
      */
-    ret->sub_socket = sk_new(
-        proxy_addr, cfg->proxy_port, privport, oobinline, nodelay, (Plug)pplug);
+    ret->sub_socket = sk_new(proxy_addr,
+                             cfg->proxy_port,
+                             privport,
+                             oobinline,
+                             nodelay,
+                             keepalive,
+                             (Plug)pplug);
     if (sk_socket_error(ret->sub_socket) != NULL)
       return (Socket)ret;
 
@@ -461,7 +473,7 @@ Socket new_connection(SockAddr addr,
   }
 
   /* no proxy, so just return the direct socket */
-  return sk_new(addr, port, privport, oobinline, nodelay, plug);
+  return sk_new(addr, port, privport, oobinline, nodelay, keepalive, plug);
 }
 
 Socket new_listener(

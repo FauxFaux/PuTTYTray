@@ -86,6 +86,7 @@ Socket new_connection(SockAddr addr,
                       int privport,
                       int oobinline,
                       int nodelay,
+                      int keepalive,
                       Plug plug,
                       const Config *cfg);
 Socket new_listener(
@@ -103,6 +104,7 @@ Socket platform_new_connection(SockAddr addr,
                                int privport,
                                int oobinline,
                                int nodelay,
+                               int keepalive,
                                Plug plug,
                                const Config *cfg);
 
@@ -128,8 +130,13 @@ void sk_addr_free(SockAddr addr);
 
 /* NB, control of 'addr' is passed via sk_new, which takes responsibility
  * for freeing it, as for new_connection() */
-Socket sk_new(
-    SockAddr addr, int port, int privport, int oobinline, int nodelay, Plug p);
+Socket sk_new(SockAddr addr,
+              int port,
+              int privport,
+              int oobinline,
+              int nodelay,
+              int keepalive,
+              Plug p);
 
 Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only);
 

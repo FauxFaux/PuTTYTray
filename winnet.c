@@ -707,6 +707,7 @@ Socket sk_new(SockAddr addr,
               int privport,
               int oobinline,
               int nodelay,
+              int keepalive,
               Plug plug)
 {
   static const struct socket_function_table fn_table = {sk_tcp_plug,
@@ -767,6 +768,11 @@ Socket sk_new(SockAddr addr,
   if (nodelay) {
     BOOL b = TRUE;
     p_setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (void *)&b, sizeof(b));
+  }
+
+  if (keepalive) {
+    BOOL b = TRUE;
+    p_setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, (void *)&b, sizeof(b));
   }
 
   /*
@@ -1392,4 +1398,12 @@ int net_service_lookup(char *service)
     return p_ntohs(se->s_port);
   else
     return 0;
+}
+
+SockAddr platform_get_x11_unix_address(int displaynum, char **canonicalname)
+{
+  SockAddr ret = snew(struct SockAddr_tag);
+  memset(ret, 0, sizeof(struct SockAddr_tag));
+  ret->error = "unix sockets not supported on this platform";
+  return ret;
 }

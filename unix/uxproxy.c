@@ -225,6 +225,7 @@ Socket platform_new_connection(SockAddr addr,
                                int privport,
                                int oobinline,
                                int nodelay,
+                               int keepalive,
                                Plug plug,
                                const Config *cfg)
 {

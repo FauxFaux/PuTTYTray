@@ -625,6 +625,7 @@ struct ssh_tag {
 
   void *frontend;
 
+  int ospeed, ispeed; /* temporaries */
   int term_width, term_height;
 
   tree234 *channels;            /* indexed by local id */
@@ -2194,7 +2195,7 @@ static void ssh_sent(Plug plug, int bufsize)
  * freed by the caller.
  */
 static const char *connect_to_host(
-    Ssh ssh, char *host, int port, char **realhost, int nodelay)
+    Ssh ssh, char *host, int port, char **realhost, int nodelay, int keepalive)
 {
   static const struct plug_function_table fn_table = {
       ssh_closing, ssh_receive, ssh_sent, NULL};
@@ -2231,7 +2232,7 @@ static const char *connect_to_host(
   }
   ssh->fn = &fn_table;
   ssh->s = new_connection(
-      addr, *realhost, port, 0, 1, nodelay, (Plug)ssh, &ssh->cfg);
+      addr, *realhost, port, 0, 1, nodelay, keepalive, (Plug)ssh, &ssh->cfg);
   if ((err = sk_socket_error(ssh->s)) != NULL) {
     ssh->s = NULL;
     return err;
@@ -3552,6 +3553,12 @@ static void ssh1_protocol(Ssh ssh, unsigned char *in, int inlen, int ispkt)
   }
 
   if (!ssh->cfg.nopty) {
+    /* Unpick the terminal-speed string. */
+    /* XXX perhaps we should allow no speeds to be sent. */
+    ssh->ospeed = 38400;
+    ssh->ispeed = 38400; /* last-resort defaults */
+    sscanf(ssh->cfg.termspeed, "%d,%d", &ssh->ospeed, &ssh->ispeed);
+    /* Send the pty request. */
     send_packet(ssh,
                 SSH1_CMSG_REQUEST_PTY,
                 PKT_STR,
@@ -3563,7 +3570,15 @@ static void ssh1_protocol(Ssh ssh, unsigned char *in, int inlen, int ispkt)
                 PKT_INT,
                 0,
                 PKT_INT,
-                0,
+                0, /* width,height in pixels */
+                PKT_CHAR,
+                192,
+                PKT_INT,
+                ssh->ispeed, /* TTY_OP_ISPEED */
+                PKT_CHAR,
+                193,
+                PKT_INT,
+                ssh->ospeed, /* TTY_OP_OSPEED */
                 PKT_CHAR,
                 0,
                 PKT_END);
@@ -3579,7 +3594,10 @@ static void ssh1_protocol(Ssh ssh, unsigned char *in, int inlen, int ispkt)
       c_write_str(ssh, "Server refused to allocate pty\r\n");
       ssh->editing = ssh->echoing = 1;
     }
-    logevent("Allocated pty");
+    logeventf(ssh,
+              "Allocated pty (ospeed %dbps, ispeed %dbps)",
+              ssh->ospeed,
+              ssh->ispeed);
   } else {
     ssh->editing = ssh->echoing = 1;
   }
@@ -5175,9 +5193,11 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen, int ispkt)
           } else {
             s->need_pw = FALSE;
           }
-          c_write_str(ssh, "Authenticating with public key \"");
-          c_write_str(ssh, comment);
-          c_write_str(ssh, "\"\r\n");
+          if (flags & FLAG_VERBOSE) {
+            c_write_str(ssh, "Authenticating with public key \"");
+            c_write_str(ssh, comment);
+            c_write_str(ssh, "\"\r\n");
+          }
           s->method = AUTH_PUBLICKEY_FILE;
         }
       }
@@ -5822,6 +5842,12 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen, int ispkt)
    * Now allocate a pty for the session.
    */
   if (!ssh->cfg.nopty) {
+    /* Unpick the terminal-speed string. */
+    /* XXX perhaps we should allow no speeds to be sent. */
+    ssh->ospeed = 38400;
+    ssh->ispeed = 38400; /* last-resort defaults */
+    sscanf(ssh->cfg.termspeed, "%d,%d", &ssh->ospeed, &ssh->ispeed);
+    /* Build the pty request. */
     ssh2_pkt_init(ssh, SSH2_MSG_CHANNEL_REQUEST);
     ssh2_pkt_adduint32(ssh, ssh->mainchan->remoteid); /* recipient channel */
     ssh2_pkt_addstring(ssh, "pty-req");
@@ -5832,7 +5858,11 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen, int ispkt)
     ssh2_pkt_adduint32(ssh, 0); /* pixel width */
     ssh2_pkt_adduint32(ssh, 0); /* pixel height */
     ssh2_pkt_addstring_start(ssh);
-    ssh2_pkt_addstring_data(ssh, "\0", 1); /* TTY_OP_END, no special options */
+    ssh2_pkt_addbyte(ssh, 128); /* TTY_OP_ISPEED */
+    ssh2_pkt_adduint32(ssh, ssh->ispeed);
+    ssh2_pkt_addbyte(ssh, 129); /* TTY_OP_OSPEED */
+    ssh2_pkt_adduint32(ssh, ssh->ospeed);
+    ssh2_pkt_addstring_data(ssh, "\0", 1); /* TTY_OP_END */
     ssh2_pkt_send(ssh);
     ssh->state = SSH_STATE_INTERMED;
 
@@ -5858,7 +5888,10 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen, int ispkt)
       c_write_str(ssh, "Server refused to allocate pty\r\n");
       ssh->editing = ssh->echoing = 1;
     } else {
-      logevent("Allocated pty");
+      logeventf(ssh,
+                "Allocated pty (ospeed %dbps, ispeed %dbps)",
+                ssh->ospeed,
+                ssh->ispeed);
     }
   } else {
     ssh->editing = ssh->echoing = 1;
@@ -6409,7 +6442,8 @@ static const char *ssh_init(void *frontend_handle,
                             char *host,
                             int port,
                             char **realhost,
-                            int nodelay)
+                            int nodelay,
+                            int keepalive)
 {
   const char *p;
   Ssh ssh;
@@ -6493,7 +6527,7 @@ static const char *ssh_init(void *frontend_handle,
 
   ssh->protocol = NULL;
 
-  p = connect_to_host(ssh, host, port, realhost, nodelay);
+  p = connect_to_host(ssh, host, port, realhost, nodelay, keepalive);
   if (p != NULL)
     return p;
 
