@@ -5,15 +5,14 @@
 #ifndef PUTTY_PUTTYMEM_H
 #define PUTTY_PUTTYMEM_H
 
-#include <stddef.h>		       /* for size_t */
-#include <string.h>		       /* for memcpy() */
-
+#include <stddef.h> /* for size_t */
+#include <string.h> /* for memcpy() */
 
 /* #define MALLOC_LOG  do this if you suspect putty of leaking memory */
 #ifdef MALLOC_LOG
-#define smalloc(z) (mlog(__FILE__,__LINE__), safemalloc(z))
-#define srealloc(y,z) (mlog(__FILE__,__LINE__), saferealloc(y,z))
-#define sfree(z) (mlog(__FILE__,__LINE__), safefree(z))
+#define smalloc(z) (mlog(__FILE__, __LINE__), safemalloc(z))
+#define srealloc(y, z) (mlog(__FILE__, __LINE__), saferealloc(y, z))
+#define sfree(z) (mlog(__FILE__, __LINE__), safefree(z))
 void mlog(char *, int);
 #else
 #define smalloc safemalloc
@@ -32,7 +31,7 @@ void safefree(void *);
  * structure and assign it to a different sort of pointer.
  */
 #define snew(type) ((type *)smalloc(sizeof(type)))
-#define snewn(n, type) ((type *)smalloc((n)*sizeof(type)))
-#define sresize(ptr, n, type) ((type *)srealloc(ptr, (n)*sizeof(type)))
+#define snewn(n, type) ((type *)smalloc((n) * sizeof(type)))
+#define sresize(ptr, n, type) ((type *)srealloc(ptr, (n) * sizeof(type)))
 
 #endif

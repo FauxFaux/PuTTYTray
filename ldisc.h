@@ -9,14 +9,14 @@
 #define PUTTY_LDISC_H
 
 typedef struct ldisc_tag {
-    Terminal *term;
-    Backend *back;
-    Config *cfg;
-    void *backhandle;
-    void *frontend;
+  Terminal *term;
+  Backend *back;
+  Config *cfg;
+  void *backhandle;
+  void *frontend;
 
-    char *buf;
-    int buflen, bufsiz, quotenext;
-} *Ldisc;
+  char *buf;
+  int buflen, bufsiz, quotenext;
+} * Ldisc;
 
 #endif /* PUTTY_LDISC_H */

@@ -40,43 +40,37 @@
 
 typedef unsigned char u_char;
 
-int
-strcasecmp(s1, s2)
-	const char *s1, *s2;
+int strcasecmp(s1, s2) const char *s1, *s2;
 {
-	const u_char *us1 = (const u_char *)s1,
-			*us2 = (const u_char *)s2;
+  const u_char *us1 = (const u_char *)s1, *us2 = (const u_char *)s2;
 
-	_DIAGASSERT(s1 != NULL);
-	_DIAGASSERT(s2 != NULL);
+  _DIAGASSERT(s1 != NULL);
+  _DIAGASSERT(s2 != NULL);
 
-	while (tolower(*us1) == tolower(*us2++))
-		if (*us1++ == '\0')
-			return (0);
-	return (tolower(*us1) - tolower(*--us2));
+  while (tolower(*us1) == tolower(*us2++))
+    if (*us1++ == '\0')
+      return (0);
+  return (tolower(*us1) - tolower(*--us2));
 }
 
-int
-strncasecmp(s1, s2, n)
-	const char *s1, *s2;
-	size_t n;
+int strncasecmp(s1, s2, n) const char *s1, *s2;
+size_t n;
 {
 
-	_DIAGASSERT(s1 != NULL);
-	_DIAGASSERT(s2 != NULL);
-	if (s1 == NULL || s2 == NULL)
-		return (0);
+  _DIAGASSERT(s1 != NULL);
+  _DIAGASSERT(s2 != NULL);
+  if (s1 == NULL || s2 == NULL)
+    return (0);
 
-	if (n != 0) {
-		const u_char *us1 = (const u_char *)s1,
-				*us2 = (const u_char *)s2;
+  if (n != 0) {
+    const u_char *us1 = (const u_char *)s1, *us2 = (const u_char *)s2;
 
-		do {
-			if (tolower(*us1) != tolower(*us2++))
-				return (tolower(*us1) - tolower(*--us2));
-			if (*us1++ == '\0')
-				break;
-		} while (--n != 0);
-	}
-	return (0);
+    do {
+      if (tolower(*us1) != tolower(*us2++))
+        return (tolower(*us1) - tolower(*--us2));
+      if (*us1++ == '\0')
+        break;
+    } while (--n != 0);
+  }
+  return (0);
 }
