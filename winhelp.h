@@ -3,7 +3,7 @@
  * in the PuTTY config box.
  */
 
-#define HELPCTX(x) P(WINHELP_CTX_ ## x)
+#define HELPCTX(x) P(WINHELP_CTX_##x)
 
 #define WINHELP_CTX_no_help NULL
 
@@ -105,7 +105,8 @@
 #define WINHELP_CTX_ssh_tunnels_x11 "ssh.tunnels.x11"
 #define WINHELP_CTX_ssh_tunnels_x11auth "ssh.tunnels.x11auth"
 #define WINHELP_CTX_ssh_tunnels_portfwd "ssh.tunnels.portfwd"
-#define WINHELP_CTX_ssh_tunnels_portfwd_localhost "ssh.tunnels.portfwd.localhost"
+#define WINHELP_CTX_ssh_tunnels_portfwd_localhost                              \
+  "ssh.tunnels.portfwd.localhost"
 #define WINHELP_CTX_ssh_bugs_ignore1 "ssh.bugs.ignore1"
 #define WINHELP_CTX_ssh_bugs_plainpw1 "ssh.bugs.plainpw1"
 #define WINHELP_CTX_ssh_bugs_rsa1 "ssh.bugs.rsa1"
