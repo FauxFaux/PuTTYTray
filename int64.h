@@ -6,7 +6,7 @@
 #define PUTTY_INT64_H
 
 typedef struct {
-    unsigned long hi, lo;
+  unsigned long hi, lo;
 } uint64, int64;
 
 uint64 uint64_div10(uint64 x, int *remainder);
