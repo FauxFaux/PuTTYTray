@@ -1,8 +1,7 @@
 #include <windows.h>
-#include <winreg.h>
-#include <tchar.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <tchar.h>
 
 #include "putty.h"
 #include "winstuff.h"
@@ -123,13 +122,12 @@ void UpdateSizeTip(HWND src, int cx, int cy)
 
       tip_class = RegisterClass(&wc);
     }
-
 #if 0
-        /* Default values based on Windows Standard color scheme */
+	/* Default values based on Windows Standard color scheme */
 
-        tip_font = GetStockObject(SYSTEM_FONT);
-        tip_bg = RGB(255, 255, 225);
-        tip_text = RGB(0, 0, 0);
+	tip_font = GetStockObject(SYSTEM_FONT);
+	tip_bg = RGB(255, 255, 225);
+	tip_text = RGB(0, 0, 0);
 #endif
 
     /* Prepare other GDI objects and drawing info */

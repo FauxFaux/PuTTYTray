@@ -556,22 +556,20 @@ static void blowfish_ssh2_decrypt_blk(unsigned char *blk, int len)
   blowfish_msb_decrypt_cbc(blk, len, &dctx);
 }
 
-struct ssh_cipher ssh_blowfish_ssh1 = {blowfish_sesskey,
-                                       blowfish_csiv,
-                                       blowfish_cskey,
-                                       blowfish_sciv,
-                                       blowfish_sckey,
-                                       blowfish_ssh1_encrypt_blk,
-                                       blowfish_ssh1_decrypt_blk,
-                                       "blowfish-cbc",
-                                       8};
+const struct ssh_cipher ssh_blowfish_ssh1 = {
+    blowfish_sesskey, blowfish_ssh1_encrypt_blk, blowfish_ssh1_decrypt_blk, 8};
 
-struct ssh_cipher ssh_blowfish_ssh2 = {blowfish_sesskey,
-                                       blowfish_csiv,
-                                       blowfish_cskey,
-                                       blowfish_sciv,
-                                       blowfish_sckey,
-                                       blowfish_ssh2_encrypt_blk,
-                                       blowfish_ssh2_decrypt_blk,
-                                       "blowfish-cbc",
-                                       8};
+static const struct ssh2_cipher ssh_blowfish_ssh2 = {blowfish_csiv,
+                                                     blowfish_cskey,
+                                                     blowfish_sciv,
+                                                     blowfish_sckey,
+                                                     blowfish_ssh2_encrypt_blk,
+                                                     blowfish_ssh2_decrypt_blk,
+                                                     "blowfish-cbc",
+                                                     8,
+                                                     128};
+
+static const struct ssh2_cipher *const blowfish_list[] = {&ssh_blowfish_ssh2};
+
+const struct ssh2_ciphers ssh2_blowfish = {
+    sizeof(blowfish_list) / sizeof(*blowfish_list), blowfish_list};

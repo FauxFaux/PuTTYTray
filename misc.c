@@ -1,9 +1,151 @@
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include "putty.h"
 
-/*
+/* ----------------------------------------------------------------------
+ * String handling routines.
+ */
+
+char *dupstr(char *s)
+{
+  int len = strlen(s);
+  char *p = smalloc(len + 1);
+  strcpy(p, s);
+  return p;
+}
+
+/* Allocate the concatenation of N strings. Terminate arg list with NULL. */
+char *dupcat(char *s1, ...)
+{
+  int len;
+  char *p, *q, *sn;
+  va_list ap;
+
+  len = strlen(s1);
+  va_start(ap, s1);
+  while (1) {
+    sn = va_arg(ap, char *);
+    if (!sn)
+      break;
+    len += strlen(sn);
+  }
+  va_end(ap);
+
+  p = smalloc(len + 1);
+  strcpy(p, s1);
+  q = p + strlen(p);
+
+  va_start(ap, s1);
+  while (1) {
+    sn = va_arg(ap, char *);
+    if (!sn)
+      break;
+    strcpy(q, sn);
+    q += strlen(q);
+  }
+  va_end(ap);
+
+  return p;
+}
+
+/* ----------------------------------------------------------------------
+ * Generic routines to deal with send buffers: a linked list of
+ * smallish blocks, with the operations
+ *
+ *  - add an arbitrary amount of data to the end of the list
+ *  - remove the first N bytes from the list
+ *  - return a (pointer,length) pair giving some initial data in
+ *    the list, suitable for passing to a send or write system
+ *    call
+ *  - return the current size of the buffer chain in bytes
+ */
+
+#define BUFFER_GRANULE 512
+
+struct bufchain_granule {
+  struct bufchain_granule *next;
+  int buflen, bufpos;
+  char buf[BUFFER_GRANULE];
+};
+
+void bufchain_init(bufchain *ch)
+{
+  ch->head = ch->tail = NULL;
+  ch->buffersize = 0;
+}
+
+void bufchain_clear(bufchain *ch)
+{
+  struct bufchain_granule *b;
+  while (ch->head) {
+    b = ch->head;
+    ch->head = ch->head->next;
+    sfree(b);
+  }
+  ch->tail = NULL;
+  ch->buffersize = 0;
+}
+
+int bufchain_size(bufchain *ch)
+{
+  return ch->buffersize;
+}
+
+void bufchain_add(bufchain *ch, void *data, int len)
+{
+  char *buf = (char *)data;
+
+  ch->buffersize += len;
+
+  if (ch->tail && ch->tail->buflen < BUFFER_GRANULE) {
+    int copylen = min(len, BUFFER_GRANULE - ch->tail->buflen);
+    memcpy(ch->tail->buf + ch->tail->buflen, buf, copylen);
+    buf += copylen;
+    len -= copylen;
+    ch->tail->buflen += copylen;
+  }
+  while (len > 0) {
+    int grainlen = min(len, BUFFER_GRANULE);
+    struct bufchain_granule *newbuf;
+    newbuf = smalloc(sizeof(struct bufchain_granule));
+    newbuf->bufpos = 0;
+    newbuf->buflen = grainlen;
+    memcpy(newbuf->buf, buf, grainlen);
+    buf += grainlen;
+    len -= grainlen;
+    if (ch->tail)
+      ch->tail->next = newbuf;
+    else
+      ch->head = ch->tail = newbuf;
+    newbuf->next = NULL;
+    ch->tail = newbuf;
+  }
+}
+
+void bufchain_consume(bufchain *ch, int len)
+{
+  assert(ch->buffersize >= len);
+  assert(ch->head != NULL && ch->head->bufpos + len <= ch->head->buflen);
+  ch->head->bufpos += len;
+  ch->buffersize -= len;
+  if (ch->head->bufpos >= ch->head->buflen) {
+    struct bufchain_granule *tmp = ch->head;
+    ch->head = tmp->next;
+    sfree(tmp);
+    if (!ch->head)
+      ch->tail = NULL;
+  }
+}
+
+void bufchain_prefix(bufchain *ch, void **data, int *len)
+{
+  *len = ch->head->buflen - ch->head->bufpos;
+  *data = ch->head->buf + ch->head->bufpos;
+}
+
+/* ----------------------------------------------------------------------
  * My own versions of malloc, realloc and free. Because I want
  * malloc and realloc to bomb out and exit the program if they run
  * out of memory, realloc to reliably call malloc if passed a NULL
@@ -56,13 +198,11 @@ static void minefield_init(void)
   int i;
 
   for (size = 0x40000000; size > 0; size = ((size >> 3) * 7) & ~0xFFF) {
-    printf("trying size=%d\n", size);
     minefield_region = VirtualAlloc(NULL, size, MEM_RESERVE, PAGE_NOACCESS);
     if (minefield_region)
       break;
   }
   minefield_size = size;
-  printf("got region %p size %d\n", minefield_region, minefield_size);
 
   /*
    * Firstly, allocate a section of that to be the admin block.
@@ -73,11 +213,6 @@ static void minefield_init(void)
   admin_size = (minefield_npages * 2 + PAGESIZE - 1) & ~(PAGESIZE - 1);
   minefield_npages = (minefield_size - admin_size) / PAGESIZE;
   minefield_pages = (char *)minefield_region + admin_size;
-  printf("admin at %p, pages at %p, npages %x, admin_size %x\n",
-         minefield_admin,
-         minefield_pages,
-         minefield_npages,
-         admin_size);
 
   /*
    * Commit the admin region.
@@ -244,8 +379,13 @@ static void *minefield_c_realloc(void *p, size_t size)
 #ifdef MALLOC_LOG
 static FILE *fp = NULL;
 
+static char *mlog_file = NULL;
+static int mlog_line = 0;
+
 void mlog(char *file, int line)
 {
+  mlog_file = file;
+  mlog_line = line;
   if (!fp) {
     fp = fopen("putty_mem.log", "w");
     setvbuf(fp, NULL, _IONBF, BUFSIZ);
@@ -264,10 +404,14 @@ void *safemalloc(size_t size)
   p = malloc(size);
 #endif
   if (!p) {
-    MessageBox(NULL,
-               "Out of memory!",
-               "PuTTY Fatal Error",
-               MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
+    char str[200];
+#ifdef MALLOC_LOG
+    sprintf(str, "Out of memory! (%s:%d, size=%d)", mlog_file, mlog_line, size);
+#else
+    strcpy(str, "Out of memory!");
+#endif
+    MessageBox(
+        NULL, str, "PuTTY Fatal Error", MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
     exit(1);
   }
 #ifdef MALLOC_LOG
@@ -294,10 +438,14 @@ void *saferealloc(void *ptr, size_t size)
 #endif
   }
   if (!p) {
-    MessageBox(NULL,
-               "Out of memory!",
-               "PuTTY Fatal Error",
-               MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
+    char str[200];
+#ifdef MALLOC_LOG
+    sprintf(str, "Out of memory! (%s:%d, size=%d)", mlog_file, mlog_line, size);
+#else
+    strcpy(str, "Out of memory!");
+#endif
+    MessageBox(
+        NULL, str, "PuTTY Fatal Error", MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
     exit(1);
   }
 #ifdef MALLOC_LOG
@@ -326,15 +474,17 @@ void safefree(void *ptr)
 #endif
 }
 
+/* ----------------------------------------------------------------------
+ * Debugging routines.
+ */
+
 #ifdef DEBUG
 static FILE *debug_fp = NULL;
 static int debug_got_console = 0;
 
-void dprintf(char *fmt, ...)
+static void dputs(char *buf)
 {
-  char buf[2048];
   DWORD dw;
-  va_list ap;
 
   if (!debug_got_console) {
     AllocConsole();
@@ -344,11 +494,54 @@ void dprintf(char *fmt, ...)
     debug_fp = fopen("debug.log", "w");
   }
 
-  va_start(ap, fmt);
-  vsprintf(buf, fmt, ap);
   WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), buf, strlen(buf), &dw, NULL);
   fputs(buf, debug_fp);
   fflush(debug_fp);
+}
+
+void dprintf(char *fmt, ...)
+{
+  char buf[2048];
+  va_list ap;
+
+  va_start(ap, fmt);
+  vsprintf(buf, fmt, ap);
+  dputs(buf);
   va_end(ap);
 }
-#endif
+
+void debug_memdump(void *buf, int len, int L)
+{
+  int i;
+  unsigned char *p = buf;
+  char foo[17];
+  if (L) {
+    int delta;
+    dprintf("\t%d (0x%x) bytes:\n", len, len);
+    delta = 15 & (int)p;
+    p -= delta;
+    len += delta;
+  }
+  for (; 0 < len; p += 16, len -= 16) {
+    dputs("  ");
+    if (L)
+      dprintf("%p: ", p);
+    strcpy(foo, "................"); /* sixteen dots */
+    for (i = 0; i < 16 && i < len; ++i) {
+      if (&p[i] < (unsigned char *)buf) {
+        dputs("   "); /* 3 spaces */
+        foo[i] = ' ';
+      } else {
+        dprintf("%c%02.2x",
+                &p[i] != (unsigned char *)buf && i % 4 ? '.' : ' ',
+                p[i]);
+        if (p[i] >= ' ' && p[i] <= '~')
+          foo[i] = (char)p[i];
+      }
+    }
+    foo[i] = '\0';
+    dprintf("%*s%s\n", (16 - i) * 3 + 2, "", foo);
+  }
+}
+
+#endif /* def DEBUG */

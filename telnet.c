@@ -176,6 +176,11 @@ static struct Opt *opts[] = {&o_naws,
                              &o_they_sga,
                              NULL};
 
+#define TELNET_MAX_BACKLOG 4096
+
+static int echoing = TRUE, editing = TRUE;
+static int activated = FALSE;
+static int telnet_bufsize;
 static int in_synch;
 static int sb_opt, sb_len;
 static char *sb_buf = NULL;
@@ -184,8 +189,10 @@ static int sb_size = 0;
 
 static void c_write1(int c)
 {
+  int backlog;
   char cc = (char)c;
-  from_backend(0, &cc, 1);
+  backlog = from_backend(0, &cc, 1);
+  sk_set_frozen(s, backlog > TELNET_MAX_BACKLOG);
 }
 
 static void log_option(char *sender, int cmd, int option)
@@ -210,7 +217,7 @@ static void send_opt(int cmd, int option)
   b[0] = IAC;
   b[1] = cmd;
   b[2] = option;
-  sk_write(s, b, 3);
+  telnet_bufsize = sk_write(s, b, 3);
   log_option("client", cmd, option);
 }
 
@@ -226,8 +233,28 @@ static void deactivate_option(struct Opt *o)
  */
 static void option_side_effects(struct Opt *o, int enabled)
 {
-  if (o->option == TELOPT_ECHO && cfg.ldisc_term)
-    ldisc = enabled ? &ldisc_simple : &ldisc_term;
+  if (o->option == TELOPT_ECHO && o->send == DO)
+    echoing = !enabled;
+  else if (o->option == TELOPT_SGA && o->send == DO)
+    editing = !enabled;
+  ldisc_send(NULL, 0, 0); /* cause ldisc to notice the change */
+
+  /* Ensure we get the minimum options */
+  if (!activated) {
+    if (o_echo.state == INACTIVE) {
+      o_echo.state = REQUESTED;
+      send_opt(o_echo.send, o_echo.option);
+    }
+    if (o_we_sga.state == INACTIVE) {
+      o_we_sga.state = REQUESTED;
+      send_opt(o_we_sga.send, o_we_sga.option);
+    }
+    if (o_they_sga.state == INACTIVE) {
+      o_they_sga.state = REQUESTED;
+      send_opt(o_they_sga.send, o_they_sga.option);
+    }
+    activated = TRUE;
+  }
 }
 
 static void activate_option(struct Opt *o)
@@ -322,7 +349,7 @@ static void process_subneg(void)
       n = 4 + strlen(cfg.termspeed);
       b[n] = IAC;
       b[n + 1] = SE;
-      sk_write(s, b, n + 2);
+      telnet_bufsize = sk_write(s, b, n + 2);
       logevent("server:\tSB TSPEED SEND");
       sprintf(logbuf, "client:\tSB TSPEED IS %s", cfg.termspeed);
       logevent(logbuf);
@@ -342,7 +369,7 @@ static void process_subneg(void)
                         : cfg.termtype[n]);
       b[n + 4] = IAC;
       b[n + 5] = SE;
-      sk_write(s, b, n + 6);
+      telnet_bufsize = sk_write(s, b, n + 6);
       b[n + 4] = 0;
       logevent("server:\tSB TTYPE SEND");
       sprintf(logbuf, "client:\tSB TTYPE IS %s", b + 4);
@@ -418,7 +445,7 @@ static void process_subneg(void)
       }
       b[n++] = IAC;
       b[n++] = SE;
-      sk_write(s, b, n);
+      telnet_bufsize = sk_write(s, b, n);
       sprintf(logbuf,
               "client:\tSB %s IS %s",
               telopt(sb_opt),
@@ -551,16 +578,33 @@ static void do_telnet_read(char *buf, int len)
   }
 }
 
-static int telnet_receive(Socket s, int urgent, char *data, int len)
+static int telnet_closing(Plug plug,
+                          char *error_msg,
+                          int error_code,
+                          int calling_back)
 {
-  if (!len) {
-    /* Connection has closed. */
+  if (s) {
     sk_close(s);
     s = NULL;
-    return 0;
   }
+  if (error_msg) {
+    /* A socket error has occurred. */
+    connection_fatal(error_msg);
+  } /* Otherwise, the remote side closed the connection normally. */
+  return 0;
+}
+
+static int telnet_receive(Plug plug, int urgent, char *data, int len)
+{
+  if (urgent)
+    in_synch = TRUE;
   do_telnet_read(data, len);
   return 1;
+}
+
+static void telnet_sent(Plug plug, int bufsize)
+{
+  telnet_bufsize = bufsize;
 }
 
 /*
@@ -568,16 +612,27 @@ static int telnet_receive(Socket s, int urgent, char *data, int len)
  *
  * Returns an error message, or NULL on success.
  *
- * Also places the canonical host name into `realhost'.
+ * Also places the canonical host name into `realhost'. It must be
+ * freed by the caller.
  */
-static char *telnet_init(char *host, int port, char **realhost)
+static char *telnet_init(char *host, int port, char **realhost, int nodelay)
 {
+  static struct plug_function_table fn_table = {telnet_closing,
+                                                telnet_receive,
+                                                telnet_sent},
+                                    *fn_table_ptr = &fn_table;
+
   SockAddr addr;
   char *err;
 
   /*
    * Try to find host.
    */
+  {
+    char buf[200];
+    sprintf(buf, "Looking up host \"%.170s\"", host);
+    logevent(buf);
+  }
   addr = sk_namelookup(host, realhost);
   if ((err = sk_addr_error(addr)))
     return err;
@@ -588,7 +643,13 @@ static char *telnet_init(char *host, int port, char **realhost)
   /*
    * Open socket.
    */
-  s = sk_new(addr, port, telnet_receive);
+  {
+    char buf[200], addrbuf[100];
+    sk_getaddr(addr, addrbuf, 100);
+    sprintf(buf, "Connecting to %.100s port %d", addrbuf, port);
+    logevent(buf);
+  }
+  s = sk_new(addr, port, 0, 1, nodelay, &fn_table_ptr);
   if ((err = sk_socket_error(s)))
     return err;
 
@@ -597,7 +658,7 @@ static char *telnet_init(char *host, int port, char **realhost)
   /*
    * Initialise option states.
    */
-  if (cfg.ldisc_term) {
+  if (cfg.passive_telnet) {
     struct Opt **o;
 
     for (o = opts; *o; o++)
@@ -609,6 +670,7 @@ static char *telnet_init(char *host, int port, char **realhost)
     for (o = opts; *o; o++)
       if ((*o)->state == REQUESTED)
         send_opt((*o)->send, (*o)->option);
+    activated = TRUE;
   }
 
   /*
@@ -616,26 +678,23 @@ static char *telnet_init(char *host, int port, char **realhost)
    */
   in_synch = FALSE;
 
-  /*
-   * We have no pre-session phase.
-   */
-  begin_session();
-
   return NULL;
 }
 
 /*
  * Called to send data down the Telnet connection.
  */
-static void telnet_send(char *buf, int len)
+static int telnet_send(char *buf, int len)
 {
   char *p;
   static unsigned char iac[2] = {IAC, IAC};
   static unsigned char cr[2] = {CR, NUL};
-  static unsigned char nl[2] = {CR, LF};
+#if 0
+    static unsigned char nl[2] = { CR, LF };
+#endif
 
   if (s == NULL)
-    return;
+    return 0;
 
   p = buf;
   while (p < buf + len) {
@@ -643,13 +702,23 @@ static void telnet_send(char *buf, int len)
 
     while (iswritable((unsigned char)*p) && p < buf + len)
       p++;
-    sk_write(s, q, p - q);
+    telnet_bufsize = sk_write(s, q, p - q);
 
     while (p < buf + len && !iswritable((unsigned char)*p)) {
-      sk_write(s, (unsigned char)*p == IAC ? iac : nl, 2);
+      telnet_bufsize = sk_write(s, (unsigned char)*p == IAC ? iac : cr, 2);
       p++;
     }
   }
+
+  return telnet_bufsize;
+}
+
+/*
+ * Called to query the current socket sendability status.
+ */
+static int telnet_sendbuffer(void)
+{
+  return telnet_bufsize;
 }
 
 /*
@@ -671,7 +740,7 @@ static void telnet_size(void)
   b[6] = rows & 0xFF;
   b[7] = IAC;
   b[8] = SE;
-  sk_write(s, b, 9);
+  telnet_bufsize = sk_write(s, b, 9);
   sprintf(logbuf,
           "client:\tSB NAWS %d,%d",
           ((unsigned char)b[3] << 8) + (unsigned char)b[4],
@@ -693,56 +762,59 @@ static void telnet_special(Telnet_Special code)
   switch (code) {
   case TS_AYT:
     b[1] = AYT;
-    sk_write(s, b, 2);
+    telnet_bufsize = sk_write(s, b, 2);
     break;
   case TS_BRK:
     b[1] = BREAK;
-    sk_write(s, b, 2);
+    telnet_bufsize = sk_write(s, b, 2);
     break;
   case TS_EC:
     b[1] = EC;
-    sk_write(s, b, 2);
+    telnet_bufsize = sk_write(s, b, 2);
     break;
   case TS_EL:
     b[1] = EL;
-    sk_write(s, b, 2);
+    telnet_bufsize = sk_write(s, b, 2);
     break;
   case TS_GA:
     b[1] = GA;
-    sk_write(s, b, 2);
+    telnet_bufsize = sk_write(s, b, 2);
     break;
   case TS_NOP:
     b[1] = NOP;
-    sk_write(s, b, 2);
+    telnet_bufsize = sk_write(s, b, 2);
     break;
   case TS_ABORT:
     b[1] = ABORT;
-    sk_write(s, b, 2);
+    telnet_bufsize = sk_write(s, b, 2);
     break;
   case TS_AO:
     b[1] = AO;
-    sk_write(s, b, 2);
+    telnet_bufsize = sk_write(s, b, 2);
     break;
   case TS_IP:
     b[1] = IP;
-    sk_write(s, b, 2);
+    telnet_bufsize = sk_write(s, b, 2);
     break;
   case TS_SUSP:
     b[1] = SUSP;
-    sk_write(s, b, 2);
+    telnet_bufsize = sk_write(s, b, 2);
     break;
   case TS_EOR:
     b[1] = EOR;
-    sk_write(s, b, 2);
+    telnet_bufsize = sk_write(s, b, 2);
     break;
   case TS_EOF:
     b[1] = xEOF;
-    sk_write(s, b, 2);
+    telnet_bufsize = sk_write(s, b, 2);
+    break;
+  case TS_EOL:
+    telnet_bufsize = sk_write(s, "\r\n", 2);
     break;
   case TS_SYNCH:
     b[1] = DM;
-    sk_write(s, b, 1);
-    sk_write_oob(s, b + 1, 1);
+    telnet_bufsize = sk_write(s, b, 1);
+    telnet_bufsize = sk_write_oob(s, b + 1, 1);
     break;
   case TS_RECHO:
     if (o_echo.state == INACTIVE || o_echo.state == REALLY_INACTIVE) {
@@ -759,7 +831,7 @@ static void telnet_special(Telnet_Special code)
   case TS_PING:
     if (o_they_sga.state == ACTIVE) {
       b[1] = NOP;
-      sk_write(s, b, 2);
+      telnet_bufsize = sk_write(s, b, 2);
     }
     break;
   }
@@ -775,10 +847,34 @@ static int telnet_sendok(void)
   return 1;
 }
 
+static void telnet_unthrottle(int backlog)
+{
+  sk_set_frozen(s, backlog > TELNET_MAX_BACKLOG);
+}
+
+static int telnet_ldisc(int option)
+{
+  if (option == LD_ECHO)
+    return echoing;
+  if (option == LD_EDIT)
+    return editing;
+  return FALSE;
+}
+
+static int telnet_exitcode(void)
+{
+  /* Telnet doesn't transmit exit codes back to the client */
+  return 0;
+}
+
 Backend telnet_backend = {telnet_init,
                           telnet_send,
+                          telnet_sendbuffer,
                           telnet_size,
                           telnet_special,
                           telnet_socket,
+                          telnet_exitcode,
                           telnet_sendok,
+                          telnet_ldisc,
+                          telnet_unthrottle,
                           23};

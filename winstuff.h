@@ -25,8 +25,19 @@ struct ctlpos {
   int dlu4inpix;
   int ypos, width;
   int xoff;
-  int boxystart, boxid, boxtextid;
+  int boxystart, boxid;
   char *boxtext;
+};
+
+/*
+ * Private structure for prefslist state. Only in the header file
+ * so that we can delegate allocation to callers.
+ */
+struct prefslist {
+  int listid, upbid, dnbid;
+  int srcitem;
+  int dummyitem;
+  int dragging;
 };
 
 void ctlposinit(struct ctlpos *cp,
@@ -34,7 +45,7 @@ void ctlposinit(struct ctlpos *cp,
                 int leftborder,
                 int rightborder,
                 int topborder);
-void doctl(struct ctlpos *cp,
+HWND doctl(struct ctlpos *cp,
            RECT r,
            char *wclass,
            int wstyle,
@@ -42,16 +53,25 @@ void doctl(struct ctlpos *cp,
            char *wtext,
            int wid);
 void bartitle(struct ctlpos *cp, char *name, int id);
-void beginbox(struct ctlpos *cp, char *name, int idbox, int idtext);
+void beginbox(struct ctlpos *cp, char *name, int idbox);
 void endbox(struct ctlpos *cp);
 void multiedit(struct ctlpos *cp, ...);
 void radioline(struct ctlpos *cp, char *text, int id, int nacross, ...);
+void bareradioline(struct ctlpos *cp, int nacross, ...);
 void radiobig(struct ctlpos *cp, char *text, int id, ...);
 void checkbox(struct ctlpos *cp, char *text, int id);
-void statictext(struct ctlpos *cp, char *text, int id);
+void statictext(struct ctlpos *cp, char *text, int lines, int id);
 void staticbtn(struct ctlpos *cp, char *stext, int sid, char *btext, int bid);
+void static2btn(struct ctlpos *cp,
+                char *stext,
+                int sid,
+                char *btext1,
+                int bid1,
+                char *btext2,
+                int bid2);
 void staticedit(
     struct ctlpos *cp, char *stext, int sid, int eid, int percentedit);
+void combobox(struct ctlpos *cp, char *text, int staticid, int listid);
 void staticpassedit(
     struct ctlpos *cp, char *stext, int sid, int eid, int percentedit);
 void bigeditctrl(struct ctlpos *cp, char *stext, int sid, int eid, int lines);
@@ -90,4 +110,30 @@ void colouredit(struct ctlpos *cp,
                 char *btext,
                 int bid,
                 ...);
+void prefslist(struct prefslist *hdl,
+               struct ctlpos *cp,
+               char *stext,
+               int sid,
+               int listid,
+               int upbid,
+               int dnbid);
+int handle_prefslist(struct prefslist *hdl,
+                     int *array,
+                     int maxmemb,
+                     int is_dlmsg,
+                     HWND hwnd,
+                     WPARAM wParam,
+                     LPARAM lParam);
 void progressbar(struct ctlpos *cp, int id);
+void fwdsetter(struct ctlpos *cp,
+               int listid,
+               char *stext,
+               int sid,
+               char *e1stext,
+               int e1sid,
+               int e1id,
+               char *e2stext,
+               int e2sid,
+               int e2id,
+               char *btext,
+               int bid);
