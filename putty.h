@@ -177,7 +177,7 @@ void do_text(Context, int, int, char *, int, unsigned long);
 void set_title(char *);
 void set_icon(char *);
 void set_sbar(int, int, int);
-Context get_ctx();
+Context get_ctx(void);
 void free_ctx(Context);
 void palette_set(int, int, int, int);
 void palette_reset(void);
@@ -227,13 +227,13 @@ void term_invalidate(void);
  * Exports from telnet.c.
  */
 
-Backend telnet_backend;
+extern Backend telnet_backend;
 
 /*
  * Exports from ssh.c.
  */
 
-Backend ssh_backend;
+extern Backend ssh_backend;
 
 /*
  * Exports from sshrand.c.

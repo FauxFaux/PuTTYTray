@@ -101,7 +101,6 @@ static void c_write(char *buf, int len)
 {
   while (len--) {
     int new_head = (inbuf_head + 1) & INBUF_MASK;
-    int c = (unsigned char)*buf;
     if (new_head != inbuf_reap) {
       inbuf[inbuf_head] = *buf++;
       inbuf_head = new_head;
@@ -127,10 +126,8 @@ static void ssh_size(void);
 static void ssh_gotdata(unsigned char *data, int datalen)
 {
   static long len, biglen, to_read;
-  static unsigned char c, *p;
+  static unsigned char *p;
   static int i, pad;
-  static char padding[8];
-  static unsigned char word[4];
 
   crBegin;
   while (1) {
