@@ -1,24 +1,11 @@
-# $Id$
-
 # version.c:20 version.c:21 window.c:1207
 msgid " "
 msgstr ""
 
-# ssh.c:2399
-msgid "      "
-msgstr ""
-
 # unicode.c:567
-msgid " !cL.Y|S\"Ca<--R~o+23'u|.,1o>///?AAAAAAACEEEEIIIIDNOOOOOxOUUUUYPBaaaaa"
-"aaceeeeiiiionooooo/ouuuuypy"
-msgstr ""
-
-# ssh.c:1625
-msgid " %02x"
-msgstr ""
-
-# ssh.c:2897
-msgid " ("
+msgid ""
+" !cL.Y|S\"Ca<--R~o+23'u|.,1o>///?"
+"AAAAAAACEEEEIIIIDNOOOOOxOUUUUYPBaaaaaaaceeeeiiiionooooo/ouuuuypy"
 msgstr ""
 
 # unicode.c:488
@@ -48,10 +35,6 @@ msgstr "%.70s Ä¡¸íÀû ¿¡·¯"
 # window.c:4454
 msgid "%.70s Sound Error"
 msgstr "%.70s »ç¿îµå ½Ã½ºÅÛ ¿¡·¯"
-
-# ssh.c:2814 ssh.c:5052
-msgid "%.90s@%.90s's password: "
-msgstr "%.90s@%.90s ÀÇ ºñ¹Ð¹øÈ£: "
 
 # unicode.c:492
 msgid "%04x%s"
@@ -165,40 +148,25 @@ msgstr "ÀüÃ¼ È­¸é (&F)"
 msgid "&Help"
 msgstr "µµ¿ò¸»(&H)"
 
-# ssh.c:3325 ssh.c:3328 ssh.c:3337 ssh.c:3357 ssh.c:3360 ssh.c:5441
-# ssh.c:5444 ssh.c:5453 ssh.c:5472 ssh.c:5475
-msgid "("
-msgstr ""
+# config.c:1421
+msgid "&Paste"
+msgstr "ºÙ¿©³Ö±â (&P)"
 
 # config.c:877
-msgid "(Log file name can contain &Y, &M, &D for date, &T for time, and &H fo"
-"r host name)"
-msgstr "(·Î±× ÆÄÀÏ ÀÌ¸§¿£ ³¯Â¥´Â &Y, &M, &D, ½Ã°£Àº &T, È£½ºÆ® ÀÌ¸§À¸·Î´Â &H¸¦"
-" ¾µ ¼ö ÀÖ½À´Ï´Ù)"
-
-# ssh.c:4082 ssh.c:4108
-msgid "(null)"
-msgstr "(¾øÀ½)"
+msgid ""
+"(Log file name can contain &Y, &M, &D for date, &T for time, and &H for host "
+"name)"
+msgstr ""
+"(·Î±× ÆÄÀÏ ÀÌ¸§¿£ ³¯Â¥´Â &Y, &M, &D, ½Ã°£Àº &T, È£½ºÆ® ÀÌ¸§À¸·Î´Â &H¸¦ ¾µ ¼ö "
+"ÀÖ½À´Ï´Ù)"
 
 # ssh.c:3325 ssh.c:3328 ssh.c:3337 ssh.c:3357 ssh.c:3360 ssh.c:5441
 # ssh.c:5444 ssh.c:5453 ssh.c:5472 ssh.c:5475 window.c:3865
 msgid ")"
 msgstr ""
 
-# ssh.c:2899
-msgid ").\r\n"
-msgstr ""
-
-# ssh.c:5112
-msgid ")\r\n"
-msgstr ""
-
 # window.c:3197
 msgid "*"
-msgstr ""
-
-# ssh.c:1820 ssh.c:1833
-msgid "* VShell"
 msgstr ""
 
 # unicode.c:568
@@ -275,10 +243,6 @@ msgstr ""
 msgid ", U"
 msgstr ""
 
-# ssh.c:1772 ssh.c:1774
-msgid "-"
-msgstr ""
-
 # config.c:96
 msgid "-- warn below here --"
 msgstr "-- ÀÌÇÏ´Â À§ÇèÇÔ --"
@@ -339,10 +303,6 @@ msgstr ""
 msgid "0,255,0"
 msgstr ""
 
-# ssh.c:5482
-msgid "0.0.0.0"
-msgstr ""
-
 # winstore.c:16
 msgid "0123456789ABCDEF"
 msgstr ""
@@ -365,38 +325,6 @@ msgstr ""
 
 # settings.c:568
 msgid "1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,2"
-msgstr ""
-
-# ssh.c:1781
-msgid "1.2.18"
-msgstr ""
-
-# ssh.c:1781
-msgid "1.2.19"
-msgstr ""
-
-# ssh.c:1782
-msgid "1.2.20"
-msgstr ""
-
-# ssh.c:1782
-msgid "1.2.21"
-msgstr ""
-
-# ssh.c:1783
-msgid "1.2.22"
-msgstr ""
-
-# ssh.c:1988 ssh.c:1988
-msgid "1.5"
-msgstr ""
-
-# ssh.c:1951
-msgid "1.99"
-msgstr ""
-
-# ssh.c:5484
-msgid "127.0.0.1"
 msgstr ""
 
 # settings.c:544
@@ -425,38 +353,6 @@ msgstr "SSH2¸¸"
 
 # settings.c:572 settings.c:573
 msgid "2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2"
-msgstr ""
-
-# ssh.c:1949
-msgid "2.0"
-msgstr ""
-
-# ssh.c:1821
-msgid "2.0.*"
-msgstr ""
-
-# ssh.c:1834
-msgid "2.0.0*"
-msgstr ""
-
-# ssh.c:1834
-msgid "2.0.10*"
-msgstr ""
-
-# ssh.c:1823
-msgid "2.1 *"
-msgstr ""
-
-# ssh.c:1821
-msgid "2.1.0*"
-msgstr ""
-
-# ssh.c:1822
-msgid "2.2.0*"
-msgstr ""
-
-# ssh.c:1822
-msgid "2.3.0*"
 msgstr ""
 
 # settings.c:543 settings.c:547
@@ -508,10 +404,6 @@ msgstr ""
 msgid ":"
 msgstr ""
 
-# ssh.c:5040
-msgid "<server failed to send prompt>: "
-msgstr "<ÇÁ·ÒÇÁÆ® º¸³»±â ½ÇÆÐ>: "
-
 # winstore.c:297
 msgid "@"
 msgstr ""
@@ -519,10 +411,6 @@ msgstr ""
 # config.c:95
 msgid "AES (SSH 2 only)"
 msgstr "AES (SSH2 ¸¸)"
-
-# ssh.c:2476
-msgid "AES not supported in SSH1, skipping"
-msgstr ""
 
 # window.c:3191
 msgid "ALT"
@@ -600,18 +488,6 @@ msgstr "µµ¿ò"
 msgid "About %s"
 msgstr "%s¿¡ ´ëÇØ"
 
-# ssh.c:4701
-msgid "Access denied"
-msgstr "Á¢¼ÓÀÌ °ÅºÎµÊ"
-
-# ssh.c:3087 ssh.c:4700
-msgid "Access denied\r\n"
-msgstr "Á¢¼ÓÀÌ °ÅºÎµÊ\r\n"
-
-# ssh.c:4634
-msgid "Access granted"
-msgstr "Á¢¼ÓÀÌ Çã¿ëµÊ"
-
 # wincfg.c:249
 msgid "Action of mouse buttons:"
 msgstr "¸¶¿ì½º ¹öÆ° Æ¯¼º:"
@@ -636,6 +512,10 @@ msgstr "Æ÷¿öµåµÉ Æ÷Æ® Ãß°¡:"
 msgid "Adjust how %s displays line drawing characters"
 msgstr "%s°¡ ¼±±×¸² ¹®ÀÚ¸¦ Ãâ·ÂÇÏ´Â ¹æ¹ý"
 
+# config.c:1152 wincfg.c:192
+msgid "Adjust how %s handles line drawing characters"
+msgstr "%s°¡ ¼±±×¸² ¹®ÀÚ¸¦ ´Ù·ç´Â ¹æ¹ý"
+
 # config.c:1125
 msgid "Adjust the behaviour of the window title"
 msgstr "Ã¢ Á¦¸ñ Á¶Àý"
@@ -656,32 +536,8 @@ msgstr "¸¶¿ì½º Æ÷ÀÎÅÍ µ¿ÀÛ Á¶Àý"
 msgid "Adjust the window border"
 msgstr "Ã¢Æ² Á¶Àý"
 
-# ssh.c:3210 ssh.c:5548
-msgid "Agent forwarding enabled"
-msgstr ""
-
-# ssh.c:6038
-msgid "Agent forwarding is not enabled"
-msgstr ""
-
-# ssh.c:3208 ssh.c:5546
-msgid "Agent forwarding refused"
-msgstr ""
-
 # settings.c:222 settings.c:474
 msgid "AgentFwd"
-msgstr ""
-
-# ssh.c:5822
-msgid "All channels closed. Disconnecting"
-msgstr ""
-
-# ssh.c:5837
-msgid "All open channels closed"
-msgstr ""
-
-# ssh.c:3402 ssh.c:5592
-msgid "Allocated pty"
 msgstr ""
 
 # config.c:1521
@@ -780,14 +636,6 @@ msgstr ""
 msgid "AuthTIS"
 msgstr ""
 
-# ssh.c:2729
-msgid "Authenticated using RSA key \""
-msgstr "¿¡ÀÌÀüÆ®·Î ÀÎÁõµÇ¾ú½À´Ï´Ù: RSA Å° \""
-
-# ssh.c:4816 ssh.c:4958
-msgid "Authenticating with public key \""
-msgstr "¿¡ÀÌÀüÆ®·Î ÀÎÁõµÇ¾ú½À´Ï´Ù: °ø°³ Å° \""
-
 # config.c:1509
 msgid "Authentication methods"
 msgstr "ÀÎÁõ ¹æ¹ý"
@@ -795,14 +643,6 @@ msgstr "ÀÎÁõ ¹æ¹ý"
 # config.c:1520
 msgid "Authentication parameters"
 msgstr "ÀÎÁõ ÀÎÀÚ"
-
-# ssh.c:3088
-msgid "Authentication refused"
-msgstr ""
-
-# ssh.c:3095
-msgid "Authentication successful"
-msgstr ""
 
 # config.c:188 config.c:917 config.c:923 config.c:1337
 msgid "Auto"
@@ -872,14 +712,6 @@ msgstr ""
 msgid "BellWaveFile"
 msgstr ""
 
-# ssh.c:2957
-msgid "Bizarre response to RSA authentication response"
-msgstr ""
-
-# ssh.c:2921
-msgid "Bizarre response to offer of public key"
-msgstr ""
-
 # settings.c:265 settings.c:519
 msgid "BlinkCur"
 msgstr ""
@@ -911,10 +743,6 @@ msgstr ""
 # config.c:1220
 msgid "Bolded text is a different colour"
 msgstr "±½Àº ±Û¾¾¸¦ ´Ù¸¥ »ö±ò·Î Ç¥½Ã (B)"
-
-# ssh.c:6404
-msgid "Break"
-msgstr ""
 
 # settings.c:350 settings.c:646
 msgid "BugDHGEx2"
@@ -967,6 +795,10 @@ msgstr ""
 # unicode.c:404
 msgid "CP437"
 msgstr ""
+
+# unicode.c:430
+msgid "CP620 (Mazovia)"
+msgstr "CP620 (¸¶Á¶ºñ¾Æ)"
 
 # unicode.c:405
 msgid "CP819"
@@ -1060,10 +892,6 @@ msgstr "SSH1 ¹«½Ã ¸Þ½ÃÁö ¹®Á¦ (I)"
 msgid "Cipher"
 msgstr ""
 
-# ssh.c:1783 ssh.c:1796 ssh.c:1808
-msgid "Cisco-1.25"
-msgstr ""
-
 # config.c:838
 msgid "Close window on exit:"
 msgstr "Á¾·á½Ã¿¡ Ã¢À» ´ÝÀ½ (W):"
@@ -1088,6 +916,10 @@ msgstr ""
 msgid "Compression"
 msgstr ""
 
+# wincfg.c:254
+msgid "Compromise (Middle extends, Right pastes)"
+msgstr "¾îÁß°£ (ÈÙ È®Àå, ¿À¸¥ÂÊ ºÙ¿©³Ö±â)"
+
 # config.c:1081
 msgid "Configure the appearance of %s's window"
 msgstr "%s Ã¢ ¸ð¾çÀ» ¼³Á¤ÇÕ´Ï´Ù."
@@ -1095,10 +927,6 @@ msgstr "%s Ã¢ ¸ð¾çÀ» ¼³Á¤ÇÕ´Ï´Ù."
 # config.c:1120
 msgid "Configure the behaviour of %s's window"
 msgstr "%s Ã¢ Æ¯¼ºÀ» ¼³Á¤ÇÕ´Ï´Ù."
-
-# ssh.c:2167
-msgid "Connecting to %s port %d"
-msgstr ""
 
 # config.c:1258 config.c:1261 config.c:1273 config.c:1281
 msgid "Connection"
@@ -1168,33 +996,18 @@ msgstr "Ctrl-Alt¸¦ È¸»ö Alt¿Í ±¸ºÐ (D)"
 msgid "Control-H"
 msgstr "Ctrl-H"
 
-# ssh.c:4081
-msgid "Couldn't agree a client-to-server cipher (available: %s)"
-msgstr ""
-
-# ssh.c:4107
-msgid "Couldn't agree a server-to-client cipher (available: %s)"
-msgstr ""
-
-# ssh.c:2895
-msgid "Couldn't load private key from "
-msgstr "°³ÀÎ Å°¸¦ ÀÐ¾î¿Ã ¼ö ¾ø½À´Ï´Ù. ÆÄÀÏ: "
-
-# ssh.c:2796
-msgid "CryptoCard authentication declined"
-msgstr ""
-
-# ssh.c:2797
-msgid "CryptoCard authentication refused.\r\n"
-msgstr "CryptoCard ÀÎÁõÀÌ °ÅºÎµÇ¾ú½À´Ï´Ù.\r\n"
+# config.c:1170
+msgid "Copy and paste line drawing characters as lqqqk"
+msgstr "VT100 ¼±±×¸² ¹®ÀÚ¸¦ lqqqk·Î »Ñ¸² (D)"
 
 # settings.c:253 settings.c:506
 msgid "CtrlAltKeys"
 msgstr ""
 
 # unicode.c:565
-msgid "CueaaaaceeeiiiAAE**ooouuyOUc$YPsaiounNao?++**!<>###||||++||++++++--|-+"
-"||++--|-+----++++++++##||#aBTPEsyt******EN=+><++-=... n2* "
+msgid ""
+"CueaaaaceeeiiiAAE**ooouuyOUc$YPsaiounNao?++**!<>###||||++||++++++--|-+||+"
+"+--|-+----++++++++##||#aBTPEsyt******EN=+><++-=... n2* "
 msgstr ""
 
 # settings.c:264 settings.c:518
@@ -1282,6 +1095,10 @@ msgstr "SSH ¼­¹öÀÇ ¾Ë·ÁÁø ¹ö±× ÇÇÇØ°¡±â"
 msgid "Development snapshot "
 msgstr ""
 
+# config.c:1040
+msgid "Disable Arabic text shaping"
+msgstr "¾Æ¶ø¾î Ãâ·ÂÀ» »ç¿ëÇÏÁö ¾ÊÀ½ (L)"
+
 # config.c:1283
 msgid "Disable Nagle's algorithm (TCP_NODELAY option)"
 msgstr "³×ÀÌ±Û ¾Ë°í¸®Áò »ç¿ë ¾È ÇÔ (N)"
@@ -1293,6 +1110,10 @@ msgstr "¾ÖÇÃ¸®ÄÉÀÌ¼Ç Ä¿¼­ Å° ¸ðµå »ç¿ë ¾È ÇÔ (U)"
 # config.c:1013
 msgid "Disable application keypad mode"
 msgstr "¾ÖÇÃ¸®ÄÉÀÌ¼Ç Å°ÆÐµå ¸ðµå »ç¿ë ¾È ÇÔ (K)"
+
+# config.c:1043
+msgid "Disable bidirectional text display"
+msgstr "¿À¸¥ÂÊ¿¡¼­ ¿ÞÂÊÀ¸·Î ±Û¾²±â »ç¿ë ¾È ÇÔ (D)"
 
 # config.c:1033
 msgid "Disable destructive backspace on server sending ^?"
@@ -1322,13 +1143,17 @@ msgstr "´ëÃ¼ ÅÍ¹Ì³Î ½ºÅ©¸° º¯°æ ±â´É »ç¿ë ¾È ÇÔ (W)"
 msgid "Disable xterm-style mouse reporting"
 msgstr "xterm ½ºÅ¸ÀÏ ¸¶¿ì½º »ç¿ë ¾È ÇÔ"
 
+# settings.c:278 settings.c:539
+msgid "DisableArabicShaping"
+msgstr ""
+
+# wincfg.c:162
+msgid "DisableBidi"
+msgstr ""
+
 # wincfg.c:162
 msgid "Disabled"
 msgstr "»ç¿ë ¾È ÇÔ"
-
-# ssh.c:1099
-msgid "Disconnection message text: %n%.*s"
-msgstr ""
 
 # config.c:1064
 msgid "Display scrollbar"
@@ -1342,21 +1167,9 @@ msgstr "ÀüÈ­¸é ¸ðµå¿¡¼­ ½ºÅ©·Ñ ¹Ù º¸ÀÓ (I)"
 msgid "Do DNS name lookup at proxy end:"
 msgstr "ÇÁ¶ô½Ã Á¢¼Ó¿¡ ´ëÇØ DNS ³×ÀÓÀ» Ã£À½:"
 
-# ssh.c:4168
-msgid "Doing Diffie-Hellman group exchange"
-msgstr ""
-
-# ssh.c:4196
-msgid "Doing Diffie-Hellman key exchange"
-msgstr ""
-
 # config.c:1474
 msgid "Don't allocate a pseudo-terminal"
 msgstr "¼öµµ(pseudo)-ÅÍ¹Ì³¯À» ÇÒ´çÇÏÁö ¾ÊÀ½"
-
-# ssh.c:3350 ssh.c:5461
-msgid "Duplicate remote port forwarding to %s:%d"
-msgstr ""
 
 # config.c:1605
 msgid "Dynamic"
@@ -1365,6 +1178,10 @@ msgstr "µ¿Àû (Y)"
 # config.c:954
 msgid "ESC[n~"
 msgstr ""
+
+# config.c:1295
+msgid "Enable TCP keepalives (SO_KEEPALIVE option)"
+msgstr "TCP Á¢¼ÓÀ¯Áö »ç¿ë ÇÔ (SO_KEEPALIVE ¿É¼Ç)"
 
 # config.c:1540
 msgid "Enable X11 forwarding"
@@ -1394,17 +1211,9 @@ msgstr "SSH 2¿¡¼­ ´ÜÀÏ-DES ÇÏÀ§ È£È¯¼º »ç¿ë (I)"
 msgid "Enabling and disabling advanced terminal features"
 msgstr "ºÎ°¡ÀûÀÎ ÅÍ¹Ì³Î ±â´ÉµéÀ» ÄÑ°Å³ª ²ü´Ï´Ù."
 
-# ssh.c:2463
-msgid "Encrypted session key"
-msgstr ""
-
 # config.c:1492
 msgid "Encryption cipher selection policy:"
 msgstr "¾ÏÈ£ ¾Ë°í¸®Áò ¼±ÅÃ Á¤Ã¥ (S):"
-
-# ssh.c:2541
-msgid "Encryption not successfully enabled"
-msgstr ""
 
 # config.c:1491
 msgid "Encryption options"
@@ -1430,17 +1239,9 @@ msgstr "È¯°æ º¯¼ö:"
 msgid "EraseToScrollback"
 msgstr ""
 
-# ssh.c:4231
-msgid "Exchange hash is:\n"
-msgstr ""
-
 # config.c:1323
 msgid "Exclude Hosts/IPs"
 msgstr "±ÝÁöµÈ È£½ºÆ®/IP (E)"
-
-# ssh.c:2953
-msgid "Failed to authenticate with our public key.\r\n"
-msgstr "¿ì¸® °ø°³Å°¸¦ »ç¿ëÇÏ¿© ÀÎÁõÇÏ´Â µ¥ ½ÇÆÐÇß½À´Ï´Ù.\r\n"
 
 # wincfg.c:163
 msgid "Flashing"
@@ -1478,21 +1279,9 @@ msgstr "Ç×»ó ²û"
 msgid "Force on"
 msgstr "Ç×»ó ÄÔ"
 
-# ssh.c:3130 ssh.c:3642
-msgid "Forwarded X11 connection terminated"
-msgstr ""
-
-# ssh.c:3624 ssh.c:5887
-msgid "Forwarded connection refused by server"
-msgstr ""
-
-# ssh.c:3134 ssh.c:3648
-msgid "Forwarded port closed"
-msgstr ""
-
-# ssh.c:3590 ssh.c:6031
-msgid "Forwarded port opened successfully"
-msgstr ""
+# config.c:1169 wincfg.c:237
+msgid "Formatting of pasted characters"
+msgstr "ºÙ¿©³Ö±â ±ÛÀÚ º¯È¯"
 
 # config.c:1566
 msgid "Forwarded ports:"
@@ -1504,14 +1293,6 @@ msgstr "Alt-Enter¸¦ ´©¸£¸é ÀüÃ¼ È­¸éÀ¸·Î ÀüÈ¯ (F)"
 
 # settings.c:260 settings.c:514
 msgid "FullScreenOnAltEnter"
-msgstr ""
-
-# ssh.c:4709
-msgid "Further authentication required"
-msgstr ""
-
-# ssh.c:4708
-msgid "Further authentication required\r\n"
 msgstr ""
 
 # config.c:1112
@@ -1578,20 +1359,12 @@ msgstr "È£½ºÆ® ÀÌ¸§ (¶Ç´Â IP ÁÖ¼Ò) (N)"
 msgid "Host does not exist"
 msgstr "È£½ºÆ®°¡ Á¸ÀçÇÏÁö ¾ÊÀ½"
 
-# ssh.c:2398 ssh.c:4253
-msgid "Host key fingerprint is:"
-msgstr ""
-
 # winnet.c:385
 msgid "Host not found"
 msgstr "È£½ºÆ®¸¦ Ã£À» ¼ö ¾øÀ½"
 
 # settings.c:165 settings.c:379
 msgid "HostName"
-msgstr ""
-
-# ssh.c:6398 ssh.c:6405
-msgid "IGNORE message"
 msgstr ""
 
 # unicode.c:1027
@@ -1686,18 +1459,6 @@ msgstr "ISO-8859-9:1999 (¶óÆ¾-5, ÅÍÅ°¾î)"
 msgid "Implicit CR in every LF"
 msgstr "CRÀÌ ¾ø¾îµµ LF°¡ ¹ß°ßµÇ¸é ÁÙ³Ñ±è ÀÎÁ¤"
 
-# ssh.c:994
-msgid "Incoming packet was garbled on decryption"
-msgstr ""
-
-# ssh.c:862
-msgid "Incorrect CRC received on packet"
-msgstr ""
-
-# ssh.c:1043
-msgid "Incorrect MAC received on packet"
-msgstr ""
-
 # config.c:959
 msgid "Initial state of cursor keys:"
 msgstr "Ä¿¼­ Å° ±âº» »óÅÂ (R):"
@@ -1705,38 +1466,6 @@ msgstr "Ä¿¼­ Å° ±âº» »óÅÂ (R):"
 # config.c:964
 msgid "Initial state of numeric keypad:"
 msgstr "¼ýÀÚ Å°ÆÐµå ±âº» »óÅÂ (N):"
-
-# ssh.c:4330
-msgid "Initialised %.200s client->server encryption"
-msgstr ""
-
-# ssh.c:4332
-msgid "Initialised %.200s server->client encryption"
-msgstr ""
-
-# ssh.c:4335
-msgid "Initialised %s compression"
-msgstr ""
-
-# ssh.c:4338
-msgid "Initialised %s decompression"
-msgstr ""
-
-# ssh.c:2533
-msgid "Initialised %s encryption"
-msgstr ""
-
-# ssh.c:3422
-msgid "Initialised zlib (RFC1950) compression"
-msgstr ""
-
-# ssh.c:3424
-msgid "Initialised zlib (RFC1950) decompression"
-msgstr ""
-
-# ssh.c:2536
-msgid "Installing CRC compensation attack detector"
-msgstr ""
 
 # winnet.c:1183
 msgid "Internal networking trouble"
@@ -1762,21 +1491,9 @@ msgstr ""
 msgid "K_F%d"
 msgstr ""
 
-# ssh.c:2827
-msgid "Key is of wrong type (%s)"
-msgstr "Å°°¡ Àß¸øµÈ Å¸ÀÔÀÔ´Ï´Ù. (%s)"
-
-# ssh.c:2673 ssh.c:4811
-msgid "Key refused"
-msgstr ""
-
 # config.c:1423
 msgid "Keyboard sends telnet Backspace and Interrupt"
 msgstr "ÅÚ³Ý½ÄÀÇ ¹é½ºÆäÀÌ½º¿Í ÀÎÅÍ·´Æ®¸¦ º¸³¿ (K)"
-
-# ssh.c:4985
-msgid "Keyboard-interactive authentication refused"
-msgstr ""
 
 # settings.c:276 settings.c:531
 msgid "LFImpliesCR"
@@ -1825,14 +1542,6 @@ msgstr "ÀÚ±¹ ¹ÝÇâ (L):"
 # config.c:920
 msgid "Local line editing:"
 msgstr "ÀÚÃ¼ ÁÙ ÆíÁý (T):"
-
-# ssh.c:3332 ssh.c:5448
-msgid "Local port %.*s%.*s%.*s%.*s%d%.*s doing SOCKS dynamic forwarding"
-msgstr ""
-
-# ssh.c:3320 ssh.c:5436
-msgid "Local port %.*s%.*s%.*s%.*s%d%.*s forwarding to %s:%.*s%.*s%d%.*s"
-msgstr ""
 
 # config.c:1556
 msgid "Local ports accept connections from other hosts"
@@ -1898,10 +1607,6 @@ msgstr "¾Æ¹« °Íµµ ±â·ÏÇÏÁö ¾ÊÀ½ (T)"
 msgid "LoginShell"
 msgstr ""
 
-# ssh.c:2154
-msgid "Looking up host \"%s\""
-msgstr ""
-
 # config.c:1282
 msgid "Low-level TCP connection options"
 msgstr "Àú¼öÁØ TCP ¾ÐÃà ¿É¼Ç"
@@ -1921,10 +1626,6 @@ msgstr ""
 # config.c:981
 msgid "Make default system alert sound"
 msgstr "±âº» ½Ã½ºÅÛ º§¼Ò¸®"
-
-# ssh.c:6200
-msgid "Microsoft high encryption pack not installed!"
-msgstr ""
 
 # config.c:1627
 msgid "Miscomputes SSH2 HMAC keys"
@@ -1960,10 +1661,6 @@ msgstr "³ÝÇÙ"
 
 # settings.c:248 settings.c:501
 msgid "NetHackKeypad"
-msgstr ""
-
-# ssh.c:852
-msgid "Network attack (CRC compensation) detected!"
 msgstr ""
 
 # winnet.c:253
@@ -2118,38 +1815,6 @@ msgstr "¾È ´ÝÀ½"
 msgid "No"
 msgstr "¾Æ´Ï¿ä"
 
-# ssh.c:2858 ssh.c:5069
-msgid "No more passwords available to try"
-msgstr ""
-
-# ssh.c:2837
-msgid "No passphrase required.\r\n"
-msgstr "¾ÏÈ£±¸°¡ ÇÊ¿ä ¾ø½À´Ï´Ù.\r\n"
-
-# ssh.c:2745
-msgid "No reply received from Pageant"
-msgstr ""
-
-# ssh.c:5265
-msgid "No supported authentication methods available"
-msgstr ""
-
-# ssh.c:5259
-msgid "No supported authentication methods left to try!\r\n"
-msgstr "´õÀÌ»ó °¡´ÉÇÑ ÀÎÁõ ¹æ¹ýÀÌ ³²Áö ¾Ê¾Ò½À´Ï´Ù!\r\n"
-
-# ssh.c:5261
-msgid "No supported authentications offered. Disconnecting"
-msgstr ""
-
-# ssh.c:2496
-msgid "No supported ciphers found"
-msgstr ""
-
-# ssh.c:2557 ssh.c:4534
-msgid "No username provided. Abandoning session."
-msgstr ""
-
 # settings.c:241 settings.c:494
 msgid "NoAltScreen"
 msgstr ""
@@ -2206,21 +1871,9 @@ msgstr "¾øÀ½ (ÇÁ¸°Æ® »ç¿ë ¾È ÇÔ)"
 msgid "Normal"
 msgstr "ÀÏ¹Ý"
 
-# ssh.c:1784 ssh.c:1796
-msgid "OSU_1.4alpha3"
-msgstr ""
-
 # config.c:189
 msgid "Off"
 msgstr "²û"
-
-# ssh.c:4945
-msgid "Offer of public key accepted"
-msgstr ""
-
-# ssh.c:4936
-msgid "Offered public key"
-msgstr ""
 
 # config.c:190
 msgid "On"
@@ -2233,30 +1886,6 @@ msgstr "Á¢¼ÓÀÌ ²÷°åÀ» ¶§¸¸"
 # config.c:752
 msgid "Open"
 msgstr "¿­±â (O)"
-
-# ssh.c:1857
-msgid "OpenSSH_2.[0-2]*"
-msgstr ""
-
-# ssh.c:1846
-msgid "OpenSSH_2.[5-9]*"
-msgstr ""
-
-# ssh.c:1847
-msgid "OpenSSH_3.[0-2]*"
-msgstr ""
-
-# ssh.c:3510
-msgid "Opened X11 forward channel"
-msgstr ""
-
-# ssh.c:5312
-msgid "Opened channel for session"
-msgstr ""
-
-# ssh.c:6511
-msgid "Opening forwarded connection to %s:%d"
-msgstr ""
 
 # config.c:1043
 msgid "Options controlling %s's window"
@@ -2318,37 +1947,9 @@ msgstr "ÅÍ¹Ì³Î ¿¡¹Ä·¹ÀÌ¼Ç Á¦¾î ¿É¼ÇÀ» Á¶Á¤ÇÕ´Ï´Ù"
 msgid "Options controlling use of colours"
 msgstr "»ö»ó »ç¿ë ¿É¼ÇÀ» Á¶Á¤ÇÕ´Ï´Ù"
 
-# ssh.c:1428 ssh.c:2144 ssh.c:2427 ssh.c:2440
-msgid "Out of memory"
-msgstr ""
-
 # config.c:989
 msgid "Over-use means this many bells..."
 msgstr "ÃÖ¼Ò º§ °úºÎÇÏ °áÁ¤ ±âÁØ"
-
-# ssh.c:2741 ssh.c:4893
-msgid "Pageant failed to answer challenge"
-msgstr ""
-
-# ssh.c:2647
-msgid "Pageant has %d SSH1 keys"
-msgstr "Pageant°¡ %d°³ÀÇ SSH1 Å°¸¦ °®°í ÀÖ½À´Ï´Ù"
-
-# ssh.c:4770
-msgid "Pageant has %d SSH2 keys"
-msgstr "Pageant°¡ %d°³ÀÇ SSH2 Å°¸¦ °®°í ÀÖ½À´Ï´Ù"
-
-# ssh.c:2621 ssh.c:4744
-msgid "Pageant is running. Requesting keys."
-msgstr ""
-
-# ssh.c:2727
-msgid "Pageant's response accepted"
-msgstr ""
-
-# ssh.c:2738
-msgid "Pageant's response not accepted"
-msgstr ""
 
 # config.c:1421
 msgid "Passive"
@@ -2358,17 +1959,9 @@ msgstr "¼öµ¿"
 msgid "PassiveTelnet"
 msgstr ""
 
-# ssh.c:2840 ssh.c:4952
-msgid "Passphrase for key \"%.100s\": "
-msgstr "Å° \"%.100s\"ÀÇ ¾ÏÈ£±¸: "
-
 # config.c:1344
 msgid "Password"
 msgstr "¾ÏÈ£ (W)"
-
-# config.c:1170
-msgid "Paste VT100 line drawing chars as lqqqk"
-msgstr "VT100 ¼±±×¸² ¹®ÀÚ¸¦ lqqqk·Î »Ñ¸² (D)"
 
 # wincfg.c:238
 msgid "Paste to clipboard in RTF as well as plain text"
@@ -2402,14 +1995,6 @@ msgstr "Æ÷Æ® (P)"
 msgid "Port forwarding"
 msgstr "Æ÷Æ® Æ÷¿öµù"
 
-# ssh.c:6029
-msgid "Port open failed"
-msgstr ""
-
-# ssh.c:3574 ssh.c:6028
-msgid "Port open failed: %s"
-msgstr ""
-
 # settings.c:342 settings.c:614
 msgid "PortForwardings"
 msgstr ""
@@ -2424,10 +2009,6 @@ msgstr "¸ÕÀú ½ÃµµÇÒ SSH ÇÁ·ÎÅäÄÝ ¹öÀü:"
 
 # settings.c:163
 msgid "Present"
-msgstr ""
-
-# ssh.c:5654
-msgid "Primary command failed; attempting fallback"
 msgstr ""
 
 # window.c:1152
@@ -2448,10 +2029,6 @@ msgstr "ÀÎÁõ °³ÀÎÅ° ÆÄÀÏ (K):"
 
 # settings.c:176 settings.c:387
 msgid "Protocol"
-msgstr ""
-
-# ssh.c:3205 ssh.c:3235 ssh.c:3371 ssh.c:3396 ssh.c:3414
-msgid "Protocol confusion"
 msgstr ""
 
 # config.c:1473
@@ -2530,10 +2107,6 @@ msgstr "ÇªÆ¼-ÇÑ±ÛÆÇ-"
 msgid "PuTTY-Snapshot-"
 msgstr ""
 
-# ssh.c:2382
-msgid "Public key packet not received"
-msgstr ""
-
 # settings.c:230 settings.c:482
 msgid "PublicKeyFile"
 msgstr ""
@@ -2570,65 +2143,9 @@ msgstr "»ýÂ¥ (R)"
 msgid "RawCNP"
 msgstr ""
 
-# ssh.c:4587
-msgid "Reading private key file \"%.150s\""
-msgstr ""
-
-# ssh.c:5787
-msgid "Received CHANNEL_CLOSE for %s channel %d\n"
-msgstr ""
-
-# ssh.c:3666
-msgid "Received CHANNEL_CLOSE%s for %s channel %d\n"
-msgstr ""
-
-# ssh.c:2802
-msgid "Received CryptoCard challenge"
-msgstr ""
-
-# ssh.c:2676
-msgid "Received RSA challenge"
-msgstr ""
-
-# ssh.c:2776
-msgid "Received TIS challenge"
-msgstr ""
-
-# ssh.c:3481
-msgid "Received X11 connect request"
-msgstr ""
-
-# ssh.c:5910
-msgid "Received channel request for nonexistent channel %d"
-msgstr ""
-
 # config.c:1148
 msgid "Received data assumed to be in which character set:"
 msgstr "¼ö½ÅÇÑ µ¥ÀÌÅÍ¸¦ ÀÌ ¹®ÀÚ¼ÂÀ¸·Î °¡Á¤ (R):"
-
-# ssh.c:906
-msgid "Received data packet with bogus string length"
-msgstr ""
-
-# ssh.c:1091
-msgid "Received disconnect message (%s)"
-msgstr ""
-
-# ssh.c:1094
-msgid "Received disconnect message (unknown type %d)"
-msgstr ""
-
-# ssh.c:3474
-msgid "Received disconnect request"
-msgstr ""
-
-# ssh.c:2386
-msgid "Received public keys"
-msgstr ""
-
-# ssh.c:3568 ssh.c:6025
-msgid "Received remote port open request for %s:%d"
-msgstr ""
 
 # settings.c:296 settings.c:562
 msgid "RectSelect"
@@ -2646,14 +2163,6 @@ msgstr "»¡°­"
 msgid "Refuses all SSH1 password camouflage"
 msgstr "SSH1 ÆÐ½º¿öµå À§ÀåÀ» °ÅºÎÇÔ"
 
-# ssh.c:3486
-msgid "Rejected X11 connect request"
-msgstr ""
-
-# ssh.c:3562
-msgid "Rejected remote port open request for %s:%d"
-msgstr ""
-
 # version.c:15
 msgid "Release "
 msgstr ""
@@ -2670,25 +2179,9 @@ msgstr "¿ø°Ý X11 ÀÎÁõ ÇÁ·ÎÅäÄÝ (U)"
 msgid "Remote command:"
 msgstr "¿ø°Ý ¸í·É (R):"
 
-# ssh.c:915 ssh.c:1120
-msgid "Remote debug message: "
-msgstr ""
-
-# ssh.c:3377 ssh.c:5509
-msgid "Remote port forwarding enabled"
-msgstr ""
-
-# ssh.c:6019
-msgid "Remote port is not recognised"
-msgstr ""
-
 # config.c:1560
 msgid "Remote ports do the same (SSH v2 only)"
 msgstr "¿ø°Ý Æ÷Æ®µµ °°Àº ¹æ¹ýÀ¸·Î (SSH2¸¸) (P)"
-
-# ssh.c:932
-msgid "Remote sent disconnect: "
-msgstr ""
 
 # config.c:927
 msgid "Remote-controlled printing"
@@ -2705,35 +2198,6 @@ msgstr ""
 # config.c:1391 config.c:1571
 msgid "Remove"
 msgstr "Áö¿ò (R)"
-
-# ssh.c:2792
-msgid "Requested CryptoCard authentication"
-msgstr ""
-
-# ssh.c:2765
-msgid "Requested TIS authentication"
-msgstr ""
-
-# ssh.c:5521
-msgid "Requesting OpenSSH-style agent forwarding"
-msgstr ""
-
-# ssh.c:3217 ssh.c:5319
-msgid "Requesting X11 forwarding"
-msgstr ""
-
-# ssh.c:3198
-msgid "Requesting agent forwarding"
-msgstr ""
-
-# ssh.c:5465
-msgid "Requesting remote port %.*s%.*s%.*s%.*s%d%.*s forward to %s:%.*s%.*s%d"
-"%.*s"
-msgstr ""
-
-# ssh.c:3354
-msgid "Requesting remote port %.*s%.*s%d%.*s forward to %s:%.*s%.*s%d%.*s"
-msgstr ""
 
 # config.c:1633
 msgid "Requires padding on SSH2 RSA signatures"
@@ -2795,92 +2259,8 @@ msgstr ""
 msgid "SSH"
 msgstr ""
 
-# ssh.c:1954
-msgid "SSH protocol version 1 required by user but not provided by server"
-msgstr ""
-
-# ssh.c:1958
-msgid "SSH protocol version 2 required by user but not provided by server"
-msgstr ""
-
-# ssh.c:1910
-msgid "SSH-"
-msgstr ""
-
-# ssh.c:1987
-msgid "SSH-%s-%s"
-msgstr ""
-
-# ssh.c:1967
-msgid "SSH-2.0-%s"
-msgstr ""
-
-# ssh.c:3345
-msgid "SSH1 cannot handle source address spec \"%s:%d\"; ignoring"
-msgstr ""
-
 # settings.c:229 settings.c:479
 msgid "SSH2DES"
-msgstr ""
-
-# ssh.c:144
-msgid "SSH_DISCONNECT_AUTH_CANCELLED_BY_USER"
-msgstr ""
-
-# ssh.c:142
-msgid "SSH_DISCONNECT_BY_APPLICATION"
-msgstr ""
-
-# ssh.c:137
-msgid "SSH_DISCONNECT_COMPRESSION_ERROR"
-msgstr ""
-
-# ssh.c:141
-msgid "SSH_DISCONNECT_CONNECTION_LOST"
-msgstr ""
-
-# ssh.c:135
-msgid "SSH_DISCONNECT_HOST_AUTHENTICATION_FAILED"
-msgstr ""
-
-# ssh.c:140
-msgid "SSH_DISCONNECT_HOST_KEY_NOT_VERIFIABLE"
-msgstr ""
-
-# ssh.c:132
-msgid "SSH_DISCONNECT_HOST_NOT_ALLOWED_TO_CONNECT"
-msgstr ""
-
-# ssh.c:146
-msgid "SSH_DISCONNECT_ILLEGAL_USER_NAME"
-msgstr ""
-
-# ssh.c:134
-msgid "SSH_DISCONNECT_KEY_EXCHANGE_FAILED"
-msgstr ""
-
-# ssh.c:136
-msgid "SSH_DISCONNECT_MAC_ERROR"
-msgstr ""
-
-# ssh.c:145
-msgid "SSH_DISCONNECT_NO_MORE_AUTH_METHODS_AVAILABLE"
-msgstr ""
-
-# ssh.c:133
-msgid "SSH_DISCONNECT_PROTOCOL_ERROR"
-msgstr ""
-
-# ssh.c:139
-msgid "SSH_DISCONNECT_PROTOCOL_VERSION_NOT_SUPPORTED"
-msgstr ""
-
-# ssh.c:138
-msgid "SSH_DISCONNECT_SERVICE_NOT_AVAILABLE"
-msgstr ""
-
-# ssh.c:143
-msgid "SSH_DISCONNECT_TOO_MANY_CONNECTIONS"
 msgstr ""
 
 # windlg.c:366
@@ -2932,8 +2312,9 @@ msgid "Seconds of silence required"
 msgstr "ÇØÁ¦ ½Ã°£ (S)"
 
 # config.c:1227
-msgid "Select a colour from the list, and then click the Modify button to cha"
-"nge its appearance."
+msgid ""
+"Select a colour from the list, and then click the Modify button to change "
+"its appearance."
 msgstr "¸ñ·Ï¿¡¼­ »ö±òÀ» °í¸£°í º¯°æ ¹öÆ°À» ´­·¯ Ç¥Çö»öÀ» ¹Ù²Ù¼¼¿ä."
 
 # config.c:1232
@@ -2952,121 +2333,13 @@ msgstr "ºñ¹ÐÅ° ÆÄÀÏ ¼±ÅÃ"
 msgid "Select session log file name"
 msgstr "¼¼¼Ç ·Î±× ÆÄÀÏ ÀÌ¸§ ¼±ÅÃ"
 
-# ssh.c:2719 ssh.c:4884
-msgid "Sending Pageant's response"
-msgstr ""
-
-# ssh.c:3062
-msgid "Sending length-padded password"
-msgstr ""
-
 # config.c:1274
 msgid "Sending of null packets to keep session active"
 msgstr "¼¼¼Ç À¯Áö¸¦ À§ÇÑ ºóÆÐÅ¶ º¸³»±â"
 
-# ssh.c:3038
-msgid "Sending password with camouflage packets"
-msgstr ""
-
-# ssh.c:3074
-msgid "Sending unpadded password"
-msgstr ""
-
-# ssh.c:6439
-msgid "Sent EOF message"
-msgstr ""
-
-# ssh.c:3082 ssh.c:5232
-msgid "Sent password"
-msgstr ""
-
-# ssh.c:2583
-msgid "Sent username \"%s\""
-msgstr "»ç¿ëÀÚ¸í \"%s\" Àü¼Û"
-
 # config.c:1130
 msgid "Separate window and icon titles"
 msgstr "Ã¢°ú ¾ÆÀÌÄÜ Á¦¸ñÀ» ºÐ¸® (I)"
-
-# ssh.c:4363
-msgid "Server initiated key re-exchange"
-msgstr ""
-
-# ssh.c:4695
-msgid "Server refused our key\r\n"
-msgstr "¼­¹ö°¡ ¿ì¸® Å°¸¦ °ÅºÎÇß½À´Ï´Ù\r\n"
-
-# ssh.c:2917
-msgid "Server refused our public key.\r\n"
-msgstr "¼­¹ö°¡ ¿ì¸® °ø°³ Å°¸¦ °ÅºÎÇß½À´Ï´Ù.\r\n"
-
-# ssh.c:3374
-msgid "Server refused port forwarding\r\n"
-msgstr "¼­¹ö°¡ Æ÷Æ® Æ÷¿öµùÀ» °ÅºÎÇß½À´Ï´Ù\r\n"
-
-# ssh.c:4696
-msgid "Server refused public key"
-msgstr ""
-
-# ssh.c:5507
-msgid "Server refused this port forwarding"
-msgstr ""
-
-# ssh.c:3399 ssh.c:5589
-msgid "Server refused to allocate pty\r\n"
-msgstr "¼­¹ö°¡ PTY ÇÒ´çÀ» °ÅºÎÇÏ¿´½À´Ï´Ù\r\n"
-
-# ssh.c:3417
-msgid "Server refused to compress\r\n"
-msgstr "¼­¹ö°¡ ¾ÐÃàÀ» °ÅºÎÇß½À´Ï´Ù\r\n"
-
-# ssh.c:5297
-msgid "Server refused to open a session"
-msgstr ""
-
-# ssh.c:5658
-msgid "Server refused to start a shell/command"
-msgstr ""
-
-# ssh.c:4486
-msgid "Server refused user authentication protocol"
-msgstr ""
-
-# ssh.c:3744 ssh.c:5933
-msgid "Server sent command exit status %d"
-msgstr "¼­¹ö°¡ ¸í·É °á°ú ÄÚµå %d¸¦ º¸³Â½À´Ï´Ù"
-
-# ssh.c:939
-msgid "Server sent disconnect message:\n\"%s\""
-msgstr ""
-
-# ssh.c:1102
-msgid "Server sent disconnect message\ntype %d (%s):\n\"%s\""
-msgstr ""
-
-# ssh.c:1938
-msgid "Server version: %s"
-msgstr "¼­¹ö ¹öÀü: %s"
-
-# ssh.c:2492
-msgid "Server violates SSH 1 protocol by not supporting 3DES encryption"
-msgstr ""
-
-# ssh.c:5302
-msgid "Server's channel confirmation cited wrong channel"
-msgstr ""
-
-# ssh.c:4239
-msgid "Server's host key did not match the signature supplied"
-msgstr ""
-
-# ssh.c:3298 ssh.c:5414
-msgid "Service lookup failed for destination port \"%s\""
-msgstr ""
-
-# ssh.c:3312 ssh.c:5428
-msgid "Service lookup failed for source port \"%s\""
-msgstr ""
 
 # config.c:769 config.c:773 config.c:805 config.c:837
 msgid "Session"
@@ -3136,37 +2409,9 @@ msgstr ""
 msgid "Standard"
 msgstr "Ç¥ÁØ"
 
-# ssh.c:5661
-msgid "Started a shell/command"
-msgstr ""
-
-# ssh.c:3419
-msgid "Started compression"
-msgstr ""
-
-# ssh.c:3445
-msgid "Started session"
-msgstr ""
-
 # wincfg.c:164
 msgid "Steady"
 msgstr "°è¼Ó"
-
-# ssh.c:4651
-msgid "Strange packet received during authentication: type %d"
-msgstr ""
-
-# ssh.c:3090
-msgid "Strange packet received, type %d"
-msgstr ""
-
-# ssh.c:3758 ssh.c:6072
-msgid "Strange packet received: type %d"
-msgstr ""
-
-# ssh.c:2545
-msgid "Successfully started encryption"
-msgstr ""
 
 # wincfg.c:171
 msgid "Sunken-edge border (slightly thicker)"
@@ -3184,17 +2429,13 @@ msgstr "ALT¸¸ ´©¸£¸é ½Ã½ºÅÛ ¸Þ´º ³ª¿È (L)"
 msgid "System menu appears on ALT-Space"
 msgstr "ALT-½ºÆäÀÌ½º¸¦ ´©¸£¸é ½Ã½ºÅÛ ¸Þ´º ³ª¿È (Y)"
 
+# settings.c:185 settings.c:415
+msgid "TCPKeepalives"
+msgstr ""
+
 # settings.c:184 settings.c:408
 msgid "TCPNoDelay"
 msgstr ""
-
-# ssh.c:2769
-msgid "TIS authentication declined"
-msgstr ""
-
-# ssh.c:2771
-msgid "TIS authentication refused.\r\n"
-msgstr "TIS ÀÎÁõÀÌ °ÅºÎµÇ¾ú½À´Ï´Ù.\r\n"
 
 # wincfg.c:158
 msgid "Taskbar/caption indication on bell:"
@@ -3237,8 +2478,8 @@ msgid "Terminal"
 msgstr "ÅÍ¹Ì³Î"
 
 # config.c:1371 config.c:1443
-msgid "Terminal-speed string"
-msgstr "ÅÍ¹Ì³Î ¼Óµµ ¹®ÀÚ¿­ (S)"
+msgid "Terminal speeds"
+msgstr "ÅÍ¹Ì³Î ¼Óµµ (S)"
 
 # config.c:1263
 msgid "Terminal-type string"
@@ -3281,16 +2522,20 @@ msgid "The bell is re-enabled after a few seconds of silence."
 msgstr "ÀÏÁ¤ ½Ã°£ Á¶¿ëÇÏ¸é º§¼Ò¸® ´Ù½Ã º¹±¸"
 
 # windlg.c:787
-msgid "The first %.35scipher supported by the server\n"
+msgid ""
+"The first %.35scipher supported by the server\n"
 "is %.64s, which is below the configured\n"
-"warning threshold.\nDo you want to continue with this connection?\n"
-msgstr "¼­¹ö°¡ Áö¿øÇÏ´Â %.35s »çÀÌÆÛ Áß Ã¹¹øÂ°·Î\n"
+"warning threshold.\n"
+"Do you want to continue with this connection?\n"
+msgstr ""
+"¼­¹ö°¡ Áö¿øÇÏ´Â %.35s »çÀÌÆÛ Áß Ã¹¹øÂ°·Î\n"
 "ºÎÇÕµÇ´Â %.64s´Â º¸¾È¼º ¾ÈÀü ¼öÁØ ÀÌÇÏ\n"
 "ÀÔ´Ï´Ù.\n"
 "ÀÌ Á¢¼ÓÀ» À¯ÁöÇÏ½Ã°Ú½À´Ï±î?\n"
 
 # windlg.c:710
-msgid "The server's host key is not cached in the registry. You\n"
+msgid ""
+"The server's host key is not cached in the registry. You\n"
 "have no guarantee that the server is the computer you\n"
 "think it is.\n"
 "The server's %s key fingerprint is:\n"
@@ -3315,7 +2560,8 @@ msgstr ""
 "ÇÒ ¼ö ÀÖ½À´Ï´Ù.\n"
 
 # windlg.c:815
-msgid "The session log file \"%.*s\" already exists.\n"
+msgid ""
+"The session log file \"%.*s\" already exists.\n"
 "You can overwrite it with a new session log,\n"
 "append your session log to the end of it,\n"
 "or disable session logging for this session.\n"
@@ -3329,17 +2575,15 @@ msgstr ""
 "±âÁ¸ ·Î±× ÆÄÀÏÀ» Áö¿ì·Á¸é ¿¹¸¦ ´©¸£°í, µ¡ºÙÀÌ\n"
 "·Á¸é ¾Æ´Ï¿À, ·Î±ëÇÏÁö ¾ÊÀ¸·Á¸é Ãë¼Ò¸¦ ´©¸£¼¼¿ä\n"
 
-# ssh.c:2659 ssh.c:4787
-msgid "This key matches configured key file"
-msgstr ""
-
 # window.c:333
-msgid "This procedure will remove ALL Registry\n"
+msgid ""
+"This procedure will remove ALL Registry\n"
 "entries associated with %s, and will\n"
 "also remove the random seed file.\n"
 "\n"
 "THIS PROCESS WILL DESTROY YOUR SAVED\n"
-"SESSIONS. Are you really sure you want\nto continue?"
+"SESSIONS. Are you really sure you want\n"
+"to continue?"
 msgstr ""
 "ÀÌÁ¦ %s¿Í °ü·ÃµÈ ¸ðµç ·¹Áö½ºÆ®¸®¸¦ Áö¿ì°í\n"
 "·£´ý ½Ãµå ÆÄÀÏµµ Áö¿ì°Ô µÉ °ÍÀÔ´Ï´Ù.\n"
@@ -3351,45 +2595,29 @@ msgstr ""
 msgid "Too many forwardings"
 msgstr "Æ÷¿öµùÀÌ ³Ê¹« ¸¹½À´Ï´Ù"
 
-# config.c:1169 wincfg.c:237
-msgid "Translation of pasted characters"
-msgstr "ºÙ¿©³Ö±â ±ÛÀÚ º¯È¯"
-
 # settings.c:284 settings.c:539
 msgid "TryPalette"
-msgstr ""
-
-# ssh.c:2653 ssh.c:4778
-msgid "Trying Pageant key #%d"
-msgstr ""
-
-# ssh.c:2823
-msgid "Trying public key \"%s\""
-msgstr ""
-
-# ssh.c:2822
-msgid "Trying public key authentication.\r\n"
-msgstr "°ø°³ Å° ÀÎÁõÀ» ½Ãµµ Áß.\r\n"
-
-# ssh.c:2524
-msgid "Trying to enable encryption..."
 msgstr ""
 
 # unicode.c:386
 msgid "UTF-8"
 msgstr ""
 
-# ssh.c:2860 ssh.c:2861 ssh.c:5073 ssh.c:5075
-msgid "Unable to authenticate"
-msgstr ""
-
 # winstore.c:80
-msgid "Unable to create registry key\nHKEY_CURRENT_USER%s"
-msgstr "´ÙÀ½ ·¹Áö½ºÆ®¸® Å°¸¦ ¸¸µé ¼ö ¾ø½À´Ï´Ù:\nHKEY_CURRENT_USER%s"
+msgid ""
+"Unable to create registry key\n"
+"HKEY_CURRENT_USER%s"
+msgstr ""
+"´ÙÀ½ ·¹Áö½ºÆ®¸® Å°¸¦ ¸¸µé ¼ö ¾ø½À´Ï´Ù:\n"
+"HKEY_CURRENT_USER%s"
 
 # winstore.c:88
-msgid "Unable to create registry key\nHKEY_CURRENT_USER%s\\%s"
-msgstr "´ÙÀ½ ·¹Áö½ºÆ®¸® Å°¸¦ ¸¸µé ¼ö ¾ø½À´Ï´Ù:\nHKEY_CURRENT_USER%s\\%s"
+msgid ""
+"Unable to create registry key\n"
+"HKEY_CURRENT_USER%s\\%s"
+msgstr ""
+"´ÙÀ½ ·¹Áö½ºÆ®¸® Å°¸¦ ¸¸µé ¼ö ¾ø½À´Ï´Ù:\n"
+"HKEY_CURRENT_USER%s\\%s"
 
 # winnet.c:515
 msgid "Unable to get list of local IP addresses"
@@ -3403,61 +2631,28 @@ msgstr "WinSockÀ» ÃÊ±âÈ­ÇÒ ¼ö ¾ø½À´Ï´Ù"
 msgid "Unable to load any WinSock library"
 msgstr "WinSock ¶óÀÌºê·¯¸®¸¦ ÀÐ¾î¿Ã ¼ö ¾ø½À´Ï´Ù"
 
-# ssh.c:5110
-msgid "Unable to load private key ("
-msgstr "°³ÀÎ Å°¸¦ ÀÐ¾î¿Ã ¼ö ¾ø½À´Ï´Ù. ("
-
-# ssh.c:6002
-msgid "Unable to open an X11 connection"
-msgstr "X11 Á¢¼ÓÀ» ¿¬°áÇÒ ¼ö ¾ø½À´Ï´Ù"
-
 # window.c:615
-msgid "Unable to open connection to\n%.800s\n%s"
-msgstr "%.800s¿¡ Á¢¼ÓÇÒ ¼ö ¾ø½À´Ï´Ù.\n%s"
+msgid ""
+"Unable to open connection to\n"
+"%.800s\n"
+"%s"
+msgstr ""
+"%.800s¿¡ Á¢¼ÓÇÒ ¼ö ¾ø½À´Ï´Ù.\n"
+"%s"
 
 # window.c:4452
-msgid "Unable to play sound file\n%s\nUsing default sound instead"
-msgstr "´ÙÀ½ ¼Ò¸® ÆÄÀÏÀ» Àç»ýÇÒ ¼ö ¾ø½À´Ï´Ù:\n%s\n±âº» ¼Ò¸®¸¦ ´ë½Å »ç¿ëÇÕ´Ï´Ù"
-
-# ssh.c:6455
-msgid "Unable to send BREAK signal in SSH1"
+msgid ""
+"Unable to play sound file\n"
+"%s\n"
+"Using default sound instead"
 msgstr ""
-
-# ssh.c:4598
-msgid "Unable to use key file \"%.150s\" (%s)\r\n"
-msgstr "Å° ÆÄÀÏ \"%.150s\"À» ¾µ ¼ö ¾ø½À´Ï´Ù. (%s)\r\n"
-
-# ssh.c:4596
-msgid "Unable to use this key file (%s)"
-msgstr ""
+"´ÙÀ½ ¼Ò¸® ÆÄÀÏÀ» Àç»ýÇÒ ¼ö ¾ø½À´Ï´Ù:\n"
+"%s\n"
+"±âº» ¼Ò¸®¸¦ ´ë½Å »ç¿ëÇÕ´Ï´Ù"
 
 # config.c:1092
 msgid "Underline"
 msgstr "¹ØÁÙ (U)"
-
-# ssh.c:2631 ssh.c:2706 ssh.c:4754 ssh.c:4871
-msgid "Unexpected data from server while waiting for agent response"
-msgstr ""
-
-# ssh.c:5347
-msgid "Unexpected response to X11 forwarding request: packet type %d"
-msgstr ""
-
-# ssh.c:5542
-msgid "Unexpected response to agent forwarding request: packet type %d"
-msgstr ""
-
-# ssh.c:5502
-msgid "Unexpected response to port forwarding request: packet type %d"
-msgstr ""
-
-# ssh.c:5585
-msgid "Unexpected response to pty request: packet type %d"
-msgstr ""
-
-# ssh.c:5643
-msgid "Unexpected response to shell/command request: packet type %d"
-msgstr ""
 
 # version.c:20
 msgid "Unidentified build, "
@@ -3466,10 +2661,6 @@ msgstr ""
 # winnet.c:322
 msgid "Unknown network error"
 msgstr "¾Ë ¼ö ¾ø´Â ³×Æ®¿öÅ© ¿¡·¯"
-
-# ssh.c:6044
-msgid "Unsupported channel type requested"
-msgstr ""
 
 # window.c:466
 msgid "Unsupported protocol number found"
@@ -3511,30 +2702,6 @@ msgstr ""
 msgid "Username"
 msgstr "»ç¿ëÀÚ¸í (U)"
 
-# ssh.c:2507
-msgid "Using 3DES encryption"
-msgstr ""
-
-# ssh.c:2513
-msgid "Using Blowfish encryption"
-msgstr ""
-
-# ssh.c:1994
-msgid "Using SSH protocol version 1"
-msgstr ""
-
-# ssh.c:1977
-msgid "Using SSH protocol version 2"
-msgstr ""
-
-# ssh.c:2510
-msgid "Using single-DES encryption"
-msgstr ""
-
-# ssh.c:4557
-msgid "Using username \"%s\".\r\n"
-msgstr "»ç¿ëÀÚ ÀÌ¸§ \"%s\"À¸·Î ½ÃµµÇÕ´Ï´Ù.\r\n"
-
 # window.c:3194
 msgid "VK_%02x"
 msgstr ""
@@ -3572,7 +2739,8 @@ msgid "WARN"
 msgstr ""
 
 # windlg.c:723
-msgid "WARNING - POTENTIAL SECURITY BREACH!\n"
+msgid ""
+"WARNING - POTENTIAL SECURITY BREACH!\n"
 "\n"
 "The server's host key does not match the one %s has\n"
 "cached in the registry. This means that either the\n"
@@ -3586,8 +2754,10 @@ msgid "WARNING - POTENTIAL SECURITY BREACH!\n"
 "If you want to carry on connecting but without updating\n"
 "the cache, hit No.\n"
 "If you want to abandon the connection completely, hit\n"
-"Cancel. Hitting Cancel is the ONLY guaranteed safe\nchoice.\n"
-msgstr "°æ°í - ÀáÀçÀû º¸¾È À§Çè!\n"
+"Cancel. Hitting Cancel is the ONLY guaranteed safe\n"
+"choice.\n"
+msgstr ""
+"°æ°í - ÀáÀçÀû º¸¾È À§Çè!\n"
 "\n"
 "¼­¹öÀÇ È£½ºÆ® Å°°¡ ·¹Áö½ºÆ®¸®¿¡ ÀúÀåµÈ %s ¿Í ¸ÂÁö\n"
 "¾Ê½À´Ï´Ù. Áï, ¼­¹ö °ü¸®ÀÚ°¡ È£½ºÆ® Å°¸¦ ¹Ù²Ù¾ú°Å³ª,\n"
@@ -3632,42 +2802,6 @@ msgstr "Ã¢ ´Ý±â Àü¿¡ °æ°í (W)"
 
 # settings.c:181 settings.c:400
 msgid "WarnOnClose"
-msgstr ""
-
-# ssh.c:1815
-msgid "We believe remote version can't handle RSA authentication"
-msgstr ""
-
-# ssh.c:1791
-msgid "We believe remote version has SSH1 ignore bug"
-msgstr ""
-
-# ssh.c:1871
-msgid "We believe remote version has SSH2 DH group exchange bug"
-msgstr ""
-
-# ssh.c:1828
-msgid "We believe remote version has SSH2 HMAC bug"
-msgstr ""
-
-# ssh.c:1852
-msgid "We believe remote version has SSH2 RSA padding bug"
-msgstr ""
-
-# ssh.c:1841
-msgid "We believe remote version has SSH2 key-derivation bug"
-msgstr ""
-
-# ssh.c:1863
-msgid "We believe remote version has SSH2 public-key-session-ID bug"
-msgstr ""
-
-# ssh.c:1803
-msgid "We believe remote version needs a plain SSH1 password"
-msgstr ""
-
-# ssh.c:1974 ssh.c:1990
-msgid "We claim version: %s"
 msgstr ""
 
 # config.c:880
@@ -3773,8 +2907,8 @@ msgid "WindowBorder"
 msgstr ""
 
 # wincfg.c:253
-msgid "Windows (Right pastes, Middle extends)"
-msgstr "À©µµ¿ì (¿À¸¥ÂÊ ºÙ¿©³Ö±â, ÈÙ È®Àå) (W)"
+msgid "Windows (Middle extends, Right brings up menu)"
+msgstr "À©µµ¿ì (ÈÙ È®Àå, ¿À¸¥ÂÊ ¸Þ´º ¶ç¿ò)"
 
 # window.c:202
 msgid "Windows refuses to report a version"
@@ -3788,14 +2922,6 @@ msgstr ""
 msgid "Workarounds for SSH server bugs"
 msgstr "SSH ¼­¹ö ¹ö±× ÇÇÇØ°¡±â"
 
-# ssh.c:2903
-msgid "Wrong passphrase.\r\n"
-msgstr "¾ÏÈ£±¸°¡ Àß¸øµÇ¾ú½À´Ï´Ù.\r\n"
-
-# ssh.c:5107
-msgid "Wrong passphrase\r\n"
-msgstr "¾ÏÈ£±¸°¡ Àß¸øµÇ¾ú½À´Ï´Ù\r\n"
-
 # config.c:1543
 msgid "X display location"
 msgstr "X µð½ºÇÃ·¹ÀÌ À§Ä¡"
@@ -3803,18 +2929,6 @@ msgstr "X µð½ºÇÃ·¹ÀÌ À§Ä¡"
 # config.c:1539
 msgid "X11 forwarding"
 msgstr "X11 Æ÷¿öµù"
-
-# ssh.c:3240 ssh.c:5353
-msgid "X11 forwarding enabled"
-msgstr ""
-
-# ssh.c:5998
-msgid "X11 forwarding is not enabled"
-msgstr ""
-
-# ssh.c:3238 ssh.c:5351
-msgid "X11 forwarding refused"
-msgstr ""
 
 # settings.c:322 settings.c:608
 msgid "X11AuthType"
@@ -3841,7 +2955,8 @@ msgid "Yes"
 msgstr "¿¹"
 
 # windlg.c:856
-msgid "You are loading an SSH 2 private key which has an\n"
+msgid ""
+"You are loading an SSH 2 private key which has an\n"
 "old version of the file format. This means your key\n"
 "file is not fully tamperproof. Future versions of\n"
 "%s may stop supporting this private key format,\n"
@@ -3862,46 +2977,30 @@ msgstr ""
 "½±°Ô º¯È¯ÇÒ ¼ö ÀÖ½À´Ï´Ù.\n"
 
 # config.c:671
-msgid "You need to specify a destination address\n"
+msgid ""
+"You need to specify a destination address\n"
 "in the form \"host.name:port\""
-msgstr "´ë»ó ÁÖ¼Ò´Â ´ÙÀ½ Çü½ÄÀ¸·Î ÀûÀ¸¼Å¾ß ÇÕ´Ï´Ù:\n"
+msgstr ""
+"´ë»ó ÁÖ¼Ò´Â ´ÙÀ½ Çü½ÄÀ¸·Î ÀûÀ¸¼Å¾ß ÇÕ´Ï´Ù:\n"
 "\"È£½ºÆ®.ÀÌ¸§:Æ÷Æ®\""
 
 # config.c:661
 msgid "You need to specify a source port number"
 msgstr "¿øº» Æ÷Æ® ¹øÈ£¸¦ ÀûÀ¸¼Å¾ß ÇÕ´Ï´Ù"
 
-# ssh.c:874
-msgid "Zlib decompression encountered invalid data"
+# $Id$
+#, fuzzy
+msgid ""
 msgstr ""
-
-# ssh.c:2733 ssh.c:4819
-msgid "\" from agent\r\n"
-msgstr "\"\r\n"
-
-# ssh.c:4960
-msgid "\"\r\n"
-msgstr ""
-
-# settings.c:476 ssh.c:5567 winstore.c:14
-msgid "\0"
-msgstr ""
-
-# window.c:3571
-msgid "\000\033\034\035\036\037\177"
-msgstr ""
-
-# ssh.c:1976 ssh.c:1992
-msgid "\012"
-msgstr ""
-
-# ssh.c:2323
-msgid "\0\0\0\1\5"
-msgstr ""
-
-# window.c:3686
-msgid "\0\2\1\4\5\3\6"
-msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2003-10-13 22:06+0900\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CP949\n"
+"Content-Transfer-Encoding: 8bit\n"
 
 # window.c:4244
 msgid "\\'%02x"
@@ -3927,61 +3026,40 @@ msgstr ""
 msgid "\\u%d"
 msgstr ""
 
-# ssh.c:2266 ssh.c:2274
-msgid "\b \b"
-msgstr ""
-
-# ssh.c:1626 unicode.c:494
+# ssh.c:1976 ssh.c:1992
 msgid "\n"
 msgstr ""
 
-# ssh.c:4551
-msgid "\n\r"
-msgstr ""
-
-# ssh.c:788 ssh.c:1934 ssh.c:1973 ssh.c:2573 ssh.c:2587 ssh.c:2831
-# ssh.c:2879 ssh.c:4549 ssh.c:5016 ssh.c:5020 ssh.c:5092
-msgid "\r\n"
-msgstr ""
-
-# ssh.c:2783 ssh.c:2808
-msgid "\r\nResponse: "
-msgstr "\r\nÀÀ´ä: "
-
 # window.c:3525 window.c:3689 window.c:3733 window.c:3745 window.c:3784
-msgid "\x1B%c"
+msgid "%c"
 msgstr ""
 
 # window.c:3527
-msgid "\x1B?%c"
+msgid "?%c"
 msgstr ""
 
 # window.c:3529 window.c:3736 window.c:3747 window.c:3810
-msgid "\x1BO%c"
+msgid "O%c"
 msgstr ""
 
 # window.c:3751
-msgid "\x1BOw"
+msgid "Ow"
 msgstr ""
 
 # window.c:3713 window.c:3722 window.c:3812
-msgid "\x1B[%c"
+msgid "[%c"
 msgstr ""
 
 # window.c:3755
-msgid "\x1B[%d~"
+msgid "[%d~"
 msgstr ""
 
 # window.c:3751
-msgid "\x1B[H"
+msgid "[H"
 msgstr ""
 
 # window.c:3740
-msgid "\x1B[[%c"
-msgstr ""
-
-# ssh.c:3668
-msgid "_CONFIRMATION"
+msgid "[[%c"
 msgstr ""
 
 # config.c:1225
@@ -3996,14 +3074,6 @@ msgstr ""
 msgid "appkeypad"
 msgstr ""
 
-# ssh.c:5524
-msgid "auth-agent-req@openssh.com"
-msgstr ""
-
-# ssh.c:6036
-msgid "auth-agent@openssh.com"
-msgstr ""
-
 # config.c:1298
 msgid "basics"
 msgstr ""
@@ -4016,16 +3086,8 @@ msgstr ""
 msgid "border"
 msgstr ""
 
-# ssh.c:6459
-msgid "break"
-msgstr ""
-
 # config.c:1188
 msgid "charclass"
-msgstr ""
-
-# ssh.c:6535
-msgid "client-side-connection"
 msgstr ""
 
 # windlg.c:795
@@ -4056,44 +3118,12 @@ msgstr ""
 msgid "dialog.h"
 msgstr ""
 
-# ssh.c:6522
-msgid "direct-tcpip"
-msgstr ""
-
 # window.c:839
 msgid "do_select(): internal error (hwnd==NULL)"
 msgstr ""
 
-# ssh.c:5071 ssh.c:5267 ssh.c:5838 ssh.c:5916 ssh.c:6053
-msgid "en"
-msgstr ""
-
 # config.c:1491
 msgid "encryption"
-msgstr ""
-
-# ssh.c:5622
-msgid "exec"
-msgstr ""
-
-# ssh.c:5928
-msgid "exit-status"
-msgstr ""
-
-# ssh.c:4181
-msgid "expected key exchange group packet from server"
-msgstr ""
-
-# ssh.c:4031
-msgid "expected key exchange packet from server"
-msgstr ""
-
-# ssh.c:4207
-msgid "expected key exchange reply packet from server"
-msgstr ""
-
-# ssh.c:4271
-msgid "expected new-keys packet from server"
 msgstr ""
 
 # wincfg.c:94
@@ -4104,8 +3134,8 @@ msgstr ""
 msgid "font"
 msgstr ""
 
-# ssh.c:6009
-msgid "forwarded-tcpip"
+# config.c:963 config.c:967 config.c:1185
+msgid "format"
 msgstr ""
 
 # config.c:892 config.c:1218 wincfg.c:267
@@ -4128,10 +3158,6 @@ msgstr ""
 msgid "getnameinfo"
 msgstr ""
 
-# ssh.c:3668 ssh.c:5788
-msgid "half-open"
-msgstr ""
-
 # config.c:773
 msgid "hostport"
 msgstr ""
@@ -4144,16 +3170,8 @@ msgstr ""
 msgid "input"
 msgstr ""
 
-# ssh.c:1688
-msgid "internal error: Can't handle negative mpints"
-msgstr ""
-
 # config.c:1273
 msgid "keepalive"
-msgstr ""
-
-# ssh.c:4717 ssh.c:4976
-msgid "keyboard-interactive"
 msgstr ""
 
 # config.c:913
@@ -4167,14 +3185,6 @@ msgstr ""
 # winnet.c:495
 msgid "localhost"
 msgstr ""
-
-# settings.c:606
-msgid "localhost:0"
-msgstr ""
-
-# ssh.c:2551 ssh.c:2563 ssh.c:4528 ssh.c:4540
-msgid "login as: "
-msgstr "·Î±×ÀÎ: "
 
 # config.c:851 config.c:1009 config.c:1135 config.c:1616 wincfg.c:295
 msgid "main"
@@ -4200,24 +3210,8 @@ msgstr ""
 msgid "network.h"
 msgstr ""
 
-# ssh.c:381 ssh.c:407 ssh.c:4574 ssh.c:5119
-msgid "none"
-msgstr ""
-
-# ssh.c:3668 ssh.c:5788
-msgid "nonexistent"
-msgstr ""
-
 # windlg.c:217
 msgid "open"
-msgstr ""
-
-# ssh.c:3493
-msgid "opening X11 forward connection failed"
-msgstr ""
-
-# ssh.c:3500
-msgid "opening X11 forward connection succeeded"
 msgstr ""
 
 # window.c:321
@@ -4228,20 +3222,12 @@ msgstr ""
 msgid "otheropts"
 msgstr ""
 
-# ssh.c:1484
-msgid "out of memory"
-msgstr ""
-
 # config.c:984
 msgid "overload"
 msgstr ""
 
 # config.c:1519
 msgid "params"
-msgstr ""
-
-# ssh.c:4715 ssh.c:5193
-msgid "password"
 msgstr ""
 
 # config.c:1554
@@ -4258,14 +3244,6 @@ msgstr ""
 
 # settings.c:439
 msgid "proxy"
-msgstr ""
-
-# ssh.c:5559
-msgid "pty-req"
-msgstr ""
-
-# ssh.c:4713 ssh.c:4801 ssh.c:4829 ssh.c:4929 ssh.c:5135
-msgid "publickey"
 msgstr ""
 
 # window.c:1757
@@ -4353,33 +3331,8 @@ msgstr ""
 msgid "server-to-client "
 msgstr ""
 
-# ssh.c:5289
-msgid "session"
-msgstr ""
-
-# ssh.c:5626
-msgid "shell"
-msgstr ""
-
-# ssh.c:2484
-msgid "single-DES"
-msgstr ""
-
 # config.c:1047 wincfg.c:280
 msgid "size"
-msgstr ""
-
-# ssh.c:4573 ssh.c:4800 ssh.c:4828 ssh.c:4928 ssh.c:4975 ssh.c:5118
-# ssh.c:5134 ssh.c:5192
-msgid "ssh-connection"
-msgstr ""
-
-# ssh.c:1716
-msgid "ssh-rsa"
-msgstr ""
-
-# ssh.c:4482
-msgid "ssh-userauth"
 msgstr ""
 
 # ssh.c:8 windlg.c:9
@@ -4395,16 +3348,8 @@ msgstr ""
 msgid "style"
 msgstr ""
 
-# ssh.c:5618
-msgid "subsystem"
-msgstr ""
-
 # config.c:1281
 msgid "tcp"
-msgstr ""
-
-# ssh.c:5477
-msgid "tcpip-forward"
 msgstr ""
 
 # window.c:360
@@ -4431,9 +3376,9 @@ msgstr ""
 msgid "tree234.h"
 msgstr ""
 
-# ssh.c:213 ssh.c:253 ssh.c:1105
-msgid "unknown"
-msgstr ""
+# winnet.c:1370
+msgid "unix sockets not supported on this platform"
+msgstr "ÀÌ ÇÃ·§Æû¿¡¼­´Â À¯´Ð½º ¼ÒÄÏÀ» ¾µ ¼ö ¾ø½À´Ï´Ù"
 
 # window.c:399
 msgid "unknown option \"%s\""
@@ -4443,20 +3388,12 @@ msgstr ""
 msgid "win_res.h"
 msgstr ""
 
-# ssh.c:6375
-msgid "window-change"
-msgstr ""
-
 # winnet.c:351
 msgid "wship6.dll"
 msgstr ""
 
 # config.c:1539 ssh.c:5988
 msgid "x11"
-msgstr ""
-
-# ssh.c:5325
-msgid "x11-req"
 msgstr ""
 
 # settings.c:409
@@ -4478,5 +3415,3 @@ msgstr ""
 # window.c:4208 window.c:4255
 msgid "}"
 msgstr ""
-
-# end of file

@@ -1,7 +1,6 @@
 config.c
 dialog.c
 settings.c
-ssh.c
 unicode.c
 version.c
 wincfg.c
