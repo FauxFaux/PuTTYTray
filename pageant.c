@@ -7,6 +7,8 @@
 #include <aclapi.h>
 #endif
 #include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
 #include "ssh.h"
 #include "tree234.h"
 
@@ -255,7 +257,7 @@ static void add_keyfile(char *filename)
 
   needs_pass = rsakey_encrypted(filename, &comment);
   attempts = 0;
-  key = malloc(sizeof(*key));
+  key = smalloc(sizeof(*key));
   pps.passphrase = passphrase;
   pps.comment = comment;
   do {
@@ -265,25 +267,25 @@ static void add_keyfile(char *filename)
           instance, MAKEINTRESOURCE(210), NULL, PassphraseProc, (LPARAM)&pps);
       if (!dlgret) {
         if (comment)
-          free(comment);
-        free(key);
+          sfree(comment);
+        sfree(key);
         return; /* operation cancelled */
       }
     } else
       *passphrase = '\0';
-    ret = loadrsakey(filename, key, passphrase);
+    ret = loadrsakey(filename, key, NULL, passphrase);
     attempts++;
   } while (ret == -1);
   if (comment)
-    free(comment);
+    sfree(comment);
   if (ret == 0) {
     MessageBox(
         NULL, "Couldn't load private key.", APPNAME, MB_OK | MB_ICONERROR);
-    free(key);
+    sfree(key);
     return;
   }
   if (add234(rsakeys, key) != key)
-    free(key); /* already present, don't waste RAM */
+    sfree(key); /* already present, don't waste RAM */
 }
 
 /*
@@ -402,14 +404,14 @@ static void answer_msg(void *msg)
     {
       struct RSAKey *key;
       char *comment;
-      key = malloc(sizeof(struct RSAKey));
+      key = smalloc(sizeof(struct RSAKey));
       memset(key, 0, sizeof(key));
       p += makekey(p, key, NULL, 1);
       p += makeprivate(p, key);
       p += ssh1_read_bignum(p, NULL); /* p^-1 mod q */
       p += ssh1_read_bignum(p, NULL); /* p */
       p += ssh1_read_bignum(p, NULL); /* q */
-      comment = malloc(GET_32BIT(p));
+      comment = smalloc(GET_32BIT(p));
       if (comment) {
         memcpy(comment, p + 4, GET_32BIT(p));
         key->comment = comment;
@@ -421,7 +423,7 @@ static void answer_msg(void *msg)
         ret[4] = SSH_AGENT_SUCCESS;
       } else {
         freersakey(key);
-        free(key);
+        sfree(key);
       }
     }
     break;

@@ -1,5 +1,7 @@
 #include <string.h>
 
+#include "puttymem.h"
+
 /*
  * Useful thing.
  */
@@ -37,6 +39,12 @@ struct RSAKey {
   Bignum private_exponent;
 #endif
   char *comment;
+};
+
+struct RSAAux {
+  Bignum p;
+  Bignum q;
+  Bignum iqmp;
 };
 
 int makekey(unsigned char *data,
@@ -123,17 +131,29 @@ struct ssh_kex {
   char *name;
 };
 
-struct ssh_hostkey {
-  void (*setkey)(char *data, int len);
-  char *(*fmtkey)(void);
-  char *(*fingerprint)(void);
-  int (*verifysig)(char *sig, int siglen, char *data, int datalen);
+struct ssh_signkey {
+  void *(*newkey)(char *data, int len);
+  void (*freekey)(void *key);
+  char *(*fmtkey)(void *key);
+  char *(*fingerprint)(void *key);
+  int (*verifysig)(void *key, char *sig, int siglen, char *data, int datalen);
+  int (*sign)(void *key, char *sig, int siglen, char *data, int datalen);
   char *name;
   char *keytype; /* for host key cache */
 };
 
 struct ssh_compress {
   char *name;
+  void (*compress_init)(void);
+  int (*compress)(unsigned char *block,
+                  int len,
+                  unsigned char **outblock,
+                  int *outlen);
+  void (*decompress_init)(void);
+  int (*decompress)(unsigned char *block,
+                    int len,
+                    unsigned char **outblock,
+                    int *outlen);
 };
 
 #ifndef MSCRYPTOAPI
@@ -142,26 +162,78 @@ void SHATransform(word32 *digest, word32 *data);
 
 int random_byte(void);
 void random_add_noise(void *noise, int length);
+void random_add_heavynoise(void *noise, int length);
 
 void logevent(char *);
 
 Bignum newbn(int length);
 Bignum copybn(Bignum b);
+Bignum bignum_from_short(unsigned short n);
 void freebn(Bignum b);
-void modpow(Bignum base, Bignum exp, Bignum mod, Bignum result);
-void modmul(Bignum a, Bignum b, Bignum mod, Bignum result);
+Bignum modpow(Bignum base, Bignum exp, Bignum mod);
+Bignum modmul(Bignum a, Bignum b, Bignum mod);
 void decbn(Bignum n);
 extern Bignum Zero, One;
 int ssh1_read_bignum(unsigned char *data, Bignum *result);
 int ssh1_bignum_bitcount(Bignum bn);
 int ssh1_bignum_length(Bignum bn);
 int bignum_byte(Bignum bn, int i);
+int bignum_bit(Bignum bn, int i);
+void bignum_set_bit(Bignum bn, int i, int value);
 int ssh1_write_bignum(void *data, Bignum bn);
+Bignum biggcd(Bignum a, Bignum b);
+unsigned short bignum_mod_short(Bignum number, unsigned short modulus);
+Bignum bignum_add_long(Bignum number, unsigned long addend);
+Bignum bigmul(Bignum a, Bignum b);
+Bignum modinv(Bignum number, Bignum modulus);
+Bignum bignum_rshift(Bignum number, int shift);
+int bignum_cmp(Bignum a, Bignum b);
+char *bignum_decimal(Bignum x);
 
 Bignum dh_create_e(void);
 Bignum dh_find_K(Bignum f);
 
-int loadrsakey(char *filename, struct RSAKey *key, char *passphrase);
+int loadrsakey(char *filename,
+               struct RSAKey *key,
+               struct RSAAux *aux,
+               char *passphrase);
 int rsakey_encrypted(char *filename, char **comment);
 
+int saversakey(char *filename,
+               struct RSAKey *key,
+               struct RSAAux *aux,
+               char *passphrase);
+
 void des3_decrypt_pubkey(unsigned char *key, unsigned char *blk, int len);
+void des3_encrypt_pubkey(unsigned char *key, unsigned char *blk, int len);
+
+/*
+ * For progress updates in the key generation utility.
+ */
+typedef void (*progfn_t)(void *param, int phase, int progress);
+
+int rsa_generate(struct RSAKey *key,
+                 struct RSAAux *aux,
+                 int bits,
+                 progfn_t pfn,
+                 void *pfnparam);
+Bignum primegen(int bits,
+                int modulus,
+                int residue,
+                int phase,
+                progfn_t pfn,
+                void *pfnparam);
+
+/*
+ * zlib compression.
+ */
+void zlib_compress_init(void);
+void zlib_decompress_init(void);
+int zlib_compress_block(unsigned char *block,
+                        int len,
+                        unsigned char **outblock,
+                        int *outlen);
+int zlib_decompress_block(unsigned char *block,
+                          int len,
+                          unsigned char **outblock,
+                          int *outlen);

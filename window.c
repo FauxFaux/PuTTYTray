@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <imm.h>
 #include <commctrl.h>
 #ifndef AUTO_WINSOCK
 #ifdef WINSOCK_TWO
@@ -14,6 +15,7 @@
 
 #define PUTTY_DO_GLOBALS /* actually _define_ globals */
 #include "putty.h"
+#include "winstuff.h"
 #include "storage.h"
 #include "win_res.h"
 
@@ -38,12 +40,18 @@
 #define IDM_TEL_EOF 0x0130
 #define IDM_ABOUT 0x0140
 #define IDM_SAVEDSESS 0x0150
+#define IDM_COPYALL 0x0160
 
 #define IDM_SAVED_MIN 0x1000
 #define IDM_SAVED_MAX 0x2000
 
 #define WM_IGNORE_SIZE (WM_XUSER + 1)
 #define WM_IGNORE_CLIP (WM_XUSER + 2)
+
+/* Needed for Chinese support and apparently not always defined. */
+#ifndef VK_PROCESSKEY
+#define VK_PROCESSKEY 0xE5
+#endif
 
 static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 static int TranslateKey(UINT message,
@@ -94,6 +102,8 @@ static char *window_name, *icon_name;
 
 static Ldisc *real_ldisc;
 
+static int compose_state = 0;
+
 void begin_session(void)
 {
   ldisc = real_ldisc;
@@ -108,7 +118,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   MSG msg;
   int guess_width, guess_height;
 
-  putty_inst = inst;
+  hinst = inst;
   flags = FLAG_VERBOSE | FLAG_INTERACTIVE;
 
   winsock_ver = MAKEWORD(1, 1);
@@ -128,6 +138,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     return 1;
   }
   /* WISHLIST: maybe allow config tweaking even if winsock not present? */
+  sk_init();
 
   InitCommonControls();
 
@@ -195,6 +206,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
      * An initial @ means to activate a saved session.
      */
     if (*p == '@') {
+      int i = strlen(p);
+      while (i > 1 && isspace(p[i - 1]))
+        i--;
+      p[i] = '\0';
       do_defaults(p + 1, &cfg);
       if (!*cfg.host && !do_config()) {
         WSACleanup();
@@ -355,21 +370,25 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
   {
     int winmode = WS_OVERLAPPEDWINDOW | WS_VSCROLL;
+    int exwinmode = 0;
     if (!cfg.scrollbar)
       winmode &= ~(WS_VSCROLL);
     if (cfg.locksize)
       winmode &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
-    hwnd = CreateWindow(appname,
-                        appname,
-                        winmode,
-                        CW_USEDEFAULT,
-                        CW_USEDEFAULT,
-                        guess_width,
-                        guess_height,
-                        NULL,
-                        NULL,
-                        inst,
-                        NULL);
+    if (cfg.alwaysontop)
+      exwinmode = WS_EX_TOPMOST;
+    hwnd = CreateWindowEx(exwinmode,
+                          appname,
+                          appname,
+                          winmode,
+                          CW_USEDEFAULT,
+                          CW_USEDEFAULT,
+                          guess_width,
+                          guess_height,
+                          NULL,
+                          NULL,
+                          inst,
+                          NULL);
   }
 
   /*
@@ -412,9 +431,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   {
     char *bits;
     int size = (font_width + 15) / 16 * 2 * font_height;
-    bits = calloc(size, 1);
+    bits = smalloc(size);
+    memset(bits, 0, size);
     caretbm = CreateBitmap(font_width, font_height, 1, 1, bits);
-    free(bits);
+    sfree(bits);
   }
 
   /*
@@ -440,7 +460,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     char msg[1024], *title;
     char *realhost;
 
-    error = back->init(hwnd, cfg.host, cfg.port, &realhost);
+    error = back->init(cfg.host, cfg.port, &realhost);
     if (error) {
       sprintf(msg, "Unable to open connection:\n%s", error);
       MessageBox(NULL, msg, "PuTTY Error", MB_ICONERROR | MB_OK);
@@ -504,15 +524,16 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     }
     AppendMenu(m, MF_ENABLED, IDM_SHOWLOG, "&Event Log");
     AppendMenu(m, MF_SEPARATOR, 0, 0);
-    AppendMenu(m, MF_ENABLED, IDM_NEWSESS, "Ne&w Session");
+    AppendMenu(m, MF_ENABLED, IDM_NEWSESS, "Ne&w Session...");
     AppendMenu(m, MF_ENABLED, IDM_DUPSESS, "&Duplicate Session");
     s = CreateMenu();
     get_sesslist(TRUE);
     for (i = 1; i < ((nsessions < 256) ? nsessions : 256); i++)
       AppendMenu(s, MF_ENABLED, IDM_SAVED_MIN + (16 * i), sessions[i]);
     AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT)s, "Sa&ved Sessions");
-    AppendMenu(m, MF_ENABLED, IDM_RECONF, "Chan&ge Settings");
+    AppendMenu(m, MF_ENABLED, IDM_RECONF, "Chan&ge Settings...");
     AppendMenu(m, MF_SEPARATOR, 0, 0);
+    AppendMenu(m, MF_ENABLED, IDM_COPYALL, "C&opy All to Clipboard");
     AppendMenu(m, MF_ENABLED, IDM_CLRSB, "C&lear Scrollback");
     AppendMenu(m, MF_ENABLED, IDM_RESET, "Rese&t Terminal");
     AppendMenu(m, MF_SEPARATOR, 0, 0);
@@ -591,7 +612,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
       if (!has_focus)
         timer_id = SetTimer(hwnd, 1, 59500, NULL);
       else
-        timer_id = SetTimer(hwnd, 1, 250, NULL);
+        timer_id = SetTimer(hwnd, 1, 100, NULL);
       long_timer = 1;
 
       /* There's no point rescanning everything in the message queue
@@ -628,6 +649,31 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 }
 
 /*
+ * Set up, or shut down, an AsyncSelect. Called from winnet.c.
+ */
+char *do_select(SOCKET skt, int startup)
+{
+  int msg, events;
+  if (startup) {
+    msg = WM_NETEVENT;
+    events = FD_READ | FD_WRITE | FD_OOB | FD_CLOSE;
+  } else {
+    msg = events = 0;
+  }
+  if (!hwnd)
+    return "do_select(): internal error (hwnd==NULL)";
+  if (WSAAsyncSelect(skt, hwnd, msg, events) == SOCKET_ERROR) {
+    switch (WSAGetLastError()) {
+    case WSAENETDOWN:
+      return "Network is down";
+    default:
+      return "WSAAsyncSelect(): unknown error";
+    }
+  }
+  return NULL;
+}
+
+/*
  * Print a message box and close the connection.
  */
 void connection_fatal(char *fmt, ...)
@@ -652,8 +698,9 @@ void connection_fatal(char *fmt, ...)
  */
 static void enact_pending_netevent(void)
 {
-  int i;
   static int reentering = 0;
+  extern int select_result(WPARAM, LPARAM);
+  int ret;
 
   if (reentering)
     return; /* don't unpend the pending */
@@ -661,25 +708,10 @@ static void enact_pending_netevent(void)
   pending_netevent = FALSE;
 
   reentering = 1;
-  i = back->msg(pend_netevent_wParam, pend_netevent_lParam);
+  ret = select_result(pend_netevent_wParam, pend_netevent_lParam);
   reentering = 0;
 
-  if (i < 0) {
-    char buf[1024];
-    switch (WSABASEERR + (-i) % 10000) {
-    case WSAECONNRESET:
-      sprintf(buf, "Connection reset by peer");
-      break;
-    case WSAECONNABORTED:
-      sprintf(buf, "Connection aborted");
-      break;
-    default:
-      sprintf(buf, "Unexpected network error %d", -i);
-      break;
-    }
-    connection_fatal(buf);
-  }
-  if (i <= 0) {
+  if (ret == 0) {
     if (cfg.close_on_exit)
       PostQuitMessage(0);
     else {
@@ -1068,6 +1100,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       enact_pending_netevent();
     if (inbuf_head)
       term_out();
+    noise_regular();
     HideCaret(hwnd);
     term_update();
     ShowCaret(hwnd);
@@ -1133,7 +1166,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
         cl = c;
       } else if (wParam == IDM_SAVEDSESS) {
         char *session = sessions[(lParam - IDM_SAVED_MIN) / 16];
-        cl = malloc(16 + strlen(session)); /* 8, but play safe */
+        cl = smalloc(16 + strlen(session)); /* 8, but play safe */
         if (!cl)
           cl = NULL; /* not a very important failure mode */
         else {
@@ -1157,9 +1190,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       if (filemap)
         CloseHandle(filemap);
       if (freecl)
-        free(cl);
+        sfree(cl);
     } break;
-    case IDM_RECONF:
+    case IDM_RECONF: {
+      int prev_alwaysontop = cfg.alwaysontop;
       if (!do_reconfig(hwnd))
         break;
       just_reconfigged = TRUE;
@@ -1173,7 +1207,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       und_mode = UND_FONT;
       init_fonts(0);
       sfree(logpal);
-      /* Telnet will change local echo -> remote if the remote asks */
+      /*
+       * Telnet will change local echo -> remote if the
+       * remote asks.
+       */
       if (cfg.protocol != PROT_TELNET)
         ldisc = (cfg.ldisc_term ? &ldisc_term : &ldisc_simple);
       if (pal)
@@ -1186,6 +1223,20 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       /* Enable or disable the scroll bar, etc */
       {
         LONG nflg, flag = GetWindowLong(hwnd, GWL_STYLE);
+        LONG nexflag, exflag = GetWindowLong(hwnd, GWL_EXSTYLE);
+
+        nexflag = exflag;
+        if (cfg.alwaysontop != prev_alwaysontop) {
+          if (cfg.alwaysontop) {
+            nexflag = WS_EX_TOPMOST;
+            SetWindowPos(
+                hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+          } else {
+            nexflag = 0;
+            SetWindowPos(
+                hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+          }
+        }
 
         nflg = flag;
         if (cfg.scrollbar)
@@ -1197,10 +1248,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
         else
           nflg |= (WS_THICKFRAME | WS_MAXIMIZEBOX);
 
-        if (nflg != flag) {
+        if (nflg != flag || nexflag != exflag) {
           RECT cr, wr;
 
-          SetWindowLong(hwnd, GWL_STYLE, nflg);
+          if (nflg != flag)
+            SetWindowLong(hwnd, GWL_STYLE, nflg);
+          if (nexflag != exflag)
+            SetWindowLong(hwnd, GWL_EXSTYLE, nexflag);
+
           SendMessage(hwnd, WM_IGNORE_SIZE, 0, 0);
           SetWindowPos(hwnd,
                        NULL,
@@ -1230,6 +1285,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       if (IsIconic(hwnd)) {
         SetWindowText(hwnd, cfg.win_name_always ? window_name : icon_name);
       }
+    } break;
+    case IDM_COPYALL:
+      term_copyall();
       break;
     case IDM_CLRSB:
       term_clrsb();
@@ -1332,10 +1390,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
   case WM_MOUSEMOVE:
     /*
      * Add the mouse position and message time to the random
-     * number noise, if we're using ssh.
+     * number noise.
      */
-    if (cfg.protocol == PROT_SSH)
-      noise_ultralight(lParam);
+    noise_ultralight(lParam);
 
     if (wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON)) {
       Mouse_Button b;
@@ -1389,6 +1446,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     has_focus = TRUE;
     CreateCaret(hwnd, caretbm, 0, 0);
     ShowCaret(hwnd);
+    compose_state = 0;
     term_out();
     term_update();
     break;
@@ -1546,10 +1604,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
   case WM_SYSKEYUP:
     /*
      * Add the scan code and keypress timing to the random
-     * number noise, if we're using ssh.
+     * number noise.
      */
-    if (cfg.protocol == PROT_SSH)
-      noise_ultralight(lParam);
+    noise_ultralight(lParam);
 
     /*
      * We don't do TranslateMessage since it disassociates the
@@ -1562,12 +1619,28 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       unsigned char buf[20];
       int len;
 
-      len = TranslateKey(message, wParam, lParam, buf);
-      if (len == -1)
-        return DefWindowProc(hwnd, message, wParam, lParam);
-      ldisc->send(buf, len);
+      if (wParam == VK_PROCESSKEY) {
+        MSG m;
+        m.hwnd = hwnd;
+        m.message = WM_KEYDOWN;
+        m.wParam = wParam;
+        m.lParam = lParam & 0xdfff;
+        TranslateMessage(&m);
+      } else {
+        len = TranslateKey(message, wParam, lParam, buf);
+        if (len == -1)
+          return DefWindowProc(hwnd, message, wParam, lParam);
+        ldisc->send(buf, len);
+      }
     }
     return 0;
+  case WM_IME_CHAR: {
+    unsigned char buf[2];
+
+    buf[1] = wParam;
+    buf[0] = wParam >> 8;
+    ldisc->send(buf, 2);
+  }
   case WM_CHAR:
   case WM_SYSCHAR:
     /*
@@ -1826,14 +1899,6 @@ static int check_compose(int first, int second)
   static int recurse = 0;
   int nc = -1;
 
-  if (0) {
-    char buf[256];
-    char *p;
-    sprintf(buf, "cc(%d,%d)", first, second);
-    for (p = buf; *p; p++)
-      c_write1(*p);
-  }
-
   for (c = composetbl; *c; c++) {
     if ((*c)[0] == first && (*c)[1] == second) {
       return (*c)[2] & 0xFF;
@@ -1868,7 +1933,6 @@ static int TranslateKey(UINT message,
   unsigned char *p = output;
 
   static WORD keys[3];
-  static int compose_state = 0;
   static int compose_char = 0;
   static WPARAM compose_key = 0;
 
@@ -1934,26 +1998,30 @@ static int TranslateKey(UINT message,
 #endif
 
     /* Note if AltGr was pressed and if it was used as a compose key */
-    if (wParam == VK_MENU && (HIWORD(lParam) & KF_EXTENDED)) {
-      keystate[VK_RMENU] = keystate[VK_MENU];
-      if (!compose_state)
+    if (cfg.compose_key) {
+      if (wParam == VK_MENU && (HIWORD(lParam) & KF_EXTENDED)) {
+        keystate[VK_RMENU] = keystate[VK_MENU];
+        if (!compose_state)
+          compose_key = wParam;
+      }
+      if (wParam == VK_APPS && !compose_state)
         compose_key = wParam;
-    }
-    if (wParam == VK_APPS && !compose_state)
-      compose_key = wParam;
 
-    if (wParam == compose_key) {
-      if (compose_state == 0 && (HIWORD(lParam) & (KF_UP | KF_REPEAT)) == 0)
-        compose_state = 1;
-      else if (compose_state == 1 && (HIWORD(lParam) & KF_UP))
-        compose_state = 2;
-      else
+      if (wParam == compose_key) {
+        if (compose_state == 0 && (HIWORD(lParam) & (KF_UP | KF_REPEAT)) == 0)
+          compose_state = 1;
+        else if (compose_state == 1 && (HIWORD(lParam) & KF_UP))
+          compose_state = 2;
+        else
+          compose_state = 0;
+      } else if (compose_state == 1 && wParam != VK_CONTROL)
         compose_state = 0;
-    } else if (compose_state == 1 && wParam != VK_CONTROL)
+    } else
       compose_state = 0;
 
     /* Nastyness with NUMLock - Shift-NUMLock is left alone though */
-    if ((cfg.funky_type == 3 || (cfg.funky_type <= 1 && app_keypad_keys)) &&
+    if ((cfg.funky_type == 3 ||
+         (cfg.funky_type <= 1 && app_keypad_keys && !cfg.no_applic_k)) &&
         wParam == VK_NUMLOCK && !(keystate[VK_SHIFT] & 0x80)) {
 
       wParam = VK_EXECUTE;
@@ -2000,7 +2068,8 @@ static int TranslateKey(UINT message,
     compose_state = 0;
 
   /* Sanitize the number pad if not using a PC NumPad */
-  if (left_alt || (app_keypad_keys && cfg.funky_type != 2) ||
+  if (left_alt ||
+      (app_keypad_keys && !cfg.no_applic_k && cfg.funky_type != 2) ||
       cfg.funky_type == 3 || cfg.nethack_keypad || compose_state) {
     if ((HIWORD(lParam) & KF_EXTENDED) == 0) {
       int nParam = 0;
@@ -2071,7 +2140,7 @@ static int TranslateKey(UINT message,
       return -1;
     }
     if (left_alt && wParam == VK_SPACE && cfg.alt_space) {
-
+      PostMessage(hwnd, WM_CHAR, ' ', 0);
       SendMessage(hwnd, WM_SYSCOMMAND, SC_KEYMENU, 0);
       return -1;
     }
@@ -2118,7 +2187,8 @@ static int TranslateKey(UINT message,
     if (!left_alt) {
       int xkey = 0;
 
-      if (cfg.funky_type == 3 || (cfg.funky_type <= 1 && app_keypad_keys))
+      if (cfg.funky_type == 3 ||
+          (cfg.funky_type <= 1 && app_keypad_keys && !cfg.no_applic_k))
         switch (wParam) {
         case VK_EXECUTE:
           xkey = 'P';
@@ -2133,7 +2203,7 @@ static int TranslateKey(UINT message,
           xkey = 'S';
           break;
         }
-      if (app_keypad_keys)
+      if (app_keypad_keys && !cfg.no_applic_k)
         switch (wParam) {
         case VK_NUMPAD0:
           xkey = 'p';
@@ -2397,7 +2467,7 @@ static int TranslateKey(UINT message,
       if (xkey) {
         if (vt52_mode)
           p += sprintf((char *)p, "\x1B%c", xkey);
-        else if (app_cursor_keys)
+        else if (app_cursor_keys && !cfg.no_applic_c)
           p += sprintf((char *)p, "\x1BO%c", xkey);
         else
           p += sprintf((char *)p, "\x1B[%c", xkey);
@@ -2441,7 +2511,7 @@ static int TranslateKey(UINT message,
           compose_state = 0;
 
           if ((nc = check_compose(compose_char, ch)) == -1) {
-            c_write1('\007');
+            MessageBeep(MB_ICONHAND);
             return 0;
           }
           *p++ = xlat_kbd2tty((unsigned char)nc);
@@ -2468,9 +2538,19 @@ static int TranslateKey(UINT message,
     }
   }
 
-  /* This stops ALT press-release doing a 'COMMAND MENU' function */
-  if (message == WM_SYSKEYUP && wParam == VK_MENU)
-    return 0;
+  /* ALT alone may or may not want to bring up the System menu */
+  if (wParam == VK_MENU) {
+    if (cfg.alt_only) {
+      static int alt_state = 0;
+      if (message == WM_SYSKEYDOWN)
+        alt_state = 1;
+      else if (message == WM_SYSKEYUP && alt_state)
+        PostMessage(hwnd, WM_CHAR, ' ', 0);
+      if (message == WM_SYSKEYUP)
+        alt_state = 0;
+    } else
+      return 0;
+  }
 
   return -1;
 }

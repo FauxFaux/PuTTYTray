@@ -1,17 +1,11 @@
 #include <windows.h>
-#ifndef AUTO_WINSOCK
-#ifdef WINSOCK_TWO
-#include <winsock2.h>
-#else
-#include <winsock.h>
-#endif
-#endif
 #include <winreg.h>
 #include <tchar.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "putty.h"
+#include "winstuff.h"
 
 static ATOM tip_class = 0;
 
@@ -50,7 +44,7 @@ static LRESULT CALLBACK SizeTipWndProc(HWND hWnd,
     Rectangle(hdc, cr.left, cr.top, cr.right, cr.bottom);
 
     wtlen = GetWindowTextLength(hWnd);
-    wt = (LPTSTR)malloc((wtlen + 1) * sizeof(TCHAR));
+    wt = (LPTSTR)smalloc((wtlen + 1) * sizeof(TCHAR));
     GetWindowText(hWnd, wt, wtlen + 1);
 
     SetTextColor(hdc, tip_text);
@@ -58,7 +52,7 @@ static LRESULT CALLBACK SizeTipWndProc(HWND hWnd,
 
     TextOut(hdc, cr.left + 3, cr.top + 3, wt, wtlen);
 
-    free(wt);
+    sfree(wt);
 
     SelectObject(hdc, holdbr);
     DeleteObject(hbr);
@@ -120,7 +114,7 @@ void UpdateSizeTip(HWND src, int cx, int cy)
       wc.lpfnWndProc = SizeTipWndProc;
       wc.cbClsExtra = 0;
       wc.cbWndExtra = 0;
-      wc.hInstance = putty_inst;
+      wc.hInstance = hinst;
       wc.hIcon = NULL;
       wc.hCursor = NULL;
       wc.hbrBackground = NULL;
@@ -188,7 +182,7 @@ void UpdateSizeTip(HWND src, int cx, int cy)
                              sz.cy,
                              NULL,
                              NULL,
-                             putty_inst,
+                             hinst,
                              NULL);
 
     ShowWindow(tip_wnd, SW_SHOWNOACTIVATE);
