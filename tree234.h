@@ -20,8 +20,8 @@ typedef struct enum234_Tag enum234;
  * HAVE BEEN WARNED.
  */
 struct enum234_Tag {
-    node234 *node;
-    int posn;
+  node234 *node;
+  int posn;
 };
 
 typedef int (*cmpfn234)(void *, void *);
