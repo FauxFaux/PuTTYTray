@@ -1,7 +1,7 @@
 /*
  * Generic SSH public-key handling operations. In particular,
  * reading of SSH public-key files, and also the generic `sign'
- * operation for ssh2 (which checks the type of the key and
+ * operation for SSH-2 (which checks the type of the key and
  * dispatches to the appropriate key-type specific function).
  */
 
@@ -85,7 +85,7 @@ static int loadrsakey_main(FILE *fp,
     goto end; /* reserved field nonzero, panic! */
   i += 4;
 
-  /* Now the serious stuff. An ordinary SSH 1 public key. */
+  /* Now the serious stuff. An ordinary SSH-1 public key. */
   i += makekey(buf + i, len, key, NULL, 1);
   if (i < 0)
     goto end; /* overran */
@@ -322,7 +322,7 @@ int saversakey(const Filename *filename, struct RSAKey *key, char *passphrase)
   p += 4;
 
   /*
-   * An ordinary SSH 1 public key consists of: a uint32
+   * An ordinary SSH-1 public key consists of: a uint32
    * containing the bit count, then two bignums containing the
    * modulus and exponent respectively.
    */
@@ -391,18 +391,19 @@ int saversakey(const Filename *filename, struct RSAKey *key, char *passphrase)
   fp = f_open(*filename, "wb");
   if (fp) {
     int ret = (fwrite(buf, 1, p - buf, fp) == (size_t)(p - buf));
-    ret = ret && (fclose(fp) == 0);
+    if (fclose(fp))
+      ret = 0;
     return ret;
   } else
     return 0;
 }
 
 /* ----------------------------------------------------------------------
- * SSH2 private key load/store functions.
+ * SSH-2 private key load/store functions.
  */
 
 /*
- * PuTTY's own format for SSH2 keys is as follows:
+ * PuTTY's own format for SSH-2 keys is as follows:
  *
  * The file is text. Lines are terminated by CRLF, although CR-only
  * and LF-only are tolerated on input.
@@ -418,7 +419,7 @@ int saversakey(const Filename *filename, struct RSAKey *key, char *passphrase)
  *
  * Next there is a line saying "Public-Lines: " plus a number N.
  * The following N lines contain a base64 encoding of the public
- * part of the key. This is encoded as the standard SSH2 public key
+ * part of the key. This is encoded as the standard SSH-2 public key
  * blob (with no initial length): so for RSA, for example, it will
  * read
  *
@@ -475,10 +476,9 @@ int saversakey(const Filename *filename, struct RSAKey *key, char *passphrase)
  * with "PuTTY-User-Key-File-1" (version number differs). In this
  * format the Private-MAC: field only covers the private-plaintext
  * field and nothing else (and without the 4-byte string length on
- * the front too). Moreover, for RSA keys the Private-MAC: field
- * can be replaced with a Private-Hash: field which is a plain
- * SHA-1 hash instead of an HMAC. This is not allowable in DSA
- * keys. (Yes, the old format was a mess. Guess why it changed :-)
+ * the front too). Moreover, the Private-MAC: field can be replaced
+ * with a Private-Hash: field which is a plain SHA-1 hash instead of
+ * an HMAC (this was generated for unencrypted keys).
  */
 
 static int read_header(FILE *fp, char *header)
@@ -529,7 +529,7 @@ static char *read_body(FILE *fp)
       sfree(text);
       return NULL;
     }
-    if (len + 1 > size) {
+    if (len + 1 >= size) {
       size += 128;
       text = sresize(text, size, char);
     }
@@ -736,8 +736,7 @@ struct ssh2_userkey *ssh2_load_userkey(const Filename *filename,
     if ((mac = read_body(fp)) == NULL)
       goto error;
     is_mac = 1;
-  } else if (0 == strcmp(header, "Private-Hash") && alg == &ssh_rsa &&
-             old_fmt) {
+  } else if (0 == strcmp(header, "Private-Hash") && old_fmt) {
     if ((mac = read_body(fp)) == NULL)
       goto error;
     is_mac = 0;
@@ -923,7 +922,7 @@ char *ssh2_userkey_loadpub(const Filename *filename,
   error = "file format error";
   if ((b = read_body(fp)) == NULL)
     goto error;
-  /* Select key algorithm structure. Currently only ssh-rsa. */
+  /* Select key algorithm structure. */
   alg = find_pubkey_alg(b);
   if (!alg) {
     sfree(b);
@@ -1236,16 +1235,16 @@ char *key_type_to_str(int type)
     return "not a private key";
     break;
   case SSH_KEYTYPE_SSH1:
-    return "SSH1 private key";
+    return "SSH-1 private key";
     break;
   case SSH_KEYTYPE_SSH2:
-    return "PuTTY SSH2 private key";
+    return "PuTTY SSH-2 private key";
     break;
   case SSH_KEYTYPE_OPENSSH:
-    return "OpenSSH SSH2 private key";
+    return "OpenSSH SSH-2 private key";
     break;
   case SSH_KEYTYPE_SSHCOM:
-    return "ssh.com SSH2 private key";
+    return "ssh.com SSH-2 private key";
     break;
   default:
     return "INTERNAL ERROR";

@@ -1,4 +1,4 @@
-/* $Id: macstore.c,v 1.19 2003/04/01 18:10:25 simon Exp $ */
+/* $Id$ */
 
 /*
  * macstore.c: Macintosh-specific impementation of the interface
@@ -559,10 +559,10 @@ void *enum_settings_start(void)
   OSErr error;
   struct enum_settings_state *state;
 
-  state = safemalloc(sizeof(*state));
+  state = snew(struct enum_settings_state);
   error = get_session_dir(kDontCreateFolder, &state->vRefNum, &state->dirID);
   if (error != noErr) {
-    safefree(state);
+    sfree(state);
     return NULL;
   }
   state->index = 1;
@@ -660,6 +660,142 @@ void write_random_seed(void *data, int len)
   FSClose(refnum);
 
   return;
+}
+
+/*
+ * This host key cache uses a file in the PuTTY Preferences folder and
+ * stores keys as individual TEXT resources in the resource fork of
+ * that file.  This has two problems.  Firstly, a resource fork can
+ * contain no more than 2727 resources.  Secondly, the Resource
+ * Manager uses a linear search to find a particular resource, which
+ * could make having lots of host keys quite slow.
+ */
+
+int verify_host_key(const char *hostname,
+                    int port,
+                    const char *keytype,
+                    const char *key)
+{
+  short puttyVRefNum;
+  long puttyDirID;
+  OSErr error;
+  FSSpec keyfile;
+  short refnum;
+  char *resname;
+  Str255 presname;
+  char *resvalue;
+  Handle reshandle;
+  int len, compare;
+
+  if (get_putty_dir(kCreateFolder, &puttyVRefNum, &puttyDirID) != noErr)
+    return 1;
+
+  error = FSMakeFSSpec(puttyVRefNum, puttyDirID, "\pSSH Host Keys", &keyfile);
+  if (error == fnfErr) {
+    /* Keys file doesn't exist yet, so we can't match the key */
+    return 1;
+  }
+
+  refnum = FSpOpenResFile(&keyfile, fsRdPerm);
+
+  if (refnum == -1) {
+    /* We couldn't open the resource fork, so we can't match the key */
+    return 1;
+  }
+
+  UseResFile(refnum);
+
+  resname = dupprintf("%s@%d:%s", keytype, port, hostname);
+  c2pstrcpy(presname, resname);
+  reshandle = Get1NamedResource(FOUR_CHAR_CODE('TEXT'), presname);
+  if (ResError() != noErr) {
+    /* Couldn't open the specific resource */
+    return 1;
+  }
+
+  len = GetHandleSize(reshandle);
+  resvalue = snewn(len + 1, char);
+  memcpy(resvalue, *reshandle, len);
+  resvalue[len] = '\0';
+  ReleaseResource(reshandle);
+  CloseResFile(refnum);
+
+  compare = strncmp(resvalue, key, strlen(resvalue));
+  sfree(resname);
+  sfree(resvalue);
+
+  if (compare) {
+    /* Key different */
+    return 2;
+  } else {
+    /* Key matched */
+    return 0;
+  }
+}
+
+void store_host_key(const char *hostname,
+                    int port,
+                    const char *keytype,
+                    const char *key)
+{
+  short puttyVRefNum;
+  long puttyDirID;
+  OSErr error;
+  FSSpec keyfile;
+  short keyrefnum;
+  char *resname;
+  Str255 presname;
+  Handle resvalue;
+  Handle reshandle;
+  int id;
+
+  /* Open the host key file */
+
+  if (get_putty_dir(~kCreateFolder, &puttyVRefNum, &puttyDirID) != noErr)
+    goto out;
+
+  error = FSMakeFSSpec(puttyVRefNum, puttyDirID, "\pSSH Host Keys", &keyfile);
+  if (error == fnfErr) {
+    /* It doesn't exist, so create it */
+    FSpCreateResFile(&keyfile, INTERNAL_CREATOR, HKYS_TYPE, smRoman);
+    keyrefnum = FSpOpenResFile(&keyfile, fsWrPerm);
+    if (ResError() == noErr) {
+      copy_resource('STR', -16397); /* XXX: wtf is this? */
+      CloseResFile(keyrefnum);
+    }
+  } else if (error != noErr)
+    goto out;
+
+  keyrefnum = FSpOpenResFile(&keyfile, fsWrPerm);
+  if (keyrefnum == -1)
+    goto out;
+
+  UseResFile(keyrefnum);
+  resname = dupprintf("%s@%d:%s", keytype, port, hostname);
+  c2pstrcpy(presname, resname);
+
+  reshandle = Get1NamedResource(FOUR_CHAR_CODE('TEXT'), presname);
+  if (reshandle != NULL) {
+    /* The resource exists, we're replacing a host key */
+    RemoveResource(reshandle);
+  }
+  error = PtrToHand(key, &resvalue, strlen(key));
+  if (error != noErr)
+    goto out;
+
+  id = Unique1ID(FOUR_CHAR_CODE('TEXT'));
+  if (ResError() != noErr)
+    goto out;
+  AddResource(resvalue, FOUR_CHAR_CODE('TEXT'), id, presname);
+  if (ResError() != noErr)
+    goto out;
+
+  CloseResFile(keyrefnum);
+  return;
+
+out:
+  fatalbox("Writing host key failed (%d)", error);
+  sfree(resname);
 }
 
 /*

@@ -1,4 +1,4 @@
-/* $Id: mac_res.r,v 1.41 2004/08/30 13:23:23 simon Exp $ */
+/* $Id$ */
 /*
  * Copyright (c) 1999, 2002, 2003 Ben Harris
  * All rights reserved.
@@ -895,12 +895,14 @@ resource 'MENU' (mApple, preload) {
 resource 'MENU' (mFile, preload) {
     mFile,
     textMenuProc,
-    0b11111111111111111111111101111011,
+    0b11111111111111111111110111101011,
     enabled,
-    "Session",
+    "File",
     {
 	"New",			noicon, "N",   nomark, plain,
 	"Open\0xc9",		noicon, "O",   nomark, plain,
+	"-",			noicon, nokey, nomark, plain,
+	"Change Settings",	noicon, nokey, nomark, plain,
 	"-",			noicon, nokey, nomark, plain,
 	"Close",		noicon, "W",   nomark, plain,
 	"Save",			noicon, "S",   nomark, plain,
@@ -1003,6 +1005,154 @@ resource 'DITL' (wQuestion, "fatalbox", purgeable) {
 	}
 };
 
+/* Absent host key */
+
+resource 'ALRT' (wAbsent, "absent", purgeable) {
+	{37, 67, 337, 435},
+	wAbsent,
+	beepStages,
+	alertPositionMainScreen
+};
+
+resource 'DITL' (wAbsent, "absent", purgeable) {
+	{	/* array DITLarray: 8 elements */
+		/* [1] */
+		{10, 72, 60, 357},
+		StaticText {
+			disabled,
+			"The server's host key is not cached.  You "
+			"have no guarantee that the server is the "
+			"computer you think it is."
+		},
+		/* [2] */
+		{65, 72, 113, 355},
+		StaticText {
+			disabled,
+			"The server's ^0 key fingerprint is:\n^1"
+		},
+		/* [3] */
+		{121, 72, 172, 354},
+		StaticText {
+			disabled,
+			"If you trust this host, hit Add Key to add "
+			"the key to ^2's cache and carry on "
+			"connecting."
+		},
+		/* [4] */
+		{178, 72, 226, 354},
+		StaticText {
+			disabled,
+			"If you want to carry on connecting just "
+			"once, without adding the key to the cache, "
+			"select Just Once."
+		},
+		/* [5] */
+		{233, 72, 271, 353},
+		StaticText {
+			disabled,
+			"If you do not trust this host, hit Cancel "
+			"to abandon the connection."
+		},
+		/* [6] */
+		{275, 72, 295, 139},
+		Button {
+			enabled,
+			"Add Key"
+		},
+		/* [7] */
+		{275, 217, 295, 277},
+		Button {
+			enabled,
+			"Cancel"
+		},
+		/* [8] */
+		{275, 290, 295, 360},
+		Button {
+			enabled,
+			"Just Once"
+		}
+	}
+};
+
+/* Wrong host key */
+
+resource 'ALRT' (wWrong, "wrong", purgeable) {
+	{32, 67, 422, 435},
+	wWrong,
+	beepStages,
+	alertPositionMainScreen
+};
+
+resource 'DITL' (wWrong, "wrong", purgeable) {
+	{	/* array DITLarray: 9 elements */
+		/* [1] */
+		{10, 72, 26, 358},
+		StaticText {
+			disabled,
+			"WARNING - POTENTIAL SECURITY BREACH!"
+		},
+		/* [2] */
+		{32, 72, 131, 357},
+		StaticText {
+			disabled,
+			"The server's host key does not match the "
+			"one ^0 has cached.  This means that either "
+			"the server administrator has changed "
+			"the host key, or you have actually connected "
+			"to another computer pretending to be the "
+			"server."
+		},
+		/* [3] */
+		{136, 72, 190, 356},
+		StaticText {
+			disabled,
+			"The new ^1 key fingerprint is:\n^2"
+		},
+		/* [4] */
+		{190, 72, 238, 357},
+		StaticText {
+			disabled,
+			"If you were expecting this change and "
+			"trust the new key, hit Update Key to update "
+			"^0's cache and continue connecting."
+		},
+		/* [5] */
+		{246, 72, 294, 358},
+		StaticText {
+			disabled,
+			"If you want to carry on connecting just "
+			"once, without adding the key to the cache, "
+			"select Just Once."
+		},
+		/* [6] */
+		{301, 72, 349, 358},
+		StaticText {
+			disabled,
+			"If you do not trust this host, hit Cancel "
+			"to abandon the connection.  This is the "
+			"ONLY guaranteed safe choice."
+		},
+		/* [7] */
+		{360, 72, 380, 163},
+		Button {
+			enabled,
+			"Update Key"
+		},
+		/* [8] */
+		{360, 217, 380, 277},
+		Button {
+			enabled,
+			"Cancel"
+		},
+		/* [9] */
+		{360, 290, 380, 360},
+		Button {
+			enabled,
+			"Just Once"
+		}
+	}
+};
+
 /* Terminal window */
 
 resource 'WIND' (wTerminal, "terminal", purgeable) {
@@ -1071,7 +1221,7 @@ resource 'DITL' (wAbout, "about", purgeable) {
 	StaticText { disabled, "PuTTY"},
 	{ 42, 13, 74, 227 },
 	StaticText { disabled, "Some version or other\n"
-			       "Copyright © 1997-9 Simon Tatham"},
+			       "Copyright © 1997-2005 Simon Tatham"},
     }
 };
 
@@ -1092,11 +1242,12 @@ type 'TEXT' {
 };
 
 resource 'TEXT' (wLicence, "licence", purgeable) {
-    "PuTTY is copyright 1997-2004 Simon Tatham.\n"
+    "PuTTY is copyright 1997-2005 Simon Tatham.\n"
     "\n"
-    "Portions copyright Robert de Bath, Joris van Rantwijk, Delian"
-    "Delchev, Andreas Schultz, Jeroen Massar, Wez Furlong, Nicolas Barry,"
-    "Justin Bradford, Ben Harris, Malcolm Smith, and CORE SDI S.A.\n"
+    "Portions copyright Robert de Bath, Joris van Rantwijk, Delian "
+    "Delchev, Andreas Schultz, Jeroen Massar, Wez Furlong, Nicolas Barry, "
+    "Justin Bradford, Ben Harris, Malcolm Smith, Markus Kuhn, and "
+    "CORE SDI S.A.\n"
     "\n"    
     "Permission is hereby granted, free of charge, to any person "
     "obtaining a copy of this software and associated documentation "
@@ -1130,6 +1281,9 @@ data 'CDEF' (CDEF_Default) {
 };
 data 'CDEF' (CDEF_ListBox) {
     $"4EF9 00000000"
+};
+data 'CDEF' (CDEF_GroupBox) {
+    $"43F9 00000000"
 };
 
 /* List box template */

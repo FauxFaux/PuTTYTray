@@ -12,17 +12,20 @@
 # Overall project name.
 !name putty
 # Locations and types of output Makefiles.
-!makefile vc Makefile.vc
-!makefile vcproj MSVC
-!makefile cygwin Makefile.cyg
-!makefile borland Makefile.bor
-!makefile lcc Makefile.lcc
+!makefile vc windows/Makefile.vc
+!makefile vcproj windows/MSVC
+!makefile cygwin windows/Makefile.cyg
+!makefile borland windows/Makefile.bor
+!makefile lcc windows/Makefile.lcc
 !makefile gtk unix/Makefile.gtk
 !makefile mpw mac/Makefile.mpw
+!makefile osx macosx/Makefile
 # Source directories.
 !srcdir charset/
+!srcdir windows/
 !srcdir unix/
 !srcdir mac/
+!srcdir macosx/
 
 # Help text added to the top of each Makefile, with /D converted
 # into -D as appropriate for the particular Makefile.
@@ -30,9 +33,6 @@
 !begin help
 #
 # Extra options you can set:
-#
-#  - FWHACK=/DFWHACK
-#      Enables a hack that tunnels through some firewall proxies.
 #
 #  - VER=/DSNAPSHOT=1999-01-25
 #      Generates executables whose About box report them as being a
@@ -70,6 +70,11 @@
 #      Note that this definition is always enabled in the Cygwin
 #      build, since at the time of writing this <multimon.h> is
 #      known not to be available in Cygwin.
+#
+#  - COMPAT=/DNO_IPV6
+#      Disables PuTTY's ability to make IPv6 connections, enabling
+#      it to compile under development environments which do not
+#      support IPv6 in their header files.
 #
 #  - COMPAT=/DMSVC4
 #  - RCFL=/DMSVC4
@@ -109,34 +114,39 @@
 # Hack to force version.o to be rebuilt always.
 !begin vc
 version.obj: *.c *.h *.rc
-	cl $(FWHACK) $(VER) $(CFLAGS) /c version.c
+	cl $(VER) $(CFLAGS) /c ..\version.c
 !end
+!specialobj vc version
 !begin cygwin
-version.o: FORCE;
+version.o: FORCE
 FORCE:
-	$(CC) $(COMPAT) $(FWHACK) $(XFLAGS) $(CFLAGS) $(VER) -c version.c
+	$(CC) $(COMPAT) $(XFLAGS) $(CFLAGS) $(VER) -c ../version.c
 !end
+!specialobj cygwin version
 !begin borland
 version.obj: FORCE
 FORCE:
-	bcc32 $(FWHACK) $(VER) $(CFLAGS) /c version.c
+	bcc32 $(VER) $(CFLAGS) /c ..\version.c
 !end
+!specialobj borland version
 !begin lcc
-version.o: FORCE
+version.obj: FORCE
 FORCE:
-	lcc $(FWHACK) $(VER) $(CFLAGS) /c version.c
+	lcc $(VER) $(CFLAGS) /c ..\version.c
 !end
+!specialobj lcc version
 # For Unix, we also need the gross MD5 hack that causes automatic
 # version number selection in release source archives.
 !begin gtk
 version.o: FORCE;
 FORCE:
 	if test -z "$(VER)" && (cd ..; md5sum -c manifest); then \
-		$(CC) $(COMPAT) $(FWHACK) $(XFLAGS) $(CFLAGS) `cat ../version.def` -c ../version.c; \
+		$(CC) $(COMPAT) $(XFLAGS) $(CFLAGS) `cat ../version.def` -c ../version.c; \
 	else \
-		$(CC) $(COMPAT) $(FWHACK) $(XFLAGS) $(CFLAGS) $(VER) -c ../version.c; \
+		$(CC) $(COMPAT) $(XFLAGS) $(CFLAGS) $(VER) -c ../version.c; \
 	fi
 !end
+!specialobj gtk version
 
 # `make install' target for Unix.
 !begin gtk
@@ -145,6 +155,13 @@ install:
 	$(INSTALL_PROGRAM) -m 755 pscp $(DESTDIR)$(bindir)/pscp
 	$(INSTALL_PROGRAM) -m 755 psftp $(DESTDIR)$(bindir)/psftp
 	$(INSTALL_PROGRAM) -m 755 pterm $(DESTDIR)$(bindir)/pterm
+	if test -n "$(UTMP_GROUP)"; then \
+	  chgrp $(UTMP_GROUP) $(DESTDIR)$(bindir)/pterm && \
+	    chmod 2755 $(DESTDIR)$(bindir)/pterm; \
+	elif test -n "$(UTMP_USER)"; then \
+	  chown $(UTMP_USER) $(DESTDIR)$(bindir)/pterm && \
+	    chmod 4755 $(DESTDIR)$(bindir)/pterm; \
+	fi
 	$(INSTALL_PROGRAM) -m 755 putty $(DESTDIR)$(bindir)/putty
 	$(INSTALL_PROGRAM) -m 755 puttygen $(DESTDIR)$(bindir)/puttygen
 	$(INSTALL_PROGRAM) -m 755 puttytel $(DESTDIR)$(bindir)/puttytel
@@ -159,6 +176,9 @@ install:
 install-strip:
 	$(MAKE) install INSTALL_PROGRAM="$(INSTALL_PROGRAM) -s"
 !end
+!begin osx vars
+CFLAGS += -DMACOSX
+!end
 
 # ------------------------------------------------------------
 # Definitions of object groups. A group name, followed by an =,
@@ -171,20 +191,22 @@ TERMINAL = terminal wcwidth ldiscucs logging tree234 minibidi
          + config dialog
 
 # GUI front end and terminal emulator (putty, puttytel).
-GUITERM  = TERMINAL window windlg winctrls sizetip unicode printing
+GUITERM  = TERMINAL window windlg winctrls sizetip winucs winprint
          + winutils wincfg
 
 # Same thing on Unix.
-UXTERM   = TERMINAL pterm uxcfg gtkdlg gtkcols gtkpanel uxucs uxprint xkeysym
+UXTERM   = TERMINAL uxcfg uxucs uxprint timing
+GTKTERM  = UXTERM gtkwin gtkcfg gtkdlg gtkcols gtkpanel xkeysym
+OSXTERM  = UXTERM osxwin osxdlg osxctrls
 
 # Non-SSH back ends (putty, puttytel, plink).
-NONSSH   = telnet raw rlogin ldisc
+NONSSH   = telnet raw rlogin ldisc pinger
 
 # SSH back end (putty, plink, pscp, psftp).
 SSH      = ssh sshcrc sshdes sshmd5 sshrsa sshrand sshsha sshblowf
          + sshdh sshcrcda sshpubk sshzlib sshdss x11fwd portfwd
-         + sshaes sshsh512 sshbn wildcard
-WINSSH   = SSH noise pageantc
+         + sshaes sshsh512 sshbn wildcard pinger
+WINSSH   = SSH winnoise winpgntc
 UXSSH    = SSH uxnoise uxagentc
 MACSSH   = SSH macnoise
 
@@ -193,12 +215,11 @@ SFTP     = sftp int64 logging
 
 # Miscellaneous objects appearing in all the network utilities (not
 # Pageant or PuTTYgen).
-WINMISC  = misc version winstore settings tree234 winnet proxy cmdline
-         + windefs winmisc pproxy
-UXMISC   = misc version uxstore settings tree234 uxsel uxnet proxy cmdline
-         + uxmisc uxproxy
-MACMISC  = misc version macstore settings tree234 macnet mtcpnet otnet proxy
-         + macmisc macabout pproxy
+MISC     = timing misc version settings tree234 proxy
+WINMISC  = MISC winstore winnet cmdline windefs winmisc pproxy wintime
+UXMISC   = MISC uxstore uxsel uxnet cmdline uxmisc uxproxy time
+OSXMISC  = MISC uxstore uxsel osxsel uxnet uxmisc uxproxy time
+MACMISC  = MISC macstore macnet mtcpnet otnet macmisc macabout pproxy
 
 # Character set library, for use in pterm.
 CHARSET  = sbcsdat slookup sbcs utf8 toucs fromucs xenc mimeenc macenc localenc
@@ -222,42 +243,48 @@ BE_NONE  = be_none nocproxy
 
 putty    : [G] GUITERM NONSSH WINSSH BE_ALL WINMISC win_res.res LIBS
 puttytel : [G] GUITERM NONSSH BE_NOSSH WINMISC win_res.res LIBS
-plink    : [C] plink console NONSSH WINSSH BE_ALL logging WINMISC
+plink    : [C] winplink wincons NONSSH WINSSH BE_ALL logging WINMISC
          + plink.res LIBS
-pscp     : [C] scp winsftp console WINSSH BE_SSH SFTP wildcard WINMISC
-         + scp.res LIBS
-psftp    : [C] psftp winsftp console WINSSH BE_SSH SFTP WINMISC scp.res LIBS
+pscp     : [C] pscp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
+         + pscp.res LIBS
+psftp    : [C] psftp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
+         + pscp.res LIBS
 
-pageant  : [G] pageant sshrsa sshpubk sshdes sshbn sshmd5 version tree234
-         + misc sshaes sshsha pageantc sshdss sshsh512 winutils winmisc
+pageant  : [G] winpgnt sshrsa sshpubk sshdes sshbn sshmd5 version tree234
+         + misc sshaes sshsha winpgntc sshdss sshsh512 winutils winmisc
          + pageant.res LIBS
 
-puttygen : [G] puttygen sshrsag sshdssg sshprime sshdes sshbn sshmd5 version
-         + sshrand noise sshsha winstore misc winctrls sshrsa sshdss winmisc
-         + sshpubk sshaes sshsh512 import winutils puttygen.res tree234 LIBS
+puttygen : [G] winpgen sshrsag sshdssg sshprime sshdes sshbn sshmd5 version
+         + sshrand winnoise sshsha winstore misc winctrls sshrsa sshdss winmisc
+         + sshpubk sshaes sshsh512 import winutils puttygen.res tree234
+	 + notiming LIBS wintime
 
-pterm    : [X] UXTERM uxmisc misc ldisc settings pty uxsel BE_NONE uxstore
-         + signal CHARSET cmdline ptermm version
-putty    : [X] UXTERM uxmisc misc ldisc settings pty uxsel BE_ALL uxstore
-         + signal CHARSET uxputty NONSSH UXSSH UXMISC ux_x11
-puttytel : [X] UXTERM uxmisc misc ldisc settings pty uxsel BE_NOSSH
-	 + uxstore signal CHARSET uxputty NONSSH UXMISC
+pterm    : [X] GTKTERM uxmisc misc ldisc settings uxpty uxsel BE_NONE uxstore
+         + uxsignal CHARSET cmdline uxpterm version time
+putty    : [X] GTKTERM uxmisc misc ldisc settings uxsel BE_ALL uxstore
+         + uxsignal CHARSET uxputty NONSSH UXSSH UXMISC ux_x11
+puttytel : [X] GTKTERM uxmisc misc ldisc settings uxsel BE_NOSSH
+	 + uxstore uxsignal CHARSET uxputty NONSSH UXMISC
 
-plink    : [U] uxplink uxcons NONSSH UXSSH BE_ALL logging UXMISC signal ux_x11
+plink    : [U] uxplink uxcons NONSSH UXSSH BE_ALL logging UXMISC uxsignal ux_x11
 
 puttygen : [U] cmdgen sshrsag sshdssg sshprime sshdes sshbn sshmd5 version
          + sshrand uxnoise sshsha misc sshrsa sshdss uxcons uxstore uxmisc
-         + sshpubk sshaes sshsh512 import puttygen.res tree234 uxgen
+         + sshpubk sshaes sshsh512 import puttygen.res time tree234 uxgen
+         + notiming
 
-pscp     : [U] scp uxsftp uxcons UXSSH BE_SSH SFTP wildcard UXMISC
-psftp    : [U] psftp uxsftp uxcons UXSSH BE_SSH SFTP UXMISC
+pscp     : [U] pscp uxsftp uxcons UXSSH BE_SSH SFTP wildcard UXMISC
+psftp    : [U] psftp uxsftp uxcons UXSSH BE_SSH SFTP wildcard UXMISC
 
 PuTTY    : [M] terminal wcwidth ldiscucs logging BE_ALL mac macdlg macevlog
          + macterm macucs mac_res.rsrc testback NONSSH MACSSH MACMISC CHARSET
-         + stricmp vsnprint dialog config macctrls
+         + stricmp vsnprint dialog config macctrls minibidi
 PuTTYtel : [M] terminal wcwidth ldiscucs logging BE_NOSSH mac macdlg
 	 + macevlog macterm macucs mac_res.rsrc testback NONSSH MACMISC
-	 + CHARSET stricmp vsnprint dialog config macctrls
+	 + CHARSET stricmp vsnprint dialog config macctrls minibidi
 PuTTYgen : [M] macpgen sshrsag sshdssg sshprime sshdes sshbn sshmd5 version
          + sshrand macnoise sshsha macstore misc sshrsa sshdss macmisc sshpubk
          + sshaes sshsh512 import macpgen.rsrc macpgkey macabout
+
+PuTTY    : [MX] osxmain OSXTERM OSXMISC CHARSET BE_ALL NONSSH UXSSH
+         + ux_x11 uxpty uxsignal testback putty.icns info.plist

@@ -26,8 +26,9 @@ int mb_to_wc(
 {
   if (codepage == DEFAULT_CODEPAGE) {
     int n = 0;
-    mbstate_t state = {0};
+    mbstate_t state;
 
+    memset(&state, 0, sizeof state);
     setlocale(LC_CTYPE, "");
 
     while (mblen > 0) {
@@ -74,9 +75,10 @@ int wc_to_mb(int codepage,
 
   if (codepage == DEFAULT_CODEPAGE) {
     char output[MB_LEN_MAX];
-    mbstate_t state = {0};
+    mbstate_t state;
     int n = 0;
 
+    memset(&state, 0, sizeof state);
     setlocale(LC_CTYPE, "");
 
     while (wclen > 0) {
@@ -120,6 +122,7 @@ int wc_to_mb(int codepage,
  */
 int init_ucs(struct unicode_data *ucsdata,
              char *linecharset,
+             int utf8_override,
              int font_charset,
              int vtmode)
 {
@@ -134,10 +137,26 @@ int init_ucs(struct unicode_data *ucsdata,
   ucsdata->font_codepage = -1;
 
   /*
-   * line_codepage should be decoded from the specification in
-   * cfg.
+   * If utf8_override is set and the POSIX locale settings
+   * dictate a UTF-8 character set, then just go straight for
+   * UTF-8.
    */
-  ucsdata->line_codepage = decode_codepage(linecharset);
+  ucsdata->line_codepage = CS_NONE;
+  if (utf8_override) {
+    const char *s;
+    if (((s = getenv("LC_ALL")) && *s) || ((s = getenv("LC_CTYPE")) && *s) ||
+        ((s = getenv("LANG")) && *s)) {
+      if (strstr(s, "UTF-8"))
+        ucsdata->line_codepage = CS_UTF8;
+    }
+  }
+
+  /*
+   * Failing that, line_codepage should be decoded from the
+   * specification in cfg.
+   */
+  if (ucsdata->line_codepage == CS_NONE)
+    ucsdata->line_codepage = decode_codepage(linecharset);
 
   /*
    * If line_codepage is _still_ CS_NONE, we assume we're using

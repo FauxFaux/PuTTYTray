@@ -327,6 +327,10 @@ int main(int argc, char **argv)
             } else if (!strcmp(opt, "-version")) {
               showversion();
               nogo = TRUE;
+            } else if (!strcmp(opt, "-pgpfp")) {
+              /* support "-pgpfp" for consistency with others */
+              pgp_fingerprints();
+              nogo = TRUE;
             }
             /*
              * A sample option requiring an argument:
@@ -540,7 +544,7 @@ int main(int argc, char **argv)
     case SSH_KEYTYPE_SSH1:
       if (sshver == 2) {
         fprintf(stderr,
-                "puttygen: conversion from SSH1 to SSH2 keys"
+                "puttygen: conversion from SSH-1 to SSH-2 keys"
                 " not supported\n");
         return 1;
       }
@@ -552,7 +556,7 @@ int main(int argc, char **argv)
     case SSH_KEYTYPE_SSHCOM:
       if (sshver == 1) {
         fprintf(stderr,
-                "puttygen: conversion from SSH2 to SSH1 keys"
+                "puttygen: conversion from SSH-2 to SSH-1 keys"
                 " not supported\n");
         return 1;
       }
@@ -621,21 +625,19 @@ int main(int argc, char **argv)
   if (keytype != NOKEYGEN) {
     char *entropy;
     char default_comment[80];
-    time_t t;
-    struct tm *tm;
+    struct tm tm;
     struct progress prog;
 
     prog.phase = -1;
     prog.current = -1;
 
-    time(&t);
-    tm = localtime(&t);
+    tm = ltime();
     if (keytype == DSA)
-      strftime(default_comment, 30, "dsa-key-%Y%m%d", tm);
+      strftime(default_comment, 30, "dsa-key-%Y%m%d", &tm);
     else
-      strftime(default_comment, 30, "rsa-key-%Y%m%d", tm);
+      strftime(default_comment, 30, "rsa-key-%Y%m%d", &tm);
 
-    random_init();
+    random_ref();
     entropy = get_random_data(bits / 8);
     random_add_heavynoise(entropy, bits / 8);
     memset(entropy, 0, bits / 8);
@@ -714,12 +716,12 @@ int main(int argc, char **argv)
 
         l = ssh1_read_bignum(blob + n, bloblen - n, &ssh1key->exponent);
         if (l < 0) {
-          error = "SSH1 public key blob was too short";
+          error = "SSH-1 public key blob was too short";
         } else {
           n += l;
           l = ssh1_read_bignum(blob + n, bloblen - n, &ssh1key->modulus);
           if (l < 0) {
-            error = "SSH1 public key blob was too short";
+            error = "SSH-1 public key blob was too short";
           } else
             n += l;
         }
@@ -758,15 +760,14 @@ int main(int argc, char **argv)
 
     case SSH_KEYTYPE_OPENSSH:
     case SSH_KEYTYPE_SSHCOM:
-      ssh2key = import_ssh2(&infilename, intype, passphrase);
-      if (ssh2key && ssh2key != SSH2_WRONG_PASSPHRASE)
-        error = NULL;
-      else if (!error) {
-        if (ssh2key == SSH2_WRONG_PASSPHRASE)
-          error = "wrong passphrase";
+      ssh2key = import_ssh2(&infilename, intype, passphrase, &error);
+      if (ssh2key) {
+        if (ssh2key != SSH2_WRONG_PASSPHRASE)
+          error = NULL;
         else
-          error = "unknown error";
-      }
+          error = "wrong passphrase";
+      } else if (!error)
+        error = "unknown error";
       break;
 
     default:
@@ -848,14 +849,14 @@ int main(int argc, char **argv)
       assert(ssh1key);
       ret = saversakey(&outfilename, ssh1key, passphrase);
       if (!ret) {
-        fprintf(stderr, "puttygen: unable to save SSH1 private key\n");
+        fprintf(stderr, "puttygen: unable to save SSH-1 private key\n");
         return 1;
       }
     } else {
       assert(ssh2key);
       ret = ssh2_save_userkey(&outfilename, ssh2key, passphrase);
       if (!ret) {
-        fprintf(stderr, "puttygen: unable to save SSH2 private key\n");
+        fprintf(stderr, "puttygen: unable to save SSH-2 private key\n");
         return 1;
       }
     }
@@ -1235,10 +1236,10 @@ int main(int argc, char **argv)
      * Change the comment of the key; this _does_ require a
      * passphrase owing to the tamperproofing.
      *
-     * NOTE: In SSH1, this only requires a passphrase because
+     * NOTE: In SSH-1, this only requires a passphrase because
      * of inadequacies of the loading and saving mechanisms. In
      * _principle_, it should be perfectly possible to modify
-     * the comment on an SSH1 key without requiring a
+     * the comment on an SSH-1 key without requiring a
      * passphrase; the only reason I can't do it is because my
      * loading and saving mechanisms don't include a method of
      * loading all the key data without also trying to decrypt
@@ -1246,7 +1247,7 @@ int main(int argc, char **argv)
      *
      * I don't consider this to be a problem worth solving,
      * because (a) to fix it would probably end up bloating
-     * PuTTY proper, and (b) SSH1 is on the way out anyway so
+     * PuTTY proper, and (b) SSH-1 is on the way out anyway so
      * it shouldn't be highly significant. If it seriously
      * bothers anyone then perhaps I _might_ be persuadable.
      */

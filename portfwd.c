@@ -84,6 +84,16 @@ struct PFwdPrivate {
   int buflen;
 };
 
+static void pfd_log(Plug plug,
+                    int type,
+                    SockAddr addr,
+                    int port,
+                    const char *error_msg,
+                    int error_code)
+{
+  /* we have to dump these since we have no interface to logging.c */
+}
+
 static int pfd_closing(Plug plug,
                        const char *error_msg,
                        int error_code,
@@ -360,11 +370,15 @@ static void pfd_sent(Plug plug, int bufsize)
 /*
  * Called when receiving a PORT OPEN from the server
  */
-const char *pfd_newconnect(
-    Socket *s, char *hostname, int port, void *c, const Config *cfg)
+const char *pfd_newconnect(Socket *s,
+                           char *hostname,
+                           int port,
+                           void *c,
+                           const Config *cfg,
+                           int addressfamily)
 {
   static const struct plug_function_table fn_table = {
-      pfd_closing, pfd_receive, pfd_sent, NULL};
+      pfd_log, pfd_closing, pfd_receive, pfd_sent, NULL};
 
   SockAddr addr;
   const char *err;
@@ -374,7 +388,7 @@ const char *pfd_newconnect(
   /*
    * Try to find host.
    */
-  addr = name_lookup(hostname, port, &dummy_realhost, cfg);
+  addr = name_lookup(hostname, port, &dummy_realhost, cfg, addressfamily);
   if ((err = sk_addr_error(addr)) != NULL) {
     sk_addr_free(addr);
     return err;
@@ -410,7 +424,7 @@ const char *pfd_newconnect(
 static int pfd_accepting(Plug p, OSSocket sock)
 {
   static const struct plug_function_table fn_table = {
-      pfd_closing, pfd_receive, pfd_sent, NULL};
+      pfd_log, pfd_closing, pfd_receive, pfd_sent, NULL};
   struct PFwdPrivate *pr, *org;
   Socket s;
   const char *err;
@@ -464,9 +478,12 @@ const char *pfd_addforward(char *desthost,
                            char *srcaddr,
                            int port,
                            void *backhandle,
-                           const Config *cfg)
+                           const Config *cfg,
+                           void **sockdata,
+                           int address_family)
 {
   static const struct plug_function_table fn_table = {
+      pfd_log,
       pfd_closing,
       pfd_receive, /* should not happen... */
       pfd_sent,    /* also should not happen */
@@ -493,13 +510,16 @@ const char *pfd_addforward(char *desthost,
   pr->ready = 0;
   pr->backhandle = backhandle;
 
-  pr->s = s = new_listener(srcaddr, port, (Plug)pr, !cfg->lport_acceptall, cfg);
+  pr->s = s = new_listener(
+      srcaddr, port, (Plug)pr, !cfg->lport_acceptall, cfg, address_family);
   if ((err = sk_socket_error(s)) != NULL) {
     sfree(pr);
     return err;
   }
 
   sk_set_private_ptr(s, pr);
+
+  *sockdata = (void *)s;
 
   return NULL;
 }
@@ -517,6 +537,14 @@ void pfd_close(Socket s)
   sfree(pr);
 
   sk_close(s);
+}
+
+/*
+ * Terminate a listener.
+ */
+void pfd_terminate(void *sv)
+{
+  pfd_close((Socket)sv);
 }
 
 void pfd_unthrottle(Socket s)

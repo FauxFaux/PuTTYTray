@@ -32,6 +32,19 @@ void get_file_times(char *filename, unsigned long *mtime, unsigned long *atime);
 int ssh_sftp_loop_iteration(void);
 
 /*
+ * Read a command line for PSFTP from standard input. Caller must
+ * free.
+ *
+ * If `backend_required' is TRUE, should also listen for activity
+ * at the backend (rekeys, clientalives, unexpected closures etc)
+ * and respond as necessary, and if the backend closes it should
+ * treat this as a failure condition. If `backend_required' is
+ * FALSE, a back end is not (intentionally) active at all (e.g.
+ * psftp before an `open' command).
+ */
+char *ssh_sftp_get_cmdline(char *prompt, int backend_required);
+
+/*
  * The main program in psftp.c. Called from main() in the platform-
  * specific code, after doing any platform-specific initialisation.
  */
@@ -146,6 +159,16 @@ WildcardMatcher *begin_wildcard_matching(char *name);
 /* The string returned from this will need freeing if not NULL */
 char *wildcard_get_filename(WildcardMatcher *dir);
 void finish_wildcard_matching(WildcardMatcher *dir);
+
+/*
+ * Vet a filename returned from the remote host, to ensure it isn't
+ * in some way malicious. The idea is that this function is applied
+ * to filenames returned from FXP_READDIR, which means we can panic
+ * if we see _anything_ resembling a directory separator.
+ *
+ * Returns TRUE if the filename is kosher, FALSE if dangerous.
+ */
+int vet_filename(char *name);
 
 /*
  * Create a directory. Returns 0 on error, !=0 on success.

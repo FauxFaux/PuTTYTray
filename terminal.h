@@ -29,6 +29,48 @@ struct scrollregion {
 };
 #endif /* OPTIMISE_SCROLL */
 
+typedef struct termchar termchar;
+typedef struct termline termline;
+
+struct termchar {
+  /*
+   * Any code in terminal.c which definitely needs to be changed
+   * when extra fields are added here is labelled with a comment
+   * saying FULL-TERMCHAR.
+   */
+  unsigned long chr;
+  unsigned long attr;
+
+  /*
+   * The cc_next field is used to link multiple termchars
+   * together into a list, so as to fit more than one character
+   * into a character cell (Unicode combining characters).
+   *
+   * cc_next is a relative offset into the current array of
+   * termchars. I.e. to advance to the next character in a list,
+   * one does `tc += tc->next'.
+   *
+   * Zero means end of list.
+   */
+  int cc_next;
+};
+
+struct termline {
+  unsigned short lattr;
+  int cols;      /* number of real columns on the line */
+  int size;      /* number of allocated termchars
+                  * (cc-lists may make this > cols) */
+  int temporary; /* TRUE if decompressed from scrollback */
+  int cc_free;   /* offset to first cc in free list */
+  struct termchar *chars;
+};
+
+struct bidi_cache_entry {
+  int width;
+  struct termchar *chars;
+  int *forward, *backward; /* the permutations of line positions */
+};
+
 struct terminal_tag {
 
   int compatibility_level;
@@ -40,11 +82,9 @@ struct terminal_tag {
   int tempsblines;     /* number of lines in temporary
                           scrollback */
 
-  unsigned long *cpos; /* cursor position (convenience) */
-
-  unsigned long *disptext; /* buffer of text on real screen */
-  unsigned long *dispcurs; /* location of cursor on real screen */
-  unsigned long curstype;  /* type of cursor on real screen */
+  termline **disptext;      /* buffer of text on real screen */
+  int dispcursx, dispcursy; /* location of cursor on real screen */
+  int curstype;             /* type of cursor on real screen */
 
 #define VBELL_TIMEOUT (TICKSPERSEC / 10) /* visual bell lasts 1/10 sec */
 
@@ -53,19 +93,15 @@ struct terminal_tag {
   int beep_overloaded;
   long lastbeep;
 
-#define TTYPE unsigned long
+#define TTYPE termchar
 #define TSIZE (sizeof(TTYPE))
-#define fix_cpos                                                               \
-  do {                                                                         \
-    term->cpos = lineptr(term->curs.y) + term->curs.x;                         \
-  } while (0)
 
 #ifdef OPTIMISE_SCROLL
   struct scrollregion *scrollhead, *scrolltail;
 #endif /* OPTIMISE_SCROLL */
 
-  unsigned long default_attr, curr_attr, save_attr;
-  unsigned long erase_char;
+  int default_attr, curr_attr, save_attr;
+  termchar basic_erase_char, erase_char;
 
   bufchain inbuf;                  /* terminal input buffer */
   pos curs;                        /* cursor */
@@ -82,7 +118,7 @@ struct terminal_tag {
   int cursor_on;                   /* cursor enabled flag */
   int reset_132;                   /* Flag ESC c resets to 80 cols */
   int use_bce;                     /* Use Background coloured erase */
-  int blinker;                     /* When blinking is the cursor on ? */
+  int cblinker;                    /* When blinking is the cursor on ? */
   int tblinker;                    /* When the blinking text is on */
   int blink_is_real;               /* Actually blink blinking text */
   int term_echoing;                /* Does terminal want local echo? */
@@ -101,19 +137,16 @@ struct terminal_tag {
   int rows, cols, savelines;
   int has_focus;
   int in_vbell;
-  unsigned long vbell_startpoint;
+  long vbell_end;
   int app_cursor_keys, app_keypad_keys, vt52_mode;
   int repeat_off, cr_lf_return;
   int seen_disp_event;
   int big_cursor;
 
-  long last_blink; /* used for real blinking control */
-  long last_tblink;
-
   int xterm_mouse;   /* send mouse messages to app */
   int mouse_is_down; /* used while tracking mouse buttons */
 
-  unsigned long cset_attr[2];
+  int cset_attr[2];
 
   /*
    * Saved settings on the alternate screen.
@@ -186,7 +219,7 @@ struct terminal_tag {
   short wordness[256];
 
   /* Mask of attributes to pay attention to when painting. */
-  unsigned long attr_mask;
+  int attr_mask;
 
   wchar_t *paste_buffer;
   int paste_len, paste_pos, paste_hold;
@@ -223,11 +256,26 @@ struct terminal_tag {
   int in_term_out;
 
   /*
+   * We schedule a window update shortly after receiving terminal
+   * data. This tracks whether one is currently pending.
+   */
+  int window_update_pending;
+  long next_update;
+
+  /*
+   * Track pending blinks and tblinks.
+   */
+  int tblink_pending, cblink_pending;
+  long next_tblink, next_cblink;
+
+  /*
    * These are buffers used by the bidi and Arabic shaping code.
    */
-  unsigned long *ltemp;
+  termchar *ltemp;
+  int ltemp_size;
   bidi_char *wcFrom, *wcTo;
-  unsigned long **pre_bidi_cache, **post_bidi_cache;
+  int wcFromTo_size;
+  struct bidi_cache_entry *pre_bidi_cache, *post_bidi_cache;
   int bidi_cache_size;
 };
 

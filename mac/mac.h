@@ -21,6 +21,7 @@
 #define INTERNAL_CREATOR FOUR_CHAR_CODE('pTTI')
 #define SESS_TYPE FOUR_CHAR_CODE('Sess')
 #define SEED_TYPE FOUR_CHAR_CODE('Seed')
+#define HKYS_TYPE FOUR_CHAR_CODE('Hkys')
 
 struct mac_gestalts {
   long sysvers;
@@ -89,6 +90,8 @@ typedef struct Session {
   struct Session **prev;
   /* Config that created this session */
   Config cfg;
+  /* Temporary config for passing to Change Settings */
+  Config temp_cfg;
   /* Terminal emulator internal state */
   Terminal *term;
   /* Display state */
@@ -103,6 +106,8 @@ typedef struct Session {
   void *logctx;
   /* Unicode stuff */
   struct unicode_data ucsdata;
+  /* Session closed flag */
+  int session_closed;
 
   /* Mac-specific elements */
   short fontnum;
@@ -150,6 +155,7 @@ typedef struct KeyState {
 extern WindowPtr mac_frontwindow(void);
 /* from macdlg.c */
 extern void mac_newsession(void);
+extern void mac_reconfig(void);
 extern void mac_dupsession(void);
 extern void mac_savesession(void);
 extern void mac_savesessionas(void);
@@ -159,12 +165,13 @@ extern void mac_showeventlog(Session *);
 /* from macterm.c */
 extern void mac_opensession(void);
 extern void mac_startsession(Session *);
-extern void mac_pollterm(void);
 /* from macstore.c */
 extern OSErr get_putty_dir(Boolean makeit, short *pVRefNum, long *pDirID);
 extern OSErr get_session_dir(Boolean makeit, short *pVRefNum, long *pDirID);
 extern void *open_settings_r_fsp(FSSpec *);
 extern void *open_settings_w_fsp(FSSpec *);
+extern int verify_host_key(const char *, int, const char *, const char *);
+extern void store_host_key(const char *, int, const char *, const char *);
 /* from macucs.c */
 extern void init_ucs(Session *);
 /* from macnet.c */
@@ -182,8 +189,8 @@ extern int mactcp_addrtype(SockAddr);
 extern void mactcp_addrcopy(SockAddr, char *);
 extern void mactcp_addr_free(SockAddr);
 extern Socket mactcp_register(void *, Plug);
-extern Socket mactcp_new(SockAddr addr, int, int, int, int, Plug);
-extern Socket mactcp_newlistener(char *, int, Plug, int);
+extern Socket mactcp_new(SockAddr addr, int, int, int, int, int, Plug);
+extern Socket mactcp_newlistener(char *, int, Plug, int, int);
 extern char *mactcp_addr_error(SockAddr);
 /* from otnet.c */
 extern OSErr ot_init(void);
@@ -198,8 +205,8 @@ extern int ot_addrtype(SockAddr);
 extern void ot_addrcopy(SockAddr, char *);
 extern void ot_addr_free(SockAddr);
 extern Socket ot_register(void *, Plug);
-extern Socket ot_new(SockAddr addr, int, int, int, int, Plug);
-extern Socket ot_newlistener(char *, int, Plug, int);
+extern Socket ot_new(SockAddr addr, int, int, int, int, int, Plug);
+extern Socket ot_newlistener(char *, int, Plug, int, int);
 extern char *ot_addr_error(SockAddr);
 /* from macabout.c */
 extern void mac_openabout(void);

@@ -13,6 +13,7 @@
 #include <termios.h>
 #include <pwd.h>
 #include <sys/ioctl.h>
+#include <sys/select.h>
 
 #define PUTTY_DO_GLOBALS /* actually _define_ globals */
 #include "putty.h"
@@ -127,10 +128,15 @@ void ldisc_update(void *frontend, int echo, int edit)
   else
     mode.c_lflag &= ~ECHO;
 
-  if (edit)
+  if (edit) {
+    mode.c_iflag |= ICRNL;
     mode.c_lflag |= ISIG | ICANON;
-  else
+  } else {
+    mode.c_iflag &= ~ICRNL;
     mode.c_lflag &= ~(ISIG | ICANON);
+    mode.c_cc[VMIN] = 1;
+    mode.c_cc[VTIME] = 0;
+  }
 
   tcsetattr(0, TCSANOW, &mode);
 }
@@ -212,14 +218,14 @@ static void usage(void)
   printf("Usage: plink [options] [user@]host [command]\n");
   printf("       (\"host\" can also be a PuTTY saved session name)\n");
   printf("Options:\n");
-  printf("  -V        print version information\n");
+  printf("  -V        print version information and exit\n");
+  printf("  -pgpfp    print PGP key fingerprints and exit\n");
   printf("  -v        show verbose messages\n");
   printf("  -load sessname  Load settings from saved session\n");
   printf("  -ssh -telnet -rlogin -raw\n");
   printf("            force use of a particular protocol\n");
   printf("  -P port   connect to specified port\n");
   printf("  -l user   connect with specified username\n");
-  printf("  -m file   read remote command(s) from file\n");
   printf("  -batch    disable all interactive prompts\n");
   printf("The following options only apply to SSH connections:\n");
   printf("  -pw passw login with specified password\n");
@@ -233,9 +239,12 @@ static void usage(void)
   printf("  -A -a     enable / disable agent forwarding\n");
   printf("  -t -T     enable / disable pty allocation\n");
   printf("  -1 -2     force use of particular protocol version\n");
+  printf("  -4 -6     force use of IPv4 or IPv6\n");
   printf("  -C        enable compression\n");
   printf("  -i key    private key file for authentication\n");
+  printf("  -m file   read remote command(s) from file\n");
   printf("  -s        remote command is an SSH subsystem (SSH-2 only)\n");
+  printf("  -N        don't start a shell/command (SSH-2 only)\n");
   exit(1);
 }
 
@@ -257,6 +266,7 @@ int main(int argc, char **argv)
   int errors;
   int use_subsystem = 0;
   void *ldisc, *logctx;
+  long now;
 
   ssh_get_line = console_get_line;
 
@@ -312,6 +322,9 @@ int main(int argc, char **argv)
         use_subsystem = 1;
       } else if (!strcmp(p, "-V")) {
         version();
+      } else if (!strcmp(p, "-pgpfp")) {
+        pgp_fingerprints();
+        exit(1);
       } else if (!strcmp(p, "-o")) {
         if (argc <= 1) {
           fprintf(stderr, "plink: option \"-o\" requires an argument\n");
@@ -406,8 +419,6 @@ int main(int argc, char **argv)
               cfg.port = default_port;
             } else {
               cfg = cfg2;
-              /* Ick: patch up internal pointer after copy */
-              cfg.remote_cmd_ptr = cfg.remote_cmd;
             }
           }
 
@@ -510,7 +521,7 @@ int main(int argc, char **argv)
     cfg.host[p1] = '\0';
   }
 
-  if (!*cfg.remote_cmd_ptr)
+  if (!cfg.remote_cmd_ptr && !*cfg.remote_cmd)
     flags |= FLAG_INTERACTIVE;
 
   /*
@@ -587,6 +598,7 @@ int main(int argc, char **argv)
   atexit(cleanup_termios);
   ldisc_update(NULL, 1, 1);
   sending = FALSE;
+  now = GETTICKCOUNT();
 
   while (1) {
     fd_set rset, wset, xset;
@@ -645,7 +657,43 @@ int main(int argc, char **argv)
     }
 
     do {
-      ret = select(maxfd, &rset, &wset, &xset, NULL);
+      long next, ticks;
+      struct timeval tv, *ptv;
+
+      if (run_timers(now, &next)) {
+        ticks = next - GETTICKCOUNT();
+        if (ticks < 0)
+          ticks = 0; /* just in case */
+        tv.tv_sec = ticks / 1000;
+        tv.tv_usec = ticks % 1000 * 1000;
+        ptv = &tv;
+      } else {
+        ptv = NULL;
+      }
+      ret = select(maxfd, &rset, &wset, &xset, ptv);
+      if (ret == 0)
+        now = next;
+      else {
+        long newnow = GETTICKCOUNT();
+        /*
+         * Check to see whether the system clock has
+         * changed massively during the select.
+         */
+        if (newnow - now < 0 || newnow - now > next - now) {
+          /*
+           * If so, look at the elapsed time in the
+           * select and use it to compute a new
+           * tickcount_offset.
+           */
+          long othernow = now + tv.tv_sec * 1000 + tv.tv_usec / 1000;
+          /* So we'd like GETTICKCOUNT to have returned othernow,
+           * but instead it return newnow. Hence ... */
+          tickcount_offset += othernow - newnow;
+          now = othernow;
+        } else {
+          now = newnow;
+        }
+      }
     } while (ret < 0 && errno == EINTR);
 
     if (ret < 0) {

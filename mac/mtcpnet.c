@@ -548,10 +548,8 @@ Socket mactcp_new(SockAddr addr,
   return (Socket)ret;
 }
 
-Socket mactcp_newlistener(char *srcaddr,
-                          int port,
-                          Plug plug,
-                          int local_host_only)
+Socket mactcp_newlistener(
+    char *srcaddr, int port, Plug plug, int local_host_only, int address_family)
 {
 
   fatalbox("mactcp_newlistener");

@@ -37,6 +37,8 @@ struct Socket_tag {
   int oobinline;
   int pending_error; /* in case send() returns error */
   int listener;
+  int nodelay, keepalive;
+  int privport, port;
   struct Socket_tag *next;
   struct Socket_tag **prev;
 };
@@ -186,6 +188,8 @@ static void *ot_tcp_get_private_ptr(Socket s);
 static void ot_tcp_set_frozen(Socket s, int is_frozen);
 static const char *ot_tcp_socket_error(Socket s);
 static void ot_recv(Actual_Socket s);
+static void ot_listenaccept(Actual_Socket s);
+static void ot_setoption(EndpointRef, OTXTILevel, OTXTIName, UInt32);
 void ot_poll(void);
 
 Socket ot_register(void *sock, Plug plug)
@@ -267,6 +271,8 @@ Socket ot_new(SockAddr addr,
   ret->localhost_only = 0; /* unused, but best init anyway */
   ret->pending_error = 0;
   ret->oobinline = oobinline;
+  ret->nodelay = nodelay;
+  ret->keepalive = keepalive;
   ret->oobpending = FALSE;
   ret->listener = 0;
 
@@ -281,7 +287,15 @@ Socket ot_new(SockAddr addr,
     return (Socket)ret;
   }
 
-  /* TODO: oobinline, nodelay, keepalive */
+  if (ret->oobinline)
+    ot_setoption(ep, INET_TCP, TCP_OOBINLINE, T_YES);
+
+  if (ret->nodelay)
+    ot_setoption(ep, INET_TCP, TCP_NODELAY, T_YES);
+
+  if (ret->keepalive) {
+    ot_setoption(ep, INET_TCP, TCP_KEEPALIVE, T_YES);
+  }
 
   /*
    * Bind to local address.
@@ -329,11 +343,77 @@ Socket ot_new(SockAddr addr,
   return (Socket)ret;
 }
 
-Socket ot_newlistener(char *foobar, int port, Plug plug, int local_host_only)
+Socket ot_newlistener(
+    char *srcaddr, int port, Plug plug, int local_host_only, int address_family)
 {
-  Actual_Socket s;
+  static struct socket_function_table fn_table = {ot_tcp_plug,
+                                                  ot_tcp_close,
+                                                  ot_tcp_write,
+                                                  ot_tcp_write_oob,
+                                                  ot_tcp_flush,
+                                                  ot_tcp_set_private_ptr,
+                                                  ot_tcp_get_private_ptr,
+                                                  ot_tcp_set_frozen,
+                                                  ot_tcp_socket_error};
 
-  return (Socket)s;
+  Actual_Socket ret;
+  EndpointRef ep;
+  OSStatus err;
+  InetAddress addr;
+  TBind tbind;
+
+  ret = snew(struct Socket_tag);
+  ret->fn = &fn_table;
+  ret->error = kOTNoError;
+  ret->plug = plug;
+  bufchain_init(&ret->output_data);
+  ret->writable = 0; /* to start with */
+  ret->sending_oob = 0;
+  ret->frozen = 0;
+  ret->frozen_readable = 0;
+  ret->localhost_only = local_host_only;
+  ret->pending_error = 0;
+  ret->oobinline = 0;
+  ret->oobpending = FALSE;
+  ret->listener = 1;
+
+  /* Open Endpoint, configure it for TCP over anything, and load the
+   * tilisten module to serialize multiple simultaneous
+   * connections. */
+
+  ep = OTOpenEndpoint(OTCreateConfiguration("tilisten,tcp"), 0, NULL, &err);
+
+  ret->ep = ep;
+
+  if (err) {
+    ret->error = err;
+    return (Socket)ret;
+  }
+
+  ot_setoption(ep, INET_IP, IP_REUSEADDR, T_YES);
+
+  OTInitInetAddress(&addr, port, kOTAnyInetAddress);
+  /* XXX: pay attention to local_host_only */
+
+  tbind.addr.buf = (UInt8 *)&addr;
+  tbind.addr.len = sizeof(addr);
+  tbind.qlen = 10;
+
+  err = OTBind(ep, &tbind, NULL); /* XXX: check qlen we got */
+
+  if (err) {
+    ret->error = err;
+    return (Socket)ret;
+  }
+
+  /* Add this to the list of all sockets */
+  ret->next = ot.socklist;
+  ret->prev = &ot.socklist;
+  if (ret->next != NULL)
+    ret->next->prev = &ret->next;
+  ot.socklist = ret;
+
+  return (Socket)ret;
 }
 
 static void ot_tcp_close(Socket sock)
@@ -459,6 +539,15 @@ void ot_poll(void)
     case T_EXDATA: /* Expedited Data (urgent?) */
       ot_recv(s);
       break;
+    case T_LISTEN: /* Connection attempt */
+      ot_listenaccept(s);
+      break;
+    case T_ORDREL: /* Orderly disconnect */
+      plug_closing(s->plug, NULL, 0, 0);
+      break;
+    case T_DISCONNECT: /* Abortive disconnect*/
+      plug_closing(s->plug, NULL, 0, 0);
+      break;
     }
   }
 }
@@ -466,19 +555,76 @@ void ot_poll(void)
 void ot_recv(Actual_Socket s)
 {
   OTResult o;
-  char buf[20480];
+  char buf[2048];
   OTFlags flags;
 
   if (s->frozen)
     return;
 
-  do {
-    o = OTRcv(s->ep, buf, sizeof(buf), &flags);
-    if (o > 0)
-      plug_receive(s->plug, 0, buf, o);
-    if (o < 0 && o != kOTNoDataErr)
-      plug_closing(s->plug, NULL, 0, 0); /* XXX Error msg */
-  } while (o > 0);
+  o = OTRcv(s->ep, buf, sizeof(buf), &flags);
+  if (o > 0)
+    plug_receive(s->plug, 0, buf, o);
+  if (o < 0 && o != kOTNoDataErr)
+    plug_closing(s->plug, NULL, 0, 0); /* XXX Error msg */
+}
+
+void ot_listenaccept(Actual_Socket s)
+{
+  OTResult o;
+  OSStatus err;
+  InetAddress remoteaddr;
+  TCall tcall;
+  EndpointRef ep;
+
+  tcall.addr.maxlen = sizeof(InetAddress);
+  tcall.addr.buf = (unsigned char *)&remoteaddr;
+  tcall.opt.maxlen = 0;
+  tcall.opt.buf = NULL;
+  tcall.udata.maxlen = 0;
+  tcall.udata.buf = NULL;
+
+  o = OTListen(s->ep, &tcall);
+
+  if (o != kOTNoError)
+    return;
+
+  /* We've found an incoming connection, accept it */
+
+  ep = OTOpenEndpoint(OTCreateConfiguration("tcp"), 0, NULL, &err);
+  o = OTAccept(s->ep, ep, &tcall);
+  if (plug_accepting(s->plug, ep)) {
+    OTUnbind(ep);
+    OTCloseProvider(ep);
+  }
+}
+
+static void ot_setoption(EndpointRef ep,
+                         OTXTILevel level,
+                         OTXTIName name,
+                         UInt32 value)
+{
+  TOption option;
+  TOptMgmt request;
+  TOptMgmt result;
+
+  if (name == TCP_KEEPALIVE) {
+    option.len = sizeof(struct t_kpalive);
+    option.value[1] = T_UNSPEC;
+  } else
+    option.len = kOTFourByteOptionSize;
+  option.level = level;
+  option.name = name;
+  option.status = 0;
+  option.value[0] = value;
+
+  request.opt.buf = (unsigned char *)&option;
+  request.opt.len = sizeof(option);
+  request.flags = T_NEGOTIATE;
+
+  result.opt.buf = (unsigned char *)&option;
+  result.opt.maxlen = sizeof(option);
+
+  OTOptionManagement(ep, &request, &result);
 }
 
 /*
