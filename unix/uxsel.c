@@ -1,6 +1,6 @@
 /*
  * uxsel.c
- * 
+ *
  * This module is a sort of all-purpose interchange for file
  * descriptors. At one end it talks to uxnet.c and pty.c and
  * anything else which might have one or more fds that need
@@ -16,38 +16,38 @@
 #include "tree234.h"
 
 struct fd {
-    int fd;
-    int rwx;			       /* 4=except 2=write 1=read */
-    uxsel_callback_fn callback;
-    int id;			       /* for uxsel_input_remove */
+  int fd;
+  int rwx; /* 4=except 2=write 1=read */
+  uxsel_callback_fn callback;
+  int id; /* for uxsel_input_remove */
 };
 
 static tree234 *fds;
 
 static int uxsel_fd_cmp(void *av, void *bv)
 {
-    struct fd *a = (struct fd *)av;
-    struct fd *b = (struct fd *)bv;
-    if (a->fd < b->fd)
-	return -1;
-    if (a->fd > b->fd)
-	return +1;
-    return 0;
+  struct fd *a = (struct fd *)av;
+  struct fd *b = (struct fd *)bv;
+  if (a->fd < b->fd)
+    return -1;
+  if (a->fd > b->fd)
+    return +1;
+  return 0;
 }
 static int uxsel_fd_findcmp(void *av, void *bv)
 {
-    int *a = (int *)av;
-    struct fd *b = (struct fd *)bv;
-    if (*a < b->fd)
-	return -1;
-    if (*a > b->fd)
-	return +1;
-    return 0;
+  int *a = (int *)av;
+  struct fd *b = (struct fd *)bv;
+  if (*a < b->fd)
+    return -1;
+  if (*a > b->fd)
+    return +1;
+  return 0;
 }
 
 void uxsel_init(void)
 {
-    fds = newtree234(uxsel_fd_cmp);
+  fds = newtree234(uxsel_fd_cmp);
 }
 
 /*
@@ -62,66 +62,66 @@ void uxsel_init(void)
 
 void uxsel_set(int fd, int rwx, uxsel_callback_fn callback)
 {
-    struct fd *newfd = snew(struct fd);
-    struct fd *oldfd;
+  struct fd *newfd = snew(struct fd);
+  struct fd *oldfd;
 
-    newfd->fd = fd;
-    newfd->rwx = rwx;
-    newfd->callback = callback;
+  newfd->fd = fd;
+  newfd->rwx = rwx;
+  newfd->callback = callback;
 
-    oldfd = find234(fds, newfd, NULL);
-    if (oldfd) {
-	uxsel_input_remove(oldfd->id);
-	del234(fds, oldfd);
-	sfree(oldfd);
-    }
+  oldfd = find234(fds, newfd, NULL);
+  if (oldfd) {
+    uxsel_input_remove(oldfd->id);
+    del234(fds, oldfd);
+    sfree(oldfd);
+  }
 
-    add234(fds, newfd);
-    newfd->id = uxsel_input_add(fd, rwx);
+  add234(fds, newfd);
+  newfd->id = uxsel_input_add(fd, rwx);
 }
 
 void uxsel_del(int fd)
 {
-    struct fd *oldfd = find234(fds, &fd, uxsel_fd_findcmp);
-    if (oldfd) {
-	uxsel_input_remove(oldfd->id);
-	del234(fds, oldfd);
-	sfree(oldfd);
-    }
+  struct fd *oldfd = find234(fds, &fd, uxsel_fd_findcmp);
+  if (oldfd) {
+    uxsel_input_remove(oldfd->id);
+    del234(fds, oldfd);
+    sfree(oldfd);
+  }
 }
 
 /*
  * And here is the interface to select-functionality-supplying
- * modules. 
+ * modules.
  */
 
 int next_fd(int *state, int *rwx)
 {
-    struct fd *fd;
-    fd = index234(fds, (*state)++);
-    if (fd) {
-	*rwx = fd->rwx;
-	return fd->fd;
-    } else
-	return -1;
+  struct fd *fd;
+  fd = index234(fds, (*state)++);
+  if (fd) {
+    *rwx = fd->rwx;
+    return fd->fd;
+  } else
+    return -1;
 }
 
 int first_fd(int *state, int *rwx)
 {
-    *state = 0;
-    return next_fd(state, rwx);
+  *state = 0;
+  return next_fd(state, rwx);
 }
 
 int select_result(int fd, int event)
 {
-    struct fd *fdstruct = find234(fds, &fd, uxsel_fd_findcmp);
-    /*
-     * Apparently this can sometimes be NULL. Can't see how, but I
-     * assume it means I need to ignore the event since it's on an
-     * fd I've stopped being interested in. Sigh.
-     */
-    if (fdstruct)
-        return fdstruct->callback(fd, event);
-    else
-        return 1;
+  struct fd *fdstruct = find234(fds, &fd, uxsel_fd_findcmp);
+  /*
+   * Apparently this can sometimes be NULL. Can't see how, but I
+   * assume it means I need to ignore the event since it's on an
+   * fd I've stopped being interested in. Sigh.
+   */
+  if (fdstruct)
+    return fdstruct->callback(fd, event);
+  else
+    return 1;
 }

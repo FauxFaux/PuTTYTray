@@ -17,8 +17,8 @@ extern "C" {
 
 #define TYPE_PANELS (panels_get_type())
 #define PANELS(obj) (GTK_CHECK_CAST((obj), TYPE_PANELS, Panels))
-#define PANELS_CLASS(klass) \
-                (GTK_CHECK_CLASS_CAST((klass), TYPE_PANELS, PanelsClass))
+#define PANELS_CLASS(klass)                                                    \
+  (GTK_CHECK_CLASS_CAST((klass), TYPE_PANELS, PanelsClass))
 #define IS_PANELS(obj) (GTK_CHECK_TYPE((obj), TYPE_PANELS))
 #define IS_PANELS_CLASS(klass) (GTK_CHECK_CLASS_TYPE((klass), TYPE_PANELS))
 
@@ -27,13 +27,13 @@ typedef struct PanelsClass_tag PanelsClass;
 typedef struct PanelsChild_tag PanelsChild;
 
 struct Panels_tag {
-    GtkContainer container;
-    /* private after here */
-    GList *children;		       /* this just holds GtkWidgets */
+  GtkContainer container;
+  /* private after here */
+  GList *children; /* this just holds GtkWidgets */
 };
 
 struct PanelsClass_tag {
-    GtkContainerClass parent_class;
+  GtkContainerClass parent_class;
 };
 
 GtkType panels_get_type(void);
