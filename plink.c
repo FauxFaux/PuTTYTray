@@ -222,7 +222,7 @@ static void usage(void)
   printf("  -v        show verbose messages\n");
   printf("  -load sessname  Load settings from saved session\n");
   printf("  -ssh -telnet -rlogin -raw\n");
-  printf("            force use of a particular protocol (default SSH)\n");
+  printf("            force use of a particular protocol\n");
   printf("  -P port   connect to specified port\n");
   printf("  -l user   connect with specified username\n");
   printf("  -m file   read remote command(s) from file\n");
@@ -372,7 +372,7 @@ int main(int argc, char **argv)
           strncpy(cfg.host, q, sizeof(cfg.host) - 1);
           cfg.host[sizeof(cfg.host) - 1] = '\0';
         } else {
-          char *r;
+          char *r, *user, *host;
           /*
            * Before we process the [user@]host string, we
            * first check for the presence of a protocol
@@ -393,28 +393,32 @@ int main(int argc, char **argv)
           }
 
           /*
-           * Three cases. Either (a) there's a nonzero
-           * length string followed by an @, in which
-           * case that's user and the remainder is host.
-           * Or (b) there's only one string, not counting
-           * a potential initial @, and it exists in the
-           * saved-sessions database. Or (c) only one
-           * string and it _doesn't_ exist in the
-           * database.
+           * A nonzero length string followed by an @ is treated
+           * as a username. (We discount an _initial_ @.) The
+           * rest of the string (or the whole string if no @)
+           * is treated as a session name and/or hostname.
            */
           r = strrchr(p, '@');
           if (r == p)
             p++, r = NULL; /* discount initial @ */
-          if (r == NULL) {
-            /*
-             * One string.
-             */
+          if (r) {
+            *r++ = '\0';
+            user = p, host = r;
+          } else {
+            user = NULL, host = p;
+          }
+
+          /*
+           * Now attempt to load a saved session with the
+           * same name as the hostname.
+           */
+          {
             Config cfg2;
-            do_defaults(p, &cfg2);
+            do_defaults(host, &cfg2);
             if (loaded_session || cfg2.host[0] == '\0') {
               /* No settings for this host; use defaults */
               /* (or session was already loaded with -load) */
-              strncpy(cfg.host, p, sizeof(cfg.host) - 1);
+              strncpy(cfg.host, host, sizeof(cfg.host) - 1);
               cfg.host[sizeof(cfg.host) - 1] = '\0';
               cfg.port = default_port;
             } else {
@@ -422,13 +426,12 @@ int main(int argc, char **argv)
               /* Ick: patch up internal pointer after copy */
               cfg.remote_cmd_ptr = cfg.remote_cmd;
             }
-          } else {
-            *r++ = '\0';
-            strncpy(cfg.username, p, sizeof(cfg.username) - 1);
+          }
+
+          if (user) {
+            /* Patch in specified username. */
+            strncpy(cfg.username, user, sizeof(cfg.username) - 1);
             cfg.username[sizeof(cfg.username) - 1] = '\0';
-            strncpy(cfg.host, r, sizeof(cfg.host) - 1);
-            cfg.host[sizeof(cfg.host) - 1] = '\0';
-            cfg.port = default_port;
           }
         }
       } else {
@@ -482,7 +485,7 @@ int main(int argc, char **argv)
 
   /* See if host is of the form user@host */
   if (cfg.host[0] != '\0') {
-    char *atsign = strchr(cfg.host, '@');
+    char *atsign = strrchr(cfg.host, '@');
     /* Make sure we're not overflowing the user field */
     if (atsign) {
       if (atsign - cfg.host < sizeof cfg.username) {

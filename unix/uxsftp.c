@@ -41,8 +41,6 @@ void platform_get_x11_auth(char *display,
   /* Do nothing, therefore no auth. */
 }
 
-const char platform_x11_best_transport[] = "unix";
-
 /*
  * Default settings that are specific to PSFTP.
  */
