@@ -1,0 +1,2 @@
+#!/bin/sh
+python hangul/gottext.py extract -o hangul/putty.gt `cat hangul/xlatlist`

@@ -1,0 +1,4 @@
+#!/bin/sh
+rm -f *.c
+cp -f ../putty.orig/*.c .
+../hangulputty/gottext.py patch -i ../hangulputty/putty.gt `cat ../hangulputty/xlatlist`

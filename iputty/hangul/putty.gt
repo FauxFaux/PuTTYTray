@@ -1,0 +1,4482 @@
+# $Id$
+
+# version.c:20 version.c:21 window.c:1207
+msg " "
+msgx ""
+
+# ssh.c:2399
+msg "      "
+msgx ""
+
+# unicode.c:567
+msg " !cL.Y|S\"Ca<--R~o+23'u|.,1o>///?AAAAAAACEEEEIIIIDNOOOOOxOUUUUYPBaaaaa"
+"aaceeeeiiiionooooo/ouuuuypy"
+msgx ""
+
+# ssh.c:1625
+msg " %02x"
+msgx ""
+
+# ssh.c:2897
+msg " ("
+msgx ""
+
+# unicode.c:488
+msg " DBCS"
+msgx ""
+
+# window.c:3689
+msg " HLMEIG"
+msgx ""
+
+# window.c:414
+msg " \t"
+msgx ""
+
+# window.c:911 window.c:960
+msg "%.70s (inactive)"
+msgx "%.70s (오프라인)"
+
+# window.c:928
+msg "%.70s Command Line Error"
+msgx "%.70s 명령행 에러"
+
+# window.c:903 window.c:4363 window.c:4380
+msg "%.70s Fatal Error"
+msgx "%.70s 치명적 에러"
+
+# window.c:4454
+msg "%.70s Sound Error"
+msgx "%.70s 사운드 시스템 에러"
+
+# ssh.c:2814 ssh.c:5052
+msg "%.90s@%.90s's password: "
+msgx "%.90s@%.90s 의 비밀번호: "
+
+# unicode.c:492
+msg "%04x%s"
+msgx ""
+
+# windlg.c:673
+msg "%Y-%m-%d %H:%M:%S\t"
+msgx ""
+
+# config.c:525 config.c:526 config.c:527 dialog.c:549
+msg "%d"
+msgx ""
+
+# settings.c:289 settings.c:553
+msg "%d,%d,%d"
+msgx ""
+
+# winstore.c:299
+msg "%d:"
+msgx ""
+
+# config.c:398
+msg "%d\t(0x%02X)\t%c\t%d"
+msgx ""
+
+# dialog.c:551
+msg "%g"
+msgx ""
+
+# window.c:295
+msg "%p"
+msgx ""
+
+# ssh.c:682 ssh.c:1623 ssh.c:2094 ssh.c:5918 winnet.c:1043 winnet.c:1188
+msg "%s"
+msgx ""
+
+# window.c:625
+msg "%s - %s"
+msgx ""
+
+# windlg.c:606
+msg "%s Configuration"
+msgx "%s 설정"
+
+# windlg.c:607 windlg.c:641 window.c:614
+msg "%s Error"
+msgx "%s 에러"
+
+# windlg.c:76
+msg "%s Event Log"
+msgx "%s 사건 로그"
+
+# window.c:1704
+msg "%s Exit Confirmation"
+msgx "%s 종료 확인"
+
+# window.c:201
+msg "%s Fatal Error"
+msgx "%s 치명적 에러"
+
+# window.c:465 window.c:475
+msg "%s Internal Error"
+msgx "%s 내부 에러"
+
+# windlg.c:854
+msg "%s Key File Warning"
+msgx "%s 키 파일 경고"
+
+# windlg.c:169
+msg "%s Licence"
+msgx "%s 라이센스"
+
+# windlg.c:826
+msg "%s Log to File"
+msgx "%s 파일로 로그 남김"
+
+# windlg.c:640
+msg "%s Reconfiguration"
+msgx "%s 재설정"
+
+# windlg.c:739 windlg.c:785
+msg "%s Security Alert"
+msgx "%s 보안 경고"
+
+# window.c:340
+msg "%s Warning"
+msgx "%s 경고"
+
+# settings.c:304 window.c:3863
+msg "%s%d"
+msgx ""
+
+# window.c:686
+msg "&About %s"
+msgx "%s에 대해(&A)"
+
+# window.c:666
+msg "&Duplicate Session"
+msgx "같은 연결 하나 더 (&D)"
+
+# window.c:663
+msg "&Event Log"
+msgx "사건 로그 (&E)"
+
+# window.c:682
+msg "&Full Screen"
+msgx "전체 화면 (&F)"
+
+# window.c:685
+msg "&Help"
+msgx "도움말(&H)"
+
+# ssh.c:3325 ssh.c:3328 ssh.c:3337 ssh.c:3357 ssh.c:3360 ssh.c:5441
+# ssh.c:5444 ssh.c:5453 ssh.c:5472 ssh.c:5475
+msg "("
+msgx ""
+
+# config.c:877
+msg "(Log file name can contain &Y, &M, &D for date, &T for time, and &H fo"
+"r host name)"
+msgx "(로그 파일 이름엔 날짜는 &Y, &M, &D, 시간은 &T, 호스트 이름으로는 &H를"
+" 쓸 수 있습니다)"
+
+# ssh.c:4082 ssh.c:4108
+msg "(null)"
+msgx "(없음)"
+
+# ssh.c:3325 ssh.c:3328 ssh.c:3337 ssh.c:3357 ssh.c:3360 ssh.c:5441
+# ssh.c:5444 ssh.c:5453 ssh.c:5472 ssh.c:5475 window.c:3865
+msg ")"
+msgx ""
+
+# ssh.c:2899
+msg ").\r\n"
+msgx ""
+
+# ssh.c:5112
+msg ")\r\n"
+msgx ""
+
+# window.c:3197
+msg "*"
+msgx ""
+
+# ssh.c:1820 ssh.c:1833
+msg "* VShell"
+msgx ""
+
+# unicode.c:568
+msg "*#****o~**+++++-----++++|****L."
+msgx ""
+
+# window.c:3174
+msg "+"
+msgx ""
+
+# settings.c:99 settings.c:135 settings.c:305 ssh.c:3935 ssh.c:3942
+# ssh.c:3952 ssh.c:3965 ssh.c:3975 ssh.c:3982 ssh.c:3991 ssh.c:4000
+# unicode.c:492 window.c:3863
+msg ","
+msgx ""
+
+# window.c:3204
+msg ", $%02x"
+msgx ""
+
+# window.c:3202
+msg ", '%c'"
+msgx ""
+
+# window.c:3853
+msg ", (U+%04x)"
+msgx ""
+
+# window.c:3857
+msg ", ACH(%d)"
+msgx ""
+
+# window.c:3861
+msg ", ASC("
+msgx ""
+
+# window.c:3216
+msg ", C"
+msgx ""
+
+# window.c:3218
+msg ", E"
+msgx ""
+
+# window.c:3207
+msg ", KB0=%02x"
+msgx ""
+
+# window.c:3209
+msg ", KB1=%02x"
+msgx ""
+
+# window.c:3211
+msg ", KB2=%02x"
+msgx ""
+
+# window.c:3855
+msg ", LCH(%d)"
+msgx ""
+
+# window.c:3231
+msg ", M%02x=%02x"
+msgx ""
+
+# window.c:3214
+msg ", S"
+msgx ""
+
+# window.c:3198
+msg ", S%02x"
+msgx ""
+
+# window.c:3220
+msg ", U"
+msgx ""
+
+# ssh.c:1772 ssh.c:1774
+msg "-"
+msgx ""
+
+# config.c:96
+msg "-- warn below here --"
+msgx "-- 이하는 위험함 --"
+
+# window.c:358
+msg "-P"
+msgx ""
+
+# window.c:326
+msg "-cleanup"
+msgx ""
+
+# window.c:3177
+msg ". U"
+msgx ""
+
+# window.c:2321
+msg "..."
+msgx ""
+
+# config.c:992
+msg "... in this many seconds"
+msgx "멈춤 시간(T) (초)"
+
+# window.c:3179
+msg ".\n"
+msgx ""
+
+# winstore.c:365
+msg "/"
+msgx ""
+
+# settings.c:543 settings.c:543 settings.c:544
+msg "0,0,0"
+msgx ""
+
+# settings.c:566
+msg "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0"
+msgx ""
+
+# settings.c:545
+msg "0,0,187"
+msgx ""
+
+# settings.c:567
+msg "0,1,2,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1"
+msgx ""
+
+# settings.c:545
+msg "0,187,0"
+msgx ""
+
+# settings.c:546
+msg "0,187,187"
+msgx ""
+
+# settings.c:544
+msg "0,255,0"
+msgx ""
+
+# ssh.c:5482
+msg "0.0.0.0"
+msgx ""
+
+# winstore.c:16
+msg "0123456789ABCDEF"
+msgx ""
+
+# config.c:1487
+msg "1"
+msgx "SSH1"
+
+# config.c:1486
+msg "1 only"
+msgx "SSH1만"
+
+# settings.c:570 settings.c:571
+msg "1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1"
+msgx ""
+
+# settings.c:569
+msg "1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1"
+msgx ""
+
+# settings.c:568
+msg "1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,2"
+msgx ""
+
+# ssh.c:1781
+msg "1.2.18"
+msgx ""
+
+# ssh.c:1781
+msg "1.2.19"
+msgx ""
+
+# ssh.c:1782
+msg "1.2.20"
+msgx ""
+
+# ssh.c:1782
+msg "1.2.21"
+msgx ""
+
+# ssh.c:1783
+msg "1.2.22"
+msgx ""
+
+# ssh.c:1988 ssh.c:1988
+msg "1.5"
+msgx ""
+
+# ssh.c:1951
+msg "1.99"
+msgx ""
+
+# ssh.c:5484
+msg "127.0.0.1"
+msgx ""
+
+# settings.c:544
+msg "187,0,0"
+msgx ""
+
+# settings.c:546
+msg "187,0,187"
+msgx ""
+
+# settings.c:545
+msg "187,187,0"
+msgx ""
+
+# settings.c:543 settings.c:547
+msg "187,187,187"
+msgx ""
+
+# config.c:1488
+msg "2"
+msgx "SSH2"
+
+# config.c:1489
+msg "2 only"
+msgx "SSH2만"
+
+# settings.c:572 settings.c:573
+msg "2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2"
+msgx ""
+
+# ssh.c:1949
+msg "2.0"
+msgx ""
+
+# ssh.c:1821
+msg "2.0.*"
+msgx ""
+
+# ssh.c:1834
+msg "2.0.0*"
+msgx ""
+
+# ssh.c:1834
+msg "2.0.10*"
+msgx ""
+
+# ssh.c:1823
+msg "2.1 *"
+msgx ""
+
+# ssh.c:1821
+msg "2.1.0*"
+msgx ""
+
+# ssh.c:1822
+msg "2.2.0*"
+msgx ""
+
+# ssh.c:1822
+msg "2.3.0*"
+msgx ""
+
+# settings.c:543 settings.c:547
+msg "255,255,255"
+msgx ""
+
+# settings.c:545
+msg "255,255,85"
+msgx ""
+
+# settings.c:546
+msg "255,85,255"
+msgx ""
+
+# settings.c:544
+msg "255,85,85"
+msgx ""
+
+# settings.c:411
+msg "38400,38400"
+msgx ""
+
+# config.c:92 ssh.c:2480
+msg "3DES"
+msgx ""
+
+# settings.c:18
+msg "3des"
+msgx ""
+
+# settings.c:547
+msg "85,255,255"
+msgx ""
+
+# settings.c:545
+msg "85,255,85"
+msgx ""
+
+# settings.c:546
+msg "85,85,255"
+msgx ""
+
+# settings.c:543 settings.c:544
+msg "85,85,85"
+msgx ""
+
+# ssh.c:3323 ssh.c:3335 ssh.c:5439 ssh.c:5451 ssh.c:5470 window.c:434
+# winstore.c:338
+msg ":"
+msgx ""
+
+# ssh.c:5040
+msg "<server failed to send prompt>: "
+msgx "<프롬프트 보내기 실패>: "
+
+# winstore.c:297
+msg "@"
+msgx ""
+
+# config.c:95
+msg "AES (SSH 2 only)"
+msgx "AES (SSH2 만)"
+
+# ssh.c:2476
+msg "AES not supported in SSH1, skipping"
+msgx ""
+
+# window.c:3191
+msg "ALT"
+msgx ""
+
+# config.c:427
+msg "ANSI Black"
+msgx "ANSI 검은색"
+
+# config.c:427
+msg "ANSI Black Bold"
+msgx "ANSI 검은색(굵음)"
+
+# config.c:431
+msg "ANSI Blue"
+msgx "ANSI 파랑"
+
+# config.c:431
+msg "ANSI Blue Bold"
+msgx "ANSI 파랑(굵음)"
+
+# config.c:433
+msg "ANSI Cyan"
+msgx "ANSI 하늘색"
+
+# config.c:433
+msg "ANSI Cyan Bold"
+msgx "ANSI 하늘색(굵음)"
+
+# config.c:429
+msg "ANSI Green"
+msgx "ANSI 녹색"
+
+# config.c:429
+msg "ANSI Green Bold"
+msgx "ANSI 녹색(굵음)"
+
+# config.c:432
+msg "ANSI Magenta"
+msgx "ANSI 마젠타"
+
+# config.c:432
+msg "ANSI Magenta Bold"
+msgx "ANSI 마젠타(굵음)"
+
+# config.c:428
+msg "ANSI Red"
+msgx "ANSI 빨강"
+
+# config.c:428
+msg "ANSI Red Bold"
+msgx "ANSI 빨강(굵음)"
+
+# config.c:434
+msg "ANSI White"
+msgx "ANSI 하양"
+
+# config.c:434
+msg "ANSI White Bold"
+msgx "ANSI 하양(굵음)"
+
+# config.c:430
+msg "ANSI Yellow"
+msgx "ANSI 노랑"
+
+# config.c:430
+msg "ANSI Yellow Bold"
+msgx "ANSI 노랑(굵음)"
+
+# wincfg.c:45
+msg "About"
+msgx "도움"
+
+# windlg.c:195
+msg "About %s"
+msgx "%s에 대해"
+
+# ssh.c:4701
+msg "Access denied"
+msgx "접속이 거부됨"
+
+# ssh.c:3087 ssh.c:4700
+msg "Access denied\r\n"
+msgx "접속이 거부됨\r\n"
+
+# ssh.c:4634
+msg "Access granted"
+msgx "접속이 허용됨"
+
+# wincfg.c:249
+msg "Action of mouse buttons:"
+msgx "마우스 버튼 특성:"
+
+# config.c:977
+msg "Action to happen when a bell occurs:"
+msgx "벨 울림 효과 (B):"
+
+# config.c:1421
+msg "Active"
+msgx "능동"
+
+# config.c:1387 config.c:1588
+msg "Add"
+msgx "추가 (D)"
+
+# config.c:1585
+msg "Add new forwarded port:"
+msgx "포워드될 포트 추가:"
+
+# config.c:1152 wincfg.c:192
+msg "Adjust how %s displays line drawing characters"
+msgx "%s가 선그림 문자를 출력하는 방법"
+
+# config.c:1125
+msg "Adjust the behaviour of the window title"
+msgx "창 제목 조절"
+
+# config.c:1224
+msg "Adjust the precise colours %s displays"
+msgx "색상 미세 조절"
+
+# config.c:1086
+msg "Adjust the use of the cursor"
+msgx "커서 동작 조절"
+
+# config.c:1105
+msg "Adjust the use of the mouse pointer"
+msgx "마우스 포인터 동작 조절"
+
+# config.c:1111 wincfg.c:170
+msg "Adjust the window border"
+msgx "창틀 조절"
+
+# ssh.c:3210 ssh.c:5548
+msg "Agent forwarding enabled"
+msgx ""
+
+# ssh.c:6038
+msg "Agent forwarding is not enabled"
+msgx ""
+
+# ssh.c:3208 ssh.c:5546
+msg "Agent forwarding refused"
+msgx ""
+
+# settings.c:222 settings.c:474
+msg "AgentFwd"
+msgx ""
+
+# ssh.c:5822
+msg "All channels closed. Disconnecting"
+msgx ""
+
+# ssh.c:5837
+msg "All open channels closed"
+msgx ""
+
+# ssh.c:3402 ssh.c:5592
+msg "Allocated pty"
+msgx ""
+
+# config.c:1521
+msg "Allow agent forwarding"
+msgx "에이전트 포워딩 허용 (F)"
+
+# config.c:1524
+msg "Allow attempted changes of username in SSH2"
+msgx "SSH2에서 사용자 이름 변경을 시도함 (U)"
+
+# settings.c:249 settings.c:502
+msg "AltF4"
+msgx ""
+
+# wincfg.c:96
+msg "AltGr acts as Compose key"
+msgx "회색 Alt를 조합 키로 사용 (T)"
+
+# settings.c:251 settings.c:504
+msg "AltOnly"
+msgx ""
+
+# settings.c:250 settings.c:503
+msg "AltSpace"
+msgx ""
+
+# config.c:842
+msg "Always"
+msgx "항상"
+
+# config.c:884
+msg "Always append to the end of it"
+msgx "늘 파일 끝에 추가함"
+
+# config.c:883
+msg "Always overwrite it"
+msgx "늘 덮어 씀"
+
+# settings.c:259 settings.c:513
+msg "AlwaysOnTop"
+msgx ""
+
+# settings.c:258 settings.c:511
+msg "Answerback"
+msgx ""
+
+# config.c:908
+msg "Answerback to ^E:"
+msgx "^E에 대한 응답 (S):"
+
+# config.c:963 config.c:967
+msg "Application"
+msgx "프로그램"
+
+# config.c:958
+msg "Application keypad settings:"
+msgx "애플리케이션 키패드 설정:"
+
+# settings.c:246 settings.c:499
+msg "ApplicationCursorKeys"
+msgx ""
+
+# settings.c:247 settings.c:500
+msg "ApplicationKeypad"
+msgx ""
+
+# config.c:752
+msg "Apply"
+msgx "적용 (A)"
+
+# window.c:1707
+msg "Are you sure you want to close this session?"
+msgx "진짜로 이 접속을 닫겠습니까?"
+
+# config.c:885
+msg "Ask the user every time"
+msgx "매번 사용자에게 물어 봄"
+
+# config.c:1510
+msg "Attempt TIS or CryptoCard auth (SSH1)"
+msgx "SSH1에서 TIS나 CryptoCard 인증을 시도 (M)"
+
+# config.c:1514
+msg "Attempt \"keyboard-interactive\" auth (SSH2)"
+msgx "SSH2에서 \"키보드로 직접 입력\"인증을 시도 (I)"
+
+# wincfg.c:269
+msg "Attempt to use logical palettes"
+msgx "논리 팔레트 사용을 시도 (L)"
+
+# settings.c:227 settings.c:481
+msg "AuthKI"
+msgx ""
+
+# settings.c:226 settings.c:480
+msg "AuthTIS"
+msgx ""
+
+# ssh.c:2729
+msg "Authenticated using RSA key \""
+msgx "에이전트로 인증되었습니다: RSA 키 \""
+
+# ssh.c:4816 ssh.c:4958
+msg "Authenticating with public key \""
+msgx "에이전트로 인증되었습니다: 공개 키 \""
+
+# config.c:1509
+msg "Authentication methods"
+msgx "인증 방법"
+
+# config.c:1520
+msg "Authentication parameters"
+msgx "인증 인자"
+
+# ssh.c:3088
+msg "Authentication refused"
+msgx ""
+
+# ssh.c:3095
+msg "Authentication successful"
+msgx ""
+
+# config.c:188 config.c:917 config.c:923 config.c:1337
+msg "Auto"
+msgx "자동"
+
+# config.c:893
+msg "Auto wrap mode initially on"
+msgx "기본으로 자동 줄넘김 (W)"
+
+# config.c:1267
+msg "Auto-login username"
+msgx "자동 로그인 사용자 (U)"
+
+# settings.c:275 settings.c:530
+msg "AutoWrapMode"
+msgx ""
+
+# settings.c:318 settings.c:603
+msg "BCE"
+msgx ""
+
+# config.c:1415
+msg "BSD (commonplace)"
+msgx "BSD (통상)"
+
+# settings.c:234 settings.c:487
+msg "BackspaceIsDelete"
+msgx ""
+
+# config.c:768
+msg "Basic options for your %s session"
+msgx "%s 세션 기본 옵션"
+
+# settings.c:266 settings.c:521
+msg "Beep"
+msgx ""
+
+# wincfg.c:134
+msg "Beep using the PC speaker"
+msgx "PC 스피커를 이용해서 벨소리 냄"
+
+# settings.c:267 settings.c:522
+msg "BeepInd"
+msgx ""
+
+# config.c:986
+msg "Bell is temporarily disabled when over-used"
+msgx "벨소리가 시끄러울 때 임시로 무시함 (D)"
+
+# settings.c:269 settings.c:524
+msg "BellOverload"
+msgx ""
+
+# settings.c:270 settings.c:525
+msg "BellOverloadN"
+msgx ""
+
+# settings.c:272 settings.c:527
+msg "BellOverloadS"
+msgx ""
+
+# settings.c:271 settings.c:526
+msg "BellOverloadT"
+msgx ""
+
+# settings.c:268 settings.c:523
+msg "BellWaveFile"
+msgx ""
+
+# ssh.c:2957
+msg "Bizarre response to RSA authentication response"
+msgx ""
+
+# ssh.c:2921
+msg "Bizarre response to offer of public key"
+msgx ""
+
+# settings.c:265 settings.c:519
+msg "BlinkCur"
+msgx ""
+
+# settings.c:319 settings.c:604
+msg "BlinkText"
+msgx ""
+
+# config.c:1091
+msg "Block"
+msgx "사각형 (B)"
+
+# config.c:93 ssh.c:2482
+msg "Blowfish"
+msgx ""
+
+# config.c:1244
+msg "Blue"
+msgx "파랑"
+
+# settings.c:285 settings.c:540
+msg "BoldAsColour"
+msgx ""
+
+# settings.c:355 settings.c:652
+msg "BoldFont"
+msgx ""
+
+# config.c:1220
+msg "Bolded text is a different colour"
+msgx "굵은 글씨를 다른 색깔로 표시 (B)"
+
+# ssh.c:6404
+msg "Break"
+msgx ""
+
+# settings.c:350 settings.c:646
+msg "BugDHGEx2"
+msgx ""
+
+# settings.c:348 settings.c:644
+msg "BugDeriveKey2"
+msgx ""
+
+# settings.c:347 settings.c:637
+msg "BugHMAC2"
+msgx ""
+
+# settings.c:344 settings.c:632
+msg "BugIgnore1"
+msgx ""
+
+# settings.c:351 settings.c:647
+msg "BugPKSessID2"
+msgx ""
+
+# settings.c:345 settings.c:633
+msg "BugPlainPW1"
+msgx ""
+
+# settings.c:346 settings.c:634
+msg "BugRSA1"
+msgx ""
+
+# settings.c:349 settings.c:645
+msg "BugRSAPad2"
+msgx ""
+
+# settings.c:639
+msg "BuggyMAC"
+msgx ""
+
+# window.c:678
+msg "C&lear Scrollback"
+msgx "이전 화면 비움 (&C)"
+
+# window.c:677
+msg "C&opy All to Clipboard"
+msgx "클립보드로 전체 복사 (&O)"
+
+# unicode.c:1109
+msg "CP%03d"
+msgx ""
+
+# unicode.c:404
+msg "CP437"
+msgx ""
+
+# unicode.c:405
+msg "CP819"
+msgx ""
+
+# unicode.c:406
+msg "CP878"
+msgx ""
+
+# unicode.c:407
+msg "CP932"
+msgx ""
+
+# settings.c:593 unicode.c:408
+msg "CP949"
+msgx ""
+
+# unicode.c:409
+msg "CP950"
+msgx ""
+
+# window.c:3188
+msg "CTRL"
+msgx ""
+
+# config.c:758
+msg "Cancel"
+msgx "취소 (C)"
+
+# wincfg.c:182
+msg "Caps Lock acts as Cyrillic switch"
+msgx "CapsLock을 키릴 전환키로 사용"
+
+# settings.c:311 settings.c:596
+msg "CapsLockCyr"
+msgx ""
+
+# windlg.c:366
+msg "Cate&gory:"
+msgx "분류(&G)"
+
+# window.c:675
+msg "Chan&ge Settings..."
+msgx "설정 변경 (&G)"
+
+# wincfg.c:287
+msg "Change font size only when maximised"
+msgx "최대화 되었을 때에만 글꼴 크기 조정"
+
+# wincfg.c:285
+msg "Change the number of rows and columns"
+msgx "가로 세로 크기 조절"
+
+# config.c:939
+msg "Change the sequences sent by:"
+msgx "키 입력 전달 방법 조절:"
+
+# wincfg.c:286
+msg "Change the size of the font"
+msgx "글꼴 크기를 조절"
+
+# settings.c:223 settings.c:475
+msg "ChangeUsername"
+msgx ""
+
+# winstore.c:177 winstore.c:209
+msg "CharSet"
+msgx ""
+
+# config.c:1192
+msg "Character classes:"
+msgx "문자 종류 (E):"
+
+# config.c:1147
+msg "Character set translation on received data"
+msgx "수신 데이터의 문자 셋 변환"
+
+# config.c:1636
+msg "Chokes on Diffie-Hellman group exchange"
+msgx "디피-헬만 그룹 교환 문제 (D)"
+
+# config.c:1624
+msg "Chokes on SSH1 RSA authentication"
+msgx "SSH1 RSA 인증 문제 (R)"
+
+# config.c:1618
+msg "Chokes on SSH1 ignore messages"
+msgx "SSH1 무시 메시지 문제 (I)"
+
+# settings.c:224 settings.c:476
+msg "Cipher"
+msgx ""
+
+# ssh.c:1783 ssh.c:1796 ssh.c:1808
+msg "Cisco-1.25"
+msgx ""
+
+# config.c:838
+msg "Close window on exit:"
+msgx "종료시에 창을 닫음 (W):"
+
+# settings.c:180 settings.c:399
+msg "CloseOnExit"
+msgx ""
+
+# settings.c:288 settings.c:551
+msg "Colour%d"
+msgx ""
+
+# config.c:1053
+msg "Columns"
+msgx "가로 (M)"
+
+# settings.c:252 settings.c:505
+msg "ComposeKey"
+msgx ""
+
+# settings.c:221 settings.c:473
+msg "Compression"
+msgx ""
+
+# config.c:1081
+msg "Configure the appearance of %s's window"
+msgx "%s 창 모양을 설정합니다."
+
+# config.c:1120
+msg "Configure the behaviour of %s's window"
+msgx "%s 창 특성을 설정합니다."
+
+# ssh.c:2167
+msg "Connecting to %s port %d"
+msgx ""
+
+# config.c:1258 config.c:1261 config.c:1273 config.c:1281
+msg "Connection"
+msgx "접속"
+
+# window.c:963
+msg "Connection closed by remote host"
+msgx "접속이 끊어졌습니다."
+
+# config.c:1295 config.c:1298
+msg "Connection/Proxy"
+msgx "접속/프락시"
+
+# config.c:1438 config.c:1441
+msg "Connection/Rlogin"
+msgx "접속/rlogin"
+
+# config.c:1463 config.c:1466 config.c:1473 config.c:1491
+msg "Connection/SSH"
+msgx "접속/SSH"
+
+# config.c:1505 config.c:1508 config.c:1519
+msg "Connection/SSH/Auth"
+msgx "접속/SSH/인증"
+
+# config.c:1613 config.c:1616
+msg "Connection/SSH/Bugs"
+msgx "접속/SSH/버그"
+
+# config.c:1536 config.c:1539 config.c:1554
+msg "Connection/SSH/Tunnels"
+msgx "접속/SSH/터널링"
+
+# config.c:1365 config.c:1369 config.c:1406
+msg "Connection/Telnet"
+msgx "접속/텔넷"
+
+# config.c:1328
+msg "Consider proxying local host connections"
+msgx "로컬 호스트 접속을 프락시에서 고려함 (X)"
+
+# config.c:985
+msg "Control the bell overload behaviour"
+msgx "일시적인 벨소리 과부하 제어"
+
+# config.c:1060 wincfg.c:60
+msg "Control the scrollback in the window"
+msgx "창 이전 내용 올려보기 설정"
+
+# config.c:1189
+msg "Control the select-one-word-at-a-time mode"
+msgx "클릭해서 한 단어만 선택하기 설정"
+
+# config.c:1175 wincfg.c:248
+msg "Control use of mouse"
+msgx "마우스 설정"
+
+# config.c:944
+msg "Control-? (127)"
+msgx "Ctrl-? (127)"
+
+# wincfg.c:99
+msg "Control-Alt is different from AltGr"
+msgx "Ctrl-Alt를 회색 Alt와 구분 (D)"
+
+# config.c:944
+msg "Control-H"
+msgx "Ctrl-H"
+
+# ssh.c:4081
+msg "Couldn't agree a client-to-server cipher (available: %s)"
+msgx ""
+
+# ssh.c:4107
+msg "Couldn't agree a server-to-client cipher (available: %s)"
+msgx ""
+
+# ssh.c:2895
+msg "Couldn't load private key from "
+msgx "개인 키를 읽어올 수 없습니다. 파일: "
+
+# ssh.c:2796
+msg "CryptoCard authentication declined"
+msgx ""
+
+# ssh.c:2797
+msg "CryptoCard authentication refused.\r\n"
+msgx "CryptoCard 인증이 거부되었습니다.\r\n"
+
+# settings.c:253 settings.c:506
+msg "CtrlAltKeys"
+msgx ""
+
+# unicode.c:565
+msg "CueaaaaceeeiiiAAE**ooouuyOUc$YPsaiounNao?++**!<>###||||++||++++++--|-+"
+"||++--|-+----++++++++##||#aBTPEsyt******EN=+><++-=... n2* "
+msgx ""
+
+# settings.c:264 settings.c:518
+msg "CurType"
+msgx ""
+
+# config.c:426
+msg "Cursor Colour"
+msgx "커서 색깔"
+
+# config.c:426
+msg "Cursor Text"
+msgx "커서 글자"
+
+# config.c:1087
+msg "Cursor appearance:"
+msgx "커서 모양:"
+
+# config.c:1094
+msg "Cursor blinks"
+msgx "커서 깜빡임 (B)"
+
+# wincfg.c:149
+msg "Custom sound file to play as a bell:"
+msgx "벨 소리로 사용할 소리 파일:"
+
+# config.c:896
+msg "DEC Origin Mode initially on"
+msgx "DEC 줄 모드를 기본으로 켬"
+
+# unicode.c:392
+msg "DEC-MCS"
+msgx ""
+
+# settings.c:274 settings.c:529
+msg "DECOriginMode"
+msgx ""
+
+# config.c:94
+msg "DES"
+msgx ""
+
+# config.c:1262 config.c:1370 config.c:1442 config.c:1467
+msg "Data to send to the server"
+msgx "서버에 보낼 데이터"
+
+# config.c:425
+msg "Default Background"
+msgx "기본 배경색"
+
+# config.c:425
+msg "Default Bold Background"
+msgx "기본 배경색(굵음)"
+
+# config.c:424
+msg "Default Bold Foreground"
+msgx "기본 글자색(굵음)"
+
+# config.c:424
+msg "Default Foreground"
+msgx "기본 글자색"
+
+# config.c:230 config.c:302 config.c:309 settings.c:672 settings.c:674
+# settings.c:721 settings.c:729 settings.c:733 winstore.c:72 winstore.c:120
+msg "Default Settings"
+msgx "기본 설정"
+
+# config.c:1180
+msg "Default selection mode (Alt+drag does the other one):"
+msgx "기본 영역 선택 모드 (Alt+드래그는 다름):"
+
+# config.c:830
+msg "Delete"
+msgx "지움(D)"
+
+# config.c:1597
+msg "Destination"
+msgx "대상 (I)"
+
+# config.c:1617
+msg "Detection of known bugs in SSH servers"
+msgx "SSH 서버의 알려진 버그 피해가기"
+
+# version.c:10
+msg "Development snapshot "
+msgx ""
+
+# config.c:1283
+msg "Disable Nagle's algorithm (TCP_NODELAY option)"
+msgx "네이글 알고리즘 사용 안 함 (N)"
+
+# config.c:1010
+msg "Disable application cursor keys mode"
+msgx "애플리케이션 커서 키 모드 사용 안 함 (U)"
+
+# config.c:1013
+msg "Disable application keypad mode"
+msgx "애플리케이션 키패드 모드 사용 안 함 (K)"
+
+# config.c:1033
+msg "Disable destructive backspace on server sending ^?"
+msgx "서버가 보내는 ^? 삭제를 사용 안 함 (B)"
+
+# config.c:1030
+msg "Disable remote window title querying (SECURITY)"
+msgx "원격에서의 창 제목 알아내기 사용 안 함 (Q)"
+
+# config.c:1036
+msg "Disable remote-controlled character set configuration"
+msgx "원격 문자 셋 설정 사용 안 함 (R)"
+
+# config.c:1019
+msg "Disable remote-controlled terminal resizing"
+msgx "원격 창 크기 조절 사용 안 함 (S)"
+
+# config.c:1026
+msg "Disable remote-controlled window title changing"
+msgx "원격 창 제목 변경 사용 안 함 (T)"
+
+# config.c:1023
+msg "Disable switching to alternate terminal screen"
+msgx "대체 터미널 스크린 변경 기능 사용 안 함 (W)"
+
+# config.c:1016
+msg "Disable xterm-style mouse reporting"
+msgx "xterm 스타일 마우스 사용 안 함"
+
+# wincfg.c:162
+msg "Disabled"
+msgx "사용 안 함"
+
+# ssh.c:1099
+msg "Disconnection message text: %n%.*s"
+msgx ""
+
+# config.c:1064
+msg "Display scrollbar"
+msgx "스크롤 바 보임 (D)"
+
+# wincfg.c:61
+msg "Display scrollbar in full screen mode"
+msgx "전화면 모드에서 스크롤 바 보임 (I)"
+
+# config.c:1332
+msg "Do DNS name lookup at proxy end:"
+msgx "프락시 접속에 대해 DNS 네임을 찾음:"
+
+# ssh.c:4168
+msg "Doing Diffie-Hellman group exchange"
+msgx ""
+
+# ssh.c:4196
+msg "Doing Diffie-Hellman key exchange"
+msgx ""
+
+# config.c:1474
+msg "Don't allocate a pseudo-terminal"
+msgx "수도(pseudo)-터미날을 할당하지 않음"
+
+# ssh.c:3350 ssh.c:5461
+msg "Duplicate remote port forwarding to %s:%d"
+msgx ""
+
+# config.c:1605
+msg "Dynamic"
+msgx "동적 (Y)"
+
+# config.c:954
+msg "ESC[n~"
+msgx ""
+
+# config.c:1540
+msg "Enable X11 forwarding"
+msgx "X11 포워딩 사용 (E)"
+
+# config.c:905
+msg "Enable blinking text"
+msgx "글자 깜빡임 사용 (N)"
+
+# wincfg.c:181
+msg "Enable character set translation on input data"
+msgx "입력 데이터의 문자 셋 변환 사용"
+
+# config.c:1478
+msg "Enable compression"
+msgx "압축 허용 (E)"
+
+# wincfg.c:95
+msg "Enable extra keyboard features:"
+msgx "키보드 부가 기능:"
+
+# config.c:1497
+msg "Enable legacy use of single-DES in SSH 2"
+msgx "SSH 2에서 단일-DES 하위 호환성 사용 (I)"
+
+# config.c:1007
+msg "Enabling and disabling advanced terminal features"
+msgx "부가적인 터미널 기능들을 켜거나 끕니다."
+
+# ssh.c:2463
+msg "Encrypted session key"
+msgx ""
+
+# config.c:1492
+msg "Encryption cipher selection policy:"
+msgx "암호 알고리즘 선택 정책 (S):"
+
+# ssh.c:2541
+msg "Encryption not successfully enabled"
+msgx ""
+
+# config.c:1491
+msg "Encryption options"
+msgx "암호화 옵션"
+
+# wincfg.c:305
+msg "Ensure window is always on top"
+msgx ""
+
+# settings.c:216 settings.c:451
+msg "Environment"
+msgx ""
+
+# config.c:583
+msg "Environment too big"
+msgx "환경 변수가 너무 큽니다"
+
+# config.c:1375
+msg "Environment variables:"
+msgx "환경 변수:"
+
+# settings.c:316 settings.c:601
+msg "EraseToScrollback"
+msgx ""
+
+# ssh.c:4231
+msg "Exchange hash is:\n"
+msgx ""
+
+# config.c:1323
+msg "Exclude Hosts/IPs"
+msgx "금지된 호스트/IP (E)"
+
+# ssh.c:2953
+msg "Failed to authenticate with our public key.\r\n"
+msgx "우리 공개키를 사용하여 인증하는 데 실패했습니다.\r\n"
+
+# wincfg.c:163
+msg "Flashing"
+msgx "깜빡임"
+
+# settings.c:281 settings.c:536
+msg "Font"
+msgx ""
+
+# wincfg.c:206
+msg "Font has XWindows encoding"
+msgx "X윈도우 인코딩사용 (X)"
+
+# config.c:1099
+msg "Font settings"
+msgx "글꼴 설정"
+
+# config.c:1100
+msg "Font used in the terminal window"
+msgx "터미널 창 글꼴 (N)"
+
+# settings.c:282 settings.c:537
+msg "FontVTMode"
+msgx ""
+
+# wincfg.c:288
+msg "Forbid resizing completely"
+msgx "전혀 크기 조절 하지 않음"
+
+# config.c:919 config.c:925
+msg "Force off"
+msgx "항상 끔"
+
+# config.c:918 config.c:924
+msg "Force on"
+msgx "항상 켬"
+
+# ssh.c:3130 ssh.c:3642
+msg "Forwarded X11 connection terminated"
+msgx ""
+
+# ssh.c:3624 ssh.c:5887
+msg "Forwarded connection refused by server"
+msgx ""
+
+# ssh.c:3134 ssh.c:3648
+msg "Forwarded port closed"
+msgx ""
+
+# ssh.c:3590 ssh.c:6031
+msg "Forwarded port opened successfully"
+msgx ""
+
+# config.c:1566
+msg "Forwarded ports:"
+msgx "포워드 포트:"
+
+# wincfg.c:308
+msg "Full screen on Alt-Enter"
+msgx "Alt-Enter를 누르면 전체 화면으로 전환 (F)"
+
+# settings.c:260 settings.c:514
+msg "FullScreenOnAltEnter"
+msgx ""
+
+# ssh.c:4709
+msg "Further authentication required"
+msgx ""
+
+# ssh.c:4708
+msg "Further authentication required\r\n"
+msgx ""
+
+# config.c:1112
+msg "Gap between text and window edge:"
+msgx "본문과 창틀 간격:"
+
+# config.c:1219 wincfg.c:268
+msg "General options for colour usage"
+msgx "색깔관련 일반 옵션"
+
+# config.c:1241
+msg "Green"
+msgx "녹색"
+
+# window.c:3718
+msg "HL.FIG"
+msgx ""
+
+# winstore.c:450
+msg "HOMEDRIVE"
+msgx ""
+
+# winstore.c:453
+msg "HOMEPATH"
+msgx ""
+
+# unicode.c:390
+msg "HP-ROMAN8"
+msgx ""
+
+# config.c:1306
+msg "HTTP"
+msgx ""
+
+# config.c:1410
+msg "Handling of OLD_ENVIRON ambiguity:"
+msgx "OLD_ENVIRON 모호성 다루기:"
+
+# config.c:1155
+msg "Handling of line drawing characters:"
+msgx "선그림 문자 다루기:"
+
+# winstore.c:181 winstore.c:212
+msg "Height"
+msgx ""
+
+# wincfg.c:49
+msg "Help"
+msgx "도움 (H)"
+
+# config.c:1106
+msg "Hide mouse pointer when typing in window"
+msgx "입력 중에는 마우스 커서 숨김 (P)"
+
+# settings.c:261 settings.c:515
+msg "HideMousePtr"
+msgx ""
+
+# config.c:776
+msg "Host Name (or IP address)"
+msgx "호스트 이름 (또는 IP 주소) (N)"
+
+# winnet.c:384
+msg "Host does not exist"
+msgx "호스트가 존재하지 않음"
+
+# ssh.c:2398 ssh.c:4253
+msg "Host key fingerprint is:"
+msgx ""
+
+# winnet.c:385
+msg "Host not found"
+msgx "호스트를 찾을 수 없음"
+
+# settings.c:165 settings.c:379
+msg "HostName"
+msgx ""
+
+# ssh.c:6398 ssh.c:6405
+msg "IGNORE message"
+msgx ""
+
+# unicode.c:1027
+msg "ISO-8859-1"
+msgx ""
+
+# unicode.c:379
+msg "ISO-8859-10:1998 (Latin-6, Nordic)"
+msgx "ISO-8859-10:1998 (라틴-6, 스칸디나비아어)"
+
+# unicode.c:380
+msg "ISO-8859-11:2001 (Latin/Thai)"
+msgx "ISO-8859-11:2001 (라틴/타이어)"
+
+# unicode.c:1032
+msg "ISO-8859-13"
+msgx ""
+
+# unicode.c:381
+msg "ISO-8859-13:1998 (Latin-7, Baltic)"
+msgx "ISO-8859-13:1998 (라틴-7, 발틱어)"
+
+# unicode.c:382
+msg "ISO-8859-14:1998 (Latin-8, Celtic)"
+msgx "ISO-8859-14:1998 (라틴-8, 켈트어)"
+
+# unicode.c:383
+msg "ISO-8859-15:1999 (Latin-9, \"euro\")"
+msgx "ISO-8859-15:1999 (라틴-9, \"유로\")"
+
+# unicode.c:384
+msg "ISO-8859-16:2001 (Latin-10, Balkan)"
+msgx "ISO-8859-16:2001 (라틴-10, 발칸어)"
+
+# unicode.c:370
+msg "ISO-8859-1:1998 (Latin-1, West Europe)"
+msgx "ISO-8859-1:1998 (라틴-1, 서유럽)"
+
+# unicode.c:1025
+msg "ISO-8859-2"
+msgx ""
+
+# unicode.c:371
+msg "ISO-8859-2:1999 (Latin-2, East Europe)"
+msgx "ISO-8859-2:1999 (라틴-2, 동유럽)"
+
+# unicode.c:372
+msg "ISO-8859-3:1999 (Latin-3, South Europe)"
+msgx "ISO-8859-3:1999 (라틴-3, 남유럽)"
+
+# unicode.c:373
+msg "ISO-8859-4:1998 (Latin-4, North Europe)"
+msgx "ISO-8859-4:1998 (라틴-4, 북유럽)"
+
+# unicode.c:374
+msg "ISO-8859-5:1999 (Latin/Cyrillic)"
+msgx "ISO-8859-5:1999 (라틴/키릴어)"
+
+# unicode.c:1031
+msg "ISO-8859-6"
+msgx ""
+
+# unicode.c:375
+msg "ISO-8859-6:1999 (Latin/Arabic)"
+msgx "ISO-8859-6:1999 (라틴/아랍어)"
+
+# unicode.c:1028
+msg "ISO-8859-7"
+msgx ""
+
+# unicode.c:376
+msg "ISO-8859-7:1987 (Latin/Greek)"
+msgx "ISO-8859-7:1987 (라틴/그리스어)"
+
+# unicode.c:1030
+msg "ISO-8859-8"
+msgx ""
+
+# unicode.c:377
+msg "ISO-8859-8:1999 (Latin/Hebrew)"
+msgx "ISO-8859-8:1999 (라틴/히브리어)"
+
+# unicode.c:1029
+msg "ISO-8859-9"
+msgx ""
+
+# unicode.c:378
+msg "ISO-8859-9:1999 (Latin-5, Turkish)"
+msgx "ISO-8859-9:1999 (라틴-5, 터키어)"
+
+# config.c:899
+msg "Implicit CR in every LF"
+msgx "CR이 없어도 LF가 발견되면 줄넘김 인정"
+
+# ssh.c:994
+msg "Incoming packet was garbled on decryption"
+msgx ""
+
+# ssh.c:862
+msg "Incorrect CRC received on packet"
+msgx ""
+
+# ssh.c:1043
+msg "Incorrect MAC received on packet"
+msgx ""
+
+# config.c:959
+msg "Initial state of cursor keys:"
+msgx "커서 키 기본 상태 (R):"
+
+# config.c:964
+msg "Initial state of numeric keypad:"
+msgx "숫자 키패드 기본 상태 (N):"
+
+# ssh.c:4330
+msg "Initialised %.200s client->server encryption"
+msgx ""
+
+# ssh.c:4332
+msg "Initialised %.200s server->client encryption"
+msgx ""
+
+# ssh.c:4335
+msg "Initialised %s compression"
+msgx ""
+
+# ssh.c:4338
+msg "Initialised %s decompression"
+msgx ""
+
+# ssh.c:2533
+msg "Initialised %s encryption"
+msgx ""
+
+# ssh.c:3422
+msg "Initialised zlib (RFC1950) compression"
+msgx ""
+
+# ssh.c:3424
+msg "Initialised zlib (RFC1950) decompression"
+msgx ""
+
+# ssh.c:2536
+msg "Installing CRC compensation attack detector"
+msgx ""
+
+# winnet.c:1183
+msg "Internal networking trouble"
+msgx "네트워크 내부 문제 발생"
+
+# window.c:476
+msg "Invalid Port Number"
+msgx "잘못된 포트 번호입니다"
+
+# winstore.c:173 winstore.c:206
+msg "IsBold"
+msgx ""
+
+# unicode.c:389
+msg "KOI8-R"
+msgx ""
+
+# unicode.c:388 unicode.c:1026
+msg "KOI8-U"
+msgx ""
+
+# window.c:3181
+msg "K_F%d"
+msgx ""
+
+# ssh.c:2827
+msg "Key is of wrong type (%s)"
+msgx "키가 잘못된 타입입니다. (%s)"
+
+# ssh.c:2673 ssh.c:4811
+msg "Key refused"
+msgx ""
+
+# config.c:1423
+msg "Keyboard sends telnet Backspace and Interrupt"
+msgx "텔넷식의 백스페이스와 인터럽트를 보냄 (K)"
+
+# ssh.c:4985
+msg "Keyboard-interactive authentication refused"
+msgx ""
+
+# settings.c:276 settings.c:531
+msg "LFImpliesCR"
+msgx ""
+
+# unicode.c:487
+msg "Line cp%d, Font cp%d%s\n"
+msgx ""
+
+# config.c:913
+msg "Line discipline options"
+msgx ""
+
+# settings.c:309 settings.c:593
+msg "LineCodePage"
+msgx ""
+
+# config.c:1061
+msg "Lines of scrollback"
+msgx "이전화면 저장 줄 수 (S)"
+
+# config.c:954
+msg "Linux"
+msgx "리눅스"
+
+# settings.c:236 settings.c:489
+msg "LinuxFunctionKeys"
+msgx ""
+
+# config.c:822
+msg "Load"
+msgx "불러옴(L)"
+
+# config.c:806
+msg "Load, save or delete a stored session"
+msgx "저장된 세션의 불러오기, 저장, 지움"
+
+# config.c:1603
+msg "Local"
+msgx "로컬 (L)"
+
+# config.c:914
+msg "Local echo:"
+msgx "자국 반향 (L):"
+
+# config.c:920
+msg "Local line editing:"
+msgx "자체 줄 편집 (T):"
+
+# ssh.c:3332 ssh.c:5448
+msg "Local port %.*s%.*s%.*s%.*s%d%.*s doing SOCKS dynamic forwarding"
+msgx ""
+
+# ssh.c:3320 ssh.c:5436
+msg "Local port %.*s%.*s%.*s%.*s%d%.*s forwarding to %s:%.*s%.*s%d%.*s"
+msgx ""
+
+# config.c:1556
+msg "Local ports accept connections from other hosts"
+msgx "다른 호스트에서 우리측 포트로의 접속 (T)"
+
+# config.c:1447
+msg "Local username:"
+msgx "사용자 명 (L):"
+
+# settings.c:256 settings.c:509
+msg "LocalEcho"
+msgx ""
+
+# settings.c:257 settings.c:510
+msg "LocalEdit"
+msgx ""
+
+# settings.c:323 settings.c:610
+msg "LocalPortAcceptAll"
+msgx ""
+
+# settings.c:219 settings.c:470
+msg "LocalUserName"
+msgx ""
+
+# settings.c:317 settings.c:602
+msg "LockSize"
+msgx ""
+
+# config.c:860
+msg "Log SSH packet data"
+msgx "SSH 패킷 데이터 기록"
+
+# config.c:869
+msg "Log all session output"
+msgx "모든 세션 출력을 기록 (L)"
+
+# config.c:873
+msg "Log file name:"
+msgx "로그 파일 이름 (F):"
+
+# config.c:868
+msg "Log printable output only"
+msgx "출력 가능한 글자만 기록 (P)"
+
+# settings.c:168 settings.c:385
+msg "LogFileClash"
+msgx ""
+
+# settings.c:166 settings.c:383
+msg "LogFileName"
+msgx ""
+
+# settings.c:167 settings.c:384
+msg "LogType"
+msgx ""
+
+# config.c:867
+msg "Logging turned off completely"
+msgx "아무 것도 기록하지 않음 (T)"
+
+# settings.c:353 settings.c:649
+msg "LoginShell"
+msgx ""
+
+# ssh.c:2154
+msg "Looking up host \"%s\""
+msgx ""
+
+# config.c:1282
+msg "Low-level TCP connection options"
+msgx "저수준 TCP 압축 옵션"
+
+# config.c:1551
+msg "MIT-Magic-Cookie-1"
+msgx ""
+
+# window.c:3695
+msg "MNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@[\\]^_`{"
+msgx ""
+
+# window.c:216
+msg "MSWHEEL_ROLLMSG"
+msgx ""
+
+# config.c:981
+msg "Make default system alert sound"
+msgx "기본 시스템 벨소리"
+
+# ssh.c:6200
+msg "Microsoft high encryption pack not installed!"
+msgx ""
+
+# config.c:1627
+msg "Miscomputes SSH2 HMAC keys"
+msgx "SSH2 HMAC 키를 잘못 계산함"
+
+# config.c:1630
+msg "Miscomputes SSH2 encryption keys"
+msgx "SSH2 암호화 키를 잘못 계산함 (E)"
+
+# config.c:1639
+msg "Misuses the session ID in PK auth"
+msgx "세션 ID를 PK 인증에 오용함 (N)"
+
+# config.c:1247
+msg "Modify"
+msgx "변경 (M)"
+
+# settings.c:295 settings.c:561
+msg "MouseIsXterm"
+msgx ""
+
+# settings.c:297 settings.c:563
+msg "MouseOverride"
+msgx ""
+
+# window.c:665
+msg "Ne&w Session..."
+msgx "새 접속 (&W)"
+
+# config.c:967
+msg "NetHack"
+msgx "넷핵"
+
+# settings.c:248 settings.c:501
+msg "NetHackKeypad"
+msgx ""
+
+# ssh.c:852
+msg "Network attack (CRC compensation) detected!"
+msgx ""
+
+# winnet.c:253
+msg "Network error: Address already in use"
+msgx "네트워크 에러: 주소가 이미 사용 중입니다"
+
+# winnet.c:258
+msg "Network error: Address family not supported by protocol family"
+msgx "네트워크 에러: 프로토콜 형태에서 지원되지 않는 주소 그룹입니다"
+
+# winnet.c:270
+msg "Network error: Bad address"
+msgx "네트워크 에러: 잘못된 주소"
+
+# winnet.c:296
+msg "Network error: Bad protocol option"
+msgx "네트워크 에러: 잘못된 프로토콜 옵션"
+
+# winnet.c:255
+msg "Network error: Cannot assign requested address"
+msgx "네트워크 에러: 요청된 주소를 할당할 수 없습니다"
+
+# winnet.c:312
+msg "Network error: Cannot send after socket shutdown"
+msgx "네트워크 에러: 닫힌 소켓에는 보낼 수 없습니다"
+
+# winnet.c:264
+msg "Network error: Connection refused"
+msgx "네트워크 에러: 접속이 거부되었습니다"
+
+# winnet.c:266
+msg "Network error: Connection reset by peer"
+msgx "네트워크 에러: 접속이 끊겼습니다"
+
+# winnet.c:316
+msg "Network error: Connection timed out"
+msgx "네트워크 에러: 접속이 타임아웃 되었습니다"
+
+# winnet.c:268
+msg "Network error: Destination address required"
+msgx "네트워크 에러: 대상 주소가 필요합니다"
+
+# winnet.c:320
+msg "Network error: Graceful shutdown in progress"
+msgx "네트워크 에러: 정상 중단이 진행 중입니다"
+
+# winnet.c:272
+msg "Network error: Host is down"
+msgx "네트워크 에러: 상대 호스트가 죽어 있습니다"
+
+# winnet.c:278
+msg "Network error: Interrupted function call"
+msgx "네트워크 에러: 함수 호출이 중단되었습니다"
+
+# winnet.c:280
+msg "Network error: Invalid argument"
+msgx "네트워크 에러: 잘못된 인자가 전달되었습니다"
+
+# winnet.c:286
+msg "Network error: Message too long"
+msgx "네트워크 에러: 메시지가 너무 깁니다"
+
+# winnet.c:290
+msg "Network error: Network dropped connection on reset"
+msgx "네트워크 에러: 리셋되어 네트워크 접속이 떨어졌습니다"
+
+# winnet.c:288
+msg "Network error: Network is down"
+msgx "네트워크 에러: 네트워크가 죽었습니다"
+
+# winnet.c:292
+msg "Network error: Network is unreachable"
+msgx "네트워크 에러: 도달할 수 없는 네트워크입니다"
+
+# winnet.c:294
+msg "Network error: No buffer space available"
+msgx "네트워크 에러: 버퍼 공간이 부족합니다"
+
+# winnet.c:274
+msg "Network error: No route to host"
+msgx "네트워크 에러: 호스트에의 경로를 찾을 수 없습니다"
+
+# winnet.c:260
+msg "Network error: Operation already in progress"
+msgx "네트워크 에러: 이미 작업이 진행 중입니다"
+
+# winnet.c:302
+msg "Network error: Operation not supported"
+msgx "네트워크 에러: 지원되지 않는 작업입니다"
+
+# winnet.c:276
+msg "Network error: Operation now in progress"
+msgx "네트워크 에러: 작업이 이제 진행 중입니다"
+
+# winnet.c:251
+msg "Network error: Permission denied"
+msgx "네트워크 에러: 권한이 없습니다"
+
+# winnet.c:304
+msg "Network error: Protocol family not supported"
+msgx "네트워크 에러: 지원되지 않는 프로토콜 유형입니다"
+
+# winnet.c:308
+msg "Network error: Protocol not supported"
+msgx "네트워크 에러: 지원되지 않는 프로토콜입니다"
+
+# winnet.c:310
+msg "Network error: Protocol wrong type for socket"
+msgx "네트워크 에러: 해당 소켓에 잘못된 프로토콜 타입입니다"
+
+# winnet.c:318
+msg "Network error: Resource temporarily unavailable"
+msgx "네트워크 에러: 시스템 자원이 임시로 부족합니다"
+
+# winnet.c:282
+msg "Network error: Socket is already connected"
+msgx "네트워크 에러: 소켓이 이미 접속되어있습니다"
+
+# winnet.c:298
+msg "Network error: Socket is not connected"
+msgx "네트워크 에러: 소켓이 접속되지 않았습니다"
+
+# winnet.c:300
+msg "Network error: Socket operation on non-socket"
+msgx "네트워크 에러: 소켓이 아닌 파일에 대한 소켓 작업입니다"
+
+# winnet.c:314
+msg "Network error: Socket type not supported"
+msgx "네트워크 에러: 지원되지 않는 소켓 타입입니다"
+
+# winnet.c:262
+msg "Network error: Software caused connection abort"
+msgx "네트워크 에러: 소프트웨어적인 접속 중단입니다"
+
+# winnet.c:284
+msg "Network error: Too many open files"
+msgx "네트워크 에러: 열린 파일이 너무 많습니다"
+
+# winnet.c:306
+msg "Network error: Too many processes"
+msgx "네트워크 에러: 프로세스가 너무 많습니다"
+
+# window.c:843 winnet.c:382
+msg "Network is down"
+msgx "네트워크가 끊겼습니다"
+
+# config.c:843
+msg "Never"
+msgx "안 닫음"
+
+# config.c:1336
+msg "No"
+msgx "아니요"
+
+# ssh.c:2858 ssh.c:5069
+msg "No more passwords available to try"
+msgx ""
+
+# ssh.c:2837
+msg "No passphrase required.\r\n"
+msgx "암호구가 필요 없습니다.\r\n"
+
+# ssh.c:2745
+msg "No reply received from Pageant"
+msgx ""
+
+# ssh.c:5265
+msg "No supported authentication methods available"
+msgx ""
+
+# ssh.c:5259
+msg "No supported authentication methods left to try!\r\n"
+msgx "더이상 가능한 인증 방법이 남지 않았습니다!\r\n"
+
+# ssh.c:5261
+msg "No supported authentications offered. Disconnecting"
+msgx ""
+
+# ssh.c:2496
+msg "No supported ciphers found"
+msgx ""
+
+# ssh.c:2557 ssh.c:4534
+msg "No username provided. Abandoning session."
+msgx ""
+
+# settings.c:241 settings.c:494
+msg "NoAltScreen"
+msgx ""
+
+# settings.c:238 settings.c:491
+msg "NoApplicationCursors"
+msgx ""
+
+# settings.c:237 settings.c:490
+msg "NoApplicationKeys"
+msgx ""
+
+# settings.c:244 settings.c:497
+msg "NoDBackspace"
+msgx ""
+
+# settings.c:239 settings.c:492
+msg "NoMouseReporting"
+msgx ""
+
+# settings.c:220 settings.c:472
+msg "NoPTY"
+msgx ""
+
+# settings.c:245 settings.c:498
+msg "NoRemoteCharset"
+msgx ""
+
+# settings.c:243 settings.c:496
+msg "NoRemoteQTitle"
+msgx ""
+
+# settings.c:240 settings.c:493
+msg "NoRemoteResize"
+msgx ""
+
+# settings.c:242 settings.c:495
+msg "NoRemoteWinTitle"
+msgx ""
+
+# config.c:1303
+msg "None"
+msgx "없음"
+
+# config.c:980
+msg "None (bell disabled)"
+msgx "없음 (벨 사용 안 함) "
+
+# config.c:13 windlg.c:48
+msg "None (printing disabled)"
+msgx "없음 (프린트 사용 안 함)"
+
+# config.c:963 config.c:967 config.c:1185
+msg "Normal"
+msgx "일반"
+
+# ssh.c:1784 ssh.c:1796
+msg "OSU_1.4alpha3"
+msgx ""
+
+# config.c:189
+msg "Off"
+msgx "끔"
+
+# ssh.c:4945
+msg "Offer of public key accepted"
+msgx ""
+
+# ssh.c:4936
+msg "Offered public key"
+msgx ""
+
+# config.c:190
+msg "On"
+msgx "켬"
+
+# config.c:844
+msg "Only on clean exit"
+msgx "접속이 끊겼을 때만"
+
+# config.c:752
+msg "Open"
+msgx "열기 (O)"
+
+# ssh.c:1857
+msg "OpenSSH_2.[0-2]*"
+msgx ""
+
+# ssh.c:1846
+msg "OpenSSH_2.[5-9]*"
+msgx ""
+
+# ssh.c:1847
+msg "OpenSSH_3.[0-2]*"
+msgx ""
+
+# ssh.c:3510
+msg "Opened X11 forward channel"
+msgx ""
+
+# ssh.c:5312
+msg "Opened channel for session"
+msgx ""
+
+# ssh.c:6511
+msg "Opening forwarded connection to %s:%d"
+msgx ""
+
+# config.c:1043
+msg "Options controlling %s's window"
+msgx "%s의 창 제어 옵션을 조정합니다"
+
+# config.c:1439
+msg "Options controlling Rlogin connections"
+msgx "Rlogin 접속 제어 옵션을 조정합니다"
+
+# config.c:1506
+msg "Options controlling SSH authentication"
+msgx "SSH 인증 제어 옵션을 조정합니다"
+
+# config.c:1464
+msg "Options controlling SSH connections"
+msgx "SSH 접속 옵션을 조정합니다"
+
+# config.c:1537
+msg "Options controlling SSH tunnelling"
+msgx "SSH 터널링 제어 옵션을 조정합니다"
+
+# config.c:1366
+msg "Options controlling Telnet connections"
+msgx "텔넷 접속 제어 옵션을 조정합니다"
+
+# config.c:1144
+msg "Options controlling character set translation"
+msgx "문자 셋 변환 제어 옵션을 조정합니다"
+
+# config.c:1166
+msg "Options controlling copy and paste"
+msgx "복사, 붙여넣기 제어 옵션을 조정합니다"
+
+# config.c:1296
+msg "Options controlling proxy usage"
+msgx "프락시 사용 제어 옵션을 조정합니다"
+
+# config.c:849
+msg "Options controlling session logging"
+msgx "세션 로그 제어 옵션을 조정합니다"
+
+# config.c:1258
+msg "Options controlling the connection"
+msgx "접속 제어 옵션을 조정합니다"
+
+# config.c:936
+msg "Options controlling the effects of keys"
+msgx "키 효과 제어 옵션을 조정합니다"
+
+# config.c:974
+msg "Options controlling the terminal bell"
+msgx "터미널 벨 제어 옵션을 조정합니다"
+
+# config.c:890
+msg "Options controlling the terminal emulation"
+msgx "터미널 에뮬레이션 제어 옵션을 조정합니다"
+
+# config.c:1216
+msg "Options controlling use of colours"
+msgx "색상 사용 옵션을 조정합니다"
+
+# ssh.c:1428 ssh.c:2144 ssh.c:2427 ssh.c:2440
+msg "Out of memory"
+msgx ""
+
+# config.c:989
+msg "Over-use means this many bells..."
+msgx "최소 벨 과부하 결정 기준"
+
+# ssh.c:2741 ssh.c:4893
+msg "Pageant failed to answer challenge"
+msgx ""
+
+# ssh.c:2647
+msg "Pageant has %d SSH1 keys"
+msgx "Pageant가 %d개의 SSH1 키를 갖고 있습니다"
+
+# ssh.c:4770
+msg "Pageant has %d SSH2 keys"
+msgx "Pageant가 %d개의 SSH2 키를 갖고 있습니다"
+
+# ssh.c:2621 ssh.c:4744
+msg "Pageant is running. Requesting keys."
+msgx ""
+
+# ssh.c:2727
+msg "Pageant's response accepted"
+msgx ""
+
+# ssh.c:2738
+msg "Pageant's response not accepted"
+msgx ""
+
+# config.c:1421
+msg "Passive"
+msgx "수동"
+
+# settings.c:233 settings.c:486
+msg "PassiveTelnet"
+msgx ""
+
+# ssh.c:2840 ssh.c:4952
+msg "Passphrase for key \"%.100s\": "
+msgx "키 \"%.100s\"의 암호구: "
+
+# config.c:1344
+msg "Password"
+msgx "암호 (W)"
+
+# config.c:1170
+msg "Paste VT100 line drawing chars as lqqqk"
+msgx "VT100 선그림 문자를 lqqqk로 뿌림 (D)"
+
+# wincfg.c:238
+msg "Paste to clipboard in RTF as well as plain text"
+msgx "클립보드로 텍스트와 RTF를 동시에 복사"
+
+# settings.c:294 settings.c:560
+msg "PasteRTF"
+msgx ""
+
+# settings.c:182 settings.c:404
+msg "PingInterval"
+msgx ""
+
+# settings.c:183 settings.c:405
+msg "PingIntervalSecs"
+msgx ""
+
+# wincfg.c:132
+msg "Play a custom sound file"
+msgx "다른 사운드 파일 사용"
+
+# config.c:1160
+msg "Poor man's line drawing (+, - and |)"
+msgx "가난한 자의 선그림 문자 (+, - 와 |) (P)"
+
+# config.c:781 config.c:1316
+msg "Port"
+msgx "포트 (P)"
+
+# config.c:1555
+msg "Port forwarding"
+msgx "포트 포워딩"
+
+# ssh.c:6029
+msg "Port open failed"
+msgx ""
+
+# ssh.c:3574 ssh.c:6028
+msg "Port open failed: %s"
+msgx ""
+
+# settings.c:342 settings.c:614
+msg "PortForwardings"
+msgx ""
+
+# settings.c:177 settings.c:393
+msg "PortNumber"
+msgx ""
+
+# config.c:1482
+msg "Preferred SSH protocol version:"
+msgx "먼저 시도할 SSH 프로토콜 버전:"
+
+# settings.c:163
+msg "Present"
+msgx ""
+
+# ssh.c:5654
+msg "Primary command failed; attempting fallback"
+msgx ""
+
+# window.c:1152
+msg "Primary font H=%d, AW=%d, MW=%d"
+msgx ""
+
+# settings.c:310 settings.c:595
+msg "Printer"
+msgx ""
+
+# config.c:928
+msg "Printer to send ANSI printer output to:"
+msgx "ANSI 프린터 출력을 보낼 프린터 (P):"
+
+# config.c:1528
+msg "Private key file for authentication:"
+msgx "인증 개인키 파일 (K):"
+
+# settings.c:176 settings.c:387
+msg "Protocol"
+msgx ""
+
+# ssh.c:3205 ssh.c:3235 ssh.c:3371 ssh.c:3396 ssh.c:3414
+msg "Protocol confusion"
+msgx ""
+
+# config.c:1473
+msg "Protocol options"
+msgx "프로토콜 옵션"
+
+# config.c:787 config.c:795
+msg "Protocol:"
+msgx "프로토콜:"
+
+# config.c:1310
+msg "Proxy hostname"
+msgx "프락시 호스트 (Y)"
+
+# config.c:1299
+msg "Proxy type:"
+msgx "프락티 유형 (T):"
+
+# settings.c:190 settings.c:417
+msg "ProxyDNS"
+msgx ""
+
+# settings.c:189 settings.c:415
+msg "ProxyExcludeList"
+msgx ""
+
+# settings.c:193 settings.c:439
+msg "ProxyHost"
+msgx ""
+
+# settings.c:191 settings.c:418
+msg "ProxyLocalhost"
+msgx ""
+
+# settings.c:192 settings.c:419
+msg "ProxyMethod"
+msgx ""
+
+# settings.c:196 settings.c:444
+msg "ProxyPassword"
+msgx ""
+
+# settings.c:194 settings.c:441
+msg "ProxyPort"
+msgx ""
+
+# settings.c:432
+msg "ProxySOCKSVersion"
+msgx ""
+
+# settings.c:197 settings.c:446
+msg "ProxyTelnetCommand"
+msgx ""
+
+# settings.c:422
+msg "ProxyType"
+msgx ""
+
+# settings.c:195 settings.c:442
+msg "ProxyUsername"
+msgx ""
+
+# settings.c:511
+msg "PuTTY"
+msgx ""
+
+# version.c:21
+msg "PuTTY-Local: "
+msgx ""
+
+# version.c:16
+msg "PuTTY-Release-"
+msgx "푸티-한글판-"
+
+# version.c:11
+msg "PuTTY-Snapshot-"
+msgx ""
+
+# ssh.c:2382
+msg "Public key packet not received"
+msgx ""
+
+# settings.c:230 settings.c:482
+msg "PublicKeyFile"
+msgx ""
+
+# config.c:1073
+msg "Push erased text into scrollback"
+msgx "지워진 글을 이전화면으로 밀어냄 (E)"
+
+# config.c:1416
+msg "RFC 1408 (unusual)"
+msgx "RFC 1408 (안 쓰임)"
+
+# settings.c:232 settings.c:485
+msg "RFCEnviron"
+msgx ""
+
+# config.c:1236
+msg "RGB value:"
+msgx "RGB 값:"
+
+# settings.c:235 settings.c:488
+msg "RXVTHomeEnd"
+msgx ""
+
+# winstore.c:438
+msg "RandSeedFile"
+msgx ""
+
+# config.c:790 config.c:798
+msg "Raw"
+msgx "생짜 (R)"
+
+# settings.c:293 settings.c:559
+msg "RawCNP"
+msgx ""
+
+# ssh.c:4587
+msg "Reading private key file \"%.150s\""
+msgx ""
+
+# ssh.c:5787
+msg "Received CHANNEL_CLOSE for %s channel %d\n"
+msgx ""
+
+# ssh.c:3666
+msg "Received CHANNEL_CLOSE%s for %s channel %d\n"
+msgx ""
+
+# ssh.c:2802
+msg "Received CryptoCard challenge"
+msgx ""
+
+# ssh.c:2676
+msg "Received RSA challenge"
+msgx ""
+
+# ssh.c:2776
+msg "Received TIS challenge"
+msgx ""
+
+# ssh.c:3481
+msg "Received X11 connect request"
+msgx ""
+
+# ssh.c:5910
+msg "Received channel request for nonexistent channel %d"
+msgx ""
+
+# config.c:1148
+msg "Received data assumed to be in which character set:"
+msgx "수신한 데이터를 이 문자셋으로 가정 (R):"
+
+# ssh.c:906
+msg "Received data packet with bogus string length"
+msgx ""
+
+# ssh.c:1091
+msg "Received disconnect message (%s)"
+msgx ""
+
+# ssh.c:1094
+msg "Received disconnect message (unknown type %d)"
+msgx ""
+
+# ssh.c:3474
+msg "Received disconnect request"
+msgx ""
+
+# ssh.c:2386
+msg "Received public keys"
+msgx ""
+
+# ssh.c:3568 ssh.c:6025
+msg "Received remote port open request for %s:%d"
+msgx ""
+
+# settings.c:296 settings.c:562
+msg "RectSelect"
+msgx ""
+
+# config.c:1186
+msg "Rectangular block"
+msgx "사각 블럭 (R)"
+
+# config.c:1238
+msg "Red"
+msgx "빨강"
+
+# config.c:1621
+msg "Refuses all SSH1 password camouflage"
+msgx "SSH1 패스워드 위장을 거부함"
+
+# ssh.c:3486
+msg "Rejected X11 connect request"
+msgx ""
+
+# ssh.c:3562
+msg "Rejected remote port open request for %s:%d"
+msgx ""
+
+# version.c:15
+msg "Release "
+msgx ""
+
+# config.c:1604
+msg "Remote"
+msgx "원격 (M)"
+
+# config.c:1547
+msg "Remote X11 authentication protocol"
+msgx "원격 X11 인증 프로토콜 (U)"
+
+# config.c:1468
+msg "Remote command:"
+msgx "원격 명령 (R):"
+
+# ssh.c:915 ssh.c:1120
+msg "Remote debug message: "
+msgx ""
+
+# ssh.c:3377 ssh.c:5509
+msg "Remote port forwarding enabled"
+msgx ""
+
+# ssh.c:6019
+msg "Remote port is not recognised"
+msgx ""
+
+# config.c:1560
+msg "Remote ports do the same (SSH v2 only)"
+msgx "원격 포트도 같은 방법으로 (SSH2만) (P)"
+
+# ssh.c:932
+msg "Remote sent disconnect: "
+msgx ""
+
+# config.c:927
+msg "Remote-controlled printing"
+msgx "원격 제어 프린트"
+
+# settings.c:231 settings.c:483
+msg "RemoteCommand"
+msgx ""
+
+# settings.c:324 settings.c:611
+msg "RemotePortAcceptAll"
+msgx ""
+
+# config.c:1391 config.c:1571
+msg "Remove"
+msgx "지움 (R)"
+
+# ssh.c:2792
+msg "Requested CryptoCard authentication"
+msgx ""
+
+# ssh.c:2765
+msg "Requested TIS authentication"
+msgx ""
+
+# ssh.c:5521
+msg "Requesting OpenSSH-style agent forwarding"
+msgx ""
+
+# ssh.c:3217 ssh.c:5319
+msg "Requesting X11 forwarding"
+msgx ""
+
+# ssh.c:3198
+msg "Requesting agent forwarding"
+msgx ""
+
+# ssh.c:5465
+msg "Requesting remote port %.*s%.*s%.*s%.*s%d%.*s forward to %s:%.*s%.*s%d"
+"%.*s"
+msgx ""
+
+# ssh.c:3354
+msg "Requesting remote port %.*s%.*s%d%.*s forward to %s:%.*s%.*s%d%.*s"
+msgx ""
+
+# config.c:1633
+msg "Requires padding on SSH2 RSA signatures"
+msgx "SSH2 RSA 시그너춰에 패딩 요구 (P)"
+
+# window.c:679
+msg "Rese&t Terminal"
+msgx "터미널 초기화 (&T)"
+
+# config.c:1070
+msg "Reset scrollback on display activity"
+msgx "출력이 있으면 이전화면 보기를 초기화 (P)"
+
+# config.c:1067
+msg "Reset scrollback on keypress"
+msgx "키 입력이 있으면 이전화면 보기를 초기화 (K)"
+
+# config.c:1427
+msg "Return key sends telnet New Line instead of ^M"
+msgx "CR대신 텔넷 New Line 문자를 보냄"
+
+# config.c:792 config.c:800
+msg "Rlogin"
+msgx ""
+
+# config.c:1049
+msg "Rows"
+msgx "줄 (R)"
+
+# config.c:955
+msg "SCO"
+msgx ""
+
+# window.c:3185
+msg "SHIFT"
+msgx ""
+
+# window.c:2318
+msg "SIZE_MAXIMIZED"
+msgx ""
+
+# window.c:2317
+msg "SIZE_MINIMIZED"
+msgx ""
+
+# window.c:2320
+msg "SIZE_RESTORED"
+msgx ""
+
+# config.c:1304
+msg "SOCKS 4"
+msgx ""
+
+# config.c:1305
+msg "SOCKS 5"
+msgx ""
+
+# config.c:801
+msg "SSH"
+msgx ""
+
+# ssh.c:1954
+msg "SSH protocol version 1 required by user but not provided by server"
+msgx ""
+
+# ssh.c:1958
+msg "SSH protocol version 2 required by user but not provided by server"
+msgx ""
+
+# ssh.c:1910
+msg "SSH-"
+msgx ""
+
+# ssh.c:1987
+msg "SSH-%s-%s"
+msgx ""
+
+# ssh.c:1967
+msg "SSH-2.0-%s"
+msgx ""
+
+# ssh.c:3345
+msg "SSH1 cannot handle source address spec \"%s:%d\"; ignoring"
+msgx ""
+
+# settings.c:229 settings.c:479
+msg "SSH2DES"
+msgx ""
+
+# ssh.c:144
+msg "SSH_DISCONNECT_AUTH_CANCELLED_BY_USER"
+msgx ""
+
+# ssh.c:142
+msg "SSH_DISCONNECT_BY_APPLICATION"
+msgx ""
+
+# ssh.c:137
+msg "SSH_DISCONNECT_COMPRESSION_ERROR"
+msgx ""
+
+# ssh.c:141
+msg "SSH_DISCONNECT_CONNECTION_LOST"
+msgx ""
+
+# ssh.c:135
+msg "SSH_DISCONNECT_HOST_AUTHENTICATION_FAILED"
+msgx ""
+
+# ssh.c:140
+msg "SSH_DISCONNECT_HOST_KEY_NOT_VERIFIABLE"
+msgx ""
+
+# ssh.c:132
+msg "SSH_DISCONNECT_HOST_NOT_ALLOWED_TO_CONNECT"
+msgx ""
+
+# ssh.c:146
+msg "SSH_DISCONNECT_ILLEGAL_USER_NAME"
+msgx ""
+
+# ssh.c:134
+msg "SSH_DISCONNECT_KEY_EXCHANGE_FAILED"
+msgx ""
+
+# ssh.c:136
+msg "SSH_DISCONNECT_MAC_ERROR"
+msgx ""
+
+# ssh.c:145
+msg "SSH_DISCONNECT_NO_MORE_AUTH_METHODS_AVAILABLE"
+msgx ""
+
+# ssh.c:133
+msg "SSH_DISCONNECT_PROTOCOL_ERROR"
+msgx ""
+
+# ssh.c:139
+msg "SSH_DISCONNECT_PROTOCOL_VERSION_NOT_SUPPORTED"
+msgx ""
+
+# ssh.c:138
+msg "SSH_DISCONNECT_SERVICE_NOT_AVAILABLE"
+msgx ""
+
+# ssh.c:143
+msg "SSH_DISCONNECT_TOO_MANY_CONNECTIONS"
+msgx ""
+
+# windlg.c:366
+msg "STATIC"
+msgx ""
+
+# window.c:674
+msg "Sa&ved Sessions"
+msgx "저장된 세션 (&V)"
+
+# config.c:826
+msg "Save"
+msgx "저장(V)"
+
+# config.c:809
+msg "Saved Sessions"
+msgx "저장된 세션 (E)"
+
+# settings.c:312 settings.c:597
+msg "ScrollBar"
+msgx ""
+
+# settings.c:313 settings.c:598
+msg "ScrollBarFullScreen"
+msgx ""
+
+# settings.c:315 settings.c:600
+msg "ScrollOnDisp"
+msgx ""
+
+# settings.c:314 settings.c:599
+msg "ScrollOnKey"
+msgx ""
+
+# settings.c:273 settings.c:528
+msg "ScrollbackLines"
+msgx ""
+
+# settings.c:354 settings.c:650
+msg "ScrollbarOnLeft"
+msgx ""
+
+# config.c:1275
+msg "Seconds between keepalives (0 to turn off)"
+msgx "접속 유지 간격 (초단위, 0은 끔)"
+
+# config.c:998
+msg "Seconds of silence required"
+msgx "해제 시간 (S)"
+
+# config.c:1227
+msg "Select a colour from the list, and then click the Modify button to cha"
+"nge its appearance."
+msgx "목록에서 색깔을 고르고 변경 버튼을 눌러 표현색을 바꾸세요."
+
+# config.c:1232
+msg "Select a colour to adjust:"
+msgx "조정할 색깔 선택 (U):"
+
+# wincfg.c:150
+msg "Select bell sound file"
+msgx "벨 소리 파일 선택"
+
+# config.c:1529
+msg "Select private key file"
+msgx "비밀키 파일 선택"
+
+# config.c:874
+msg "Select session log file name"
+msgx "세션 로그 파일 이름 선택"
+
+# ssh.c:2719 ssh.c:4884
+msg "Sending Pageant's response"
+msgx ""
+
+# ssh.c:3062
+msg "Sending length-padded password"
+msgx ""
+
+# config.c:1274
+msg "Sending of null packets to keep session active"
+msgx "세션 유지를 위한 빈패킷 보내기"
+
+# ssh.c:3038
+msg "Sending password with camouflage packets"
+msgx ""
+
+# ssh.c:3074
+msg "Sending unpadded password"
+msgx ""
+
+# ssh.c:6439
+msg "Sent EOF message"
+msgx ""
+
+# ssh.c:3082 ssh.c:5232
+msg "Sent password"
+msgx ""
+
+# ssh.c:2583
+msg "Sent username \"%s\""
+msgx "사용자명 \"%s\" 전송"
+
+# config.c:1130
+msg "Separate window and icon titles"
+msgx "창과 아이콘 제목을 분리 (I)"
+
+# ssh.c:4363
+msg "Server initiated key re-exchange"
+msgx ""
+
+# ssh.c:4695
+msg "Server refused our key\r\n"
+msgx "서버가 우리 키를 거부했습니다\r\n"
+
+# ssh.c:2917
+msg "Server refused our public key.\r\n"
+msgx "서버가 우리 공개 키를 거부했습니다.\r\n"
+
+# ssh.c:3374
+msg "Server refused port forwarding\r\n"
+msgx "서버가 포트 포워딩을 거부했습니다\r\n"
+
+# ssh.c:4696
+msg "Server refused public key"
+msgx ""
+
+# ssh.c:5507
+msg "Server refused this port forwarding"
+msgx ""
+
+# ssh.c:3399 ssh.c:5589
+msg "Server refused to allocate pty\r\n"
+msgx "서버가 PTY 할당을 거부하였습니다\r\n"
+
+# ssh.c:3417
+msg "Server refused to compress\r\n"
+msgx "서버가 압축을 거부했습니다\r\n"
+
+# ssh.c:5297
+msg "Server refused to open a session"
+msgx ""
+
+# ssh.c:5658
+msg "Server refused to start a shell/command"
+msgx ""
+
+# ssh.c:4486
+msg "Server refused user authentication protocol"
+msgx ""
+
+# ssh.c:3744 ssh.c:5933
+msg "Server sent command exit status %d"
+msgx "서버가 명령 결과 코드 %d를 보냈습니다"
+
+# ssh.c:939
+msg "Server sent disconnect message:\n\"%s\""
+msgx ""
+
+# ssh.c:1102
+msg "Server sent disconnect message\ntype %d (%s):\n\"%s\""
+msgx ""
+
+# ssh.c:1938
+msg "Server version: %s"
+msgx "서버 버전: %s"
+
+# ssh.c:2492
+msg "Server violates SSH 1 protocol by not supporting 3DES encryption"
+msgx ""
+
+# ssh.c:5302
+msg "Server's channel confirmation cited wrong channel"
+msgx ""
+
+# ssh.c:4239
+msg "Server's host key did not match the signature supplied"
+msgx ""
+
+# ssh.c:3298 ssh.c:5414
+msg "Service lookup failed for destination port \"%s\""
+msgx ""
+
+# ssh.c:3312 ssh.c:5428
+msg "Service lookup failed for source port \"%s\""
+msgx ""
+
+# config.c:769 config.c:773 config.c:805 config.c:837
+msg "Session"
+msgx "세션"
+
+# config.c:863
+msg "Session logging:"
+msgx "세션 로그:"
+
+# config.c:849 config.c:851
+msg "Session/Logging"
+msgx "세션/로깅"
+
+# config.c:1207
+msg "Set"
+msgx "바꿈 (S)"
+
+# config.c:1047 wincfg.c:280
+msg "Set the size of the window"
+msgx "창 크기 조절"
+
+# config.c:976 wincfg.c:120
+msg "Set the style of bell"
+msgx "벨 스타일"
+
+# config.c:1203
+msg "Set to class"
+msgx "클래스 (T)"
+
+# config.c:892
+msg "Set various terminal options"
+msgx "다양한 터미널 옵션"
+
+# settings.c:356 settings.c:651
+msg "ShadowBold"
+msgx ""
+
+# settings.c:357 settings.c:655
+msg "ShadowBoldOffset"
+msgx ""
+
+# config.c:1176
+msg "Shift overrides application's use of mouse"
+msgx "쉬프트로 애플리케이션 마우스사용을 엎음 (P)"
+
+# config.c:1593
+msg "Source port"
+msgx "원 포트 (S)"
+
+# window.c:878
+msg "Special Command"
+msgx "특별 명령"
+
+# config.c:774
+msg "Specify your connection by host name or IP address"
+msgx "기본 접속 정보"
+
+# settings.c:228 settings.c:478
+msg "SshProt"
+msgx ""
+
+# settings.c:352 settings.c:648
+msg "StampUtmp"
+msgx ""
+
+# config.c:949
+msg "Standard"
+msgx "표준"
+
+# ssh.c:5661
+msg "Started a shell/command"
+msgx ""
+
+# ssh.c:3419
+msg "Started compression"
+msgx ""
+
+# ssh.c:3445
+msg "Started session"
+msgx ""
+
+# wincfg.c:164
+msg "Steady"
+msgx "계속"
+
+# ssh.c:4651
+msg "Strange packet received during authentication: type %d"
+msgx ""
+
+# ssh.c:3090
+msg "Strange packet received, type %d"
+msgx ""
+
+# ssh.c:3758 ssh.c:6072
+msg "Strange packet received: type %d"
+msgx ""
+
+# ssh.c:2545
+msg "Successfully started encryption"
+msgx ""
+
+# wincfg.c:171
+msg "Sunken-edge border (slightly thicker)"
+msgx "튀어나온 창틀 (좀 더 두터움) (S)"
+
+# settings.c:262 settings.c:516
+msg "SunkenEdge"
+msgx ""
+
+# wincfg.c:302
+msg "System menu appears on ALT alone"
+msgx "ALT만 누르면 시스템 메뉴 나옴 (L)"
+
+# wincfg.c:299
+msg "System menu appears on ALT-Space"
+msgx "ALT-스페이스를 누르면 시스템 메뉴 나옴 (Y)"
+
+# settings.c:184 settings.c:408
+msg "TCPNoDelay"
+msgx ""
+
+# ssh.c:2769
+msg "TIS authentication declined"
+msgx ""
+
+# ssh.c:2771
+msg "TIS authentication refused.\r\n"
+msgx "TIS 인증이 거부되었습니다.\r\n"
+
+# wincfg.c:158
+msg "Taskbar/caption indication on bell:"
+msgx "벨이 울리면 작업표시줄에 표시 (I):"
+
+# config.c:791 config.c:799 config.c:1307
+msg "Telnet"
+msgx ""
+
+# config.c:1350
+msg "Telnet command"
+msgx "텔넷 명령 (M)"
+
+# config.c:1417
+msg "Telnet negotiation mode:"
+msgx "텔넷 협상 모드 (T):"
+
+# config.c:1407
+msg "Telnet protocol adjustments"
+msgx "텔넷 프로토콜 조정"
+
+# settings.c:254 settings.c:507
+msg "TelnetKey"
+msgx ""
+
+# settings.c:255 settings.c:508
+msg "TelnetRet"
+msgx ""
+
+# settings.c:280 settings.c:535
+msg "TermHeight"
+msgx ""
+
+# settings.c:279 settings.c:534
+msg "TermWidth"
+msgx ""
+
+# config.c:890 config.c:892 config.c:913 config.c:927
+msg "Terminal"
+msgx "터미널"
+
+# config.c:1371 config.c:1443
+msg "Terminal-speed string"
+msgx "터미널 속도 문자열 (S)"
+
+# config.c:1263
+msg "Terminal-type string"
+msgx "터미널 타입 문자열 (T)"
+
+# config.c:973 config.c:976 config.c:984 wincfg.c:120
+msg "Terminal/Bell"
+msgx "터미널/벨"
+
+# config.c:1006 config.c:1009
+msg "Terminal/Features"
+msgx "터미널/기능"
+
+# config.c:935 config.c:938 config.c:957 wincfg.c:94
+msg "Terminal/Keyboard"
+msgx "터미널/키보드"
+
+# settings.c:186 settings.c:411
+msg "TerminalSpeed"
+msgx ""
+
+# settings.c:185 settings.c:409
+msg "TerminalType"
+msgx ""
+
+# config.c:940
+msg "The Backspace key"
+msgx "백스페이스 키 (B)"
+
+# config.c:950
+msg "The Function keys and keypad"
+msgx "펑션키와 키패드 (F)"
+
+# config.c:945
+msg "The Home and End keys"
+msgx "Home과 End키"
+
+# config.c:996
+msg "The bell is re-enabled after a few seconds of silence."
+msgx "일정 시간 조용하면 벨소리 다시 복구"
+
+# windlg.c:787
+msg "The first %.35scipher supported by the server\n"
+"is %.64s, which is below the configured\n"
+"warning threshold.\nDo you want to continue with this connection?\n"
+msgx "서버가 지원하는 %.35s 사이퍼 중 첫번째로\n"
+"부합되는 %.64s는 보안성 안전 수준 이하\n"
+"입니다.\n"
+"이 접속을 유지하시겠습니까?\n"
+
+# windlg.c:710
+msg "The server's host key is not cached in the registry. You\n"
+"have no guarantee that the server is the computer you\n"
+"think it is.\n"
+"The server's %s key fingerprint is:\n"
+"%s\n"
+"If you trust this host, hit Yes to add the key to\n"
+"%s's cache and carry on connecting.\n"
+"If you want to carry on connecting just once, without\n"
+"adding the key to the cache, hit No.\n"
+"If you do not trust this host, hit Cancel to abandon the\n"
+"connection.\n"
+msgx ""
+"서버의 호스트 키가 레지스트리에 저장되어있지 않습니다.\n"
+"지금 접속한 서버가 원래 접속하려던 컴퓨터가 맞는 지 확\n"
+"신할 수 없습니다.\n"
+"서버의 %s 공개키 지문은:\n"
+"%s\n"
+"이 호스트를 신뢰한다면, 예를 눌러서 %s의 캐쉬\n"
+"에 이 키를 등록하고, 접속을 계속하세요.\n"
+"이 호스트를 캐쉬에 등록하기 않고 그냥 이번 접속만 허용\n"
+"하려면 아니오를 누르세요.\n"
+"이 호스트를 신뢰하지 않으면, 취소를 누르면 접속을 중단\n"
+"할 수 있습니다.\n"
+
+# windlg.c:815
+msg "The session log file \"%.*s\" already exists.\n"
+"You can overwrite it with a new session log,\n"
+"append your session log to the end of it,\n"
+"or disable session logging for this session.\n"
+"Hit Yes to wipe the file, No to append to it,\n"
+"or Cancel to disable logging."
+msgx ""
+"세션 로그파일 \"%.*s\"가 이미 존재합니다.\n"
+"새 세션 로그파일로 덮어쓰거나, 기존 세션 로그\n"
+"의 끝에 덧붙여쓰거나, 이번 접속에서 세션 로깅\n"
+"을 안 할 수도 있습니다.\n"
+"기존 로그 파일을 지우려면 예를 누르고, 덧붙이\n"
+"려면 아니오, 로깅하지 않으려면 취소를 누르세요\n"
+
+# ssh.c:2659 ssh.c:4787
+msg "This key matches configured key file"
+msgx ""
+
+# window.c:333
+msg "This procedure will remove ALL Registry\n"
+"entries associated with %s, and will\n"
+"also remove the random seed file.\n"
+"\n"
+"THIS PROCESS WILL DESTROY YOUR SAVED\n"
+"SESSIONS. Are you really sure you want\nto continue?"
+msgx ""
+"이제 %s와 관련된 모든 레지스트리를 지우고\n"
+"랜덤 시드 파일도 지우게 될 것입니다.\n"
+"\n"
+"!주의! 결과적으로 모든 저장된 세션을 지우게 됩\n"
+"니다. 진짜로 모든 정보를 지우시겠습니까?\n"
+
+# config.c:691
+msg "Too many forwardings"
+msgx "포워딩이 너무 많습니다"
+
+# config.c:1169 wincfg.c:237
+msg "Translation of pasted characters"
+msgx "붙여넣기 글자 변환"
+
+# settings.c:284 settings.c:539
+msg "TryPalette"
+msgx ""
+
+# ssh.c:2653 ssh.c:4778
+msg "Trying Pageant key #%d"
+msgx ""
+
+# ssh.c:2823
+msg "Trying public key \"%s\""
+msgx ""
+
+# ssh.c:2822
+msg "Trying public key authentication.\r\n"
+msgx "공개 키 인증을 시도 중.\r\n"
+
+# ssh.c:2524
+msg "Trying to enable encryption..."
+msgx ""
+
+# unicode.c:386
+msg "UTF-8"
+msgx ""
+
+# ssh.c:2860 ssh.c:2861 ssh.c:5073 ssh.c:5075
+msg "Unable to authenticate"
+msgx ""
+
+# winstore.c:80
+msg "Unable to create registry key\nHKEY_CURRENT_USER%s"
+msgx "다음 레지스트리 키를 만들 수 없습니다:\nHKEY_CURRENT_USER%s"
+
+# winstore.c:88
+msg "Unable to create registry key\nHKEY_CURRENT_USER%s\\%s"
+msgx "다음 레지스트리 키를 만들 수 없습니다:\nHKEY_CURRENT_USER%s\\%s"
+
+# winnet.c:515
+msg "Unable to get list of local IP addresses"
+msgx ""
+
+# winnet.c:220
+msg "Unable to initialise WinSock"
+msgx "WinSock을 초기화할 수 없습니다"
+
+# winnet.c:190
+msg "Unable to load any WinSock library"
+msgx "WinSock 라이브러리를 읽어올 수 없습니다"
+
+# ssh.c:5110
+msg "Unable to load private key ("
+msgx "개인 키를 읽어올 수 없습니다. ("
+
+# ssh.c:6002
+msg "Unable to open an X11 connection"
+msgx "X11 접속을 연결할 수 없습니다"
+
+# window.c:615
+msg "Unable to open connection to\n%.800s\n%s"
+msgx "%.800s에 접속할 수 없습니다.\n%s"
+
+# window.c:4452
+msg "Unable to play sound file\n%s\nUsing default sound instead"
+msgx "다음 소리 파일을 재생할 수 없습니다:\n%s\n기본 소리를 대신 사용합니다"
+
+# ssh.c:6455
+msg "Unable to send BREAK signal in SSH1"
+msgx ""
+
+# ssh.c:4598
+msg "Unable to use key file \"%.150s\" (%s)\r\n"
+msgx "키 파일 \"%.150s\"을 쓸 수 없습니다. (%s)\r\n"
+
+# ssh.c:4596
+msg "Unable to use this key file (%s)"
+msgx ""
+
+# config.c:1092
+msg "Underline"
+msgx "밑줄 (U)"
+
+# ssh.c:2631 ssh.c:2706 ssh.c:4754 ssh.c:4871
+msg "Unexpected data from server while waiting for agent response"
+msgx ""
+
+# ssh.c:5347
+msg "Unexpected response to X11 forwarding request: packet type %d"
+msgx ""
+
+# ssh.c:5542
+msg "Unexpected response to agent forwarding request: packet type %d"
+msgx ""
+
+# ssh.c:5502
+msg "Unexpected response to port forwarding request: packet type %d"
+msgx ""
+
+# ssh.c:5585
+msg "Unexpected response to pty request: packet type %d"
+msgx ""
+
+# ssh.c:5643
+msg "Unexpected response to shell/command request: packet type %d"
+msgx ""
+
+# version.c:20
+msg "Unidentified build, "
+msgx ""
+
+# winnet.c:322
+msg "Unknown network error"
+msgx "알 수 없는 네트워크 에러"
+
+# ssh.c:6044
+msg "Unsupported channel type requested"
+msgx ""
+
+# window.c:466
+msg "Unsupported protocol number found"
+msgx "지원되는 프로토콜 번호가 아닙니다"
+
+# config.c:1159
+msg "Use Unicode line drawing code points"
+msgx "유니코드 선문자 사용 (U)"
+
+# config.c:902
+msg "Use background colour to erase screen"
+msgx "배경색으로 화면 지움 (E)"
+
+# unicode.c:411 unicode.c:1104
+msg "Use font encoding"
+msgx "글꼴 기본 인코딩 사용"
+
+# wincfg.c:210
+msg "Use font in OEM mode only"
+msgx "글꼴을 OEM 모드로만 사용"
+
+# wincfg.c:208
+msg "Use font in both ANSI and OEM modes"
+msgx "ANSI와 OEM모드 모두 사용 (B)"
+
+# wincfg.c:272
+msg "Use system colours"
+msgx "시스템 컬러 씀 (S)"
+
+# settings.c:283 settings.c:538
+msg "UseSystemColours"
+msgx ""
+
+# settings.c:218 settings.c:469
+msg "UserName"
+msgx ""
+
+# config.c:1339
+msg "Username"
+msgx "사용자명 (U)"
+
+# ssh.c:2507
+msg "Using 3DES encryption"
+msgx ""
+
+# ssh.c:2513
+msg "Using Blowfish encryption"
+msgx ""
+
+# ssh.c:1994
+msg "Using SSH protocol version 1"
+msgx ""
+
+# ssh.c:1977
+msg "Using SSH protocol version 2"
+msgx ""
+
+# ssh.c:2510
+msg "Using single-DES encryption"
+msgx ""
+
+# ssh.c:4557
+msg "Using username \"%s\".\r\n"
+msgx "사용자 이름 \"%s\"으로 시도합니다.\r\n"
+
+# window.c:3194
+msg "VK_%02x"
+msgx ""
+
+# unicode.c:391
+msg "VSCII"
+msgx ""
+
+# config.c:955
+msg "VT100+"
+msgx ""
+
+# config.c:955
+msg "VT400"
+msgx ""
+
+# config.c:1383
+msg "Value"
+msgx "값(L)"
+
+# config.c:1379
+msg "Variable"
+msgx "변수(V)"
+
+# config.c:1093
+msg "Vertical line"
+msgx "세로줄 (V)"
+
+# config.c:982
+msg "Visual bell (flash window)"
+msgx "시각 벨 (창 번쩍임)"
+
+# settings.c:19
+msg "WARN"
+msgx ""
+
+# windlg.c:723
+msg "WARNING - POTENTIAL SECURITY BREACH!\n"
+"\n"
+"The server's host key does not match the one %s has\n"
+"cached in the registry. This means that either the\n"
+"server administrator has changed the host key, or you\n"
+"have actually connected to another computer pretending\n"
+"to be the server.\n"
+"The new %s key fingerprint is:\n"
+"%s\n"
+"If you were expecting this change and trust the new key,\n"
+"hit Yes to update %s's cache and continue connecting.\n"
+"If you want to carry on connecting but without updating\n"
+"the cache, hit No.\n"
+"If you want to abandon the connection completely, hit\n"
+"Cancel. Hitting Cancel is the ONLY guaranteed safe\nchoice.\n"
+msgx "경고 - 잠재적 보안 위험!\n"
+"\n"
+"서버의 호스트 키가 레지스트리에 저장된 %s 와 맞지\n"
+"않습니다. 즉, 서버 관리자가 호스트 키를 바꾸었거나,\n"
+"실제로는 진짜 서버인척 하는 다른 위장 서버에 접속되었\n"
+"을 수도 있습니다.\n"
+"새로운 %s 키 지문은:\n"
+"%s\n"
+"새로운 서버를 믿고 키를 바꾸기 원하신다면, 예를 눌러서\n"
+"레지스트리의 키를 업데이트하고 접속을 계속하세요.\n"
+"캐쉬는 그대로 놓아두고 이번 접속만 허용하기 원하시면\n"
+"아니오를 눌러주세요.\n"
+"서버를 믿지 못하는 경우에는 취소를 누르고 접속을 중단\n"
+"하시는 것이 가장 안전합니다.\n"
+
+# window.c:2200
+msg "WM_ENTERSIZEMOVE"
+msgx ""
+
+# window.c:2210
+msg "WM_EXITSIZEMOVE"
+msgx ""
+
+# window.c:2316
+msg "WM_SIZE %s (%d,%d)"
+msgx ""
+
+# winnet.c:184
+msg "WS2_32.DLL"
+msgx ""
+
+# window.c:845
+msg "WSAAsyncSelect(): unknown error"
+msgx "WSAAsyncSelect(): 알 수 없는 에러"
+
+# winnet.c:186
+msg "WSOCK32.DLL"
+msgx ""
+
+# config.c:1136
+msg "Warn before closing window"
+msgx "창 닫기 전에 경고 (W)"
+
+# settings.c:181 settings.c:400
+msg "WarnOnClose"
+msgx ""
+
+# ssh.c:1815
+msg "We believe remote version can't handle RSA authentication"
+msgx ""
+
+# ssh.c:1791
+msg "We believe remote version has SSH1 ignore bug"
+msgx ""
+
+# ssh.c:1871
+msg "We believe remote version has SSH2 DH group exchange bug"
+msgx ""
+
+# ssh.c:1828
+msg "We believe remote version has SSH2 HMAC bug"
+msgx ""
+
+# ssh.c:1852
+msg "We believe remote version has SSH2 RSA padding bug"
+msgx ""
+
+# ssh.c:1841
+msg "We believe remote version has SSH2 key-derivation bug"
+msgx ""
+
+# ssh.c:1863
+msg "We believe remote version has SSH2 public-key-session-ID bug"
+msgx ""
+
+# ssh.c:1803
+msg "We believe remote version needs a plain SSH1 password"
+msgx ""
+
+# ssh.c:1974 ssh.c:1990
+msg "We claim version: %s"
+msgx ""
+
+# config.c:880
+msg "What to do if the log file already exists:"
+msgx "로그 파일이 이미 있을 때 (E):"
+
+# wincfg.c:281
+msg "When window is resized:"
+msgx "창 크기가 바뀌었을 때 (Z):"
+
+# settings.c:654
+msg "WideBoldFont"
+msgx ""
+
+# settings.c:653
+msg "WideFont"
+msgx ""
+
+# unicode.c:394
+msg "Win1250 (Central European)"
+msgx "Win1250 (중앙 유럽) "
+
+# unicode.c:395
+msg "Win1251 (Cyrillic)"
+msgx "Win1251 (키릴)"
+
+# unicode.c:396
+msg "Win1252 (Western)"
+msgx "Win1252 (서유럽"
+
+# unicode.c:397
+msg "Win1253 (Greek)"
+msgx "Win1253 (그리스어)"
+
+# unicode.c:398
+msg "Win1254 (Turkish)"
+msgx "Win1254 (터키어)"
+
+# unicode.c:399
+msg "Win1255 (Hebrew)"
+msgx "Win1255 (히브리어)"
+
+# unicode.c:400
+msg "Win1256 (Arabic)"
+msgx "Win1256 (아랍어) "
+
+# unicode.c:401
+msg "Win1257 (Baltic)"
+msgx "Win1257 (발트어)"
+
+# unicode.c:402
+msg "Win1258 (Vietnamese)"
+msgx "Win1258 (베트남어)"
+
+# settings.c:277 settings.c:532
+msg "WinNameAlways"
+msgx ""
+
+# winnet.c:224
+msg "WinSock version is incompatible with %d.%d"
+msgx "WInSock 버전 %d.%d와는 호환되지 않습니다"
+
+# settings.c:278 settings.c:533
+msg "WinTitle"
+msgx ""
+
+# config.c:1044 config.c:1047 config.c:1059 wincfg.c:59 wincfg.c:280
+msg "Window"
+msgx "창"
+
+# wincfg.c:296
+msg "Window closes on ALT-F4"
+msgx "Alt-F4를 누르면 창을 닫음"
+
+# config.c:1126
+msg "Window title:"
+msgx "창 제목 (T):"
+
+# config.c:1082 config.c:1085 config.c:1098 config.c:1104 config.c:1110
+# wincfg.c:169
+msg "Window/Appearance"
+msgx "창/모양"
+
+# config.c:1121 config.c:1124 config.c:1135 wincfg.c:295
+msg "Window/Behaviour"
+msgx "창/특성"
+
+# config.c:1216 config.c:1218 config.c:1225 wincfg.c:267
+msg "Window/Colours"
+msgx "창/색깔"
+
+# config.c:1166 config.c:1168 config.c:1174 config.c:1188 wincfg.c:236
+# wincfg.c:247
+msg "Window/Selection"
+msgx "창/선택"
+
+# config.c:1143 config.c:1146 config.c:1153 wincfg.c:180 wincfg.c:193
+msg "Window/Translation"
+msgx "창/변환"
+
+# settings.c:263 settings.c:517
+msg "WindowBorder"
+msgx ""
+
+# wincfg.c:253
+msg "Windows (Right pastes, Middle extends)"
+msgx "윈도우 (오른쪽 붙여넣기, 휠 확장) (W)"
+
+# window.c:202
+msg "Windows refuses to report a version"
+msgx "윈도우 버전을 알 수 없습니다"
+
+# settings.c:301 settings.c:577
+msg "Wordness%d"
+msgx ""
+
+# config.c:1614
+msg "Workarounds for SSH server bugs"
+msgx "SSH 서버 버그 피해가기"
+
+# ssh.c:2903
+msg "Wrong passphrase.\r\n"
+msgx "암호구가 잘못되었습니다.\r\n"
+
+# ssh.c:5107
+msg "Wrong passphrase\r\n"
+msgx "암호구가 잘못되었습니다\r\n"
+
+# config.c:1543
+msg "X display location"
+msgx "X 디스플레이 위치"
+
+# config.c:1539
+msg "X11 forwarding"
+msgx "X11 포워딩"
+
+# ssh.c:3240 ssh.c:5353
+msg "X11 forwarding enabled"
+msgx ""
+
+# ssh.c:5998
+msg "X11 forwarding is not enabled"
+msgx ""
+
+# ssh.c:3238 ssh.c:5351
+msg "X11 forwarding refused"
+msgx ""
+
+# settings.c:322 settings.c:608
+msg "X11AuthType"
+msgx ""
+
+# settings.c:321 settings.c:606
+msg "X11Display"
+msgx ""
+
+# settings.c:320 settings.c:605
+msg "X11Forward"
+msgx ""
+
+# config.c:1552
+msg "XDM-Authorization-1"
+msgx ""
+
+# config.c:954
+msg "Xterm R6"
+msgx ""
+
+# config.c:1338
+msg "Yes"
+msgx "예"
+
+# windlg.c:856
+msg "You are loading an SSH 2 private key which has an\n"
+"old version of the file format. This means your key\n"
+"file is not fully tamperproof. Future versions of\n"
+"%s may stop supporting this private key format,\n"
+"so we recommend you convert your key to the new\n"
+"format.\n"
+"\n"
+"You can perform this conversion by loading the key\n"
+"into PuTTYgen and then saving it again."
+msgx ""
+"오래된 버전의 형식으로 된 SSH 2 개인 키를 읽어오고\n"
+"있습니다. 옛 버전의 개인 키 파일은 다른 사람에게\n"
+"노출된 경우 암호구가 없더라도 개인 키를 풀어낼 수\n"
+"있습니다. %s는 앞으로 이 개인 키 형식을 지원하지\n"
+"않을 예정입니다. 지금 이 파일을 새로운 형식으로 변환\n"
+"하는 것이 좋습니다.\n"
+"\n"
+"변환은 PuTTYgen에서 키를 읽었다가 다시 저장하는 것으로\n"
+"쉽게 변환할 수 있습니다.\n"
+
+# config.c:671
+msg "You need to specify a destination address\n"
+"in the form \"host.name:port\""
+msgx "대상 주소는 다음 형식으로 적으셔야 합니다:\n"
+"\"호스트.이름:포트\""
+
+# config.c:661
+msg "You need to specify a source port number"
+msgx "원본 포트 번호를 적으셔야 합니다"
+
+# ssh.c:874
+msg "Zlib decompression encountered invalid data"
+msgx ""
+
+# ssh.c:2733 ssh.c:4819
+msg "\" from agent\r\n"
+msgx "\"\r\n"
+
+# ssh.c:4960
+msg "\"\r\n"
+msgx ""
+
+# settings.c:476 ssh.c:5567 winstore.c:14
+msg "\0"
+msgx ""
+
+# window.c:3571
+msg "\000\033\034\035\036\037\177"
+msgx ""
+
+# ssh.c:1976 ssh.c:1992
+msg "\012"
+msgx ""
+
+# ssh.c:2323
+msg "\0\0\0\1\5"
+msgx ""
+
+# window.c:3686
+msg "\0\2\1\4\5\3\6"
+msgx ""
+
+# window.c:4244
+msg "\\'%02x"
+msgx ""
+
+# winstore.c:460
+msg "\\PUTTY.RND"
+msgx ""
+
+# winstore.c:12
+msg "\\Sessions"
+msgx ""
+
+# winstore.c:324 winstore.c:419
+msg "\\SshHostKeys"
+msgx ""
+
+# window.c:4242
+msg "\\par\r\n"
+msgx ""
+
+# window.c:4210
+msg "\\u%d"
+msgx ""
+
+# ssh.c:2266 ssh.c:2274
+msg "\b \b"
+msgx ""
+
+# ssh.c:1626 unicode.c:494
+msg "\n"
+msgx ""
+
+# ssh.c:4551
+msg "\n\r"
+msgx ""
+
+# ssh.c:788 ssh.c:1934 ssh.c:1973 ssh.c:2573 ssh.c:2587 ssh.c:2831
+# ssh.c:2879 ssh.c:4549 ssh.c:5016 ssh.c:5020 ssh.c:5092
+msg "\r\n"
+msgx ""
+
+# ssh.c:2783 ssh.c:2808
+msg "\r\nResponse: "
+msgx "\r\n응답: "
+
+# window.c:3525 window.c:3689 window.c:3733 window.c:3745 window.c:3784
+msg "\x1B%c"
+msgx ""
+
+# window.c:3527
+msg "\x1B?%c"
+msgx ""
+
+# window.c:3529 window.c:3736 window.c:3747 window.c:3810
+msg "\x1BO%c"
+msgx ""
+
+# window.c:3751
+msg "\x1BOw"
+msgx ""
+
+# window.c:3713 window.c:3722 window.c:3812
+msg "\x1B[%c"
+msgx ""
+
+# window.c:3755
+msg "\x1B[%d~"
+msgx ""
+
+# window.c:3751
+msg "\x1B[H"
+msgx ""
+
+# window.c:3740
+msg "\x1B[[%c"
+msgx ""
+
+# ssh.c:3668
+msg "_CONFIRMATION"
+msgx ""
+
+# config.c:1225
+msg "adjust"
+msgx ""
+
+# settings.c:16
+msg "aes"
+msgx ""
+
+# config.c:957
+msg "appkeypad"
+msgx ""
+
+# ssh.c:5524
+msg "auth-agent-req@openssh.com"
+msgx ""
+
+# ssh.c:6036
+msg "auth-agent@openssh.com"
+msgx ""
+
+# config.c:1298
+msg "basics"
+msgx ""
+
+# settings.c:17
+msg "blowfish"
+msgx ""
+
+# config.c:1110 wincfg.c:169
+msg "border"
+msgx ""
+
+# ssh.c:6459
+msg "break"
+msgx ""
+
+# config.c:1188
+msg "charclass"
+msgx ""
+
+# ssh.c:6535
+msg "client-side-connection"
+msgx ""
+
+# windlg.c:795
+msg "client-to-server "
+msgx ""
+
+# settings.c:446
+msg "connect %host %port\\n"
+msgx ""
+
+# config.c:1085
+msg "cursor"
+msgx ""
+
+# config.c:1261 config.c:1369 config.c:1441 config.c:1466
+msg "data"
+msgx ""
+
+# settings.c:387
+msg "default"
+msgx ""
+
+# settings.c:20
+msg "des"
+msgx ""
+
+# config.c:10 dialog.c:14 wincfg.c:10 windlg.c:12
+msg "dialog.h"
+msgx ""
+
+# ssh.c:6522
+msg "direct-tcpip"
+msgx ""
+
+# window.c:839
+msg "do_select(): internal error (hwnd==NULL)"
+msgx ""
+
+# ssh.c:5071 ssh.c:5267 ssh.c:5838 ssh.c:5916 ssh.c:6053
+msg "en"
+msgx ""
+
+# config.c:1491
+msg "encryption"
+msgx ""
+
+# ssh.c:5622
+msg "exec"
+msgx ""
+
+# ssh.c:5928
+msg "exit-status"
+msgx ""
+
+# ssh.c:4181
+msg "expected key exchange group packet from server"
+msgx ""
+
+# ssh.c:4031
+msg "expected key exchange packet from server"
+msgx ""
+
+# ssh.c:4207
+msg "expected key exchange reply packet from server"
+msgx ""
+
+# ssh.c:4271
+msg "expected new-keys packet from server"
+msgx ""
+
+# wincfg.c:94
+msg "features"
+msgx ""
+
+# config.c:1098
+msg "font"
+msgx ""
+
+# ssh.c:6009
+msg "forwarded-tcpip"
+msgx ""
+
+# config.c:892 config.c:1218 wincfg.c:267
+msg "general"
+msgx ""
+
+# winnet.c:354
+msg "getaddrinfo"
+msgx ""
+
+# winnet.c:387
+msg "getaddrinfo: unknown error"
+msgx ""
+
+# winnet.c:389
+msg "gethostbyname: unknown error"
+msgx ""
+
+# winnet.c:426
+msg "getnameinfo"
+msgx ""
+
+# ssh.c:3668 ssh.c:5788
+msg "half-open"
+msgx ""
+
+# config.c:773
+msg "hostport"
+msgx ""
+
+# windlg.c:218
+msg "http://www.chiark.greenend.org.uk/~sgtatham/putty/"
+msgx ""
+
+# wincfg.c:180
+msg "input"
+msgx ""
+
+# ssh.c:1688
+msg "internal error: Can't handle negative mpints"
+msgx ""
+
+# config.c:1273
+msg "keepalive"
+msgx ""
+
+# ssh.c:4717 ssh.c:4976
+msg "keyboard-interactive"
+msgx ""
+
+# config.c:913
+msg "ldisc"
+msgx ""
+
+# config.c:1153 wincfg.c:193
+msg "linedraw"
+msgx ""
+
+# winnet.c:495
+msg "localhost"
+msgx ""
+
+# settings.c:606
+msg "localhost:0"
+msgx ""
+
+# ssh.c:2551 ssh.c:2563 ssh.c:4528 ssh.c:4540
+msg "login as: "
+msgx "로그인: "
+
+# config.c:851 config.c:1009 config.c:1135 config.c:1616 wincfg.c:295
+msg "main"
+msgx ""
+
+# config.c:938
+msg "mappings"
+msgx ""
+
+# config.c:1508
+msg "methods"
+msgx ""
+
+# unicode.c:9
+msg "misc.h"
+msgx ""
+
+# config.c:1104 config.c:1174 wincfg.c:247
+msg "mouse"
+msgx ""
+
+# winnet.c:47
+msg "network.h"
+msgx ""
+
+# ssh.c:381 ssh.c:407 ssh.c:4574 ssh.c:5119
+msg "none"
+msgx ""
+
+# ssh.c:3668 ssh.c:5788
+msg "nonexistent"
+msgx ""
+
+# windlg.c:217
+msg "open"
+msgx ""
+
+# ssh.c:3493
+msg "opening X11 forward connection failed"
+msgx ""
+
+# ssh.c:3500
+msg "opening X11 forward connection succeeded"
+msgx ""
+
+# window.c:321
+msg "option \"%s\" requires an argument"
+msgx ""
+
+# config.c:837
+msg "otheropts"
+msgx ""
+
+# ssh.c:1484
+msg "out of memory"
+msgx ""
+
+# config.c:984
+msg "overload"
+msgx ""
+
+# config.c:1519
+msg "params"
+msgx ""
+
+# ssh.c:4715 ssh.c:5193
+msg "password"
+msgx ""
+
+# config.c:1554
+msg "portfwd"
+msgx ""
+
+# config.c:927
+msg "printing"
+msgx ""
+
+# config.c:1406 config.c:1473
+msg "protocol"
+msgx ""
+
+# settings.c:439
+msg "proxy"
+msgx ""
+
+# ssh.c:5559
+msg "pty-req"
+msgx ""
+
+# ssh.c:4713 ssh.c:4801 ssh.c:4829 ssh.c:4929 ssh.c:5135
+msg "publickey"
+msgx ""
+
+# window.c:1757
+msg "putty &%p"
+msgx ""
+
+# window.c:1769
+msg "putty @%s"
+msgx ""
+
+# window.c:236
+msg "putty.cnt"
+msgx ""
+
+# config.c:9 dialog.c:13 settings.c:7 ssh.c:6 unicode.c:7 wincfg.c:9
+# windlg.c:8 window.c:8 winnet.c:46 winstore.c:9
+msg "putty.h"
+msgx ""
+
+# window.c:230
+msg "putty.hlp"
+msgx ""
+
+# window.c:231 window.c:237
+msg "r"
+msgx ""
+
+# settings.c:170
+msg "raw"
+msgx ""
+
+# window.c:1389
+msg "reset_window()"
+msgx ""
+
+# window.c:1404
+msg "reset_window() -- Forced deinit"
+msgx ""
+
+# window.c:1471
+msg "reset_window() -> Forced re-init"
+msgx ""
+
+# window.c:1422
+msg "reset_window() -> Reposition terminal"
+msgx ""
+
+# window.c:1443
+msg "reset_window() -> Z font resize to (%d, %d)"
+msgx ""
+
+# window.c:1459
+msg "reset_window() -> Zoomed term_size"
+msgx ""
+
+# window.c:1575
+msg "reset_window() -> font resize to (%d,%d)"
+msgx ""
+
+# window.c:1538
+msg "reset_window() -> term resize to (%d,%d)"
+msgx ""
+
+# window.c:1551
+msg "reset_window() -> window resize to (%d,%d)"
+msgx ""
+
+# ssh.c:2444 winstore.c:332
+msg "rsa"
+msgx ""
+
+# config.c:949
+msg "rxvt"
+msgx ""
+
+# config.c:805
+msg "savedsessions"
+msgx ""
+
+# config.c:1059 wincfg.c:59
+msg "scrollback"
+msgx ""
+
+# windlg.c:796
+msg "server-to-client "
+msgx ""
+
+# ssh.c:5289
+msg "session"
+msgx ""
+
+# ssh.c:5626
+msg "shell"
+msgx ""
+
+# ssh.c:2484
+msg "single-DES"
+msgx ""
+
+# config.c:1047 wincfg.c:280
+msg "size"
+msgx ""
+
+# ssh.c:4573 ssh.c:4800 ssh.c:4828 ssh.c:4928 ssh.c:4975 ssh.c:5118
+# ssh.c:5134 ssh.c:5192
+msg "ssh-connection"
+msgx ""
+
+# ssh.c:1716
+msg "ssh-rsa"
+msgx ""
+
+# ssh.c:4482
+msg "ssh-userauth"
+msgx ""
+
+# ssh.c:8 windlg.c:9
+msg "ssh.h"
+msgx ""
+
+# config.c:11 settings.c:8 wincfg.c:11 windlg.c:11 window.c:10
+# winstore.c:10
+msg "storage.h"
+msgx ""
+
+# config.c:976 wincfg.c:120
+msg "style"
+msgx ""
+
+# ssh.c:5618
+msg "subsystem"
+msgx ""
+
+# config.c:1281
+msg "tcp"
+msgx ""
+
+# ssh.c:5477
+msg "tcpip-forward"
+msgx ""
+
+# window.c:360
+msg "telnet:"
+msgx ""
+
+# unicode.c:8 window.c:9
+msg "terminal.h"
+msgx ""
+
+# config.c:1124
+msg "title"
+msgx ""
+
+# window.c:2319
+msg "to"
+msgx ""
+
+# config.c:1146 config.c:1168 wincfg.c:236
+msg "trans"
+msgx ""
+
+# ssh.c:7 winnet.c:48
+msg "tree234.h"
+msgx ""
+
+# ssh.c:213 ssh.c:253 ssh.c:1105
+msg "unknown"
+msgx ""
+
+# window.c:399
+msg "unknown option \"%s\""
+msgx ""
+
+# windlg.c:10 window.c:11
+msg "win_res.h"
+msgx ""
+
+# ssh.c:6375
+msg "window-change"
+msgx ""
+
+# winnet.c:351
+msg "wship6.dll"
+msgx ""
+
+# config.c:1539 ssh.c:5988
+msg "x11"
+msgx ""
+
+# ssh.c:5325
+msg "x11-req"
+msgx ""
+
+# settings.c:409
+msg "xterm"
+msgx ""
+
+# wincfg.c:254
+msg "xterm (Right extends, Middle pastes)"
+msgx "xterm (오른쪽 확장, 휠 붙여넣기)"
+
+# window.c:4167
+msg "{\\rtf1\\ansi%d{\\fonttbl\\f0\\fmodern %s;}\\f0"
+msgx ""
+
+# window.c:4206
+msg "{\\uc%d\\u%d"
+msgx ""
+
+# window.c:4208 window.c:4255
+msg "}"
+msgx ""
+
+# end of file

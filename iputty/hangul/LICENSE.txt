@@ -1,0 +1,33 @@
+한글 PuTTY는 다음 분들이 도와주셨습니다.
+
+- 장혜식:perky  (메시지 번역, 패키징, 한글 커서 크기 패치)
+- 박원규:wkpark (윈도우 98 한글 IME 충돌 패치)
+- 이상훈:awkn`n (한글 IME 제자리 입력 패치)
+
+한글 패치와 번역 부분은 Public Domain으로 공개합니다. 그 외의
+소프트웨어 부분에 대해서는 PuTTY 원본의 다음 저작권을 따릅니다.
+
+PuTTY is copyright 1997-2003 Simon Tatham.
+
+Portions copyright Robert de Bath, Joris van Rantwijk, Delian
+Delchev, Andreas Schultz, Jeroen Massar, Wez Furlong, Nicolas Barry,
+Justin Bradford, Ben Harris, and CORE SDI S.A.
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation files
+(the "Software"), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of the Software,
+and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT.  IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE
+FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
