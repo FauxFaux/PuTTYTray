@@ -1,5 +1,5 @@
 /*
- * psftp.c: front end for PSFTP.
+ * psftp.c: (platform-independent) front end for PSFTP.
  */
 
 #include <stdio.h>
@@ -25,6 +25,7 @@
 
 static int psftp_connect(char *userhost, char *user, int portnumber);
 static int do_sftp_init(void);
+void do_sftp_cleanup();
 
 /* ----------------------------------------------------------------------
  * sftp client state.
@@ -616,12 +617,13 @@ int sftp_general_put(struct sftp_command *cmd, int restart)
 	    }
 	}
 
-	pktin = sftp_recv();
-	ret = xfer_upload_gotpkt(xfer, pktin);
-
-	if (!ret) {
-	    printf("error while writing: %s\n", fxp_error());
-	    err = 1;
+	if (!xfer_done(xfer)) {
+	    pktin = sftp_recv();
+	    ret = xfer_upload_gotpkt(xfer, pktin);
+	    if (!ret) {
+		printf("error while writing: %s\n", fxp_error());
+		err = 1;
+	    }
 	}
     }
 
@@ -1012,6 +1014,8 @@ int sftp_cmd_chmod(struct sftp_command *cmd)
 
 static int sftp_cmd_open(struct sftp_command *cmd)
 {
+    int portnumber;
+
     if (back != NULL) {
 	printf("psftp: already connected\n");
 	return 0;
@@ -1022,7 +1026,16 @@ static int sftp_cmd_open(struct sftp_command *cmd)
 	return 0;
     }
 
-    if (psftp_connect(cmd->words[1], NULL, 0)) {
+    if (cmd->nwords > 2) {
+	portnumber = atoi(cmd->words[2]);
+	if (portnumber == 0) {
+	    printf("open: invalid port number\n");
+	    return 0;
+	}
+    } else
+	portnumber = 0;
+
+    if (psftp_connect(cmd->words[1], NULL, portnumber)) {
 	back = NULL;		       /* connection is already closed */
 	return -1;		       /* this is fatal */
     }
@@ -1214,7 +1227,7 @@ static struct sftp_cmd_lookup {
     },
     {
 	"open", TRUE, "connect to a host",
-	    " [<user>@]<hostname>\n"
+	    " [<user>@]<hostname> [<port>]\n"
 	    "  Establishes an SFTP connection to a given host. Only usable\n"
 	    "  when you did not already specify a host name on the command\n"
 	    "  line.\n",
@@ -1403,8 +1416,8 @@ struct sftp_command *sftp_getcmd(FILE *fp, int mode, int modeflags)
 	 */
 	cmd->nwords = cmd->wordssize = 2;
 	cmd->words = sresize(cmd->words, cmd->wordssize, char *);
-	cmd->words[0] = "!";
-	cmd->words[1] = p+1;
+	cmd->words[0] = dupstr("!");
+	cmd->words[1] = dupstr(p+1);
     } else {
 
 	/*
@@ -1447,10 +1460,11 @@ struct sftp_command *sftp_getcmd(FILE *fp, int mode, int modeflags)
 		cmd->wordssize = cmd->nwords + 16;
 		cmd->words = sresize(cmd->words, cmd->wordssize, char *);
 	    }
-	    cmd->words[cmd->nwords++] = q;
+	    cmd->words[cmd->nwords++] = dupstr(q);
 	}
     }
 
+	sfree(line);
     /*
      * Now parse the first word and assign a function.
      */
@@ -1503,6 +1517,25 @@ static int do_sftp_init(void)
     return 0;
 }
 
+void do_sftp_cleanup()
+{
+    char ch;
+    if (back) {
+	back->special(backhandle, TS_EOF);
+	sftp_recvdata(&ch, 1);
+	back->free(backhandle);
+	sftp_cleanup_request();
+    }
+    if (pwd) {
+	sfree(pwd);
+	pwd = NULL;
+    }
+    if (homedir) {
+	sfree(homedir);
+	homedir = NULL;
+    }
+}
+
 void do_sftp(int mode, int modeflags, char *batchfile)
 {
     FILE *fp;
@@ -1521,7 +1554,15 @@ void do_sftp(int mode, int modeflags, char *batchfile)
 	    cmd = sftp_getcmd(stdin, 0, 0);
 	    if (!cmd)
 		break;
-	    if (cmd->obey(cmd) < 0)
+	    ret = cmd->obey(cmd);
+	    if (cmd->words) {
+		int i;
+		for(i = 0; i < cmd->nwords; i++)
+		    sfree(cmd->words[i]);
+		sfree(cmd->words);
+	    }
+	    sfree(cmd);
+	    if (ret < 0)
 		break;
 	}
     } else {
@@ -1713,7 +1754,7 @@ int sftp_recvdata(char *buf, int len)
 }
 int sftp_senddata(char *buf, int len)
 {
-    back->send(backhandle, (unsigned char *) buf, len);
+    back->send(backhandle, buf, len);
     return 1;
 }
 
@@ -1724,7 +1765,7 @@ static void usage(void)
 {
     printf("PuTTY Secure File Transfer (SFTP) client\n");
     printf("%s\n", ver);
-    printf("Usage: psftp [options] user@host\n");
+    printf("Usage: psftp [options] [user@]host\n");
     printf("Options:\n");
     printf("  -b file   use specified batchfile\n");
     printf("  -bc       output batchfile commands\n");
@@ -1738,7 +1779,14 @@ static void usage(void)
     printf("  -C        enable compression\n");
     printf("  -i key    private key file for authentication\n");
     printf("  -batch    disable all interactive prompts\n");
+    printf("  -V        print version information\n");
     cleanup_exit(1);
+}
+
+static void version(void)
+{
+  printf("psftp: %s\n", ver);
+  cleanup_exit(1);
 }
 
 /*
@@ -1764,11 +1812,27 @@ static int psftp_connect(char *userhost, char *user, int portnumber)
 	    user = userhost;
     }
 
-    /* Try to load settings for this host */
-    do_defaults(host, &cfg);
-    if (cfg.host[0] == '\0') {
-	/* No settings for this host; use defaults */
-	do_defaults(NULL, &cfg);
+    /*
+     * If we haven't loaded session details already (e.g., from -load),
+     * try looking for a session called "host".
+     */
+    if (!loaded_session) {
+	/* Try to load settings for `host' into a temporary config */
+	Config cfg2;
+	cfg2.host[0] = '\0';
+	do_defaults(host, &cfg2);
+	if (cfg2.host[0] != '\0') {
+	    /* Settings present and include hostname */
+	    /* Re-load data into the real config. */
+	    do_defaults(host, &cfg);
+	} else {
+	    /* Session doesn't exist or mention a hostname. */
+	    /* Use `host' as a bare hostname. */
+	    strncpy(cfg.host, host, sizeof(cfg.host) - 1);
+	    cfg.host[sizeof(cfg.host) - 1] = '\0';
+	}
+    } else {
+	/* Patch in hostname `host' to session details. */
 	strncpy(cfg.host, host, sizeof(cfg.host) - 1);
 	cfg.host[sizeof(cfg.host) - 1] = '\0';
     }
@@ -1781,6 +1845,15 @@ static int psftp_connect(char *userhost, char *user, int portnumber)
         cfg.protocol = PROT_SSH;
         cfg.port = 22;
     }
+
+    /*
+     * If saved session / Default Settings says SSH-1 (`1 only' or `1'),
+     * then change it to SSH-2, on the grounds that that's more likely to
+     * work for SFTP. (Can be overridden with `-1' option.)
+     * But if it says `2 only' or `2', respect which.
+     */
+    if (cfg.sshprot != 2 && cfg.sshprot != 3)
+	cfg.sshprot = 2;
 
     /*
      * Enact command-line overrides.
@@ -1849,9 +1922,6 @@ static int psftp_connect(char *userhost, char *user, int portnumber)
     if (portnumber)
 	cfg.port = portnumber;
 
-    /* SFTP uses SSH2 by default always */
-    cfg.sshprot = 2;
-
     /*
      * Disable scary things which shouldn't be enabled for simple
      * things like SCP and SFTP: agent forwarding, port forwarding,
@@ -1891,7 +1961,8 @@ static int psftp_connect(char *userhost, char *user, int portnumber)
 
     back = &ssh_backend;
 
-    err = back->init(NULL, &backhandle, &cfg, cfg.host, cfg.port, &realhost,0);
+    err = back->init(NULL, &backhandle, &cfg, cfg.host, cfg.port, &realhost,
+		     0, cfg.tcp_keepalives);
     if (err != NULL) {
 	fprintf(stderr, "ssh_init: %s\n", err);
 	return 1;
@@ -1907,6 +1978,8 @@ static int psftp_connect(char *userhost, char *user, int portnumber)
     }
     if (verbose && realhost != NULL)
 	printf("Connected to %s\n", realhost);
+    if (realhost != NULL)
+	sfree(realhost);
     return 0;
 }
 
@@ -1945,6 +2018,10 @@ int psftp_main(int argc, char *argv[])
 
     userhost = user = NULL;
 
+    /* Load Default Settings before doing anything else. */
+    do_defaults(NULL, &cfg);
+    loaded_session = FALSE;
+
     errors = 0;
     for (i = 1; i < argc; i++) {
 	int ret;
@@ -1967,6 +2044,8 @@ int psftp_main(int argc, char *argv[])
 	} else if (strcmp(argv[i], "-h") == 0 ||
 		   strcmp(argv[i], "-?") == 0) {
 	    usage();
+	} else if (strcmp(argv[i], "-V") == 0) {
+	    version();
 	} else if (strcmp(argv[i], "-batch") == 0) {
 	    console_batch_mode = 1;
 	} else if (strcmp(argv[i], "-b") == 0 && i + 1 < argc) {
@@ -1988,17 +2067,29 @@ int psftp_main(int argc, char *argv[])
     back = NULL;
 
     /*
+     * If the loaded session provides a hostname, and a hostname has not
+     * otherwise been specified, pop it in `userhost' so that
+     * `psftp -load sessname' is sufficient to start a session.
+     */
+    if (!userhost && cfg.host[0] != '\0') {
+	userhost = dupstr(cfg.host);
+    }
+
+    /*
      * If a user@host string has already been provided, connect to
      * it now.
      */
     if (userhost) {
-	if (psftp_connect(userhost, user, portnumber))
+	int ret;
+	ret = psftp_connect(userhost, user, portnumber);
+	sfree(userhost);
+	if (ret)
 	    return 1;
 	if (do_sftp_init())
 	    return 1;
     } else {
 	printf("psftp: no hostname specified; use \"open host.name\""
-	    " to connect\n");
+	       " to connect\n");
     }
 
     do_sftp(mode, modeflags, batchfile);
@@ -2009,6 +2100,12 @@ int psftp_main(int argc, char *argv[])
 	sftp_recvdata(&ch, 1);
     }
     random_save_seed();
+    cmdline_cleanup();
+    console_provide_logctx(NULL);
+    do_sftp_cleanup();
+    backhandle = NULL;
+    back = NULL;
+    sk_cleanup();
 
     return 0;
 }

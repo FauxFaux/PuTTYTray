@@ -269,7 +269,8 @@ enum {
 struct backend_tag {
     const char *(*init) (void *frontend_handle, void **backend_handle,
 			 Config *cfg,
-			 char *host, int port, char **realhost, int nodelay);
+			 char *host, int port, char **realhost, int nodelay,
+			 int keepalive);
     void (*free) (void *handle);
     /* back->reconfig() passes in a replacement configuration. */
     void (*reconfig) (void *handle, Config *cfg);
@@ -329,6 +330,7 @@ struct config_tag {
     int warn_on_close;
     int ping_interval;		       /* in seconds */
     int tcp_nodelay;
+    int tcp_keepalives;
     /* Proxy options */
     char proxy_exclude_list[512];
     int proxy_dns;
@@ -428,6 +430,8 @@ struct config_tag {
     int window_border;
     char answerback[256];
     char printer[128];
+    int arabicshaping;
+    int bidi;
     /* Colour options */
     int system_colour;
     int try_palette;
@@ -512,6 +516,11 @@ GLOBAL int flags;
  */
 GLOBAL int default_protocol;
 GLOBAL int default_port;
+
+/*
+ * This is set TRUE by cmdline.c iff a session is loaded with "-load".
+ */
+GLOBAL int loaded_session;
 
 struct RSAKey;			       /* be a little careful of scope */
 
@@ -794,6 +803,7 @@ int askappend(void *frontend, Filename filename);
 extern int console_batch_mode;
 int console_get_line(const char *prompt, char *str, int maxlen, int is_pw);
 void console_provide_logctx(void *logctx);
+int is_interactive(void);
 
 /*
  * Exports from printing.c.
@@ -814,6 +824,7 @@ void printer_finish_job(printer_job *);
  */
 int cmdline_process_param(char *, char *, int, Config *);
 void cmdline_run_saved(Config *);
+void cmdline_cleanup(void);
 extern char *cmdline_password;
 #define TOOLTYPE_FILETRANSFER 1
 #define TOOLTYPE_NONNETWORK 2
@@ -827,6 +838,16 @@ void cmdline_error(char *, ...);
 struct controlbox;
 void setup_config_box(struct controlbox *b, struct sesslist *sesslist,
 		      int midsession, int protocol);
+
+/*
+ * Exports from minibidi.c.
+ */
+typedef struct bidi_char {
+    wchar_t origwc, wc;
+    unsigned short index;
+} bidi_char;
+int do_bidi(bidi_char *line, int count);
+int do_shape(bidi_char *line, bidi_char *to, int count);
 
 /*
  * X11 auth mechanisms we know about.
@@ -847,5 +868,6 @@ const char *filename_to_str(const Filename *fn);
 int filename_equal(Filename f1, Filename f2);
 int filename_is_null(Filename fn);
 char *get_username(void);	       /* return value needs freeing */
+char *get_random_data(int bytes);      /* used in cmdgen.c */
 
 #endif

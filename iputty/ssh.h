@@ -55,10 +55,10 @@ struct dss_key {
     Bignum p, q, g, y, x;
 };
 
-int makekey(unsigned char *data, struct RSAKey *result,
+int makekey(unsigned char *data, int len, struct RSAKey *result,
 	    unsigned char **keystr, int order);
-int makeprivate(unsigned char *data, struct RSAKey *result);
-void rsaencrypt(unsigned char *data, int length, struct RSAKey *key);
+int makeprivate(unsigned char *data, int len, struct RSAKey *result);
+int rsaencrypt(unsigned char *data, int length, struct RSAKey *key);
 Bignum rsadecrypt(Bignum input, struct RSAKey *key);
 void rsasign(unsigned char *data, int length, struct RSAKey *key);
 void rsasanitise(struct RSAKey *key);
@@ -67,7 +67,7 @@ void rsastr_fmt(char *str, struct RSAKey *key);
 void rsa_fingerprint(char *str, int len, struct RSAKey *key);
 int rsa_verify(struct RSAKey *key);
 unsigned char *rsa_public_blob(struct RSAKey *key, int *len);
-int rsa_public_blob_len(void *data);
+int rsa_public_blob_len(void *data, int maxlen);
 void freersakey(struct RSAKey *key);
 
 typedef unsigned int word32;
@@ -186,6 +186,7 @@ struct ssh_signkey {
 			unsigned char *priv_blob, int priv_len);
     void *(*openssh_createkey) (unsigned char **blob, int *len);
     int (*openssh_fmtkey) (void *key, unsigned char *blob, int len);
+    int (*pubkey_bits) (void *blob, int len);
     char *(*fingerprint) (void *key);
     int (*verifysig) (void *key, char *sig, int siglen,
 		      char *data, int datalen);
@@ -280,10 +281,15 @@ extern void x11_unthrottle(Socket s);
 extern void x11_override_throttle(Socket s, int enable);
 extern int x11_get_screen_number(char *display);
 void x11_get_real_auth(void *authv, char *display);
+char *x11_display(const char *display);
 
-/* Platfdorm-dependent X11 function */
+/* Platform-dependent X11 functions */
 extern void platform_get_x11_auth(char *display, int *proto,
                                   unsigned char *data, int *datalen);
+extern const char platform_x11_best_transport[];
+/* best X11 hostname for this platform if none specified */
+SockAddr platform_get_x11_unix_address(int displaynum, char **canonicalname);
+/* make up a SockAddr naming the address for displaynum */
 
 Bignum copybn(Bignum b);
 Bignum bn_power_2(int n);
@@ -295,7 +301,7 @@ Bignum modmul(Bignum a, Bignum b, Bignum mod);
 void decbn(Bignum n);
 extern Bignum Zero, One;
 Bignum bignum_from_bytes(const unsigned char *data, int nbytes);
-int ssh1_read_bignum(const unsigned char *data, Bignum * result);
+int ssh1_read_bignum(const unsigned char *data, int len, Bignum * result);
 int bignum_bitcount(Bignum bn);
 int ssh1_bignum_length(Bignum bn);
 int ssh2_bignum_length(Bignum bn);
@@ -350,6 +356,7 @@ char *ssh2_userkey_loadpub(const Filename *filename, char **algorithm,
 			   int *pub_blob_len, const char **errorstr);
 int ssh2_save_userkey(const Filename *filename, struct ssh2_userkey *key,
 		      char *passphrase);
+const struct ssh_signkey *find_pubkey_alg(const char *name);
 
 enum {
     SSH_KEYTYPE_UNOPENABLE,

@@ -132,9 +132,10 @@ just tell us \q{I'm running the latest version}; e-mail can be
 delayed and it may not be obvious which version was the latest at
 the time you sent the message. 
 
-\b Tell us what version of what OS you are running PuTTY on.
-(If you're running on Windows for Alpha, tell us, or we'll assume
-you're running on Intel as this is overwhelmingly the case.)
+\b PuTTY is a multi-platform application; tell us what version of what
+OS you are running PuTTY on. (If you're running on Unix, or Windows
+for Alpha, tell us, or we'll assume you're running on Windows for
+Intel as this is overwhelmingly the case.)
 
 \b Tell us what protocol you are connecting with: SSH, Telnet,
 Rlogin or Raw mode.
@@ -336,6 +337,14 @@ So if you want permission to include PuTTY on a magazine cover disk,
 or as part of a collection of useful software on a CD or a web site,
 then \e{permission is already granted}. You don't have to mail us
 and ask. Just go ahead and do it. We don't mind.
+
+(If you want to distribute PuTTY alongside your own application for
+use with that application, or if you want to distribute PuTTY within
+your own organisation, then we recommend you offer your own
+first-line technical support, to answer questions about the
+interaction of PuTTY with your environment. If your users mail us
+directly, we won't be able to tell them anything useful about your
+specific setup.)
 
 If you want to use parts of the PuTTY source code in another
 program, then it might be worth mailing us to talk about technical

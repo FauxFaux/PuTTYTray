@@ -41,10 +41,10 @@ use PSCP:
 
 \c Z:\owendadmin>pscp
 \c PuTTY Secure Copy client
-\c Release 0.53
+\c Release 0.XX
 \c Usage: pscp [options] [user@]host:source target
 \c        pscp [options] source [source...] [user@]host:target
-\c        pscp [options] -ls user@host:filespec
+\c        pscp [options] -ls [user@]host:filespec
 \c Options:
 \c   -p        preserve file attributes
 \c   -q        quiet, don't show statistics
@@ -59,6 +59,9 @@ use PSCP:
 \c   -i key    private key file for authentication
 \c   -batch    disable all interactive prompts
 \c   -unsafe   allow server-side wildcards (DANGEROUS)
+\c   -V        print version information
+\c   -sftp     force use of SFTP protocol
+\c   -scp      force use of SCP protocol
 
 (PSCP's interface is much like the Unix \c{scp} command, if you're
 familiar with that.)
@@ -78,11 +81,11 @@ To send (a) file(s) to a remote server:
 
 \c pscp [options] source [source...] [user@]host:target
 
-So to copy the local file \c{c:\\documents\\csh-whynot.txt} to the
-server \c{example.com} as user \c{fred} to the file
-\c{/tmp/csh-whynot} you would type:
+So to copy the local file \c{c:\\documents\\foo.txt} to the server
+\c{example.com} as user \c{fred} to the file \c{/tmp/foo} you would
+type:
 
-\c pscp c:\documents\csh-whynot.txt fred@example.com:/tmp/csh-whynot
+\c pscp c:\documents\foo.txt fred@example.com:/tmp/foo
 
 You can use wildcards to transfer multiple files in either
 direction, like this:
@@ -91,12 +94,11 @@ direction, like this:
 \c pscp fred@example.com:source/*.c c:\source
 
 However, in the second case (using a wildcard for multiple remote
-files) you may see a warning like this:
-
-\c warning: remote host tried to write to a file called 'terminal.c'
-\c          when we requested a file called '*.c'.
-\c          If this is a wildcard, consider upgrading to SSH 2 or using
-\c          the '-unsafe' option. Renaming of this file has been disallowed.
+files) you may see a warning saying something like \q{warning:
+remote host tried to write to a file called 'terminal.c' when we
+requested a file called '*.c'. If this is a wildcard, consider
+upgrading to SSH 2 or using the '-unsafe' option. Renaming of this
+file has been disallowed}.
 
 This is due to a fundamental insecurity in the old-style SCP
 protocol: the client sends the wildcard string (\c{*.c}) to the
@@ -112,7 +114,8 @@ pattern.
 PSCP will attempt to use the newer SFTP protocol (part of SSH 2)
 where possible, which does not suffer from this security flaw. If
 you are talking to an SSH 2 server which supports SFTP, you will
-never see this warning.
+never see this warning. (You can force use of the SFTP protocol,
+if available, with \c{-sftp} - see \k{pscp-usage-options-backend}.)
 
 If you really need to use a server-side wildcard with an SSH 1
 server, you can use the \c{-unsafe} command line option with PSCP:
@@ -192,7 +195,7 @@ timestamp on copied files.
 By default, PSCP displays a meter displaying the progress of the
 current transfer:
 
-\c mibs.tar                  |        168 kB |  84.0 kB/s | ETA: 00:00:13 |  13%
+\c mibs.tar          |   168 kB |  84.0 kB/s | ETA: 00:00:13 |  13%
 
 The fields in this display are (from left to right), filename, size
 (in kilobytes) of file transferred so far, estimate of how fast the
@@ -220,6 +223,36 @@ to do next.
 This may help PSCP's behaviour when it is used in automated
 scripts: using \c{-batch}, if something goes wrong at connection
 time, the batch job will fail rather than hang.
+
+\S2{pscp-usage-options-backend}\c{-sftp}, \c{-scp} force use of
+particular protocol
+
+As mentioned in \k{pscp-usage-basics}, there are two different file
+transfer protocols in use with SSH. Despite its name, PSCP (like many
+other ostensible \cw{scp} clients) can use either of these protocols.
+
+The older SCP protocol does not have a written specification and
+leaves a lot of detail to the server platform. Wildcards are expanded
+on the server. The simple design means that any wildcard specification
+supported by the server platform (such as brace expansion) can be
+used, but also leads to interoperability issues such as with filename
+quoting (for instance, where filenames contain spaces), and also the
+security issue described in \k{pscp-usage-basics}.
+
+The newer SFTP protocol, which is usually associated with SSH 2
+servers, is specified in a more platform independent way, and leaves
+issues such as wildcard syntax up to the client. This makes it more
+consistent across platforms, more suitable for scripting and
+automation, and avoids security issues with wilcard matching.
+
+Normally PSCP will attempt to use the SFTP protocol, and only fall
+back to the SCP protocol if SFTP is not available on the server.
+
+The \c{-scp} option forces PSCP to use the SCP protocol or quit.
+
+The \c{-sftp} option forces PSCP to use the SFTP protocol or quit.
+When this option is specified, PSCP looks harder for an SFTP server,
+which may allow use of SFTP with SSH 1 depending on server setup.
 
 \S{pscp-retval} Return value
 
@@ -261,9 +294,3 @@ automatically detect Pageant and try to use the keys within it.
 
 For more general information on public-key authentication, see
 \k{pubkey}.
-
-\H{pscp-ixplorer} \i{Secure iXplorer}
-
-Lars Gunnarson has written a graphical interface for PSCP.  You can
-get it from his web site, at
-\W{http://www.i-tree.org/}{www.i-tree.org}.
