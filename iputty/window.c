@@ -33,6 +33,7 @@
 #define IDM_SAVEDSESS 0x0160
 #define IDM_COPYALL   0x0170
 #define IDM_FULLSCREEN	0x0180
+#define IDM_PASTE     0x0190
 
 #define IDM_SESSLGP   0x0250	       /* log type printable */
 #define IDM_SESSLGA   0x0260	       /* log type all chars */
@@ -109,7 +110,12 @@ static struct unicode_data ucsdata;
 static int session_closed;
 
 static const struct telnet_special *specials;
-static int specials_menu_position;
+
+static struct {
+    HMENU menu;
+    int specials_submenu_pos;
+} popup_menus[2];
+enum { SYSMENU, CTXMENU };
 
 Config cfg;			       /* exported to windlg.c */
 
@@ -608,7 +614,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	char *realhost;
 
 	error = back->init(NULL, &backhandle, &cfg,
-			   cfg.host, cfg.port, &realhost, cfg.tcp_nodelay);
+			   cfg.host, cfg.port, &realhost, cfg.tcp_nodelay,
+			   cfg.tcp_keepalives);
 	back->provide_logctx(backhandle, logctx);
 	if (error) {
 	    char *str = dupprintf("%s Error", appname);
@@ -653,17 +660,14 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
      * Set up the session-control options on the system menu.
      */
     {
-	HMENU m = GetSystemMenu(hwnd, FALSE);
-	HMENU s;
-	int i;
+	HMENU s, m;
+	int i, j;
 	char *str;
 
-	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	specials_menu_position = GetMenuItemCount(m);
-	AppendMenu(m, MF_ENABLED, IDM_SHOWLOG, "&Event Log");
-	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	AppendMenu(m, MF_ENABLED, IDM_NEWSESS, "Ne&w Session...");
-	AppendMenu(m, MF_ENABLED, IDM_DUPSESS, "&Duplicate Session");
+	popup_menus[SYSMENU].menu = GetSystemMenu(hwnd, FALSE);
+	popup_menus[CTXMENU].menu = CreatePopupMenu();
+	AppendMenu(popup_menus[CTXMENU].menu, MF_ENABLED, IDM_PASTE, "&Paste");
+
 	s = CreateMenu();
 	get_sesslist(&sesslist, TRUE);
 	for (i = 1;
@@ -671,21 +675,32 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	     i++)
 	    AppendMenu(s, MF_ENABLED, IDM_SAVED_MIN + (16 * i),
 		       sesslist.sessions[i]);
-	AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT) s, "Sa&ved Sessions");
-	AppendMenu(m, MF_ENABLED, IDM_RECONF, "Chan&ge Settings...");
-	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	AppendMenu(m, MF_ENABLED, IDM_COPYALL, "C&opy All to Clipboard");
-	AppendMenu(m, MF_ENABLED, IDM_CLRSB, "C&lear Scrollback");
-	AppendMenu(m, MF_ENABLED, IDM_RESET, "Rese&t Terminal");
-	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	AppendMenu(m, (cfg.resize_action == RESIZE_DISABLED) ?
-		   MF_GRAYED : MF_ENABLED, IDM_FULLSCREEN, "&Full Screen");
-	AppendMenu(m, MF_SEPARATOR, 0, 0);
-        if (help_path)
-            AppendMenu(m, MF_ENABLED, IDM_HELP, "&Help");
-	str = dupprintf("&About %s", appname);
-	AppendMenu(m, MF_ENABLED, IDM_ABOUT, str);
-	sfree(str);
+
+	for (j = 0; j < lenof(popup_menus); j++) {
+	    m = popup_menus[j].menu;
+
+	    AppendMenu(m, MF_SEPARATOR, 0, 0);
+	    popup_menus[j].specials_submenu_pos = GetMenuItemCount(m);
+	    AppendMenu(m, MF_ENABLED, IDM_SHOWLOG, "&Event Log");
+	    AppendMenu(m, MF_SEPARATOR, 0, 0);
+	    AppendMenu(m, MF_ENABLED, IDM_NEWSESS, "Ne&w Session...");
+	    AppendMenu(m, MF_ENABLED, IDM_DUPSESS, "&Duplicate Session");
+	    AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT) s, "Sa&ved Sessions");
+	    AppendMenu(m, MF_ENABLED, IDM_RECONF, "Chan&ge Settings...");
+	    AppendMenu(m, MF_SEPARATOR, 0, 0);
+	    AppendMenu(m, MF_ENABLED, IDM_COPYALL, "C&opy All to Clipboard");
+	    AppendMenu(m, MF_ENABLED, IDM_CLRSB, "C&lear Scrollback");
+	    AppendMenu(m, MF_ENABLED, IDM_RESET, "Rese&t Terminal");
+	    AppendMenu(m, MF_SEPARATOR, 0, 0);
+	    AppendMenu(m, (cfg.resize_action == RESIZE_DISABLED) ?
+		       MF_GRAYED : MF_ENABLED, IDM_FULLSCREEN, "&Full Screen");
+	    AppendMenu(m, MF_SEPARATOR, 0, 0);
+	    if (help_path)
+		AppendMenu(m, MF_ENABLED, IDM_HELP, "&Help");
+	    str = dupprintf("&About %s", appname);
+	    AppendMenu(m, MF_ENABLED, IDM_ABOUT, str);
+	    sfree(str);
+	}
     }
 
     update_specials_menu(NULL);
@@ -855,7 +870,7 @@ void update_specials_menu(void *frontend)
 {
     HMENU m = GetSystemMenu(hwnd, FALSE);
     int menu_already_exists = (specials != NULL);
-    int i;
+    int i, j;
 
     specials = back->get_specials(backhandle);
     if (specials) {
@@ -868,14 +883,20 @@ void update_specials_menu(void *frontend)
 	    else
 		AppendMenu(p, MF_SEPARATOR, 0, 0);
 	}
-	if (menu_already_exists)
-	    DeleteMenu(m, specials_menu_position, MF_BYPOSITION);
-	else
-	    InsertMenu(m, specials_menu_position,
-		       MF_BYPOSITION | MF_SEPARATOR, 0, 0);
-	InsertMenu(m, specials_menu_position,
-		   MF_BYPOSITION | MF_POPUP | MF_ENABLED,
-		   (UINT) p, "Special Command");
+	for (j = 0; j < lenof(popup_menus); j++) {
+	    if (menu_already_exists)
+		DeleteMenu(popup_menus[j].menu,
+			   popup_menus[j].specials_submenu_pos,
+			   MF_BYPOSITION);
+	    else
+		InsertMenu(popup_menus[j].menu,
+			   popup_menus[j].specials_submenu_pos,
+			   MF_BYPOSITION | MF_SEPARATOR, 0, 0);
+	    InsertMenu(popup_menus[j].menu,
+		       popup_menus[j].specials_submenu_pos,
+		       MF_BYPOSITION | MF_POPUP | MF_ENABLED,
+		       (UINT) p, "Special Command");
+	}
     }
 }
 
@@ -1061,6 +1082,36 @@ static void init_palette(void)
 	for (i = 0; i < NCOLOURS; i++)
 	    colours[i] = RGB(defpal[i].rgbtRed,
 			     defpal[i].rgbtGreen, defpal[i].rgbtBlue);
+}
+
+/*
+ * This is a wrapper to ExtTextOut() to force Windows to display
+ * the precise glyphs we give it. Otherwise it would do its own
+ * bidi and Arabic shaping, and we would end up uncertain which
+ * characters it had put where.
+ */
+static void exact_textout(HDC hdc, int x, int y, CONST RECT *lprc,
+			  unsigned short *lpString, UINT cbCount,
+			  CONST INT *lpDx)
+{
+
+    GCP_RESULTSW gcpr;
+    char *buffer = snewn(cbCount*2+2, char);
+    char *classbuffer = snewn(cbCount, char);
+    memset(&gcpr, 0, sizeof(gcpr));
+    memset(buffer, 0, cbCount*2+2);
+    memset(classbuffer, GCPCLASS_NEUTRAL, cbCount);
+
+    gcpr.lStructSize = sizeof(gcpr);
+    gcpr.lpGlyphs = (void *)buffer;
+    gcpr.lpClass = classbuffer;
+    gcpr.nGlyphs = cbCount;
+
+    GetCharacterPlacementW(hdc, lpString, cbCount, 0, &gcpr,
+			   FLI_MASK | GCP_CLASSIN);
+
+    ExtTextOut(hdc, x, y, ETO_GLYPH_INDEX | ETO_CLIPPED | ETO_OPAQUE, lprc,
+	       buffer, cbCount, lpDx);
 }
 
 /*
@@ -1622,9 +1673,9 @@ static Mouse_Button translate_button(Mouse_Button button)
     if (button == MBT_LEFT)
 	return MBT_SELECT;
     if (button == MBT_MIDDLE)
-	return cfg.mouse_is_xterm ? MBT_PASTE : MBT_EXTEND;
+	return cfg.mouse_is_xterm == 1 ? MBT_PASTE : MBT_EXTEND;
     if (button == MBT_RIGHT)
-	return cfg.mouse_is_xterm ? MBT_EXTEND : MBT_PASTE;
+	return cfg.mouse_is_xterm == 1 ? MBT_EXTEND : MBT_PASTE;
     return 0;			       /* shouldn't happen */
 }
 
@@ -1673,6 +1724,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
     static int ignore_clip = FALSE;
     static int need_backend_resize = FALSE;
     static int fullscr_on_max = FALSE;
+    static UINT last_mousemove = 0;
 
     switch (message) {
       case WM_TIMER:
@@ -1714,6 +1766,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	show_mouseptr(1);
 	PostQuitMessage(0);
 	return 0;
+      case WM_COMMAND:
       case WM_SYSCOMMAND:
 	switch (wParam & ~0xF) {       /* low 4 bits reserved to Windows */
 	  case IDM_SHOWLOG:
@@ -1935,6 +1988,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	  case IDM_COPYALL:
 	    term_copyall(term);
 	    break;
+	  case IDM_PASTE:
+	    term_do_paste(term);
+	    break;
 	  case IDM_CLRSB:
 	    term_clrsb(term);
 	    break;
@@ -2006,6 +2062,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
       case WM_LBUTTONUP:
       case WM_MBUTTONUP:
       case WM_RBUTTONUP:
+	if (message == WM_RBUTTONDOWN &&
+	    ((wParam & MK_CONTROL) || (cfg.mouse_is_xterm == 2))) {
+	    POINT cursorpos;
+
+	    show_mouseptr(1);	       /* make sure pointer is visible */
+	    GetCursorPos(&cursorpos);
+	    TrackPopupMenu(popup_menus[CTXMENU].menu,
+			   TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON,
+			   cursorpos.x, cursorpos.y,
+			   0, hwnd, NULL);
+	    break;
+	}
 	{
 	    int button, press;
 
@@ -2044,11 +2112,42 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	     * window, we put up the System menu instead of doing
 	     * selection.
 	     */
-	    if (is_full_screen() && press && button == MBT_LEFT &&
-		X_POS(lParam) == 0 && Y_POS(lParam) == 0) {
-		SendMessage(hwnd, WM_SYSCOMMAND, SC_MOUSEMENU, 0);
-		return 0;
+	    {
+		char mouse_on_hotspot = 0;
+		POINT pt;
+
+		GetCursorPos(&pt);
+#ifndef NO_MULTIMON
+		{
+		    HMONITOR mon;
+		    MONITORINFO mi;
+
+		    mon = MonitorFromPoint(pt, MONITOR_DEFAULTTONULL);
+
+		    if (mon != NULL) {
+			mi.cbSize = sizeof(MONITORINFO);
+			GetMonitorInfo(mon, &mi);
+
+			if (mi.rcMonitor.left == pt.x &&
+			    mi.rcMonitor.top == pt.y) {
+			    mouse_on_hotspot = 1;
+			}
+			CloseHandle(mon);
+		    }
+		}
+#else
+		if (pt.x == 0 && pt.y == 0) {
+		    mouse_on_hotspot = 1;
+		}
+#endif
+		if (is_full_screen() && press &&
+		    button == MBT_LEFT && mouse_on_hotspot) {
+		    SendMessage(hwnd, WM_SYSCOMMAND, SC_MOUSEMENU,
+				MAKELPARAM(pt.x, pt.y));
+		    return 0;
+		}
 	    }
+
 	    if (press) {
 		click(button,
 		      TO_CHR_X(X_POS(lParam)), TO_CHR_Y(Y_POS(lParam)),
@@ -2065,7 +2164,21 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	}
 	return 0;
       case WM_MOUSEMOVE:
-	show_mouseptr(1);
+	{
+	    /*
+	     * Windows seems to like to occasionally send MOUSEMOVE
+	     * events even if the mouse hasn't moved. Don't unhide
+	     * the mouse pointer in this case.
+	     */
+	    static WPARAM wp = 0;
+	    static LPARAM lp = 0;
+	    if (wParam != wp || lParam != lp ||
+		last_mousemove != WM_MOUSEMOVE) {
+		show_mouseptr(1);
+		wp = wParam; lp = lParam;
+		last_mousemove = WM_MOUSEMOVE;
+	    }
+	}
 	/*
 	 * Add the mouse position and message time to the random
 	 * number noise.
@@ -2088,7 +2201,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	}
 	return 0;
       case WM_NCMOUSEMOVE:
-	show_mouseptr(1);
+	{
+	    static WPARAM wp = 0;
+	    static LPARAM lp = 0;
+	    if (wParam != wp || lParam != lp ||
+		last_mousemove != WM_NCMOUSEMOVE) {
+		show_mouseptr(1);
+		wp = wParam; lp = lParam;
+		last_mousemove = WM_NCMOUSEMOVE;
+	    }
+	}
 	noise_ultralight(lParam);
 	break;
       case WM_IGNORE_CLIP:
@@ -2957,9 +3079,13 @@ void do_text(Context ctx, int x, int y, char *text, int len,
 	for (i = 0; i < len; i++)
 	    wbuf[i] = (WCHAR) ((attr & CSET_MASK) + (text[i] & CHAR_MASK));
 
-	ExtTextOutW(hdc, x,
+	/* print Glyphs as they are, without Windows' Shaping*/
+	exact_textout(hdc, x, y - font_height * (lattr == LATTR_BOT) + text_adjust,
+		      &line_box, wbuf, len, IpDx);
+/*	ExtTextOutW(hdc, x,
 		    y - font_height * (lattr == LATTR_BOT) + text_adjust,
 		    ETO_CLIPPED | ETO_OPAQUE, &line_box, wbuf, len, IpDx);
+ */
 
 	/* And the shadow bold hack. */
 	if (bold_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
@@ -3151,6 +3277,7 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 
     HKL kbd_layout = GetKeyboardLayout(0);
 
+    /* keys is for ToAsciiEx. There's some ick here, see below. */
     static WORD keys[3];
     static int compose_char = 0;
     static WPARAM compose_key = 0;
@@ -3842,10 +3969,30 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 	    keystate[VK_CAPITAL] = 0;
 	}
 
-	r = ToAsciiEx(wParam, scan, keystate, keys, 0, kbd_layout);
-        /* Workaround for Hangul Windows 98 */
-        if (r == 0 && keys[0] == '\0')
-            r = ToAscii(wParam, scan, keystate, keys, 0);
+	/* XXX how do we know what the max size of the keys array should
+	 * be is? There's indication on MS' website of an Inquire/InquireEx
+	 * functioning returning a KBINFO structure which tells us. */
+	if (osVersion.dwPlatformId == VER_PLATFORM_WIN32_NT) {
+	    /* XXX 'keys' parameter is declared in MSDN documentation as
+	     * 'LPWORD lpChar'.
+	     * The experience of a French user indicates that on
+	     * Win98, WORD[] should be passed in, but on Win2K, it should
+	     * be BYTE[]. German WinXP and my Win2K with "US International"
+	     * driver corroborate this.
+	     * Experimentally I've conditionalised the behaviour on the
+	     * Win9x/NT split, but I suspect it's worse than that.
+	     * See wishlist item `win-dead-keys' for more horrible detail
+	     * and speculations. */
+	    BYTE keybs[3];
+	    int i;
+	    r = ToAsciiEx(wParam, scan, keystate, (LPWORD)keybs, 0, kbd_layout);
+	    for (i=0; i<3; i++) keys[i] = keybs[i];
+	} else {
+	    r = ToAsciiEx(wParam, scan, keystate, keys, 0, kbd_layout);
+	    /* Workaround for Hangul Windows 98 */
+	    if (r == 0 && keys[0] == '\0')
+		r = ToAscii(wParam, scan, keystate, keys, 0);
+	}
 #ifdef SHOW_TOASCII_RESULT
 	if (r == 1 && !key_down) {
 	    if (alt_sum) {
@@ -4447,10 +4594,10 @@ void beep(void *frontend, int mode)
     } else if (mode == BELL_WAVEFILE) {
 	if (!PlaySound(cfg.bell_wavefile.path, NULL,
 		       SND_ASYNC | SND_FILENAME)) {
-	    char buf[sizeof(cfg.bell_wavefile) + 80];
+	    char buf[sizeof(cfg.bell_wavefile.path) + 80];
 	    char otherbuf[100];
 	    sprintf(buf, "Unable to play sound file\n%s\n"
-		    "Using default sound instead", cfg.bell_wavefile);
+		    "Using default sound instead", cfg.bell_wavefile.path);
 	    sprintf(otherbuf, "%.70s Sound Error", appname);
 	    MessageBox(hwnd, buf, otherbuf,
 		       MB_OK | MB_ICONEXCLAMATION);
@@ -4584,7 +4731,7 @@ char *get_window_title(void *frontend, int icon)
 /*
  * See if we're in full-screen mode.
  */
-int is_full_screen()
+static int is_full_screen()
 {
     if (!IsZoomed(hwnd))
 	return FALSE;
@@ -4598,7 +4745,7 @@ int is_full_screen()
  * one monitor is present. */
 static int get_fullscreen_rect(RECT * ss)
 {
-#ifdef MONITOR_DEFAULTTONEAREST
+#if defined(MONITOR_DEFAULTTONEAREST) && !defined(NO_MULTIMON)
 	HMONITOR mon;
 	MONITORINFO mi;
 	mon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
@@ -4623,7 +4770,7 @@ static int get_fullscreen_rect(RECT * ss)
  * Go full-screen. This should only be called when we are already
  * maximised.
  */
-void make_full_screen()
+static void make_full_screen()
 {
     DWORD style;
 	RECT ss;
@@ -4657,7 +4804,7 @@ void make_full_screen()
 /*
  * Clear the full-screen attributes.
  */
-void clear_full_screen()
+static void clear_full_screen()
 {
     DWORD oldstyle, style;
 
@@ -4687,7 +4834,7 @@ void clear_full_screen()
 /*
  * Toggle full-screen mode.
  */
-void flip_full_screen()
+static void flip_full_screen()
 {
     if (is_full_screen()) {
 	ShowWindow(hwnd, SW_RESTORE);

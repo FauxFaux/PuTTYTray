@@ -638,6 +638,8 @@ use the Sound configurer in the Windows Control Panel.
 this mode, when the server sends a Control-G, the whole PuTTY window
 will flash white for a fraction of a second.
 
+\b \q{Beep using the PC speaker} is self-explanatory.
+
 \b \q{Play a custom sound file} allows you to specify a particular
 sound file to be used by PuTTY alone, or even by a particular
 individual PuTTY session. This allows you to distinguish your PuTTY
@@ -822,6 +824,47 @@ If you find that accented characters are not showing up the way you
 expect them to, particularly if you're running BitchX, you could try
 disabling the remote character set configuration commands.
 
+\S{config-features-shaping} Disabling Arabic text shaping
+
+\cfg{winhelp-topic}{features.arabicshaping}
+
+PuTTY supports shaping of Arabic text, which means that if your
+server sends text written in the basic Unicode Arabic alphabet then
+it will convert it to the correct display forms before printing it
+on the screen.
+
+If you are using full-screen software which was not expecting this
+to happen (especially if you are not an Arabic speaker and you
+unexpectedly find yourself dealing with Arabic text files in
+applications which are not Arabic-aware), you might find that the
+display becomes corrupted. By ticking this box, you can disable
+Arabic text shaping so that PuTTY displays precisely the characters
+it is told to display.
+
+You may also find you need to disable bidirectional text display;
+see \k{config-features-bidi}.
+
+\S{config-features-bidi} Disabling bidirectional text display
+
+\cfg{winhelp-topic}{features.bidi}
+
+PuTTY supports bidirectional text display, which means that if your
+server sends text written in a language which is usually displayed
+from right to left (such as Arabic or Hebrew) then PuTTY will
+automatically flip it round so that it is displayed in the right
+direction on the screen.
+
+If you are using full-screen software which was not expecting this
+to happen (especially if you are not an Arabic speaker and you
+unexpectedly find yourself dealing with Arabic text files in
+applications which are not Arabic-aware), you might find that the
+display becomes corrupted. By ticking this box, you can disable
+bidirectional text display, so that PuTTY displays text from left to
+right in all situations.
+
+You may also find you need to disable Arabic text shaping;
+see \k{config-features-shaping}.
+
 \H{config-window} The Window panel
 
 The Window configuration panel allows you to control aspects of the
@@ -873,8 +916,9 @@ scrolls off the top of the screen (see \k{using-scrollback}).
 The \q{Lines of scrollback} box lets you configure how many lines of
 text PuTTY keeps. The \q{Display scrollbar} options allow you to
 hide the scrollbar (although you can still view the scrollback using
-Shift-PgUp and Shift-PgDn). You can separately configure whether the
-scrollbar is shown in full-screen mode and in normal modes.
+the keyboard as described in \k{using-scrollback}). You can separately
+configure whether the scrollbar is shown in full-screen mode and in
+normal modes.
 
 If you are viewing part of the scrollback when the server sends more
 text to PuTTY, the screen will revert to showing the current
@@ -971,7 +1015,11 @@ followed by \q{PuTTY}, for example \c{server1.example.com - PuTTY}.
 If you want a different window title, this is where to set it.
 
 PuTTY allows the server to send \c{xterm} control sequences which
-modify the title of the window in mid-session. There is also an
+modify the title of the window in mid-session (unless this is disabled -
+see \k{config-features-retitle}); the title string set here
+is therefore only the \e{initial} window title.
+
+As well as the \e{window} title, there is also an
 \c{xterm} sequence to modify the title of the window's \e{icon}.
 This makes sense in a windowing system where the window becomes an
 icon when minimised, such as Windows 3.1 or most X Window System
@@ -1142,12 +1190,7 @@ You should use this option if none of the other options works.
 in Unicode. For good Unicode-supporting fonts this is probably the
 most reliable and functional option.
 
-\H{config-selection} The Selection panel
-
-The Selection panel allows you to control the way copy and paste
-work in the PuTTY window.
-
-\S{config-linedrawpaste} Controlling the pasting of line drawing
+\S{config-linedrawpaste} Controlling copy and paste of line drawing
 characters
 
 \cfg{winhelp-topic}{selection.linedraw}
@@ -1156,17 +1199,22 @@ By default, when you copy and paste a piece of the PuTTY screen that
 contains VT100 line and box drawing characters, PuTTY will paste
 them in the form they appear on the screen: either Unicode line
 drawing code points, or the \q{poor man's} line-drawing characters
-\c{+}, \c{-} and \c{|}. The checkbox \q{Paste VT100 line drawing
-chars as lqqqk} disables this feature, so line-drawing characters
-will be pasted as the ASCII characters that were printed to produce
-them. This will typically mean they come out mostly as \c{q} and
-\c{x}, with a scattering of \c{jklmntuvw} at the corners. This might
-be useful if you were trying to recreate the same box layout in
-another program, for example.
+\c{+}, \c{-} and \c{|}. The checkbox \q{Copy and paste VT100 line
+drawing chars as lqqqk} disables this feature, so line-drawing
+characters will be pasted as the ASCII characters that were printed
+to produce them. This will typically mean they come out mostly as
+\c{q} and \c{x}, with a scattering of \c{jklmntuvw} at the corners.
+This might be useful if you were trying to recreate the same box
+layout in another program, for example.
 
 Note that this option only applies to line-drawing characters which
 \e{were} printed by using the VT100 mechanism. Line-drawing
 characters displayed using Unicode will paste as Unicode always.
+
+\H{config-selection} The Selection panel
+
+The Selection panel allows you to control the way copy and paste
+work in the PuTTY window.
 
 \S{config-rtfpaste} Pasting in Rich Text Format
 
@@ -1187,18 +1235,24 @@ disabled.
 
 \cfg{winhelp-topic}{selection.buttons}
 
-PuTTY's copy and paste mechanism is modelled on the Unix \c{xterm}
-application. The X Window System uses a three-button mouse, and the
-convention is that the left button selects, the right button extends
-an existing selection, and the middle button pastes.
+PuTTY's copy and paste mechanism is by default modelled on the Unix
+\c{xterm} application. The X Window System uses a three-button mouse,
+and the convention is that the left button selects, the right button
+extends an existing selection, and the middle button pastes.
 
-Windows typically only has two mouse buttons, so in PuTTY's default
-configuration, the \e{right} button pastes, and the \e{middle}
-button (if you have one) extends a selection.
+Windows often only has two mouse buttons, so in PuTTY's default
+configuration (\q{Compromise}), the \e{right} button pastes, and the
+\e{middle} button (if you have one) extends a selection.
 
 If you have a three-button mouse and you are already used to the
 \c{xterm} arrangement, you can select it using the \q{Action of
 mouse buttons} control.
+
+Alternatively, with the \q{Windows} option selected, the middle
+button extends, and the right button brings up a context menu (on
+which one of the options is \q{Paste}). (This context menu is always
+available by holding down Ctrl and right-clicking, regardless of the
+setting of this option.)
 
 \S{config-mouseshift} \q{Shift overrides application's use of mouse}
 
@@ -1374,6 +1428,31 @@ If you're not sure whether a problem is due to the terminal type
 setting or not, you probably need to consult the manual for your
 application or your server.
 
+\S{config-termspeed} \q{Terminal speeds}
+
+\cfg{winhelp-topic}{connection.termspeed}
+
+The Telnet, Rlogin, and SSH protocols allow the client to specify
+terminal speeds to the server.
+
+This parameter does \e{not} affect the actual speed of the connection,
+which is always \q{as fast as possible}; it is just a hint that is
+sometimes used by server software to modify its behaviour. For
+instance, if a slow speed is indicated, the server may switch to a
+less bandwidth-hungry display mode.
+
+The value is usually meaningless in a network environment, but
+PuTTY lets you configure it, in case you find the server is reacting
+badly to the default value.
+
+The format is a pair of numbers separated by a comma, for instance,
+\c{38400,38400}. The first number represents the output speed
+(\e{from} the server) in bits per second, and the second is the input
+speed (\e{to} the server). (Only the first is used in the Rlogin
+protocol.)
+
+This option has no effect on Raw connections.
+
 \S{config-username} \q{Auto-login username}
 
 \cfg{winhelp-topic}{connection.username}
@@ -1428,7 +1507,8 @@ what \e{kind} of network problems you have between you and the
 server.
 
 Keepalives are only supported in Telnet and SSH; the Rlogin and Raw
-protocols offer no way of implementing them.
+protocols offer no way of implementing them. (For an alternative, see
+\k{config-tcp-keepalives}.)
 
 Note that if you are using SSH1 and the server has a bug that makes
 it unable to deal with SSH1 ignore messages (see
@@ -1446,6 +1526,34 @@ get a faster response to your keystrokes when connecting to some
 types of server.
 
 The Nagle algorithm is disabled by default.
+
+\S{config-tcp-keepalives} \q{Enable TCP keepalives}
+
+\cfg{winhelp-topic}{connection.tcpkeepalive}
+
+\e{NOTE:} TCP keepalives should not be confused with the
+application-level keepalives described in \k{config-keepalive}. If in
+doubt, you probably want application-level keepalives; TCP keepalives
+are provided for completeness.
+
+The idea of TCP keepalives is similar to application-level keepalives,
+and the same caveats apply. The main differences are:
+
+\b TCP keepalives are available on \e{all} connection types, including
+Raw and Rlogin.
+
+\b The interval between TCP keepalives is usually much longer,
+typically two hours; this is set by the operating system, and cannot
+be configured within PuTTY.
+
+\b If the operating system does not receive a response to a keepalive,
+it may send out more in quick succession and if terminate the connection
+if no response is received.
+
+TCP keepalives may be more useful for ensuring that half-open connections
+are terminated than for keeping a connection alive.
+
+TCP keepalives are disabled by default.
 
 \H{config-proxy} The Proxy panel
 
@@ -1558,6 +1666,10 @@ and your SOCKS 4 server cannot deal with it, this might be why.
 If your proxy requires authentication, you can enter a username and
 a password in the \q{Username} and \q{Password} boxes.
 
+Note that if you save your session, the proxy password will be
+saved in plain text, so anyone who can access your PuTTY
+configuration data will be able to discover it.
+
 Authentication is not fully supported for all forms of proxy:
 
 \b Username and password authentication is supported for HTTP
@@ -1605,20 +1717,11 @@ configuration fields will be ignored.
 The Telnet panel allows you to configure options that only apply to
 Telnet sessions.
 
-\S{config-termspeed} \q{Terminal-speed string}
-
-\cfg{winhelp-topic}{telnet.termspeed}
-
-Telnet allows the client to send a text string that describes the
-terminal speed. PuTTY lets you configure this, in case you find the
-server is reacting badly to the default value. (I'm not aware of any
-servers that do have a problem with it.)
-
 \S{config-environ} Setting environment variables on the server
 
 \cfg{winhelp-topic}{telnet.environ}
 
-The Telnet protocol also provides a means for the client to pass
+The Telnet protocol provides a means for the client to pass
 environment variables to the server. Many Telnet servers have
 stopped supporting this feature due to security flaws, but PuTTY
 still supports it for the benefit of any servers which have found
@@ -1709,15 +1812,6 @@ turning this option off to see if it helps.
 
 The Rlogin panel allows you to configure options that only apply to
 Rlogin sessions.
-
-\S{config-rlogin-termspeed} \q{Terminal-speed string}
-
-\cfg{winhelp-topic}{rlogin.termspeed}
-
-Like Telnet, Rlogin allows the client to send a text string that
-describes the terminal speed. PuTTY lets you configure this, in case
-you find the server is reacting badly to the default value. (I'm not
-aware of any servers that do have a problem with it.)
 
 \S{config-rlogin-localuser} \q{Local username}
 
@@ -2047,17 +2141,9 @@ To remove a port forwarding, simply select its details in the list
 box, and click the \q{Remove} button.
 
 In the \q{Source port} box, you can also optionally enter an IP
-address to listen on. Typically a Windows machine can be asked to
-listen on any single IP address in the \cw{127.*.*.*} range, and all
-of these are loopback addresses available only to the local machine.
-So if you forward (for example) \c{127.0.0.5:79} to a remote
-machine's \cw{finger} port, then you should be able to run commands
-such as \c{finger fred@127.0.0.5}. This can be useful if the program
-connecting to the forwarded port doesn't allow you to change the
-port number it uses. This feature is available for local-to-remote
-forwarded ports; SSH1 is unable to support it for remote-to-local
-ports, while SSH2 can support it in theory but servers will not
-necessarily cooperate.
+address to listen on, by specifying (for instance) \c{127.0.0.5:79}.
+See \k{using-port-forwarding} for more information on how this
+works and its restrictions.
 
 \S{config-ssh-portfwd-localhost} Controlling the visibility of
 forwarded ports
@@ -2272,9 +2358,9 @@ line options, so it's all automatic. Here is what you need in
 \c regedit /s putty.reg
 \c regedit /s puttyrnd.reg
 \c start /w putty.exe
-\c regedit /ea puttynew.reg HKEY_CURRENT_USER\Software\SimonTatham\PuTTY
-\c copy puttynew.reg putty.reg
-\c del puttynew.reg
+\c regedit /ea new.reg HKEY_CURRENT_USER\Software\SimonTatham\PuTTY
+\c copy new.reg putty.reg
+\c del new.reg
 \c regedit /s puttydel.reg
 
 This batch file needs two auxiliary files: \c{PUTTYRND.REG} which
@@ -2293,7 +2379,7 @@ Here is an example \c{PUTTYRND.REG} file:
 \c REGEDIT4
 \c  
 \c [HKEY_CURRENT_USER\Software\SimonTatham\PuTTY]
-\c "RandSeedFile"="a:\putty.rnd"
+\c "RandSeedFile"="a:\\putty.rnd"
 
 You should replace \c{a:\\putty.rnd} with the location where you
 want to store your random number data. If the aim is to carry around

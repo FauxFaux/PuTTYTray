@@ -5,6 +5,26 @@
 This FAQ is published on the PuTTY web site, and also provided as an
 appendix in the manual.
 
+\H{faq-intro} Introduction
+
+\S{faq-what}{Question} What is PuTTY?
+
+PuTTY is a client program for the SSH, Telnet and Rlogin network
+protocols.
+
+These protocols are all used to run a remote session on a computer,
+over a network. PuTTY implements the client end of that session: the
+end at which the session is displayed, rather than the end at which
+it runs.
+
+In really simple terms: you run PuTTY on a Windows machine, and tell
+it to connect to (for example) a Unix machine. PuTTY opens a window.
+Then, anything you type into that window is sent straight to the
+Unix machine, and everything the Unix machine sends back is
+displayed in the window. So you can work on the Unix machine as if
+you were sitting at its console, while actually sitting somewhere
+else.
+
 \H{faq-support} Features supported in PuTTY
 
 In general, if you want to know if PuTTY supports a particular
@@ -59,6 +79,12 @@ have a problem with PuTTY's default choice, you can force each
 option to be enabled or disabled as you choose. The controls are in
 the Terminal panel, in the section marked \q{Line discipline
 options}.
+
+\S{faq-savedsettings}{Question} Does PuTTY support storing settings,
+so I don't have to change them every time?
+
+Yes, all of PuTTY's settings can be saved in named session profiles.
+See \k{config-saving} in the documentation for how to do this.
 
 \S{faq-disksettings}{Question} Does PuTTY support storing its
 settings in a disk file?
@@ -130,6 +156,12 @@ of host key checking: the right key will be accepted and the wrong
 ones will not. Adding an option to turn host key checking off
 completely is the wrong solution and we will not do it.
 
+If you have host keys available in the common \c{known_hosts} format,
+we have a script called 
+\W{http://cvs.tartarus.org/putty/contrib/kh2reg.py}\c{kh2reg.py}
+to convert them to a Windows .REG file, which can be installed ahead of
+time by double-clicking or using \c{REGEDIT}.
+
 \S{faq-server}{Question} Will you write an SSH server for the PuTTY
 suite, to go with the client?
 
@@ -167,33 +199,69 @@ Porting will become easier once PuTTY has a generalised porting
 layer, drawing a clear line between platform-dependent and
 platform-independent code. The general intention was for this
 porting layer to evolve naturally as part of the process of doing
-the first port; a Unix port is now under way and the plan seems to
-be working so far.
+the first port; a Unix port has now been released and the plan
+seems to be working so far.
 
 \S{faq-ports-general}{Question} What ports of PuTTY exist?
 
-Currently, release versions of PuTTY only run on full Win32 systems.
-This includes Windows 95, 98, and ME, and it includes Windows NT,
-Windows 2000 and Windows XP. In the development code, partial ports
-to Unix (see \k{faq-unix}) and the Mac OS (see \k{faq-mac-port}).
-are under way.
+Currently, release versions of PuTTY tools only run on full Win32
+systems and Unix. \q{Win32} includes Windows 95, 98, and ME, and it
+includes Windows NT, Windows 2000 and Windows XP.
+
+In the development code, a partial port to the Mac OS (see
+\k{faq-mac-port}) is under way.
 
 Currently PuTTY does \e{not} run on Windows CE (see \k{faq-wince}),
 and it does not quite run on the Win32s environment under Windows
 3.1 (see \k{faq-win31}).
 
 We do not have release-quality ports for any other systems at the
-present time. If anyone told you we had a Mac port, or an iPaq port,
+present time. If anyone told you we had an EPOC port, or an iPaq port,
 or any other port of PuTTY, they were mistaken. We don't.
 
-\S{faq-unix}{Question} Will there be a port to Unix?
+There are some third-party ports to various platforms, mentioned
+on the Links page of our website.
 
-It's currently being worked on. If you look at the nightly source
-snapshots, you should find a \c{unix} subdirectory, which should
-build you Unix ports of Plink, PuTTY itself, PSCP, PSFTP, and
-also \c{pterm} - an \cw{xterm}-type program which supports the
-same terminal emulation as PuTTY. We do not yet have Unix ports of
-Pageant or PuTTYgen.
+\S{faq-unix}{Question} Is there a port to Unix?
+
+As of 0.54, there are Unix ports of most of the traditional PuTTY
+tools, and also one entirely new application.
+
+If you look at the source release, you should find a \c{unix}
+subdirectory containing \c{Makefile.gtk}, which should build you Unix
+ports of Plink, PuTTY itself, PuTTYgen, PSCP, PSFTP, and also
+\c{pterm} - an \cw{xterm}-type program which supports the same
+terminal emulation as PuTTY. We do not yet have a Unix port of
+Pageant.
+
+If you don't have Gtk, you should still be able to build the
+command-line tools.
+
+Note that Unix PuTTY has mostly only been tested on Linux so far;
+portability problems such as BSD-style ptys or different header file
+requirements are expected.
+
+\S{faq-unix-why}{Question} What's the point of the Unix port? Unix
+has OpenSSH.
+
+All sorts of little things. \c{pterm} is directly useful to anyone
+who prefers PuTTY's terminal emulation to \c{xterm}'s, which at
+least some people do. Unix Plink has apparently found a niche among
+people who find the complexity of OpenSSL makes OpenSSH hard to
+install (and who don't mind Plink not having as many features). Some
+users want to generate a large number of SSH keys on Unix and then
+copy them all into PuTTY, and the Unix PuTTYgen should allow them to
+automate that conversion process.
+
+There were development advantages as well; porting PuTTY to Unix was
+a valuable path-finding effort for other future ports, and also
+allowed us to use the excellent Linux tool
+\W{http://valgrind.kde.org/}{Valgrind} to help with debugging, which
+has already improved PuTTY's stability on \e{all} platforms.
+
+However, if you're a Unix user and you can see no reason to switch
+from OpenSSH to PuTTY/Plink, then you're probably right. We don't
+expect our Unix port to be the right thing for everybody.
 
 \S{faq-wince}{Question} Will there be a port to Windows CE or PocketPC?
 
@@ -201,6 +269,9 @@ It's currently being worked on, but it's only in its early stages yet,
 and certainly isn't yet useful.  PuTTY on portable devices would
 clearly be a useful thing, so in the long term I hope it can be
 brought up to release quality.
+
+There's also a third-party port at
+\W{http://pocketputty.duxy.net/}\c{http://pocketputty.duxy.net/}.
 
 \S{faq-win31}{Question} Is there a port to Windows 3.1?
 
@@ -223,7 +294,9 @@ testing in this area would be very welcome!
 
 There is a port to the Mac OS in progress. It's just about usable, but
 has an awful lot of gaps and rough edges that will need cleaning up
-before release.
+before release (such as useful random numbers).
+
+A separate port to Mac OS X is also underway.
 
 \S{faq-epoc}{Question} Will there be a port to EPOC?
 
@@ -291,8 +364,8 @@ to say something else; \c{vt220} might help if you have trouble.
 
 \S{faq-settings}{Question} Where does PuTTY store its data?
 
-PuTTY stores most of its data (saved sessions, SSH host keys) in the
-Registry. The precise location is
+On Windows, PuTTY stores most of its data (saved sessions, SSH host
+keys) in the Registry. The precise location is
 
 \c HKEY_CURRENT_USER\Software\SimonTatham\PuTTY
 
@@ -309,6 +382,8 @@ location of the random number seed file, you can put your chosen
 pathname in the Registry, at
 
 \c HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\RandSeedFile
+
+On Unix, PuTTY stores all of this data in a directory \cw{~/.putty}.
 
 \H{faq-howto} HOWTO questions
 
@@ -355,11 +430,6 @@ the middle button instead, but this is not the default because most
 Windows users don't have a middle button at all.
 
 You can also paste by pressing Shift-Ins.
-
-\S{faq-tunnels}{Question} How do I use X forwarding and port
-forwarding? I can't find the Tunnels panel.
-
-This is a new feature in version 0.52. You should upgrade.
 
 \S{faq-options}{Question} How do I use all PuTTY's features (public
 keys, proxying, cipher selection, etc.) in PSCP, PSFTP and Plink?
@@ -425,8 +495,10 @@ of quotes in the obvious way:
 \S{faq-incorrect-mac}{Question} Why do I see \q{Incorrect MAC
 received on packet}?
 
-This is due to a bug in old SSH 2 servers distributed by
-\cw{ssh.com}. Version 2.3.0 and below of their SSH 2 server
+One possible cause of this that used to be common is a bug in old
+SSH 2 servers distributed by \cw{ssh.com}. (This is not the only
+possible cause; see \k{errors-crc} in the documentation.)
+Version 2.3.0 and below of their SSH 2 server
 constructs Message Authentication Codes in the wrong way, and
 expects the client to construct them in the same wrong way. PuTTY
 constructs the MACs correctly by default, and hence these old
@@ -495,18 +567,8 @@ In order to use Plink on these systems, you will need to download
 the
 \W{http://www.microsoft.com/windows95/downloads/contents/wuadmintools/s_wunetworkingtools/w95sockets2/}{WinSock 2 upgrade}:
 
-\c http://www.microsoft.com/windows95/downloads/contents/wuadmintools/
-\c   s_wunetworkingtools/w95sockets2/
-
-\S{faq-rekey}{Question} My PuTTY sessions close after an hour and
-tell me \q{Server failed host key check}.
-
-This is a bug in all versions of PuTTY up to and including 0.51. SSH
-v2 servers from \cw{ssh.com} will require the key exchange to be
-repeated one hour after the start of the connection, and PuTTY will
-get this wrong.
-
-Upgrade to version 0.52 or better and the problem should go away.
+\c http://www.microsoft.com/windows95/downloads/contents/
+\c   wuadmintools/s_wunetworkingtools/w95sockets2/
 
 \S{faq-outofmem}{Question} After trying to establish an SSH 2
 connection, PuTTY says \q{Out of memory} and dies.
@@ -554,20 +616,19 @@ is liable to lead to problems.
 
 \S{faq-psftp-slow}{Question} PSFTP transfers files much slower than PSCP.
 
-We believe this is because the SFTP and SSH2 protocols are less
-efficient at bulk data transfer than SCP and SSH1, because every
-block of data transferred requires an acknowledgment from the far
-end. It would in theory be possible to queue several blocks of data
-to get round this speed problem, but as yet we haven't done the
-coding. If you really want this fixed, feel free to offer to help.
+The throughput of PSFTP 0.54 should be much better than 0.53b and
+prior; we've added code to the SFTP backend to queue several blocks
+of data rather than waiting for an acknowledgement for each. (The
+SCP backend did not suffer from this performance issue because SCP
+is a much simpler protocol.)
 
 \S{faq-bce}{Question} When I run full-colour applications, I see
 areas of black space where colour ought to be.
 
 You almost certainly need to enable the \q{Use background colour to
 erase screen} setting in the Terminal panel. Note that if you do
-this in mid-session, it won't take effect until you reset the
-terminal (see \k{faq-resetterm}).
+this in mid-session, in versions before 0.54, it may not take effect
+until you reset the terminal (see \k{faq-resetterm}).
 
 \S{faq-resetterm}{Question} When I change some terminal settings,
 nothing happens.
@@ -579,15 +640,13 @@ send sequences that modify these options in mid-session, but when
 the terminal is reset (by server action, or by you choosing \q{Reset
 Terminal} from the System menu) the defaults are restored.
 
-If you want to change one of these options in the middle of a
-session, you will find that the change does not immediately take
-effect. It will only take effect once you reset the terminal.
+In versions 0.53b and prior, if you change one of these options in
+the middle of a session, you will find that the change does not
+immediately take effect. It will only take effect once you reset
+the terminal.
 
-\S{faq-altgr}{Question} I can't type characters that require the
-AltGr key.
-
-In PuTTY version 0.51, the AltGr key was broken. Upgrade to version
-0.52 or better.
+In version 0.54, the behaviour has changed - changes to these
+settings take effect immediately.
 
 \S{faq-idleout}{Question} My PuTTY sessions unexpectedly close after
 they are idle for a while.
@@ -616,12 +675,16 @@ This is a Windows problem, not a PuTTY problem. The timeout value
 can't be set on per application or per session basis. To increase
 the TCP timeout globally, you need to tinker with the Registry.
 
-On Windows 95, 98 or ME, the registry key you need to change is
+On Windows 95, 98 or ME, the registry key you need to create or
+change is
 
 \c HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\VxD\
 \c   MSTCP\MaxDataRetries
 
 (it must be of type DWORD in Win95, or String in Win98/ME).
+(See MS Knowledge Base article
+\W{http://support.microsoft.com/default.aspx?scid=kb;en-us;158474}{158474}
+for more information.)
 
 On Windows NT or 2000, the registry key is
 
@@ -629,6 +692,9 @@ On Windows NT or 2000, the registry key is
 \c   Parameters\TcpMaxDataRetransmissions
 
 and it must be of type DWORD.
+(See MS Knowledge Base article
+\W{http://support.microsoft.com/default.aspx?scid=kb;en-us;120642}{120642}
+for more information.)
 
 Set the key's value to something like 10. This will cause Windows to
 try harder to keep connections alive instead of abandoning them.
@@ -777,6 +843,30 @@ If you really want to change the character set used by the server, the
 right place is \c{/etc/sysconfig/i18n}, but this shouldn't be
 necessary.
 
+\S{faq-screen}{Question} Since I upgraded to PuTTY 0.54, the
+scrollback has stopped working when I run \c{screen}.
+
+PuTTY's terminal emulator has always had the policy that when the
+\q{alternate screen} is in use, nothing is added to the scrollback.
+This is because the usual sorts of programs which use the alternate
+screen are things like text editors, which tend to scroll back and
+forth in the same document a lot; so (a) they would fill up the
+scrollback with a large amount of unhelpfully disordered text, and
+(b) they contain their \e{own} method for the user to scroll back to
+the bit they were interested in. We have generally found this policy
+to do the Right Thing in almost all situations.
+
+Unfortunately, \c{screen} is one exception: it uses the alternate
+screen, but it's still usually helpful to have PuTTY's scrollback
+continue working. The simplest solution is to go to the Features
+control panel and tick \q{Disable switching to alternate terminal
+screen}. (See \k{config-features-altscreen} for more details.)
+
+The reason why this only started to be a problem in 0.54 is because
+\c{screen} typically uses an unusual control sequence to switch to
+the alternate screen, and previous versions of PuTTY did not support
+this sequence.
+
 \H{faq-secure} Security questions
 
 \S{faq-publicpc}{Question} Is it safe for me to download PuTTY and
@@ -853,6 +943,43 @@ PuTTY web site?
 
 We already have some, thanks.
 
+\S{faq-link}{Question} Would you link to my web site from the PuTTY
+web site?
+
+Only if the content of your web page is of definite direct interest
+to PuTTY users. If your content is unrelated, or only tangentially
+related, to PuTTY, then the link would simply be advertising for
+you.
+
+One very nice effect of the Google ranking mechanism is that by and
+large, the most popular web sites get the highest rankings. This
+means that when an ordinary person does a search, the top item in
+the search is very likely to be a high-quality site or the site they
+actually wanted, rather than the site which paid the most money for
+its ranking.
+
+The PuTTY web site is held in high esteem by Google, for precisely
+this reason: lots of people have linked to it simply because they
+like PuTTY, without us ever having to ask anyone to link to us. We
+feel that it would be an abuse of this esteem to use it to boost the
+ranking of random advertisers' web sites. If you want your web site
+to have a high Google ranking, we'd prefer that you achieve this the
+way we did - by being good enough at what you do that people will
+link to you simply because they like you.
+
+In particular, we aren't interested in trading links for money (see
+above), and we \e{certainly} aren't interested in trading links for
+other links (since we have no advertising on our web site, our
+Google ranking is not even directly worth anything to us). If we
+don't want to link to you for free, then we probably won't want to
+link to you at all.
+
+If you have software based on PuTTY, or specifically designed to
+interoperate with PuTTY, or in some other way of genuine interest to
+PuTTY users, then we will probably be happy to add a link to you on
+our Links page. And if you're running a mirror of the PuTTY web
+site, we're \e{definitely} interested.
+
 \S{faq-sourceforge}{Question} Why don't you move PuTTY to
 SourceForge?
 
@@ -907,12 +1034,12 @@ asking for any.
 
 Having said all that, if you still really \e{want} to give us money,
 we won't argue :-) The easiest way for us to accept donations is if
-you go to \W{http://www.e-gold.com}\cw{www.e-gold.com}, and deposit
-your donation in account number 174769. Then send us e-mail to let
-us know you've done so (otherwise we might not notice for months!).
-Alternatively, if e-gold isn't convenient for you, you can donate to
-\cw{<anakin@pobox.com>} using PayPal
-(\W{http://www.paypal.com/}\cw{www.paypal.com}).
+you send money to \cw{<anakin@pobox.com>} using PayPal
+(\W{http://www.paypal.com/}\cw{www.paypal.com}). Alternatively, if
+you don't trust PayPal, you could donate through e-gold
+(\W{http://www.e-gold.com}\cw{www.e-gold.com}): deposit your
+donation in account number 174769, then send us e-mail to let us
+know you've done so (otherwise we might not notice for months!).
 
 Small donations (tens of dollars or tens of euros) will probably be
 spent on beer or curry, which helps motivate our volunteer team to
@@ -923,6 +1050,22 @@ find anything then we'll just distribute the money among the
 developers. If you want to be sure your donation is going towards
 something worthwhile, ask us first. If you don't like these terms,
 feel perfectly free not to donate. We don't mind.
+
+\S{faq-permission}{Question} Can I have permission to put PuTTY on a
+cover disk / distribute it with other software / etc?
+
+Yes. You need not bother asking us explicitly for permission. You
+already have permission. Redistribution of the unmodified PuTTY
+binary in this way is entirely permitted by our licence, and you are
+welcome to do it as much as you like.
+
+If you are distributing PuTTY within your own organisation, or for
+use with your own product, then we recommend (but do not insist)
+that you offer your own first-line technical support, to answer
+questions directly relating to the interaction of PuTTY with your
+particular environment. If your users mail us directly, we won't be
+able to give them very much help about things specific to your own
+setup.
 
 \H{faq-misc} Miscellaneous questions
 

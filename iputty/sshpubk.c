@@ -79,8 +79,8 @@ static int loadrsakey_main(FILE * fp, struct RSAKey *key, int pub_only,
     i += 4;
 
     /* Now the serious stuff. An ordinary SSH 1 public key. */
-    i += makekey(buf + i, key, NULL, 1);
-    if (len - i < 0)
+    i += makekey(buf + i, len, key, NULL, 1);
+    if (i < 0)
 	goto end;		       /* overran */
 
     if (pub_only) {
@@ -138,18 +138,18 @@ static int loadrsakey_main(FILE * fp, struct RSAKey *key, int pub_only,
      * decryption exponent, and then the three auxiliary values
      * (iqmp, q, p).
      */
-    i += makeprivate(buf + i, key);
-    if (len - i < 0)
-	goto end;
-    i += ssh1_read_bignum(buf + i, &key->iqmp);
-    if (len - i < 0)
-	goto end;
-    i += ssh1_read_bignum(buf + i, &key->q);
-    if (len - i < 0)
-	goto end;
-    i += ssh1_read_bignum(buf + i, &key->p);
-    if (len - i < 0)
-	goto end;
+    j = makeprivate(buf + i, len - i, key);
+    if (j < 0) goto end;
+    i += j;
+    j = ssh1_read_bignum(buf + i, len - i, &key->iqmp);
+    if (j < 0) goto end;
+    i += j;
+    j = ssh1_read_bignum(buf + i, len - i, &key->q);
+    if (j < 0) goto end;
+    i += j;
+    j = ssh1_read_bignum(buf + i, len - i, &key->p);
+    if (j < 0) goto end;
+    i += j;
 
     if (!rsa_verify(key)) {
 	*error = "rsa_verify failed";
@@ -182,17 +182,22 @@ int loadrsakey(const Filename *filename, struct RSAKey *key, char *passphrase,
      * key file.
      */
     if (fgets(buf, sizeof(buf), fp) && !strcmp(buf, rsa_signature)) {
+	/*
+	 * This routine will take care of calling fclose() for us.
+	 */
 	ret = loadrsakey_main(fp, key, FALSE, NULL, passphrase, &error);
+	fp = NULL;
 	goto end;
     }
 
     /*
      * Otherwise, we have nothing. Return empty-handed.
      */
-    fclose(fp);
     error = "not an SSH-1 RSA file";
 
   end:
+    if (fp)
+	fclose(fp);
     if ((ret != 1) && errorstr)
 	*errorstr = error;
     return ret;
@@ -217,6 +222,9 @@ int rsakey_encrypted(const Filename *filename, char **comment)
      */
     if (fgets(buf, sizeof(buf), fp) && !strcmp(buf, rsa_signature)) {
 	const char *dummy;
+	/*
+	 * This routine will take care of calling fclose() for us.
+	 */
 	return loadrsakey_main(fp, NULL, FALSE, comment, NULL, &dummy);
     }
     fclose(fp);
@@ -258,13 +266,15 @@ int rsakey_pubblob(const Filename *filename, void **blob, int *bloblen,
 	    *blob = rsa_public_blob(&key, bloblen);
 	    freersakey(&key);
 	    ret = 1;
+	    fp = NULL;
 	}
     } else {
 	error = "not an SSH-1 RSA file";
-        fclose(fp);
     }
 
   end:
+    if (fp)
+	fclose(fp);
     if ((ret != 1) && errorstr)
 	*errorstr = error;
     return ret;
@@ -605,6 +615,16 @@ struct ssh2_userkey ssh2_wrong_passphrase = {
     NULL, NULL, NULL
 };
 
+const struct ssh_signkey *find_pubkey_alg(const char *name)
+{
+    if (!strcmp(name, "ssh-rsa"))
+	return &ssh_rsa;
+    else if (!strcmp(name, "ssh-dss"))
+	return &ssh_dss;
+    else
+	return NULL;
+}
+
 struct ssh2_userkey *ssh2_load_userkey(const Filename *filename,
 				       char *passphrase, const char **errorstr)
 {
@@ -646,11 +666,8 @@ struct ssh2_userkey *ssh2_load_userkey(const Filename *filename,
     if ((b = read_body(fp)) == NULL)
 	goto error;
     /* Select key algorithm structure. */
-    if (!strcmp(b, "ssh-rsa"))
-	alg = &ssh_rsa;
-    else if (!strcmp(b, "ssh-dss"))
-	alg = &ssh_dss;
-    else {
+    alg = find_pubkey_alg(b);
+    if (!alg) {
 	sfree(b);
 	goto error;
     }
@@ -807,6 +824,7 @@ struct ssh2_userkey *ssh2_load_userkey(const Filename *filename,
 	    /* An incorrect MAC is an unconditional Error if the key is
 	     * unencrypted. Otherwise, it means Wrong Passphrase. */
 	    if (cipher) {
+		error = "wrong passphrase";
 		ret = SSH2_WRONG_PASSPHRASE;
 	    } else {
 		error = "MAC failed";
@@ -890,11 +908,8 @@ char *ssh2_userkey_loadpub(const Filename *filename, char **algorithm,
     if ((b = read_body(fp)) == NULL)
 	goto error;
     /* Select key algorithm structure. Currently only ssh-rsa. */
-    if (!strcmp(b, "ssh-rsa"))
-	alg = &ssh_rsa;
-    else if (!strcmp(b, "ssh-dss"))
-	alg = &ssh_dss;
-    else {
+    alg = find_pubkey_alg(b);
+    if (!alg) {
 	sfree(b);
 	goto error;
     }

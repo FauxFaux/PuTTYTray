@@ -1,5 +1,5 @@
 /*
- * settings.c: read and write saved sessions.
+ * settings.c: read and write saved sessions. (platform-independent)
  */
 
 #include <stdio.h>
@@ -163,10 +163,10 @@ void save_open_settings(void *sesskey, int do_host, Config *cfg)
     write_setting_i(sesskey, "Present", 1);
     if (do_host) {
 	write_setting_s(sesskey, "HostName", cfg->host);
-	write_setting_filename(sesskey, "LogFileName", cfg->logfilename);
-	write_setting_i(sesskey, "LogType", cfg->logtype);
-	write_setting_i(sesskey, "LogFileClash", cfg->logxfovr);
     }
+    write_setting_filename(sesskey, "LogFileName", cfg->logfilename);
+    write_setting_i(sesskey, "LogType", cfg->logtype);
+    write_setting_i(sesskey, "LogFileClash", cfg->logxfovr);
     p = "raw";
     for (i = 0; backends[i].name != NULL; i++)
 	if (backends[i].protocol == cfg->protocol) {
@@ -182,6 +182,7 @@ void save_open_settings(void *sesskey, int do_host, Config *cfg)
     write_setting_i(sesskey, "PingInterval", cfg->ping_interval / 60);	/* minutes */
     write_setting_i(sesskey, "PingIntervalSecs", cfg->ping_interval % 60);	/* seconds */
     write_setting_i(sesskey, "TCPNoDelay", cfg->tcp_nodelay);
+    write_setting_i(sesskey, "TCPKeepalives", cfg->tcp_keepalives);
     write_setting_s(sesskey, "TerminalType", cfg->termtype);
     write_setting_s(sesskey, "TerminalSpeed", cfg->termspeed);
 
@@ -274,6 +275,8 @@ void save_open_settings(void *sesskey, int do_host, Config *cfg)
     write_setting_i(sesskey, "DECOriginMode", cfg->dec_om);
     write_setting_i(sesskey, "AutoWrapMode", cfg->wrap_mode);
     write_setting_i(sesskey, "LFImpliesCR", cfg->lfhascr);
+    write_setting_i(sesskey, "DisableArabicShaping", cfg->arabicshaping);
+    write_setting_i(sesskey, "DisableBidi", cfg->bidi);
     write_setting_i(sesskey, "WinNameAlways", cfg->win_name_always);
     write_setting_s(sesskey, "WinTitle", cfg->wintitle);
     write_setting_i(sesskey, "TermWidth", cfg->width);
@@ -283,6 +286,7 @@ void save_open_settings(void *sesskey, int do_host, Config *cfg)
     write_setting_i(sesskey, "UseSystemColours", cfg->system_colour);
     write_setting_i(sesskey, "TryPalette", cfg->try_palette);
     write_setting_i(sesskey, "BoldAsColour", cfg->bold_colour);
+
     for (i = 0; i < 22; i++) {
 	char buf[20], buf2[30];
 	sprintf(buf, "Colour%d", i);
@@ -353,6 +357,8 @@ void save_open_settings(void *sesskey, int do_host, Config *cfg)
     write_setting_i(sesskey, "LoginShell", cfg->login_shell);
     write_setting_i(sesskey, "ScrollbarOnLeft", cfg->scrollbar_on_left);
     write_setting_fontspec(sesskey, "BoldFont", cfg->boldfont);
+    write_setting_fontspec(sesskey, "WideFont", cfg->widefont);
+    write_setting_fontspec(sesskey, "WideBoldFont", cfg->wideboldfont);
     write_setting_i(sesskey, "ShadowBold", cfg->shadowbold);
     write_setting_i(sesskey, "ShadowBoldOffset", cfg->shadowboldoffset);
 }
@@ -406,6 +412,7 @@ void load_open_settings(void *sesskey, int do_host, Config *cfg)
 	cfg->ping_interval = pingmin * 60 + pingsec;
     }
     gppi(sesskey, "TCPNoDelay", 1, &cfg->tcp_nodelay);
+    gppi(sesskey, "TCPKeepalives", 0, &cfg->tcp_keepalives);
     gpps(sesskey, "TerminalType", "xterm", cfg->termtype,
 	 sizeof(cfg->termtype));
     gpps(sesskey, "TerminalSpeed", "38400,38400", cfg->termspeed,
@@ -529,6 +536,8 @@ void load_open_settings(void *sesskey, int do_host, Config *cfg)
     gppi(sesskey, "DECOriginMode", 0, &cfg->dec_om);
     gppi(sesskey, "AutoWrapMode", 1, &cfg->wrap_mode);
     gppi(sesskey, "LFImpliesCR", 0, &cfg->lfhascr);
+    gppi(sesskey, "DisableArabicShaping", 0, &cfg->arabicshaping);
+    gppi(sesskey, "DisableBidi", 0, &cfg->bidi);
     gppi(sesskey, "WinNameAlways", 1, &cfg->win_name_always);
     gpps(sesskey, "WinTitle", "", cfg->wintitle, sizeof(cfg->wintitle));
     gppi(sesskey, "TermWidth", 80, &cfg->width);
@@ -538,6 +547,7 @@ void load_open_settings(void *sesskey, int do_host, Config *cfg)
     gppi(sesskey, "UseSystemColours", 0, &cfg->system_colour);
     gppi(sesskey, "TryPalette", 0, &cfg->try_palette);
     gppi(sesskey, "BoldAsColour", 1, &cfg->bold_colour);
+
     for (i = 0; i < 22; i++) {
 	static const char *const defaults[] = {
 	    "187,187,187", "255,255,255", "0,0,0", "85,85,85", "0,0,0",
@@ -603,7 +613,7 @@ void load_open_settings(void *sesskey, int do_host, Config *cfg)
     gppi(sesskey, "BCE", 1, &cfg->bce);
     gppi(sesskey, "BlinkText", 0, &cfg->blinktext);
     gppi(sesskey, "X11Forward", 0, &cfg->x11_forward);
-    gpps(sesskey, "X11Display", "localhost:0", cfg->x11_display,
+    gpps(sesskey, "X11Display", "", cfg->x11_display,
 	 sizeof(cfg->x11_display));
     gppi(sesskey, "X11AuthType", X11_MIT, &cfg->x11_auth);
 

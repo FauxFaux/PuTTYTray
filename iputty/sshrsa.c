@@ -22,11 +22,14 @@
     (cp)[2] = (unsigned char)((value) >> 8); \
     (cp)[3] = (unsigned char)(value); }
 
-int makekey(unsigned char *data, struct RSAKey *result,
+int makekey(unsigned char *data, int len, struct RSAKey *result,
 	    unsigned char **keystr, int order)
 {
     unsigned char *p = data;
-    int i;
+    int i, n;
+
+    if (len < 4)
+	return -1;
 
     if (result) {
 	result->bits = 0;
@@ -35,35 +38,52 @@ int makekey(unsigned char *data, struct RSAKey *result,
     } else
 	p += 4;
 
+    len -= 4;
+
     /*
      * order=0 means exponent then modulus (the keys sent by the
      * server). order=1 means modulus then exponent (the keys
      * stored in a keyfile).
      */
 
-    if (order == 0)
-	p += ssh1_read_bignum(p, result ? &result->exponent : NULL);
+    if (order == 0) {
+	n = ssh1_read_bignum(p, len, result ? &result->exponent : NULL);
+	if (n < 0) return -1;
+	p += n;
+	len -= n;
+    }
+
+    n = ssh1_read_bignum(p, len, result ? &result->modulus : NULL);
+    if (n < 0) return -1;
     if (result)
-	result->bytes = (((p[0] << 8) + p[1]) + 7) / 8;
+	result->bytes = n - 2;
     if (keystr)
 	*keystr = p + 2;
-    p += ssh1_read_bignum(p, result ? &result->modulus : NULL);
-    if (order == 1)
-	p += ssh1_read_bignum(p, result ? &result->exponent : NULL);
+    p += n;
+    len -= n;
 
+    if (order == 1) {
+	n = ssh1_read_bignum(p, len, result ? &result->exponent : NULL);
+	if (n < 0) return -1;
+	p += n;
+	len -= n;
+    }
     return p - data;
 }
 
-int makeprivate(unsigned char *data, struct RSAKey *result)
+int makeprivate(unsigned char *data, int len, struct RSAKey *result)
 {
-    return ssh1_read_bignum(data, &result->private_exponent);
+    return ssh1_read_bignum(data, len, &result->private_exponent);
 }
 
-void rsaencrypt(unsigned char *data, int length, struct RSAKey *key)
+int rsaencrypt(unsigned char *data, int length, struct RSAKey *key)
 {
     Bignum b1, b2;
     int i;
     unsigned char *p;
+
+    if (key->bytes < length + 4)
+	return 0;		       /* RSA key too short! */
 
     memmove(data + key->bytes - length, data, length);
     data[0] = 0;
@@ -87,6 +107,8 @@ void rsaencrypt(unsigned char *data, int length, struct RSAKey *key)
 
     freebn(b1);
     freebn(b2);
+
+    return 1;
 }
 
 static void sha512_mpint(SHA512_State * s, Bignum b)
@@ -378,13 +400,25 @@ unsigned char *rsa_public_blob(struct RSAKey *key, int *len)
 }
 
 /* Given a public blob, determine its length. */
-int rsa_public_blob_len(void *data)
+int rsa_public_blob_len(void *data, int maxlen)
 {
     unsigned char *p = (unsigned char *)data;
+    int n;
 
+    if (maxlen < 4)
+	return -1;
     p += 4;			       /* length word */
-    p += ssh1_read_bignum(p, NULL);    /* exponent */
-    p += ssh1_read_bignum(p, NULL);    /* modulus */
+    maxlen -= 4;
+
+    n = ssh1_read_bignum(p, maxlen, NULL);    /* exponent */
+    if (n < 0)
+	return -1;
+    p += n;
+
+    n = ssh1_read_bignum(p, maxlen, NULL);    /* modulus */
+    if (n < 0)
+	return -1;
+    p += n;
 
     return p - (unsigned char *)data;
 }
@@ -629,6 +663,18 @@ static int rsa2_openssh_fmtkey(void *key, unsigned char *blob, int len)
     return bloblen;
 }
 
+static int rsa2_pubkey_bits(void *blob, int len)
+{
+    struct RSAKey *rsa;
+    int ret;
+
+    rsa = rsa2_newkey((char *) blob, len);
+    ret = bignum_bitcount(rsa->modulus);
+    rsa2_freekey(rsa);
+
+    return ret;
+}
+
 static char *rsa2_fingerprint(void *key)
 {
     struct RSAKey *rsa = (struct RSAKey *) key;
@@ -715,7 +761,7 @@ static int rsa2_verifysig(void *key, char *sig, int siglen,
 
     ret = 1;
 
-    bytes = bignum_bitcount(rsa->modulus) / 8;
+    bytes = (bignum_bitcount(rsa->modulus)+7) / 8;
     /* Top (partial) byte should be zero. */
     if (bignum_byte(out, bytes - 1) != 0)
 	ret = 0;
@@ -738,6 +784,7 @@ static int rsa2_verifysig(void *key, char *sig, int siglen,
 	if (bignum_byte(out, i) != hash[j])
 	    ret = 0;
     }
+    freebn(out);
 
     return ret;
 }
@@ -793,6 +840,7 @@ const struct ssh_signkey ssh_rsa = {
     rsa2_createkey,
     rsa2_openssh_createkey,
     rsa2_openssh_fmtkey,
+    rsa2_pubkey_bits,
     rsa2_fingerprint,
     rsa2_verifysig,
     rsa2_sign,

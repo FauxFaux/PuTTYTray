@@ -1092,7 +1092,7 @@ type 'TEXT' {
 };
 
 resource 'TEXT' (wLicence, "licence", purgeable) {
-    "PuTTY is copyright 1997-2003 Simon Tatham.\n"
+    "PuTTY is copyright 1997-2004 Simon Tatham.\n"
     "\n"
     "Portions copyright Robert de Bath, Joris van Rantwijk, Delian"
     "Delchev, Andreas Schultz, Jeroen Massar, Wez Furlong, Nicolas Barry,"

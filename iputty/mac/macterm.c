@@ -158,7 +158,8 @@ void mac_startsession(Session *s)
     term_provide_logctx(s->term, s->logctx);
 
     errmsg = s->back->init(s, &s->backhandle, &s->cfg, s->cfg.host,
-			   s->cfg.port, &s->realhost, s->cfg.tcp_nodelay);
+			   s->cfg.port, &s->realhost, s->cfg.tcp_nodelay,
+			   s->cfg.tcp_keepalives);
     if (errmsg != NULL)
 	fatalbox("%s", errmsg);
     s->back->provide_logctx(s->backhandle, s->logctx);

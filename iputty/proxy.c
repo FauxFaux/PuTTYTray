@@ -161,10 +161,14 @@ static void sk_proxy_set_frozen (Socket s, int is_frozen)
 	 */
         while (!ps->freeze && bufchain_size(&ps->pending_input_data) > 0) {
 	    void *data;
+	    char databuf[512];
 	    int len;
 	    bufchain_prefix(&ps->pending_input_data, &data, &len);
-	    plug_receive(ps->plug, 0, data, len);
+	    if (len > lenof(databuf))
+		len = lenof(databuf);
+	    memcpy(databuf, data, len);
 	    bufchain_consume(&ps->pending_input_data, len);
+	    plug_receive(ps->plug, 0, databuf, len);
 	}
 
 	/* if we're still frozen, we'll have to wait for another
@@ -352,8 +356,8 @@ SockAddr name_lookup(char *host, int port, char **canonicalname,
 
 Socket new_connection(SockAddr addr, char *hostname,
 		      int port, int privport,
-		      int oobinline, int nodelay, Plug plug,
-		      const Config *cfg)
+		      int oobinline, int nodelay, int keepalive,
+		      Plug plug, const Config *cfg)
 {
     static const struct socket_function_table socket_fn_table = {
 	sk_proxy_plug,
@@ -384,7 +388,8 @@ Socket new_connection(SockAddr addr, char *hostname,
 	Socket sret;
 
 	if ((sret = platform_new_connection(addr, hostname, port, privport,
-					    oobinline, nodelay, plug, cfg)) !=
+					    oobinline, nodelay, keepalive,
+					    plug, cfg)) !=
 	    NULL)
 	    return sret;
 
@@ -440,7 +445,7 @@ Socket new_connection(SockAddr addr, char *hostname,
 	 */
 	ret->sub_socket = sk_new(proxy_addr, cfg->proxy_port,
 				 privport, oobinline,
-				 nodelay, (Plug) pplug);
+				 nodelay, keepalive, (Plug) pplug);
 	if (sk_socket_error(ret->sub_socket) != NULL)
 	    return (Socket) ret;
 
@@ -452,7 +457,7 @@ Socket new_connection(SockAddr addr, char *hostname,
     }
 
     /* no proxy, so just return the direct socket */
-    return sk_new(addr, port, privport, oobinline, nodelay, plug);
+    return sk_new(addr, port, privport, oobinline, nodelay, keepalive, plug);
 }
 
 Socket new_listener(char *srcaddr, int port, Plug plug, int local_host_only,
@@ -586,8 +591,14 @@ int proxy_http_negotiate (Proxy_Socket p, int change)
 	    /* get the status line */
 	    len = bufchain_size(&p->pending_input_data);
 	    assert(len > 0);	       /* or we wouldn't be here */
-	    data = snewn(len, char);
+	    data = snewn(len+1, char);
 	    bufchain_fetch(&p->pending_input_data, data, len);
+	    /*
+	     * We must NUL-terminate this data, because Windows
+	     * sscanf appears to require a NUL at the end of the
+	     * string because it strlens it _first_. Sigh.
+	     */
+	    data[len] = '\0';
 
 	    eol = get_line_end(data, len);
 	    if (eol < 0) {

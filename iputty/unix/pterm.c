@@ -1371,7 +1371,7 @@ char * retrieve_cutbuffer(int * nbytes)
 {
     char * ptr;
     ptr = XFetchBytes(GDK_DISPLAY(), nbytes);
-    if (nbytes <= 0 && ptr != 0) {
+    if (*nbytes <= 0 && ptr != 0) {
 	XFree(ptr);
 	ptr = 0;
     }
@@ -1424,7 +1424,10 @@ void write_clip(void *frontend, wchar_t * data, int len, int must_deselect)
 	    memcpy(inst->pasteout_data_ctext, tp.value, tp.nitems);
 	    inst->pasteout_data_ctext_len = tp.nitems;
 	    XFree(tp.value);
-	}
+	} else {
+            inst->pasteout_data_ctext = NULL;
+            inst->pasteout_data_ctext_len = 0;
+        }
     } else {
 	inst->pasteout_data_utf8 = NULL;
 	inst->pasteout_data_utf8_len = 0;
@@ -1591,34 +1594,35 @@ void selection_received(GtkWidget *widget, GtkSelectionData *seldata,
 	charset = CS_ISO8859_1;
 	free_required = 1;
     } else {
-    /*
-     * Convert COMPOUND_TEXT into UTF-8.
-     */
-    if (seldata->type == compound_text_atom) {
-	tp.value = seldata->data;
-	tp.encoding = (Atom) seldata->type;
-	tp.format = seldata->format;
-	tp.nitems = seldata->length;
-	ret = Xutf8TextPropertyToTextList(GDK_DISPLAY(), &tp, &list, &count);
-	if (ret != 0 || count != 1) {
-	    /*
-	     * Compound text failed; fall back to STRING.
-	     */
-	    gtk_selection_convert(inst->area, GDK_SELECTION_PRIMARY,
-				  GDK_SELECTION_TYPE_STRING,
-				  inst->input_event_time);
-	    return;
+	/*
+	 * Convert COMPOUND_TEXT into UTF-8.
+	 */
+	if (seldata->type == compound_text_atom) {
+	    tp.value = seldata->data;
+	    tp.encoding = (Atom) seldata->type;
+	    tp.format = seldata->format;
+	    tp.nitems = seldata->length;
+	    ret = Xutf8TextPropertyToTextList(GDK_DISPLAY(), &tp,
+					      &list, &count);
+	    if (ret != 0 || count != 1) {
+		/*
+		 * Compound text failed; fall back to STRING.
+		 */
+		gtk_selection_convert(inst->area, GDK_SELECTION_PRIMARY,
+				      GDK_SELECTION_TYPE_STRING,
+				      inst->input_event_time);
+		return;
+	    }
+	    text = list[0];
+	    length = strlen(list[0]);
+	    charset = CS_UTF8;
+	    free_list_required = 1;
+	} else {
+	    text = (char *)seldata->data;
+	    length = seldata->length;
+	    charset = (seldata->type == utf8_string_atom ?
+		       CS_UTF8 : inst->ucsdata.line_codepage);
 	}
-	text = list[0];
-	length = strlen(list[0]);
-	charset = CS_UTF8;
-	free_list_required = 1;
-    } else {
-	text = (char *)seldata->data;
-	length = seldata->length;
-	charset = (seldata->type == utf8_string_atom ?
-		   CS_UTF8 : inst->ucsdata.line_codepage);
-    }
     }
 
     if (inst->pastein_data)
@@ -3366,7 +3370,8 @@ int pt_main(int argc, char **argv)
 
 	error = inst->back->init((void *)inst, &inst->backhandle,
                                  &inst->cfg, inst->cfg.host, inst->cfg.port,
-                                 &realhost, inst->cfg.tcp_nodelay);
+                                 &realhost, inst->cfg.tcp_nodelay,
+				 inst->cfg.tcp_keepalives);
 
 	if (error) {
 	    char *msg = dupprintf("Unable to open connection to %s:\n%s",
