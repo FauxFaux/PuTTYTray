@@ -27,6 +27,8 @@ static int requested_help;
 
 static struct prefslist cipherlist;
 
+#define PRINTER_DISABLED_STRING "None (printing disabled)"
+
 void force_normal(HWND hwnd)
 {
   static int recurse = 0;
@@ -295,8 +297,6 @@ enum
   IDC_KPNORMAL,
   IDC_KPAPPLIC,
   IDC_KPNH,
-  IDC_NOAPPLICK,
-  IDC_NOAPPLICC,
   IDC_CURSTATIC,
   IDC_CURNORMAL,
   IDC_CURAPPLIC,
@@ -308,6 +308,7 @@ enum
   IDC_TITLE_TERMINAL,
   IDC_BOX_TERMINAL1,
   IDC_BOX_TERMINAL2,
+  IDC_BOX_TERMINAL3,
   IDC_WRAPMODE,
   IDC_DECOM,
   IDC_LFHASCR,
@@ -323,7 +324,22 @@ enum
   IDC_EDITBACKEND,
   IDC_EDITYES,
   IDC_EDITNO,
+  IDC_PRINTERSTATIC,
+  IDC_PRINTER,
   terminalpanelend,
+
+  featurespanelstart,
+  IDC_TITLE_FEATURES,
+  IDC_BOX_FEATURES1,
+  IDC_NOAPPLICK,
+  IDC_NOAPPLICC,
+  IDC_NOMOUSEREP,
+  IDC_NORESIZE,
+  IDC_NOALTSCREEN,
+  IDC_NOWINTITLE,
+  IDC_NODBACKSPACE,
+  IDC_NOCHARSET,
+  featurespanelend,
 
   bellpanelstart,
   IDC_TITLE_BELL,
@@ -421,6 +437,32 @@ enum
   IDC_NODELAY,
   connectionpanelend,
 
+  proxypanelstart,
+  IDC_TITLE_PROXY,
+  IDC_BOX_PROXY1,
+  IDC_PROXYTYPESTATIC,
+  IDC_PROXYTYPENONE,
+  IDC_PROXYTYPEHTTP,
+  IDC_PROXYTYPESOCKS,
+  IDC_PROXYTYPETELNET,
+  IDC_PROXYHOSTSTATIC,
+  IDC_PROXYHOSTEDIT,
+  IDC_PROXYPORTSTATIC,
+  IDC_PROXYPORTEDIT,
+  IDC_PROXYEXCLUDESTATIC,
+  IDC_PROXYEXCLUDEEDIT,
+  IDC_PROXYUSERSTATIC,
+  IDC_PROXYUSEREDIT,
+  IDC_PROXYPASSSTATIC,
+  IDC_PROXYPASSEDIT,
+  IDC_BOX_PROXY2,
+  IDC_PROXYTELNETCMDSTATIC,
+  IDC_PROXYTELNETCMDEDIT,
+  IDC_PROXYSOCKSVERSTATIC,
+  IDC_PROXYSOCKSVER5,
+  IDC_PROXYSOCKSVER4,
+  proxypanelend,
+
   telnetpanelstart,
   IDC_TITLE_TELNET,
   IDC_BOX_TELNET1,
@@ -466,11 +508,12 @@ enum
   IDC_CIPHERLIST,
   IDC_CIPHERUP,
   IDC_CIPHERDN,
-  IDC_BUGGYMAC,
   IDC_SSH2DES,
   IDC_SSHPROTSTATIC,
+  IDC_SSHPROT1ONLY,
   IDC_SSHPROT1,
   IDC_SSHPROT2,
+  IDC_SSHPROT2ONLY,
   IDC_CMDSTATIC,
   IDC_CMDEDIT,
   IDC_COMPRESS,
@@ -488,6 +531,25 @@ enum
   IDC_AUTHTIS,
   IDC_AUTHKI,
   sshauthpanelend,
+
+  sshbugspanelstart,
+  IDC_TITLE_SSHBUGS,
+  IDC_BOX_SSHBUGS1,
+  IDC_BUGS_IGNORE1,
+  IDC_BUGD_IGNORE1,
+  IDC_BUGS_PLAINPW1,
+  IDC_BUGD_PLAINPW1,
+  IDC_BUGS_RSA1,
+  IDC_BUGD_RSA1,
+  IDC_BUGS_HMAC2,
+  IDC_BUGD_HMAC2,
+  IDC_BUGS_DERIVEKEY2,
+  IDC_BUGD_DERIVEKEY2,
+  IDC_BUGS_RSAPAD2,
+  IDC_BUGD_RSAPAD2,
+  IDC_BUGS_DHGEX2,
+  IDC_BUGD_DHGEX2,
+  sshbugspanelend,
 
   selectionpanelstart,
   IDC_TITLE_SELECTION,
@@ -659,9 +721,7 @@ char *help_context_cmd(int id)
   case IDC_KPSTATIC:
   case IDC_KPNORMAL:
   case IDC_KPAPPLIC:
-  case IDC_NOAPPLICK:
     return "JI(`',`keyboard.appkeypad')";
-  case IDC_NOAPPLICC:
   case IDC_CURSTATIC:
   case IDC_CURNORMAL:
   case IDC_CURAPPLIC:
@@ -672,6 +732,22 @@ char *help_context_cmd(int id)
     return "JI(`',`keyboard.compose')";
   case IDC_CTRLALTKEYS:
     return "JI(`',`keyboard.ctrlalt')";
+
+  case IDC_NOAPPLICK:
+  case IDC_NOAPPLICC:
+    return "JI(`',`features.application')";
+  case IDC_NOMOUSEREP:
+    return "JI(`',`features.mouse')";
+  case IDC_NORESIZE:
+    return "JI(`',`features.resize')";
+  case IDC_NOALTSCREEN:
+    return "JI(`',`features.altscreen')";
+  case IDC_NOWINTITLE:
+    return "JI(`',`features.retitle')";
+  case IDC_NODBACKSPACE:
+    return "JI(`',`features.dbackspace')";
+  case IDC_NOCHARSET:
+    return "JI(`',`features.charset')";
 
   case IDC_WRAPMODE:
     return "JI(`',`terminal.autowrap')";
@@ -696,6 +772,9 @@ char *help_context_cmd(int id)
   case IDC_EDITYES:
   case IDC_EDITNO:
     return "JI(`',`terminal.localedit')";
+  case IDC_PRINTERSTATIC:
+  case IDC_PRINTER:
+    return "JI(`',`terminal.printing')";
 
   case IDC_BELLSTATIC:
   case IDC_BELL_DISABLED:
@@ -785,6 +864,33 @@ char *help_context_cmd(int id)
   case IDC_NODELAY:
     return "JI(`',`connection.nodelay')";
 
+  case IDC_PROXYTYPESTATIC:
+  case IDC_PROXYTYPENONE:
+  case IDC_PROXYTYPEHTTP:
+  case IDC_PROXYTYPESOCKS:
+  case IDC_PROXYTYPETELNET:
+    return "JI(`',`proxy.type')";
+  case IDC_PROXYHOSTSTATIC:
+  case IDC_PROXYHOSTEDIT:
+  case IDC_PROXYPORTSTATIC:
+  case IDC_PROXYPORTEDIT:
+    return "JI(`',`proxy.main')";
+  case IDC_PROXYEXCLUDESTATIC:
+  case IDC_PROXYEXCLUDEEDIT:
+    return "JI(`',`proxy.exclude')";
+  case IDC_PROXYUSERSTATIC:
+  case IDC_PROXYUSEREDIT:
+  case IDC_PROXYPASSSTATIC:
+  case IDC_PROXYPASSEDIT:
+    return "JI(`',`proxy.auth')";
+  case IDC_PROXYTELNETCMDSTATIC:
+  case IDC_PROXYTELNETCMDEDIT:
+    return "JI(`',`proxy.command')";
+  case IDC_PROXYSOCKSVERSTATIC:
+  case IDC_PROXYSOCKSVER5:
+  case IDC_PROXYSOCKSVER4:
+    return "JI(`',`proxy.socksver')";
+
   case IDC_TSSTATIC:
   case IDC_TSEDIT:
     return "JI(`',`telnet.termspeed')";
@@ -825,11 +931,11 @@ char *help_context_cmd(int id)
   case IDC_CIPHERDN:
   case IDC_SSH2DES:
     return "JI(`',`ssh.ciphers')";
-  case IDC_BUGGYMAC:
-    return "JI(`',`ssh.buggymac')";
   case IDC_SSHPROTSTATIC:
+  case IDC_SSHPROT1ONLY:
   case IDC_SSHPROT1:
   case IDC_SSHPROT2:
+  case IDC_SSHPROT2ONLY:
     return "JI(`',`ssh.protocol')";
   case IDC_CMDSTATIC:
   case IDC_CMDEDIT:
@@ -919,6 +1025,28 @@ char *help_context_cmd(int id)
   case IDC_RPORT_ALL:
     return "JI(`',`ssh.tunnels.portfwd.localhost')";
 
+  case IDC_BUGS_IGNORE1:
+  case IDC_BUGD_IGNORE1:
+    return "JI(`',`ssh.bugs.ignore1')";
+  case IDC_BUGS_PLAINPW1:
+  case IDC_BUGD_PLAINPW1:
+    return "JI(`',`ssh.bugs.plainpw1')";
+  case IDC_BUGS_RSA1:
+  case IDC_BUGD_RSA1:
+    return "JI(`',`ssh.bugs.rsa1')";
+  case IDC_BUGS_HMAC2:
+  case IDC_BUGD_HMAC2:
+    return "JI(`',`ssh.bugs.hmac2')";
+  case IDC_BUGS_DERIVEKEY2:
+  case IDC_BUGD_DERIVEKEY2:
+    return "JI(`',`ssh.bugs.derivekey2')";
+  case IDC_BUGS_RSAPAD2:
+  case IDC_BUGD_RSAPAD2:
+    return "JI(`',`ssh.bugs.rsapad2')";
+  case IDC_BUGS_DHGEX2:
+  case IDC_BUGD_DHGEX2:
+    return "JI(`',`ssh.bugs.dhgex2')";
+
   default:
     return NULL;
   }
@@ -981,6 +1109,12 @@ static void init_dlg_ctrls(HWND hwnd, int keepsess)
                                                      : IDC_FUNCTILDE);
   CheckDlgButton(hwnd, IDC_NOAPPLICC, cfg.no_applic_c);
   CheckDlgButton(hwnd, IDC_NOAPPLICK, cfg.no_applic_k);
+  CheckDlgButton(hwnd, IDC_NOMOUSEREP, cfg.no_mouse_rep);
+  CheckDlgButton(hwnd, IDC_NORESIZE, cfg.no_remote_resize);
+  CheckDlgButton(hwnd, IDC_NOALTSCREEN, cfg.no_alt_screen);
+  CheckDlgButton(hwnd, IDC_NOWINTITLE, cfg.no_remote_wintitle);
+  CheckDlgButton(hwnd, IDC_NODBACKSPACE, cfg.no_dbackspace);
+  CheckDlgButton(hwnd, IDC_NOCHARSET, cfg.no_remote_charset);
   CheckRadioButton(hwnd,
                    IDC_CURNORMAL,
                    IDC_CURAPPLIC,
@@ -1134,14 +1268,18 @@ static void init_dlg_ctrls(HWND hwnd, int keepsess)
   SetDlgItemText(hwnd, IDC_LOGEDIT, cfg.username);
   CheckDlgButton(hwnd, IDC_NOPTY, cfg.nopty);
   CheckDlgButton(hwnd, IDC_COMPRESS, cfg.compression);
-  CheckDlgButton(hwnd, IDC_BUGGYMAC, cfg.buggymac);
   CheckDlgButton(hwnd, IDC_SSH2DES, cfg.ssh2_des_cbc);
   CheckDlgButton(hwnd, IDC_AGENTFWD, cfg.agentfwd);
   CheckDlgButton(hwnd, IDC_CHANGEUSER, cfg.change_username);
   CheckRadioButton(hwnd,
-                   IDC_SSHPROT1,
-                   IDC_SSHPROT2,
-                   cfg.sshprot == 1 ? IDC_SSHPROT1 : IDC_SSHPROT2);
+                   IDC_SSHPROT1ONLY,
+                   IDC_SSHPROT2ONLY,
+                   cfg.sshprot == 1
+                       ? IDC_SSHPROT1
+                       : cfg.sshprot == 2
+                             ? IDC_SSHPROT2
+                             : cfg.sshprot == 3 ? IDC_SSHPROT2ONLY
+                                                : IDC_SSHPROT1ONLY);
   CheckDlgButton(hwnd, IDC_AUTHTIS, cfg.try_tis_auth);
   CheckDlgButton(hwnd, IDC_AUTHKI, cfg.try_ki_auth);
   SetDlgItemText(hwnd, IDC_PKEDIT, cfg.keyfile);
@@ -1232,6 +1370,24 @@ static void init_dlg_ctrls(HWND hwnd, int keepsess)
     SetDlgItemText(hwnd, IDC_CODEPAGE, cfg.line_codepage);
   }
 
+  {
+    int i, nprinters;
+    printer_enum *pe;
+    pe = printer_start_enum(&nprinters);
+    SendDlgItemMessage(hwnd, IDC_PRINTER, CB_RESETCONTENT, 0, 0);
+    SendDlgItemMessage(
+        hwnd, IDC_PRINTER, CB_ADDSTRING, 0, (LPARAM)PRINTER_DISABLED_STRING);
+    for (i = 0; i < nprinters; i++) {
+      char *printer_name = printer_get_name(pe, i);
+      SendDlgItemMessage(
+          hwnd, IDC_PRINTER, CB_ADDSTRING, 0, (LPARAM)printer_name);
+    }
+    printer_finish_enum(pe);
+    SetDlgItemText(hwnd,
+                   IDC_PRINTER,
+                   *cfg.printer ? cfg.printer : PRINTER_DISABLED_STRING);
+  }
+
   CheckRadioButton(hwnd,
                    IDC_VTXWINDOWS,
                    IDC_VTUNICODE,
@@ -1250,6 +1406,105 @@ static void init_dlg_ctrls(HWND hwnd, int keepsess)
   CheckDlgButton(hwnd, IDC_LPORT_ALL, cfg.lport_acceptall);
   CheckDlgButton(hwnd, IDC_RPORT_ALL, cfg.rport_acceptall);
   CheckRadioButton(hwnd, IDC_PFWDLOCAL, IDC_PFWDREMOTE, IDC_PFWDLOCAL);
+
+  /* proxy config */
+  CheckRadioButton(hwnd,
+                   IDC_PROXYTYPENONE,
+                   IDC_PROXYTYPETELNET,
+                   cfg.proxy_type == PROXY_HTTP
+                       ? IDC_PROXYTYPEHTTP
+                       : cfg.proxy_type == PROXY_SOCKS
+                             ? IDC_PROXYTYPESOCKS
+                             : cfg.proxy_type == PROXY_TELNET
+                                   ? IDC_PROXYTYPETELNET
+                                   : IDC_PROXYTYPENONE);
+  SetDlgItemText(hwnd, IDC_PROXYHOSTEDIT, cfg.proxy_host);
+  SetDlgItemInt(hwnd, IDC_PROXYPORTEDIT, cfg.proxy_port, FALSE);
+  SetDlgItemText(hwnd, IDC_PROXYEXCLUDEEDIT, cfg.proxy_exclude_list);
+  SetDlgItemText(hwnd, IDC_PROXYTELNETCMDEDIT, cfg.proxy_telnet_command);
+  SetDlgItemText(hwnd, IDC_PROXYUSEREDIT, cfg.proxy_username);
+  SetDlgItemText(hwnd, IDC_PROXYPASSEDIT, cfg.proxy_password);
+  CheckRadioButton(hwnd,
+                   IDC_PROXYSOCKSVER5,
+                   IDC_PROXYSOCKSVER4,
+                   cfg.proxy_socks_version == 4 ? IDC_PROXYSOCKSVER4
+                                                : IDC_PROXYSOCKSVER5);
+
+  /* SSH bugs config */
+  SendDlgItemMessage(hwnd, IDC_BUGD_IGNORE1, CB_RESETCONTENT, 0, 0);
+  SendDlgItemMessage(hwnd, IDC_BUGD_IGNORE1, CB_ADDSTRING, 0, (LPARAM) "Auto");
+  SendDlgItemMessage(hwnd, IDC_BUGD_IGNORE1, CB_ADDSTRING, 0, (LPARAM) "Off");
+  SendDlgItemMessage(hwnd, IDC_BUGD_IGNORE1, CB_ADDSTRING, 0, (LPARAM) "On");
+  SendDlgItemMessage(
+      hwnd,
+      IDC_BUGD_IGNORE1,
+      CB_SETCURSEL,
+      cfg.sshbug_ignore1 == BUG_ON ? 2 : cfg.sshbug_ignore1 == BUG_OFF ? 1 : 0,
+      0);
+  SendDlgItemMessage(hwnd, IDC_BUGD_PLAINPW1, CB_RESETCONTENT, 0, 0);
+  SendDlgItemMessage(hwnd, IDC_BUGD_PLAINPW1, CB_ADDSTRING, 0, (LPARAM) "Auto");
+  SendDlgItemMessage(hwnd, IDC_BUGD_PLAINPW1, CB_ADDSTRING, 0, (LPARAM) "Off");
+  SendDlgItemMessage(hwnd, IDC_BUGD_PLAINPW1, CB_ADDSTRING, 0, (LPARAM) "On");
+  SendDlgItemMessage(hwnd,
+                     IDC_BUGD_PLAINPW1,
+                     CB_SETCURSEL,
+                     cfg.sshbug_plainpw1 == BUG_ON
+                         ? 2
+                         : cfg.sshbug_plainpw1 == BUG_OFF ? 1 : 0,
+                     0);
+  SendDlgItemMessage(hwnd, IDC_BUGD_RSA1, CB_RESETCONTENT, 0, 0);
+  SendDlgItemMessage(hwnd, IDC_BUGD_RSA1, CB_ADDSTRING, 0, (LPARAM) "Auto");
+  SendDlgItemMessage(hwnd, IDC_BUGD_RSA1, CB_ADDSTRING, 0, (LPARAM) "Off");
+  SendDlgItemMessage(hwnd, IDC_BUGD_RSA1, CB_ADDSTRING, 0, (LPARAM) "On");
+  SendDlgItemMessage(
+      hwnd,
+      IDC_BUGD_RSA1,
+      CB_SETCURSEL,
+      cfg.sshbug_rsa1 == BUG_ON ? 2 : cfg.sshbug_rsa1 == BUG_OFF ? 1 : 0,
+      0);
+  SendDlgItemMessage(hwnd, IDC_BUGD_HMAC2, CB_RESETCONTENT, 0, 0);
+  SendDlgItemMessage(hwnd, IDC_BUGD_HMAC2, CB_ADDSTRING, 0, (LPARAM) "Auto");
+  SendDlgItemMessage(hwnd, IDC_BUGD_HMAC2, CB_ADDSTRING, 0, (LPARAM) "Off");
+  SendDlgItemMessage(hwnd, IDC_BUGD_HMAC2, CB_ADDSTRING, 0, (LPARAM) "On");
+  SendDlgItemMessage(
+      hwnd,
+      IDC_BUGD_HMAC2,
+      CB_SETCURSEL,
+      cfg.sshbug_hmac2 == BUG_ON ? 2 : cfg.sshbug_hmac2 == BUG_OFF ? 1 : 0,
+      0);
+  SendDlgItemMessage(hwnd, IDC_BUGD_DERIVEKEY2, CB_RESETCONTENT, 0, 0);
+  SendDlgItemMessage(
+      hwnd, IDC_BUGD_DERIVEKEY2, CB_ADDSTRING, 0, (LPARAM) "Auto");
+  SendDlgItemMessage(
+      hwnd, IDC_BUGD_DERIVEKEY2, CB_ADDSTRING, 0, (LPARAM) "Off");
+  SendDlgItemMessage(hwnd, IDC_BUGD_DERIVEKEY2, CB_ADDSTRING, 0, (LPARAM) "On");
+  SendDlgItemMessage(hwnd,
+                     IDC_BUGD_DERIVEKEY2,
+                     CB_SETCURSEL,
+                     cfg.sshbug_derivekey2 == BUG_ON
+                         ? 2
+                         : cfg.sshbug_derivekey2 == BUG_OFF ? 1 : 0,
+                     0);
+  SendDlgItemMessage(hwnd, IDC_BUGD_RSAPAD2, CB_RESETCONTENT, 0, 0);
+  SendDlgItemMessage(hwnd, IDC_BUGD_RSAPAD2, CB_ADDSTRING, 0, (LPARAM) "Auto");
+  SendDlgItemMessage(hwnd, IDC_BUGD_RSAPAD2, CB_ADDSTRING, 0, (LPARAM) "Off");
+  SendDlgItemMessage(hwnd, IDC_BUGD_RSAPAD2, CB_ADDSTRING, 0, (LPARAM) "On");
+  SendDlgItemMessage(
+      hwnd,
+      IDC_BUGD_RSAPAD2,
+      CB_SETCURSEL,
+      cfg.sshbug_rsapad2 == BUG_ON ? 2 : cfg.sshbug_rsapad2 == BUG_OFF ? 1 : 0,
+      0);
+  SendDlgItemMessage(hwnd, IDC_BUGD_DHGEX2, CB_RESETCONTENT, 0, 0);
+  SendDlgItemMessage(hwnd, IDC_BUGD_DHGEX2, CB_ADDSTRING, 0, (LPARAM) "Auto");
+  SendDlgItemMessage(hwnd, IDC_BUGD_DHGEX2, CB_ADDSTRING, 0, (LPARAM) "Off");
+  SendDlgItemMessage(hwnd, IDC_BUGD_DHGEX2, CB_ADDSTRING, 0, (LPARAM) "On");
+  SendDlgItemMessage(
+      hwnd,
+      IDC_BUGD_DHGEX2,
+      CB_SETCURSEL,
+      cfg.sshbug_dhgex2 == BUG_ON ? 2 : cfg.sshbug_dhgex2 == BUG_OFF ? 1 : 0,
+      0);
 }
 
 struct treeview_faff {
@@ -1288,7 +1543,7 @@ static HTREEITEM treeview_insert(struct treeview_faff *faff,
 static void create_controls(HWND hwnd, int dlgtype, int panel)
 {
   if (panel == sessionpanelstart) {
-    /* The Session panel. Accelerators used: [acgo] nprtih elsd w */
+    /* The Session panel. Accelerators used: [acgoh] nprtis elvd w */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     bartitle(&cp, "Basic options for your PuTTY session", IDC_TITLE_SESSION);
@@ -1331,9 +1586,9 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
                   "Rlog&in",
                   IDC_PROTRLOGIN,
 #ifdef FWHACK
-                  "SS&H/hack",
+                  "&SSH/hack",
 #else
-                  "SS&H",
+                  "&SSH",
 #endif
                   IDC_PROTSSH,
                   NULL);
@@ -1347,7 +1602,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
                 IDC_SESSLIST,
                 "&Load",
                 IDC_SESSLOAD,
-                "&Save",
+                "Sa&ve",
                 IDC_SESSSAVE,
                 "&Delete",
                 IDC_SESSDEL,
@@ -1370,7 +1625,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
   }
 
   if (panel == loggingpanelstart) {
-    /* The Logging panel. Accelerators used: [acgo] tplsfwe */
+    /* The Logging panel. Accelerators used: [acgoh] tplsfwe */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     bartitle(&cp, "Options controlling session logging", IDC_TITLE_LOGGING);
@@ -1412,7 +1667,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
   }
 
   if (panel == terminalpanelstart) {
-    /* The Terminal panel. Accelerators used: [acgo] wdlen hts */
+    /* The Terminal panel. Accelerators used: [acgoh] wdren lts p */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     bartitle(
@@ -1420,7 +1675,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
     beginbox(&cp, "Set various terminal options", IDC_BOX_TERMINAL1);
     checkbox(&cp, "Auto &wrap mode initially on", IDC_WRAPMODE);
     checkbox(&cp, "&DEC Origin Mode initially on", IDC_DECOM);
-    checkbox(&cp, "Implicit CR in every &LF", IDC_LFHASCR);
+    checkbox(&cp, "Implicit C&R in every LF", IDC_LFHASCR);
     checkbox(&cp, "Use background colour to &erase screen", IDC_BCE);
     checkbox(&cp, "Enable bli&nking text", IDC_BLINKTEXT);
     multiedit(
@@ -1429,7 +1684,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
 
     beginbox(&cp, "Line discipline options", IDC_BOX_TERMINAL2);
     radioline(&cp,
-              "Local ec&ho:",
+              "&Local echo:",
               IDC_ECHOSTATIC,
               3,
               "Auto",
@@ -1451,10 +1706,44 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
               IDC_EDITNO,
               NULL);
     endbox(&cp);
+
+    beginbox(&cp, "Remote-controlled printing", IDC_BOX_TERMINAL3);
+    combobox(&cp,
+             "&Printer to send ANSI printer output to:",
+             IDC_PRINTERSTATIC,
+             IDC_PRINTER);
+    endbox(&cp);
+  }
+
+  if (panel == featurespanelstart) {
+    /* The Features panel. Accelerators used: [acgoh] ukswtbrx */
+    struct ctlpos cp;
+    ctlposinit(&cp, hwnd, 80, 3, 13);
+    bartitle(&cp,
+             "Enabling and disabling advanced terminal features ",
+             IDC_TITLE_FEATURES);
+    beginbox(&cp, NULL, IDC_BOX_FEATURES1);
+    checkbox(&cp, "Disable application c&ursor keys mode", IDC_NOAPPLICC);
+    checkbox(&cp, "Disable application &keypad mode", IDC_NOAPPLICK);
+    checkbox(&cp, "Disable &xterm-style mouse reporting", IDC_NOMOUSEREP);
+    checkbox(&cp, "Disable remote-controlled terminal re&sizing", IDC_NORESIZE);
+    checkbox(&cp,
+             "Disable s&witching to alternate terminal screen",
+             IDC_NOALTSCREEN);
+    checkbox(&cp,
+             "Disable remote-controlled window &title changing",
+             IDC_NOWINTITLE);
+    checkbox(&cp,
+             "Disable destructive &backspace on server sending ^?",
+             IDC_NODBACKSPACE);
+    checkbox(&cp,
+             "Disable remote-controlled cha&racter set configuration",
+             IDC_NOCHARSET);
+    endbox(&cp);
   }
 
   if (panel == bellpanelstart) {
-    /* The Bell panel. Accelerators used: [acgo] bdsm wit */
+    /* The Bell panel. Accelerators used: [acgoh] bdsm wit */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     bartitle(&cp, "Options controlling the terminal bell", IDC_TITLE_BELL);
@@ -1511,7 +1800,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
   }
 
   if (panel == keyboardpanelstart) {
-    /* The Keyboard panel. Accelerators used: [acgo] bhf ruyntd */
+    /* The Keyboard panel. Accelerators used: [acgoh] bef rntd */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     bartitle(
@@ -1527,7 +1816,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
               IDC_DEL127,
               NULL);
     radioline(&cp,
-              "The &Home and End keys",
+              "The Home and &End keys",
               IDC_HOMESTATIC,
               2,
               "Standard",
@@ -1554,7 +1843,6 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
               NULL);
     endbox(&cp);
     beginbox(&cp, "Application keypad settings:", IDC_BOX_KEYBOARD2);
-    checkbox(&cp, "Application c&ursor keys totally disabled", IDC_NOAPPLICC);
     radioline(&cp,
               "Initial state of cu&rsor keys:",
               IDC_CURSTATIC,
@@ -1564,7 +1852,6 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
               "Application",
               IDC_CURAPPLIC,
               NULL);
-    checkbox(&cp, "Application ke&ypad keys totally disabled", IDC_NOAPPLICK);
     radioline(&cp,
               "Initial state of &numeric keypad:",
               IDC_KPSTATIC,
@@ -1584,7 +1871,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
   }
 
   if (panel == windowpanelstart) {
-    /* The Window panel. Accelerators used: [acgo] rmz sdikp */
+    /* The Window panel. Accelerators used: [acgoh] rmz sdikp */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     bartitle(&cp, "Options controlling PuTTY's window", IDC_TITLE_WINDOW);
@@ -1623,7 +1910,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
   }
 
   if (panel == appearancepanelstart) {
-    /* The Appearance panel. Accelerators used: [acgo] luvb h ti p s */
+    /* The Appearance panel. Accelerators used: [acgoh] luvb n ti p s */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     bartitle(&cp,
@@ -1645,7 +1932,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
     endbox(&cp);
     beginbox(
         &cp, "Set the font used in the terminal window", IDC_BOX_APPEARANCE2);
-    staticbtn(&cp, "", IDC_FONTSTATIC, "C&hange...", IDC_CHOOSEFONT);
+    staticbtn(&cp, "", IDC_FONTSTATIC, "Cha&nge...", IDC_CHOOSEFONT);
     endbox(&cp);
     beginbox(&cp, "Adjust the use of the window title", IDC_BOX_APPEARANCE3);
     multiedit(&cp, "Window &title:", IDC_WINTITLE, IDC_WINEDIT, 100, NULL);
@@ -1665,7 +1952,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
   }
 
   if (panel == behaviourpanelstart) {
-    /* The Behaviour panel. Accelerators used: [acgo] w4yltf */
+    /* The Behaviour panel. Accelerators used: [acgoh] w4yltf */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     bartitle(
@@ -1681,7 +1968,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
   }
 
   if (panel == translationpanelstart) {
-    /* The Translation panel. Accelerators used: [acgo] rxbepus */
+    /* The Translation panel. Accelerators used: [acgoh] rxbepus */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     bartitle(&cp,
@@ -1727,7 +2014,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
   }
 
   if (panel == selectionpanelstart) {
-    /* The Selection panel. Accelerators used: [acgo] df wxp hst nr */
+    /* The Selection panel. Accelerators used: [acgoh] df wxp est nr */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     bartitle(&cp, "Options controlling copy and paste", IDC_TITLE_SELECTION);
@@ -1762,7 +2049,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
     beginbox(
         &cp, "Control the select-one-word-at-a-time mode", IDC_BOX_SELECTION3);
     charclass(&cp,
-              "C&haracter classes:",
+              "Charact&er classes:",
               IDC_CCSTATIC,
               IDC_CCLIST,
               "&Set",
@@ -1774,7 +2061,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
   }
 
   if (panel == colourspanelstart) {
-    /* The Colours panel. Accelerators used: [acgo] blum */
+    /* The Colours panel. Accelerators used: [acgoh] blum */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     bartitle(&cp, "Options controlling use of colours", IDC_TITLE_COLOURS);
@@ -1804,7 +2091,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
   }
 
   if (panel == connectionpanelstart) {
-    /* The Connection panel. Accelerators used: [acgo] tukn */
+    /* The Connection panel. Accelerators used: [acgoh] tukn */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     bartitle(&cp, "Options controlling the connection", IDC_TITLE_CONNECTION);
@@ -1838,8 +2125,68 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
     }
   }
 
+  if (panel == proxypanelstart) {
+    /* The Proxy panel. Accelerators used: [acgoh] ntslypeuwmv */
+    struct ctlpos cp;
+    ctlposinit(&cp, hwnd, 80, 3, 13);
+    if (dlgtype == 0) {
+      bartitle(&cp, "Options controlling proxy usage", IDC_TITLE_PROXY);
+      beginbox(&cp, "Proxy basics", IDC_BOX_PROXY1);
+      radioline(&cp,
+                "Proxy type:",
+                IDC_PROXYTYPESTATIC,
+                4,
+                "&None",
+                IDC_PROXYTYPENONE,
+                "H&TTP",
+                IDC_PROXYTYPEHTTP,
+                "&SOCKS",
+                IDC_PROXYTYPESOCKS,
+                "Te&lnet",
+                IDC_PROXYTYPETELNET,
+                NULL);
+      multiedit(&cp,
+                "Prox&y Host",
+                IDC_PROXYHOSTSTATIC,
+                IDC_PROXYHOSTEDIT,
+                80,
+                "&Port",
+                IDC_PROXYPORTSTATIC,
+                IDC_PROXYPORTEDIT,
+                20,
+                NULL);
+      multiedit(&cp,
+                "&Exclude Hosts/IPs",
+                IDC_PROXYEXCLUDESTATIC,
+                IDC_PROXYEXCLUDEEDIT,
+                100,
+                NULL);
+      staticedit(&cp, "&Username", IDC_PROXYUSERSTATIC, IDC_PROXYUSEREDIT, 60);
+      staticpassedit(
+          &cp, "Pass&word", IDC_PROXYPASSSTATIC, IDC_PROXYPASSEDIT, 60);
+      endbox(&cp);
+      beginbox(&cp, "Misc. proxy settings", IDC_BOX_PROXY2);
+      multiedit(&cp,
+                "Telnet co&mmand",
+                IDC_PROXYTELNETCMDSTATIC,
+                IDC_PROXYTELNETCMDEDIT,
+                100,
+                NULL);
+      radioline(&cp,
+                "SOCKS &Version",
+                IDC_PROXYSOCKSVERSTATIC,
+                2,
+                "Version 5",
+                IDC_PROXYSOCKSVER5,
+                "Version 4",
+                IDC_PROXYSOCKSVER4,
+                NULL);
+      endbox(&cp);
+    }
+  }
+
   if (panel == telnetpanelstart) {
-    /* The Telnet panel. Accelerators used: [acgo] svldr bftk */
+    /* The Telnet panel. Accelerators used: [acgoh] svldr bftk */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     if (dlgtype == 0) {
@@ -1889,7 +2236,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
   }
 
   if (panel == rloginpanelstart) {
-    /* The Rlogin panel. Accelerators used: [acgo] sl */
+    /* The Rlogin panel. Accelerators used: [acgoh] sl */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     if (dlgtype == 0) {
@@ -1904,7 +2251,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
   }
 
   if (panel == sshpanelstart) {
-    /* The SSH panel. Accelerators used: [acgo] r pe12i sd */
+    /* The SSH panel. Accelerators used: [acgoh] r pe12ni sd */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     if (dlgtype == 0) {
@@ -1918,14 +2265,16 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
       radioline(&cp,
                 "Preferred SSH protocol version:",
                 IDC_SSHPROTSTATIC,
-                2,
+                4,
+                "1 on&ly",
+                IDC_SSHPROT1ONLY,
                 "&1",
                 IDC_SSHPROT1,
                 "&2",
                 IDC_SSHPROT2,
+                "2 o&nly",
+                IDC_SSHPROT2ONLY,
                 NULL);
-      checkbox(
-          &cp, "&Imitate SSH 2 MAC bug in commercial <= v2.3.x", IDC_BUGGYMAC);
       endbox(&cp);
       beginbox(&cp, "Encryption options", IDC_BOX_SSH3);
       prefslist(&cipherlist,
@@ -1942,7 +2291,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
   }
 
   if (panel == sshauthpanelstart) {
-    /* The SSH authentication panel. Accelerators used: [acgo] m fkiw */
+    /* The SSH authentication panel. Accelerators used: [acgoh] m fkiuw */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     if (dlgtype == 0) {
@@ -1970,8 +2319,54 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
     }
   }
 
+  if (panel == sshbugspanelstart) {
+    /* The SSH bugs panel. Accelerators used: [acgoh] isrmep */
+    struct ctlpos cp;
+    ctlposinit(&cp, hwnd, 80, 3, 13);
+    if (dlgtype == 0) {
+      bartitle(&cp, "Workarounds for SSH server bugs", IDC_TITLE_SSHBUGS);
+      beginbox(&cp, "Detection of known bugs in SSH servers", IDC_BOX_SSHBUGS1);
+      staticddl(&cp,
+                "Chokes on SSH1 &ignore messages",
+                IDC_BUGS_IGNORE1,
+                IDC_BUGD_IGNORE1,
+                20);
+      staticddl(&cp,
+                "Refuses all SSH1 pa&ssword camouflage",
+                IDC_BUGS_PLAINPW1,
+                IDC_BUGD_PLAINPW1,
+                20);
+      staticddl(&cp,
+                "Chokes on SSH1 &RSA authentication",
+                IDC_BUGS_RSA1,
+                IDC_BUGD_RSA1,
+                20);
+      staticddl(&cp,
+                "Miscomputes SSH2 H&MAC keys",
+                IDC_BUGS_HMAC2,
+                IDC_BUGD_HMAC2,
+                20);
+      staticddl(&cp,
+                "Miscomputes SSH2 &encryption keys",
+                IDC_BUGS_DERIVEKEY2,
+                IDC_BUGD_DERIVEKEY2,
+                20);
+      staticddl(&cp,
+                "Requires &padding on SSH2 RSA signatures",
+                IDC_BUGS_RSAPAD2,
+                IDC_BUGD_RSAPAD2,
+                20);
+      staticddl(&cp,
+                "Chokes on &Diffie-Hellman group exchange",
+                IDC_BUGS_DHGEX2,
+                IDC_BUGD_DHGEX2,
+                20);
+      endbox(&cp);
+    }
+  }
+
   if (panel == tunnelspanelstart) {
-    /* The Tunnels panel. Accelerators used: [acgo] deilmrsthx */
+    /* The Tunnels panel. Accelerators used: [acgoh] deilmrstxp */
     struct ctlpos cp;
     ctlposinit(&cp, hwnd, 80, 3, 13);
     if (dlgtype == 0) {
@@ -1989,7 +2384,7 @@ static void create_controls(HWND hwnd, int dlgtype, int panel)
       checkbox(&cp,
                "Local ports accept connections from o&ther hosts",
                IDC_LPORT_ALL);
-      checkbox(&cp, "Remote ports do t&he same (SSH v2 only)", IDC_RPORT_ALL);
+      checkbox(&cp, "Remote &ports do the same (SSH v2 only)", IDC_RPORT_ALL);
       staticbtn(
           &cp, "Forwarded ports:", IDC_PFWDSTATIC, "&Remove", IDC_PFWDREMOVE);
       fwdsetter(&cp,
@@ -2152,6 +2547,7 @@ static int GenericMainDlgProc(
     treeview_insert(&tvfaff, 0, "Terminal");
     treeview_insert(&tvfaff, 1, "Keyboard");
     treeview_insert(&tvfaff, 1, "Bell");
+    treeview_insert(&tvfaff, 1, "Features");
     treeview_insert(&tvfaff, 0, "Window");
     treeview_insert(&tvfaff, 1, "Appearance");
     treeview_insert(&tvfaff, 1, "Behaviour");
@@ -2160,6 +2556,7 @@ static int GenericMainDlgProc(
     treeview_insert(&tvfaff, 1, "Colours");
     treeview_insert(&tvfaff, 0, "Connection");
     if (dlgtype == 0) {
+      treeview_insert(&tvfaff, 1, "Proxy");
       treeview_insert(&tvfaff, 1, "Telnet");
       treeview_insert(&tvfaff, 1, "Rlogin");
       if (backends[3].backend != NULL) {
@@ -2168,6 +2565,7 @@ static int GenericMainDlgProc(
         /* XXX make it closed by default? */
         treeview_insert(&tvfaff, 2, "Auth");
         treeview_insert(&tvfaff, 2, "Tunnels");
+        treeview_insert(&tvfaff, 2, "Bugs");
       }
     }
 
@@ -2230,6 +2628,8 @@ static int GenericMainDlgProc(
         create_controls(hwnd, dlgtype, terminalpanelstart);
       if (!strcmp(buffer, "Bell"))
         create_controls(hwnd, dlgtype, bellpanelstart);
+      if (!strcmp(buffer, "Features"))
+        create_controls(hwnd, dlgtype, featurespanelstart);
       if (!strcmp(buffer, "Window"))
         create_controls(hwnd, dlgtype, windowpanelstart);
       if (!strcmp(buffer, "Appearance"))
@@ -2240,6 +2640,8 @@ static int GenericMainDlgProc(
         create_controls(hwnd, dlgtype, tunnelspanelstart);
       if (!strcmp(buffer, "Connection"))
         create_controls(hwnd, dlgtype, connectionpanelstart);
+      if (!strcmp(buffer, "Proxy"))
+        create_controls(hwnd, dlgtype, proxypanelstart);
       if (!strcmp(buffer, "Telnet"))
         create_controls(hwnd, dlgtype, telnetpanelstart);
       if (!strcmp(buffer, "Rlogin"))
@@ -2248,6 +2650,8 @@ static int GenericMainDlgProc(
         create_controls(hwnd, dlgtype, sshpanelstart);
       if (!strcmp(buffer, "Auth"))
         create_controls(hwnd, dlgtype, sshauthpanelstart);
+      if (!strcmp(buffer, "Bugs"))
+        create_controls(hwnd, dlgtype, sshbugspanelstart);
       if (!strcmp(buffer, "Selection"))
         create_controls(hwnd, dlgtype, selectionpanelstart);
       if (!strcmp(buffer, "Colours"))
@@ -2320,9 +2724,21 @@ static int GenericMainDlgProc(
           int k = IsDlgButtonChecked(hwnd, IDC_PROTRLOGIN);
           cfg.protocol =
               i ? PROT_SSH : j ? PROT_TELNET : k ? PROT_RLOGIN : PROT_RAW;
-          if ((cfg.protocol == PROT_SSH && cfg.port != 22) ||
-              (cfg.protocol == PROT_TELNET && cfg.port != 23) ||
-              (cfg.protocol == PROT_RLOGIN && cfg.port != 513)) {
+          /*
+           * When switching using the arrow keys, we
+           * appear to get two of these messages, both
+           * mentioning the target button in
+           * LOWORD(wParam), but one of them called while
+           * the previous button is still checked. This
+           * causes an unnecessary reset of the port
+           * number field, which we fix by ensuring here
+           * that the button selected is indeed the one
+           * checked.
+           */
+          if (IsDlgButtonChecked(hwnd, LOWORD(wParam)) &&
+              ((cfg.protocol == PROT_SSH && cfg.port != 22) ||
+               (cfg.protocol == PROT_TELNET && cfg.port != 23) ||
+               (cfg.protocol == PROT_RLOGIN && cfg.port != 513))) {
             cfg.port = i ? 22 : j ? 23 : 513;
             SetDlgItemInt(hwnd, IDC_PORT, cfg.port, FALSE);
           }
@@ -2503,6 +2919,30 @@ static int GenericMainDlgProc(
       case IDC_NOAPPLICK:
         if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
           cfg.no_applic_k = IsDlgButtonChecked(hwnd, IDC_NOAPPLICK);
+        break;
+      case IDC_NOMOUSEREP:
+        if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
+          cfg.no_mouse_rep = IsDlgButtonChecked(hwnd, IDC_NOMOUSEREP);
+        break;
+      case IDC_NORESIZE:
+        if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
+          cfg.no_remote_resize = IsDlgButtonChecked(hwnd, IDC_NORESIZE);
+        break;
+      case IDC_NOALTSCREEN:
+        if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
+          cfg.no_alt_screen = IsDlgButtonChecked(hwnd, IDC_NOALTSCREEN);
+        break;
+      case IDC_NOWINTITLE:
+        if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
+          cfg.no_remote_wintitle = IsDlgButtonChecked(hwnd, IDC_NOWINTITLE);
+        break;
+      case IDC_NODBACKSPACE:
+        if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
+          cfg.no_dbackspace = IsDlgButtonChecked(hwnd, IDC_NODBACKSPACE);
+        break;
+      case IDC_NOCHARSET:
+        if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
+          cfg.no_remote_charset = IsDlgButtonChecked(hwnd, IDC_NOCHARSET);
         break;
       case IDC_ALTF4:
         if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
@@ -2805,6 +3245,82 @@ static int GenericMainDlgProc(
           GetDlgItemText(
               hwnd, IDC_TTEDIT, cfg.termtype, sizeof(cfg.termtype) - 1);
         break;
+
+        /* proxy config */
+      case IDC_PROXYHOSTEDIT:
+        if (HIWORD(wParam) == EN_CHANGE)
+          GetDlgItemText(hwnd,
+                         IDC_PROXYHOSTEDIT,
+                         cfg.proxy_host,
+                         sizeof(cfg.proxy_host) - 1);
+        break;
+      case IDC_PROXYPORTEDIT:
+        if (HIWORD(wParam) == EN_CHANGE) {
+          GetDlgItemText(hwnd, IDC_PROXYPORTEDIT, portname, 31);
+          if (isdigit(portname[0]))
+            MyGetDlgItemInt(hwnd, IDC_PROXYPORTEDIT, &cfg.proxy_port);
+          else {
+            service = getservbyname(portname, NULL);
+            if (service)
+              cfg.proxy_port = ntohs(service->s_port);
+            else
+              cfg.proxy_port = 0;
+          }
+        }
+        break;
+      case IDC_PROXYEXCLUDEEDIT:
+        if (HIWORD(wParam) == EN_CHANGE)
+          GetDlgItemText(hwnd,
+                         IDC_PROXYEXCLUDEEDIT,
+                         cfg.proxy_exclude_list,
+                         sizeof(cfg.proxy_exclude_list) - 1);
+        break;
+      case IDC_PROXYUSEREDIT:
+        if (HIWORD(wParam) == EN_CHANGE)
+          GetDlgItemText(hwnd,
+                         IDC_PROXYUSEREDIT,
+                         cfg.proxy_username,
+                         sizeof(cfg.proxy_username) - 1);
+        break;
+      case IDC_PROXYPASSEDIT:
+        if (HIWORD(wParam) == EN_CHANGE)
+          GetDlgItemText(hwnd,
+                         IDC_PROXYPASSEDIT,
+                         cfg.proxy_password,
+                         sizeof(cfg.proxy_password) - 1);
+        break;
+      case IDC_PROXYTELNETCMDEDIT:
+        if (HIWORD(wParam) == EN_CHANGE)
+          GetDlgItemText(hwnd,
+                         IDC_PROXYTELNETCMDEDIT,
+                         cfg.proxy_telnet_command,
+                         sizeof(cfg.proxy_telnet_command) - 1);
+        break;
+      case IDC_PROXYSOCKSVER5:
+      case IDC_PROXYSOCKSVER4:
+        if (HIWORD(wParam) == BN_CLICKED ||
+            HIWORD(wParam) == BN_DOUBLECLICKED) {
+          cfg.proxy_socks_version =
+              IsDlgButtonChecked(hwnd, IDC_PROXYSOCKSVER4) ? 4 : 5;
+        }
+        break;
+      case IDC_PROXYTYPENONE:
+      case IDC_PROXYTYPEHTTP:
+      case IDC_PROXYTYPESOCKS:
+      case IDC_PROXYTYPETELNET:
+        if (HIWORD(wParam) == BN_CLICKED ||
+            HIWORD(wParam) == BN_DOUBLECLICKED) {
+          cfg.proxy_type =
+              IsDlgButtonChecked(hwnd, IDC_PROXYTYPEHTTP)
+                  ? PROXY_HTTP
+                  : IsDlgButtonChecked(hwnd, IDC_PROXYTYPESOCKS)
+                        ? PROXY_SOCKS
+                        : IsDlgButtonChecked(hwnd, IDC_PROXYTYPETELNET)
+                              ? PROXY_TELNET
+                              : PROXY_NONE;
+        }
+        break;
+
       case IDC_LGFEDIT:
         if (HIWORD(wParam) == EN_CHANGE)
           GetDlgItemText(
@@ -2967,10 +3483,6 @@ static int GenericMainDlgProc(
         if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
           cfg.compression = IsDlgButtonChecked(hwnd, IDC_COMPRESS);
         break;
-      case IDC_BUGGYMAC:
-        if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
-          cfg.buggymac = IsDlgButtonChecked(hwnd, IDC_BUGGYMAC);
-        break;
       case IDC_SSH2DES:
         if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
           cfg.ssh2_des_cbc = IsDlgButtonChecked(hwnd, IDC_SSH2DES);
@@ -2994,14 +3506,20 @@ static int GenericMainDlgProc(
                          wParam,
                          lParam);
         break;
+      case IDC_SSHPROT1ONLY:
       case IDC_SSHPROT1:
       case IDC_SSHPROT2:
+      case IDC_SSHPROT2ONLY:
         if (HIWORD(wParam) == BN_CLICKED ||
             HIWORD(wParam) == BN_DOUBLECLICKED) {
+          if (IsDlgButtonChecked(hwnd, IDC_SSHPROT1ONLY))
+            cfg.sshprot = 0;
           if (IsDlgButtonChecked(hwnd, IDC_SSHPROT1))
             cfg.sshprot = 1;
           else if (IsDlgButtonChecked(hwnd, IDC_SSHPROT2))
             cfg.sshprot = 2;
+          else if (IsDlgButtonChecked(hwnd, IDC_SSHPROT2ONLY))
+            cfg.sshprot = 3;
         }
         break;
       case IDC_AUTHTIS:
@@ -3030,7 +3548,8 @@ static int GenericMainDlgProc(
         of.lStructSize = sizeof(of);
 #endif
         of.hwndOwner = hwnd;
-        of.lpstrFilter = "All Files\0*\0\0\0";
+        of.lpstrFilter = "PuTTY Private Key Files\0*.PPK\0"
+                         "AllFiles\0*\0\0\0";
         of.lpstrCustomFilter = NULL;
         of.nFilterIndex = 1;
         of.lpstrFile = filename;
@@ -3164,6 +3683,18 @@ static int GenericMainDlgProc(
           SetDlgItemText(hwnd, IDC_CODEPAGE, cfg.line_codepage);
         }
         break;
+      case IDC_PRINTER:
+        if (HIWORD(wParam) == CBN_SELCHANGE) {
+          int index = SendDlgItemMessage(hwnd, IDC_PRINTER, CB_GETCURSEL, 0, 0);
+          SendDlgItemMessage(
+              hwnd, IDC_PRINTER, CB_GETLBTEXT, index, (LPARAM)cfg.printer);
+        } else if (HIWORD(wParam) == CBN_EDITCHANGE) {
+          GetDlgItemText(
+              hwnd, IDC_PRINTER, cfg.printer, sizeof(cfg.printer) - 1);
+        }
+        if (!strcmp(cfg.printer, PRINTER_DISABLED_STRING))
+          *cfg.printer = '\0';
+        break;
       case IDC_CAPSLOCKCYR:
         if (HIWORD(wParam) == BN_CLICKED ||
             HIWORD(wParam) == BN_DOUBLECLICKED) {
@@ -3285,6 +3816,62 @@ static int GenericMainDlgProc(
           }
           *q = '\0';
         disaster2:;
+        }
+        break;
+      case IDC_BUGD_IGNORE1:
+        if (HIWORD(wParam) == CBN_SELCHANGE) {
+          int index =
+              SendDlgItemMessage(hwnd, IDC_BUGD_IGNORE1, CB_GETCURSEL, 0, 0);
+          cfg.sshbug_ignore1 =
+              (index == 0 ? BUG_AUTO : index == 1 ? BUG_OFF : BUG_ON);
+        }
+        break;
+      case IDC_BUGD_PLAINPW1:
+        if (HIWORD(wParam) == CBN_SELCHANGE) {
+          int index =
+              SendDlgItemMessage(hwnd, IDC_BUGD_PLAINPW1, CB_GETCURSEL, 0, 0);
+          cfg.sshbug_plainpw1 =
+              (index == 0 ? BUG_AUTO : index == 1 ? BUG_OFF : BUG_ON);
+        }
+        break;
+      case IDC_BUGD_RSA1:
+        if (HIWORD(wParam) == CBN_SELCHANGE) {
+          int index =
+              SendDlgItemMessage(hwnd, IDC_BUGD_RSA1, CB_GETCURSEL, 0, 0);
+          cfg.sshbug_rsa1 =
+              (index == 0 ? BUG_AUTO : index == 1 ? BUG_OFF : BUG_ON);
+        }
+        break;
+      case IDC_BUGD_HMAC2:
+        if (HIWORD(wParam) == CBN_SELCHANGE) {
+          int index =
+              SendDlgItemMessage(hwnd, IDC_BUGD_HMAC2, CB_GETCURSEL, 0, 0);
+          cfg.sshbug_hmac2 =
+              (index == 0 ? BUG_AUTO : index == 1 ? BUG_OFF : BUG_ON);
+        }
+        break;
+      case IDC_BUGD_DERIVEKEY2:
+        if (HIWORD(wParam) == CBN_SELCHANGE) {
+          int index =
+              SendDlgItemMessage(hwnd, IDC_BUGD_DERIVEKEY2, CB_GETCURSEL, 0, 0);
+          cfg.sshbug_derivekey2 =
+              (index == 0 ? BUG_AUTO : index == 1 ? BUG_OFF : BUG_ON);
+        }
+        break;
+      case IDC_BUGD_RSAPAD2:
+        if (HIWORD(wParam) == CBN_SELCHANGE) {
+          int index =
+              SendDlgItemMessage(hwnd, IDC_BUGD_RSAPAD2, CB_GETCURSEL, 0, 0);
+          cfg.sshbug_rsapad2 =
+              (index == 0 ? BUG_AUTO : index == 1 ? BUG_OFF : BUG_ON);
+        }
+        break;
+      case IDC_BUGD_DHGEX2:
+        if (HIWORD(wParam) == CBN_SELCHANGE) {
+          int index =
+              SendDlgItemMessage(hwnd, IDC_BUGD_DHGEX2, CB_GETCURSEL, 0, 0);
+          cfg.sshbug_dhgex2 =
+              (index == 0 ? BUG_AUTO : index == 1 ? BUG_OFF : BUG_ON);
         }
         break;
       }
@@ -3413,6 +4000,8 @@ void logevent(char *string)
   char timebuf[40];
   time_t t;
 
+  log_eventlog(string);
+
   if (nevents >= negsize) {
     negsize += 64;
     events = srealloc(events, negsize * sizeof(*events));
@@ -3505,7 +4094,7 @@ void verify_ssh_host_key(
     if (mbret == IDYES)
       store_host_key(host, port, keytype, keystr);
     if (mbret == IDCANCEL)
-      exit(0);
+      cleanup_exit(0);
   }
   if (ret == 1) { /* key was absent */
     int mbret;
@@ -3514,7 +4103,7 @@ void verify_ssh_host_key(
     if (mbret == IDYES)
       store_host_key(host, port, keytype, keystr);
     if (mbret == IDCANCEL)
-      exit(0);
+      cleanup_exit(0);
   }
 }
 
@@ -3543,7 +4132,7 @@ void askcipher(char *ciphername, int cs)
   if (mbret == IDYES)
     return;
   else
-    exit(0);
+    cleanup_exit(0);
 }
 
 /*

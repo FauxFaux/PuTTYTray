@@ -15,6 +15,7 @@
 #include "ssh.h"
 #include "misc.h"
 #include "tree234.h"
+#include "winstuff.h"
 
 #define IDI_MAINICON 200
 #define IDI_TRAYICON 201
@@ -44,11 +45,45 @@ static HINSTANCE instance;
 static HWND main_hwnd;
 static HWND keylist;
 static HWND aboutbox;
-static HMENU systray_menu;
+static HMENU systray_menu, session_menu;
 static int already_running;
 static int requested_help;
 
 static char *help_path;
+static char *putty_path;
+
+#define IDM_PUTTY 0x0060
+#define IDM_SESSIONS_BASE 0x1000
+#define IDM_SESSIONS_MAX 0x2000
+#define PUTTY_REGKEY "Software\\SimonTatham\\PuTTY\\Sessions"
+#define PUTTY_DEFAULT "Default%20Settings"
+static int initial_menuitems_count;
+
+/* Un-munge session names out of the registry. */
+static void unmungestr(char *in, char *out, int outlen)
+{
+  while (*in) {
+    if (*in == '%' && in[1] && in[2]) {
+      int i, j;
+
+      i = in[1] - '0';
+      i -= (i > 9 ? 7 : 0);
+      j = in[2] - '0';
+      j -= (j > 9 ? 7 : 0);
+
+      *out++ = (i << 4) + j;
+      if (!--outlen)
+        return;
+      in += 3;
+    } else {
+      *out++ = *in++;
+      if (!--outlen)
+        return;
+    }
+  }
+  *out = '\0';
+  return;
+}
 
 static tree234 *rsakeys, *ssh2keys;
 
@@ -365,13 +400,14 @@ static void add_keyfile(char *filename)
   int attempts;
   char *comment;
   struct PassphraseProcStruct pps;
-  int ver;
+  int type;
   int original_pass;
 
-  ver = keyfile_version(filename);
-  if (ver == 0) {
-    MessageBox(
-        NULL, "Couldn't load private key.", APPNAME, MB_OK | MB_ICONERROR);
+  type = key_type(filename);
+  if (type != SSH_KEYTYPE_SSH1 && type != SSH_KEYTYPE_SSH2) {
+    char msg[256];
+    sprintf(msg, "Couldn't load this key (%s)", key_type_to_str(type));
+    MessageBox(NULL, msg, APPNAME, MB_OK | MB_ICONERROR);
     return;
   }
 
@@ -384,7 +420,7 @@ static void add_keyfile(char *filename)
     unsigned char *keylist, *p;
     int i, nkeys, bloblen;
 
-    if (ver == 1) {
+    if (type == SSH_KEYTYPE_SSH1) {
       if (!rsakey_pubblob(filename, &blob, &bloblen)) {
         MessageBox(
             NULL, "Couldn't load private key.", APPNAME, MB_OK | MB_ICONERROR);
@@ -420,7 +456,7 @@ static void add_keyfile(char *filename)
           return;
         }
         /* Now skip over public blob */
-        if (ver == 1)
+        if (type == SSH_KEYTYPE_SSH1)
           p += rsa_public_blob_len(p);
         else
           p += 4 + GET_32BIT(p);
@@ -434,12 +470,12 @@ static void add_keyfile(char *filename)
     sfree(blob);
   }
 
-  if (ver == 1)
+  if (type == SSH_KEYTYPE_SSH1)
     needs_pass = rsakey_encrypted(filename, &comment);
   else
     needs_pass = ssh2_userkey_encrypted(filename, &comment);
   attempts = 0;
-  if (ver == 1)
+  if (type == SSH_KEYTYPE_SSH1)
     rkey = smalloc(sizeof(*rkey));
   pps.passphrase = passphrase;
   pps.comment = comment;
@@ -459,14 +495,14 @@ static void add_keyfile(char *filename)
         if (!dlgret) {
           if (comment)
             sfree(comment);
-          if (ver == 1)
+          if (type == SSH_KEYTYPE_SSH1)
             sfree(rkey);
           return; /* operation cancelled */
         }
       }
     } else
       *passphrase = '\0';
-    if (ver == 1)
+    if (type == SSH_KEYTYPE_SSH1)
       ret = loadrsakey(filename, rkey, passphrase);
     else {
       skey = ssh2_load_userkey(filename, passphrase);
@@ -491,11 +527,11 @@ static void add_keyfile(char *filename)
   if (ret == 0) {
     MessageBox(
         NULL, "Couldn't load private key.", APPNAME, MB_OK | MB_ICONERROR);
-    if (ver == 1)
+    if (type == SSH_KEYTYPE_SSH1)
       sfree(rkey);
     return;
   }
-  if (ver == 1) {
+  if (type == SSH_KEYTYPE_SSH1) {
     if (already_running) {
       unsigned char *request, *response;
       void *vresponse;
@@ -579,7 +615,7 @@ static void add_keyfile(char *filename)
       response = vresponse;
       if (resplen < 5 || response[4] != SSH_AGENT_SUCCESS)
         MessageBox(NULL,
-                   "The already running Pageant"
+                   "The already running Pageant "
                    "refused to add the key.",
                    APPNAME,
                    MB_OK | MB_ICONERROR);
@@ -1214,7 +1250,7 @@ static void prompt_add_keyfile(void)
   of.lStructSize = sizeof(of);
 #endif
   of.hwndOwner = main_hwnd;
-  of.lpstrFilter = "All Files\0*\0\0\0";
+  of.lpstrFilter = "PuTTY Private Key Files\0*.PPK\0AllFiles\0*\0\0\0";
   of.lpstrCustomFilter = NULL;
   of.nFilterIndex = 1;
   of.lpstrFile = filelist;
@@ -1466,6 +1502,59 @@ static BOOL AddTrayIcon(HWND hwnd)
   return res;
 }
 
+/* Update the saved-sessions menu. */
+static void update_sessions(void)
+{
+  int num_entries;
+  HKEY hkey;
+  TCHAR buf[MAX_PATH + 1];
+  MENUITEMINFO mii;
+
+  int index_key, index_menu;
+
+  if (!putty_path)
+    return;
+
+  if (ERROR_SUCCESS != RegOpenKey(HKEY_CURRENT_USER, PUTTY_REGKEY, &hkey))
+    return;
+
+  for (num_entries = GetMenuItemCount(session_menu);
+       num_entries > initial_menuitems_count;
+       num_entries--)
+    RemoveMenu(session_menu, 0, MF_BYPOSITION);
+
+  index_key = 0;
+  index_menu = 0;
+
+  while (ERROR_SUCCESS == RegEnumKey(hkey, index_key, buf, MAX_PATH)) {
+    TCHAR session_name[MAX_PATH + 1];
+    unmungestr(buf, session_name, MAX_PATH);
+    if (strcmp(buf, PUTTY_DEFAULT) != 0) {
+      memset(&mii, 0, sizeof(mii));
+      mii.cbSize = sizeof(mii);
+      mii.fMask = MIIM_TYPE | MIIM_STATE | MIIM_ID;
+      mii.fType = MFT_STRING;
+      mii.fState = MFS_ENABLED;
+      mii.wID = (index_menu * 16) + IDM_SESSIONS_BASE;
+      mii.dwTypeData = session_name;
+      InsertMenuItem(session_menu, index_menu, TRUE, &mii);
+      index_menu++;
+    }
+    index_key++;
+  }
+
+  RegCloseKey(hkey);
+
+  if (index_menu == 0) {
+    mii.cbSize = sizeof(mii);
+    mii.fMask = MIIM_TYPE | MIIM_STATE;
+    mii.fType = MFT_STRING;
+    mii.fState = MFS_GRAYED;
+    mii.dwTypeData = _T("(No sessions)");
+    InsertMenuItem(session_menu, index_menu, TRUE, &mii);
+  }
+}
+
 static LRESULT CALLBACK WndProc(HWND hwnd,
                                 UINT message,
                                 WPARAM wParam,
@@ -1502,6 +1591,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
   case WM_SYSTRAY2:
     if (!menuinprogress) {
       menuinprogress = 1;
+      update_sessions();
       SetForegroundWindow(hwnd);
       ret = TrackPopupMenu(systray_menu,
                            TPM_RIGHTALIGN | TPM_BOTTOMALIGN | TPM_RIGHTBUTTON,
@@ -1516,6 +1606,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
   case WM_COMMAND:
   case WM_SYSCOMMAND:
     switch (wParam & ~0xF) { /* low 4 bits reserved to Windows */
+    case IDM_PUTTY:
+      if ((int)ShellExecute(hwnd, NULL, putty_path, _T(""), _T(""), SW_SHOW) <=
+          32) {
+        MessageBox(
+            NULL, "Unable to execute PuTTY!", "Error", MB_OK | MB_ICONERROR);
+      }
+      break;
     case IDM_CLOSE:
       if (passphrase_box)
         SendMessage(passphrase_box, WM_CLOSE, 0, 0);
@@ -1526,19 +1623,22 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
         keylist =
             CreateDialog(instance, MAKEINTRESOURCE(211), NULL, KeyListProc);
         ShowWindow(keylist, SW_SHOWNORMAL);
-        /*
-         * Sometimes the window comes up minimised / hidden
-         * for no obvious reason. Prevent this.
-         */
-        SetForegroundWindow(keylist);
-        SetWindowPos(keylist,
-                     HWND_TOP,
-                     0,
-                     0,
-                     0,
-                     0,
-                     SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
       }
+      /*
+       * Sometimes the window comes up minimised / hidden for
+       * no obvious reason. Prevent this. This also brings it
+       * to the front if it's already present (the user
+       * selected View Keys because they wanted to _see_ the
+       * thing).
+       */
+      SetForegroundWindow(keylist);
+      SetWindowPos(keylist,
+                   HWND_TOP,
+                   0,
+                   0,
+                   0,
+                   0,
+                   SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
       break;
     case IDM_ADDKEY:
       if (passphrase_box) {
@@ -1576,6 +1676,26 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
         requested_help = TRUE;
       }
       break;
+    default: {
+      if (wParam >= IDM_SESSIONS_BASE && wParam <= IDM_SESSIONS_MAX) {
+        MENUITEMINFO mii;
+        TCHAR buf[MAX_PATH + 1];
+        TCHAR param[MAX_PATH + 1];
+        memset(&mii, 0, sizeof(mii));
+        mii.cbSize = sizeof(mii);
+        mii.fMask = MIIM_TYPE;
+        mii.cch = MAX_PATH;
+        mii.dwTypeData = buf;
+        GetMenuItemInfo(session_menu, wParam, FALSE, &mii);
+        strcpy(param, "@");
+        strcat(param, mii.dwTypeData);
+        if ((int)ShellExecute(hwnd, NULL, putty_path, param, _T(""), SW_SHOW) <=
+            32) {
+          MessageBox(
+              NULL, "Unable to execute PuTTY!", "Error", MB_OK | MB_ICONERROR);
+        }
+      }
+    } break;
     }
     break;
   case WM_DESTROY:
@@ -1702,6 +1822,11 @@ void spawn_cmd(char *cmdline, char *args, int show)
   }
 }
 
+void cleanup_exit(int code)
+{
+  exit(code);
+}
+
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
   WNDCLASS wndclass;
@@ -1710,6 +1835,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   HMODULE advapi;
   char *command = NULL;
   int added_keys = 0;
+  int argc, i;
+  char **argv, **argstart;
 
   /*
    * Determine whether we're an NT system (should have security
@@ -1773,6 +1900,29 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   }
 
   /*
+   * Look for the PuTTY binary (we will enable the saved session
+   * submenu if we find it).
+   */
+  {
+    char b[2048], *p, *q, *r;
+    FILE *fp;
+    GetModuleFileName(NULL, b, sizeof(b) - 1);
+    r = b;
+    p = strrchr(b, '\\');
+    if (p && p >= r)
+      r = p + 1;
+    q = strrchr(b, ':');
+    if (q && q >= r)
+      r = q + 1;
+    strcpy(r, "putty.exe");
+    if ((fp = fopen(b, "r")) != NULL) {
+      putty_path = dupstr(b);
+      fclose(fp);
+    } else
+      putty_path = NULL;
+  }
+
+  /*
    * Find out if Pageant is already running.
    */
   already_running = FALSE;
@@ -1812,8 +1962,17 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     /* Set up a system tray icon */
     AddTrayIcon(main_hwnd);
 
+    /* Accelerators used: nsvkxa */
     systray_menu = CreatePopupMenu();
-    /* accelerators used: vkxa */
+    if (putty_path) {
+      session_menu = CreateMenu();
+      AppendMenu(systray_menu, MF_ENABLED, IDM_PUTTY, "&New Session");
+      AppendMenu(systray_menu,
+                 MF_POPUP | MF_ENABLED,
+                 (UINT)session_menu,
+                 "&Saved Sessions");
+      AppendMenu(systray_menu, MF_SEPARATOR, 0, 0);
+    }
     AppendMenu(systray_menu, MF_ENABLED, IDM_VIEWKEYS, "&View Keys");
     AppendMenu(systray_menu, MF_ENABLED, IDM_ADDKEY, "Add &Key");
     AppendMenu(systray_menu, MF_SEPARATOR, 0, 0);
@@ -1822,6 +1981,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     AppendMenu(systray_menu, MF_ENABLED, IDM_ABOUT, "&About");
     AppendMenu(systray_menu, MF_SEPARATOR, 0, 0);
     AppendMenu(systray_menu, MF_ENABLED, IDM_CLOSE, "E&xit");
+    initial_menuitems_count = GetMenuItemCount(session_menu);
 
     ShowWindow(main_hwnd, SW_HIDE);
 
@@ -1839,46 +1999,23 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
   /*
    * Process the command line and add keys as listed on it.
-   * If we already determined that we need to spawn a program from above we
-   * need to ignore the first two arguments. [DBW]
    */
-  {
-    char *p;
-    int inquotes = 0;
-    p = cmdline;
-    while (*p) {
-      while (*p && isspace(*p))
-        p++;
-      if (*p && !isspace(*p)) {
-        char *q = p, *pp = p;
-        while (*p && (inquotes || !isspace(*p))) {
-          if (*p == '"') {
-            inquotes = !inquotes;
-            p++;
-            continue;
-          }
-          *pp++ = *p++;
-        }
-        if (*pp) {
-          if (*p)
-            p++;
-          *pp++ = '\0';
-        }
-        if (!strcmp(q, "-c")) {
-          /*
-           * If we see `-c', then the rest of the
-           * command line should be treated as a
-           * command to be spawned.
-           */
-          while (*p && isspace(*p))
-            p++;
-          command = p;
-          break;
-        } else {
-          add_keyfile(q);
-          added_keys = TRUE;
-        }
-      }
+  split_into_argv(cmdline, &argc, &argv, &argstart);
+  for (i = 0; i < argc; i++) {
+    if (!strcmp(argv[i], "-c")) {
+      /*
+       * If we see `-c', then the rest of the
+       * command line should be treated as a
+       * command to be spawned.
+       */
+      if (i < argc - 1)
+        command = argstart[i + 1];
+      else
+        command = "";
+      break;
+    } else {
+      add_keyfile(argv[i]);
+      added_keys = TRUE;
     }
   }
 
@@ -1923,8 +2060,11 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
    * Main message loop.
    */
   while (GetMessage(&msg, NULL, 0, 0) == 1) {
-    TranslateMessage(&msg);
-    DispatchMessage(&msg);
+    if (!(IsWindow(keylist) && IsDialogMessage(keylist, &msg)) &&
+        !(IsWindow(aboutbox) && IsDialogMessage(aboutbox, &msg))) {
+      TranslateMessage(&msg);
+      DispatchMessage(&msg);
+    }
   }
 
   /* Clean up the system tray icon */
@@ -1942,5 +2082,5 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
   if (advapi)
     FreeLibrary(advapi);
-  exit(msg.wParam);
+  return msg.wParam;
 }

@@ -8,6 +8,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <stdarg.h>
 
 #define PUTTY_DO_GLOBALS /* actually _define_ globals */
@@ -26,7 +27,7 @@ void fatalbox(char *p, ...)
   va_end(ap);
   fputc('\n', stderr);
   WSACleanup();
-  exit(1);
+  cleanup_exit(1);
 }
 void connection_fatal(char *p, ...)
 {
@@ -37,6 +38,16 @@ void connection_fatal(char *p, ...)
   va_end(ap);
   fputc('\n', stderr);
   WSACleanup();
+  cleanup_exit(1);
+}
+void cmdline_error(char *p, ...)
+{
+  va_list ap;
+  fprintf(stderr, "plink: ");
+  va_start(ap, p);
+  vfprintf(stderr, p, ap);
+  va_end(ap);
+  fputc('\n', stderr);
   exit(1);
 }
 
@@ -151,6 +162,8 @@ int from_backend(int is_stderr, char *data, int len)
   HANDLE h = (is_stderr ? errhandle : outhandle);
   int osize, esize;
 
+  assert(len > 0);
+
   if (is_stderr) {
     bufchain_add(&stderr_data, data, len);
     try_output(1);
@@ -176,14 +189,25 @@ static void usage(void)
   printf("       (\"host\" can also be a PuTTY saved session name)\n");
   printf("Options:\n");
   printf("  -v        show verbose messages\n");
-  printf("  -ssh      force use of ssh protocol\n");
+  printf("  -load sessname  Load settings from saved session\n");
+  printf("  -ssh -telnet -rlogin -raw\n");
+  printf("            force use of a particular protocol (default SSH)\n");
   printf("  -P port   connect to specified port\n");
-  printf("  -pw passw login with specified password\n");
+  printf("  -l user   connect with specified username\n");
   printf("  -m file   read remote command(s) from file\n");
+  printf("  -batch    disable all interactive prompts\n");
+  printf("The following options only apply to SSH connections:\n");
+  printf("  -pw passw login with specified password\n");
   printf("  -L listen-port:host:port   Forward local port to "
          "remote address\n");
   printf("  -R listen-port:host:port   Forward remote port to"
          " local address\n");
+  printf("  -X -x     enable / disable X11 forwarding\n");
+  printf("  -A -a     enable / disable agent forwarding\n");
+  printf("  -t -T     enable / disable pty allocation\n");
+  printf("  -1 -2     force use of particular protocol version\n");
+  printf("  -C        enable compression\n");
+  printf("  -i key    private key file for authentication\n");
   exit(1);
 }
 
@@ -221,7 +245,6 @@ int main(int argc, char **argv)
   int skcount, sksize;
   int connopen;
   int exitcode;
-  char extra_portfwd[sizeof(cfg.portfwd)];
 
   ssh_get_line = console_get_line;
 
@@ -260,83 +283,17 @@ int main(int argc, char **argv)
   while (--argc) {
     char *p = *++argv;
     if (*p == '-') {
-      if (!strcmp(p, "-ssh")) {
-        default_protocol = cfg.protocol = PROT_SSH;
-        default_port = cfg.port = 22;
-      } else if (!strcmp(p, "-telnet")) {
-        default_protocol = cfg.protocol = PROT_TELNET;
-        default_port = cfg.port = 23;
-      } else if (!strcmp(p, "-rlogin")) {
-        default_protocol = cfg.protocol = PROT_RLOGIN;
-        default_port = cfg.port = 513;
-      } else if (!strcmp(p, "-raw")) {
-        default_protocol = cfg.protocol = PROT_RAW;
+      int ret = cmdline_process_param(p, (argc > 1 ? argv[1] : NULL), 1);
+      if (ret == -2) {
+        fprintf(stderr, "plink: option \"%s\" requires an argument\n", p);
+      } else if (ret == 2) {
+        --argc, ++argv;
+      } else if (ret == 1) {
+        continue;
       } else if (!strcmp(p, "-batch")) {
-        console_batch_mode = TRUE;
-      } else if (!strcmp(p, "-v")) {
-        flags |= FLAG_VERBOSE;
+        console_batch_mode = 1;
       } else if (!strcmp(p, "-log")) {
         logfile = "putty.log";
-      } else if (!strcmp(p, "-pw") && argc > 1) {
-        --argc, console_password = *++argv;
-      } else if (!strcmp(p, "-l") && argc > 1) {
-        char *username;
-        --argc, username = *++argv;
-        strncpy(cfg.username, username, sizeof(cfg.username));
-        cfg.username[sizeof(cfg.username) - 1] = '\0';
-      } else if ((!strcmp(p, "-L") || !strcmp(p, "-R")) && argc > 1) {
-        char *fwd, *ptr, *q;
-        int i = 0;
-        --argc, fwd = *++argv;
-        ptr = extra_portfwd;
-        /* if multiple forwards, find end of list */
-        if (ptr[0] == 'R' || ptr[0] == 'L') {
-          for (i = 0; i < sizeof(extra_portfwd) - 2; i++)
-            if (ptr[i] == '\000' && ptr[i + 1] == '\000')
-              break;
-          ptr = ptr + i + 1; /* point to next forward slot */
-        }
-        ptr[0] = p[1]; /* insert a 'L' or 'R' at the start */
-        strncpy(ptr + 1, fwd, sizeof(extra_portfwd) - i);
-        q = strchr(ptr, ':');
-        if (q)
-          *q = '\t';                   /* replace first : with \t */
-        ptr[strlen(ptr) + 1] = '\000'; /* append two '\000' */
-        extra_portfwd[sizeof(extra_portfwd) - 1] = '\0';
-      } else if (!strcmp(p, "-m") && argc > 1) {
-        char *filename, *command;
-        int cmdlen, cmdsize;
-        FILE *fp;
-        int c, d;
-
-        --argc, filename = *++argv;
-
-        cmdlen = cmdsize = 0;
-        command = NULL;
-        fp = fopen(filename, "r");
-        if (!fp) {
-          fprintf(stderr,
-                  "plink: unable to open command "
-                  "file \"%s\"\n",
-                  filename);
-          return 1;
-        }
-        do {
-          c = fgetc(fp);
-          d = c;
-          if (c == EOF)
-            d = 0;
-          if (cmdlen >= cmdsize) {
-            cmdsize = cmdlen + 512;
-            command = srealloc(command, cmdsize);
-          }
-          command[cmdlen++] = d;
-        } while (c != EOF);
-        cfg.remote_cmd_ptr = command;
-        cfg.remote_cmd_ptr2 = NULL;
-        cfg.nopty = TRUE; /* command => no terminal */
-      } else if (!strcmp(p, "-P") && argc > 1) {
-        --argc, portnumber = atoi(*++argv);
       }
     } else if (*p) {
       if (!*cfg.host) {
@@ -424,26 +381,35 @@ int main(int argc, char **argv)
           }
         }
       } else {
-        int len = sizeof(cfg.remote_cmd) - 1;
-        char *cp = cfg.remote_cmd;
-        int len2;
+        char *command;
+        int cmdlen, cmdsize;
+        cmdlen = cmdsize = 0;
+        command = NULL;
 
-        strncpy(cp, p, len);
-        cp[len] = '\0';
-        len2 = strlen(cp);
-        len -= len2;
-        cp += len2;
-        while (--argc) {
-          if (len > 0)
-            len--, *cp++ = ' ';
-          strncpy(cp, *++argv, len);
-          cp[len] = '\0';
-          len2 = strlen(cp);
-          len -= len2;
-          cp += len2;
+        while (argc) {
+          while (*p) {
+            if (cmdlen >= cmdsize) {
+              cmdsize = cmdlen + 512;
+              command = srealloc(command, cmdsize);
+            }
+            command[cmdlen++] = *p++;
+          }
+          if (cmdlen >= cmdsize) {
+            cmdsize = cmdlen + 512;
+            command = srealloc(command, cmdsize);
+          }
+          command[cmdlen++] = ' '; /* always add trailing space */
+          if (--argc)
+            p = *++argv;
         }
+        if (cmdlen)
+          command[--cmdlen] = '\0';
+        /* change trailing blank to NUL */
+        cfg.remote_cmd_ptr = command;
+        cfg.remote_cmd_ptr2 = NULL;
         cfg.nopty = TRUE; /* command => no terminal */
-        break;            /* done with cmdline */
+
+        break; /* done with cmdline */
       }
     }
   }
@@ -474,6 +440,11 @@ int main(int argc, char **argv)
   }
 
   /*
+   * Perform command-line overrides on session configuration.
+   */
+  cmdline_run_saved();
+
+  /*
    * Trim a colon suffix off the hostname if it's there.
    */
   cfg.host[strcspn(cfg.host, ":")] = '\0';
@@ -496,31 +467,6 @@ int main(int argc, char **argv)
     if (back == NULL) {
       fprintf(stderr, "Internal fault: Unsupported protocol found\n");
       return 1;
-    }
-  }
-
-  /*
-   * Add extra port forwardings (accumulated on command line) to
-   * cfg.
-   */
-  {
-    int i;
-    char *p;
-    p = extra_portfwd;
-    i = 0;
-    while (cfg.portfwd[i])
-      i += strlen(cfg.portfwd + i) + 1;
-    while (*p) {
-      if (strlen(p) + 2 > sizeof(cfg.portfwd) - i) {
-        fprintf(stderr,
-                "Internal fault: not enough space for all"
-                " port forwardings\n");
-        break;
-      }
-      strncpy(cfg.portfwd + i, p, sizeof(cfg.portfwd) - i - 1);
-      i += strlen(cfg.portfwd + i) + 1;
-      cfg.portfwd[i] = '\0';
-      p += strlen(p) + 1;
     }
   }
 
@@ -603,7 +549,7 @@ int main(int argc, char **argv)
   odata.busy = odata.done = 0;
   if (!CreateThread(NULL, 0, stdout_write_thread, &odata, 0, &out_threadid)) {
     fprintf(stderr, "Unable to create output thread\n");
-    exit(1);
+    cleanup_exit(1);
   }
   edata.event = stderrevent;
   edata.eventback = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -611,7 +557,7 @@ int main(int argc, char **argv)
   edata.busy = edata.done = 0;
   if (!CreateThread(NULL, 0, stdout_write_thread, &edata, 0, &err_threadid)) {
     fprintf(stderr, "Unable to create error output thread\n");
-    exit(1);
+    cleanup_exit(1);
   }
 
   while (1) {
@@ -638,7 +584,7 @@ int main(int argc, char **argv)
       idata.eventback = CreateEvent(NULL, FALSE, FALSE, NULL);
       if (!CreateThread(NULL, 0, stdin_read_thread, &idata, 0, &in_threadid)) {
         fprintf(stderr, "Unable to create input thread\n");
-        exit(1);
+        cleanup_exit(1);
       }
       sending = TRUE;
     }
@@ -720,7 +666,7 @@ int main(int argc, char **argv)
       odata.busy = 0;
       if (!odata.writeret) {
         fprintf(stderr, "Unable to write to standard output\n");
-        exit(0);
+        cleanup_exit(0);
       }
       bufchain_consume(&stdout_data, odata.lenwritten);
       if (bufchain_size(&stdout_data) > 0)
@@ -733,7 +679,7 @@ int main(int argc, char **argv)
       edata.busy = 0;
       if (!edata.writeret) {
         fprintf(stderr, "Unable to write to standard output\n");
-        exit(0);
+        cleanup_exit(0);
       }
       bufchain_consume(&stderr_data, edata.lenwritten);
       if (bufchain_size(&stderr_data) > 0)

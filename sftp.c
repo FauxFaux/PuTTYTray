@@ -336,11 +336,13 @@ int fxp_init(void)
   }
   if (pktin->type != SSH_FXP_VERSION) {
     fxp_internal_error("did not receive FXP_VERSION");
+    sftp_pkt_free(pktin);
     return 0;
   }
   remotever = sftp_pkt_getuint32(pktin);
   if (remotever > SFTP_PROTO_VERSION) {
     fxp_internal_error("remote protocol is more advanced than we support");
+    sftp_pkt_free(pktin);
     return 0;
   }
   /*
@@ -375,6 +377,7 @@ char *fxp_realpath(char *path)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0x123) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return NULL;
   }
   if (pktin->type == SSH_FXP_NAME) {
@@ -385,11 +388,13 @@ char *fxp_realpath(char *path)
     count = sftp_pkt_getuint32(pktin);
     if (count != 1) {
       fxp_internal_error("REALPATH returned name count != 1\n");
+      sftp_pkt_free(pktin);
       return NULL;
     }
     sftp_pkt_getstring(pktin, &path, &len);
     if (!path) {
       fxp_internal_error("REALPATH returned malformed FXP_NAME\n");
+      sftp_pkt_free(pktin);
       return NULL;
     }
     path = mkstr(path, len);
@@ -397,6 +402,7 @@ char *fxp_realpath(char *path)
     return path;
   } else {
     fxp_got_status(pktin);
+    sftp_pkt_free(pktin);
     return NULL;
   }
 }
@@ -423,6 +429,7 @@ struct fxp_handle *fxp_open(char *path, int type)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0x567) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return NULL;
   }
   if (pktin->type == SSH_FXP_HANDLE) {
@@ -433,6 +440,7 @@ struct fxp_handle *fxp_open(char *path, int type)
     sftp_pkt_getstring(pktin, &hstring, &len);
     if (!hstring) {
       fxp_internal_error("OPEN returned malformed FXP_HANDLE\n");
+      sftp_pkt_free(pktin);
       return NULL;
     }
     handle = smalloc(sizeof(struct fxp_handle));
@@ -442,6 +450,7 @@ struct fxp_handle *fxp_open(char *path, int type)
     return handle;
   } else {
     fxp_got_status(pktin);
+    sftp_pkt_free(pktin);
     return NULL;
   }
 }
@@ -466,6 +475,7 @@ struct fxp_handle *fxp_opendir(char *path)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0x456) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return NULL;
   }
   if (pktin->type == SSH_FXP_HANDLE) {
@@ -476,6 +486,7 @@ struct fxp_handle *fxp_opendir(char *path)
     sftp_pkt_getstring(pktin, &hstring, &len);
     if (!hstring) {
       fxp_internal_error("OPENDIR returned malformed FXP_HANDLE\n");
+      sftp_pkt_free(pktin);
       return NULL;
     }
     handle = smalloc(sizeof(struct fxp_handle));
@@ -485,6 +496,7 @@ struct fxp_handle *fxp_opendir(char *path)
     return handle;
   } else {
     fxp_got_status(pktin);
+    sftp_pkt_free(pktin);
     return NULL;
   }
 }
@@ -510,9 +522,11 @@ void fxp_close(struct fxp_handle *handle)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0x789) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return;
   }
   fxp_got_status(pktin);
+  sftp_pkt_free(pktin);
   sfree(handle->hstring);
   sfree(handle);
 }
@@ -535,9 +549,11 @@ int fxp_mkdir(char *path)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0x234) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return 0;
   }
   id = fxp_got_status(pktin);
+  sftp_pkt_free(pktin);
   if (id != 1) {
     return 0;
   }
@@ -561,9 +577,11 @@ int fxp_rmdir(char *path)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0x345) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return 0;
   }
   id = fxp_got_status(pktin);
+  sftp_pkt_free(pktin);
   if (id != 1) {
     return 0;
   }
@@ -587,9 +605,11 @@ int fxp_remove(char *fname)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0x678) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return 0;
   }
   id = fxp_got_status(pktin);
+  sftp_pkt_free(pktin);
   if (id != 1) {
     return 0;
   }
@@ -614,9 +634,11 @@ int fxp_rename(char *srcfname, char *dstfname)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0x678) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return 0;
   }
   id = fxp_got_status(pktin);
+  sftp_pkt_free(pktin);
   if (id != 1) {
     return 0;
   }
@@ -644,14 +666,17 @@ int fxp_stat(char *fname, struct fxp_attrs *attrs)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0x678) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return 0;
   }
 
   if (pktin->type == SSH_FXP_ATTRS) {
     *attrs = sftp_pkt_getattrs(pktin);
+    sftp_pkt_free(pktin);
     return 1;
   } else {
     fxp_got_status(pktin);
+    sftp_pkt_free(pktin);
     return 0;
   }
 }
@@ -674,14 +699,17 @@ int fxp_fstat(struct fxp_handle *handle, struct fxp_attrs *attrs)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0x678) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return 0;
   }
 
   if (pktin->type == SSH_FXP_ATTRS) {
     *attrs = sftp_pkt_getattrs(pktin);
+    sftp_pkt_free(pktin);
     return 1;
   } else {
     fxp_got_status(pktin);
+    sftp_pkt_free(pktin);
     return 0;
   }
 }
@@ -707,9 +735,11 @@ int fxp_setstat(char *fname, struct fxp_attrs attrs)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0x678) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return 0;
   }
   id = fxp_got_status(pktin);
+  sftp_pkt_free(pktin);
   if (id != 1) {
     return 0;
   }
@@ -734,9 +764,11 @@ int fxp_fsetstat(struct fxp_handle *handle, struct fxp_attrs attrs)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0x678) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return 0;
   }
   id = fxp_got_status(pktin);
+  sftp_pkt_free(pktin);
   if (id != 1) {
     return 0;
   }
@@ -769,6 +801,7 @@ int fxp_read(struct fxp_handle *handle, char *buffer, uint64 offset, int len)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0xBCD) {
     fxp_internal_error("request ID mismatch");
+    sftp_pkt_free(pktin);
     return -1;
   }
   if (pktin->type == SSH_FXP_DATA) {
@@ -779,14 +812,16 @@ int fxp_read(struct fxp_handle *handle, char *buffer, uint64 offset, int len)
 
     if (rlen > len || rlen < 0) {
       fxp_internal_error("READ returned more bytes than requested");
+      sftp_pkt_free(pktin);
       return -1;
     }
 
     memcpy(buffer, str, rlen);
-    sfree(pktin);
+    sftp_pkt_free(pktin);
     return rlen;
   } else {
     fxp_got_status(pktin);
+    sftp_pkt_free(pktin);
     return -1;
   }
 }
@@ -812,6 +847,7 @@ struct fxp_names *fxp_readdir(struct fxp_handle *handle)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0xABC) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return NULL;
   }
   if (pktin->type == SSH_FXP_NAME) {
@@ -829,9 +865,11 @@ struct fxp_names *fxp_readdir(struct fxp_handle *handle)
       ret->names[i].longname = mkstr(str, len);
       ret->names[i].attrs = sftp_pkt_getattrs(pktin);
     }
+    sftp_pkt_free(pktin);
     return ret;
   } else {
     fxp_got_status(pktin);
+    sftp_pkt_free(pktin);
     return NULL;
   }
 }
@@ -860,9 +898,11 @@ int fxp_write(struct fxp_handle *handle, char *buffer, uint64 offset, int len)
   id = sftp_pkt_getuint32(pktin);
   if (id != 0xDCB) {
     fxp_internal_error("request ID mismatch\n");
+    sftp_pkt_free(pktin);
     return 0;
   }
   fxp_got_status(pktin);
+  sftp_pkt_free(pktin);
   return fxp_errtype == SSH_FX_OK;
 }
 
@@ -879,4 +919,29 @@ void fxp_free_names(struct fxp_names *names)
   }
   sfree(names->names);
   sfree(names);
+}
+
+/*
+ * Duplicate an fxp_name structure.
+ */
+struct fxp_name *fxp_dup_name(struct fxp_name *name)
+{
+  struct fxp_name *ret;
+  ret = smalloc(sizeof(struct fxp_name));
+  ret->filename = dupstr(name->filename);
+  ret->longname = dupstr(name->longname);
+  ret->attrs = name->attrs; /* structure copy */
+  return ret;
+}
+
+/*
+ * Free up an fxp_name structure.
+ */
+void fxp_free_name(struct fxp_name *name)
+{
+  int i;
+
+  sfree(name->filename);
+  sfree(name->longname);
+  sfree(name);
 }

@@ -305,10 +305,39 @@ int ssh2_save_userkey(char *filename,
                       struct ssh2_userkey *key,
                       char *passphrase);
 
-int keyfile_version(char *filename);
+enum
+{
+  SSH_KEYTYPE_UNOPENABLE,
+  SSH_KEYTYPE_UNKNOWN,
+  SSH_KEYTYPE_SSH1,
+  SSH_KEYTYPE_SSH2,
+  SSH_KEYTYPE_OPENSSH,
+  SSH_KEYTYPE_SSHCOM
+};
+int key_type(char *filename);
+char *key_type_to_str(int type);
+
+int import_possible(int type);
+int import_target_type(int type);
+int import_encrypted(char *filename, int type, char **comment);
+int import_ssh1(char *filename, int type, struct RSAKey *key, char *passphrase);
+struct ssh2_userkey *import_ssh2(char *filename, int type, char *passphrase);
+int export_ssh1(char *filename, int type, struct RSAKey *key, char *passphrase);
+int export_ssh2(char *filename,
+                int type,
+                struct ssh2_userkey *key,
+                char *passphrase);
 
 void des3_decrypt_pubkey(unsigned char *key, unsigned char *blk, int len);
 void des3_encrypt_pubkey(unsigned char *key, unsigned char *blk, int len);
+void des3_decrypt_pubkey_ossh(unsigned char *key,
+                              unsigned char *iv,
+                              unsigned char *blk,
+                              int len);
+void des3_encrypt_pubkey_ossh(unsigned char *key,
+                              unsigned char *iv,
+                              unsigned char *blk,
+                              int len);
 void aes256_encrypt_pubkey(unsigned char *key, unsigned char *blk, int len);
 void aes256_decrypt_pubkey(unsigned char *key, unsigned char *blk, int len);
 

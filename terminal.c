@@ -103,7 +103,7 @@ static int wrap, wrapnext;              /* wrap flags */
 static int insert;                      /* insert-mode flag */
 static int cset;                        /* 0 or 1: which char set */
 static int save_cset, save_csattr;      /* saved with cursor position */
-static int save_utf;                    /* saved with cursor position */
+static int save_utf, save_wnext;        /* saved with cursor position */
 static int rvideo;                      /* global reverse video flag */
 static unsigned long rvbell_startpoint; /* for ESC[?5hESC[?5l vbell */
 static int cursor_on;                   /* cursor enabled flag */
@@ -119,6 +119,10 @@ static int vt52_bold;                   /* Force bold on non-bold colours */
 static int utf_state;                   /* Is there a pending UTF-8 character */
 static int utf_char;                    /* and what is it so far. */
 static int utf_size;                    /* The size of the UTF character. */
+static int printing, only_printing;     /* Are we doing ANSI printing? */
+static int print_state;                 /* state of print-end-sequence scan */
+static bufchain printer_buf;            /* buffered data for printer */
+static printer_job *print_job;
 
 static int xterm_mouse; /* send mouse messages to app */
 
@@ -206,6 +210,7 @@ static void erase_lots(int, int, int);
 static void swap_screen(int);
 static void update_sbar(void);
 static void deselect(void);
+static void term_print_finish(void);
 
 /*
  * Resize a line to make it `cols' columns wide.
@@ -302,6 +307,7 @@ static void power_on(void)
   blink_is_real = cfg.blinktext;
   erase_char = ERASE_CHAR;
   alt_which = 0;
+  term_print_finish();
   {
     int i;
     for (i = 0; i < 256; i++)
@@ -348,6 +354,30 @@ void term_pwron(void)
   disptop = 0;
   deselect();
   term_update();
+}
+
+/*
+ * When the user reconfigures us, we need to check the forbidden-
+ * alternate-screen config option, disable raw mouse mode if the
+ * user has disabled mouse reporting, and abandon a print job if
+ * the user has disabled printing.
+ */
+void term_reconfig(void)
+{
+  if (cfg.no_alt_screen)
+    swap_screen(0);
+  if (cfg.no_mouse_rep) {
+    xterm_mouse = 0;
+    set_raw_mouse_mode(0);
+  }
+  if (cfg.no_remote_charset) {
+    cset_attr[0] = cset_attr[1] = ATTR_ASCII;
+    sco_acs = alt_sco_acs = 0;
+    utf = 0;
+  }
+  if (!*cfg.printer) {
+    term_print_finish();
+  }
 }
 
 /*
@@ -746,6 +776,7 @@ static void save_cursor(int save)
     save_attr = curr_attr;
     save_cset = cset;
     save_utf = utf;
+    save_wnext = wrapnext;
     save_csattr = cset_attr[cset];
     save_sco_acs = sco_acs;
   } else {
@@ -759,6 +790,13 @@ static void save_cursor(int save)
     curr_attr = save_attr;
     cset = save_cset;
     utf = save_utf;
+    wrapnext = save_wnext;
+    /*
+     * wrapnext might reset to False if the x position is no
+     * longer at the rightmost edge.
+     */
+    if (wrapnext && curs.x < cols - 1)
+      wrapnext = FALSE;
     cset_attr[cset] = save_csattr;
     sco_acs = save_sco_acs;
     fix_cpos;
@@ -869,7 +907,8 @@ static void toggle_mode(int mode, int query, int state)
       break;
     case 3: /* 80/132 columns */
       deselect();
-      request_resize(state ? 132 : 80, rows);
+      if (!cfg.no_remote_resize)
+        request_resize(state ? 132 : 80, rows);
       reset_132 = state;
       break;
     case 5: /* reverse video */
@@ -920,7 +959,7 @@ static void toggle_mode(int mode, int query, int state)
     case 47: /* alternate screen */
       compatibility(OTHER);
       deselect();
-      swap_screen(state);
+      swap_screen(cfg.no_alt_screen ? 0 : state);
       disptop = 0;
       break;
     case 1000: /* xterm mouse 1 */
@@ -964,16 +1003,62 @@ static void do_osc(void)
     switch (esc_args[0]) {
     case 0:
     case 1:
-      set_icon(osc_string);
+      if (!cfg.no_remote_wintitle)
+        set_icon(osc_string);
       if (esc_args[0] == 1)
         break;
       /* fall through: parameter 0 means set both */
     case 2:
     case 21:
-      set_title(osc_string);
+      if (!cfg.no_remote_wintitle)
+        set_title(osc_string);
       break;
     }
   }
+}
+
+/*
+ * ANSI printing routines.
+ */
+static void term_print_setup(void)
+{
+  bufchain_clear(&printer_buf);
+  print_job = printer_start_job(cfg.printer);
+}
+static void term_print_flush(void)
+{
+  void *data;
+  int len;
+  int size;
+  while ((size = bufchain_size(&printer_buf)) > 5) {
+    bufchain_prefix(&printer_buf, &data, &len);
+    if (len > size - 5)
+      len = size - 5;
+    printer_job_data(print_job, data, len);
+    bufchain_consume(&printer_buf, len);
+  }
+}
+static void term_print_finish(void)
+{
+  void *data;
+  int len, size;
+  char c;
+
+  term_print_flush();
+  while ((size = bufchain_size(&printer_buf)) > 0) {
+    bufchain_prefix(&printer_buf, &data, &len);
+    c = *(char *)data;
+    if (c == '\033' || c == '\233') {
+      bufchain_consume(&printer_buf, size);
+      break;
+    } else {
+      printer_job_data(print_job, &c, 1);
+      bufchain_consume(&printer_buf, 1);
+    }
+  }
+  printer_finish_job(print_job);
+  print_job = NULL;
+  printing = only_printing = FALSE;
 }
 
 /*
@@ -1019,6 +1104,40 @@ void term_out(void)
      * be able to display 8-bit characters, but I'll let that go 'cause
      * of i18n.
      */
+
+    /*
+     * If we're printing, add the character to the printer
+     * buffer.
+     */
+    if (printing) {
+      char cc = c;
+      bufchain_add(&printer_buf, &c, 1);
+
+      /*
+       * If we're in print-only mode, we use a much simpler
+       * state machine designed only to recognise the ESC[4i
+       * termination sequence.
+       */
+      if (only_printing) {
+        if (c == '\033')
+          print_state = 1;
+        else if (c == (unsigned char)'\233')
+          print_state = 2;
+        else if (c == '[' && print_state == 1)
+          print_state = 2;
+        else if (c == '4' && print_state == 2)
+          print_state = 3;
+        else if (c == 'i' && print_state == 3)
+          print_state = 4;
+        else
+          print_state = 0;
+        if (print_state == 4) {
+          printing = only_printing = FALSE;
+          term_print_finish();
+        }
+        continue;
+      }
+    }
 
     /* First see about all those translations. */
     if (termstate == TOPLEVEL) {
@@ -1165,7 +1284,8 @@ void term_out(void)
         curs.x--;
       wrapnext = FALSE;
       fix_cpos;
-      *cpos = (' ' | curr_attr | ATTR_ASCII);
+      if (!cfg.no_dbackspace) /* destructive bksp might be disabled */
+        *cpos = (' ' | curr_attr | ATTR_ASCII);
     } else
         /* Or normal C0 controls. */
         if ((c & -32) == 0 && termstate < DO_CTRLS) {
@@ -1505,7 +1625,8 @@ void term_out(void)
           compatibility(VT100);
           power_on();
           if (reset_132) {
-            request_resize(80, rows);
+            if (!cfg.no_remote_resize)
+              request_resize(80, rows);
             reset_132 = 0;
           }
           fix_cpos;
@@ -1569,46 +1690,56 @@ void term_out(void)
 
         case ANSI('A', '('):
           compatibility(VT100);
-          cset_attr[0] = ATTR_GBCHR;
+          if (!cfg.no_remote_charset)
+            cset_attr[0] = ATTR_GBCHR;
           break;
         case ANSI('B', '('):
           compatibility(VT100);
-          cset_attr[0] = ATTR_ASCII;
+          if (!cfg.no_remote_charset)
+            cset_attr[0] = ATTR_ASCII;
           break;
         case ANSI('0', '('):
           compatibility(VT100);
-          cset_attr[0] = ATTR_LINEDRW;
+          if (!cfg.no_remote_charset)
+            cset_attr[0] = ATTR_LINEDRW;
           break;
         case ANSI('U', '('):
           compatibility(OTHER);
-          cset_attr[0] = ATTR_SCOACS;
+          if (!cfg.no_remote_charset)
+            cset_attr[0] = ATTR_SCOACS;
           break;
 
         case ANSI('A', ')'):
           compatibility(VT100);
-          cset_attr[1] = ATTR_GBCHR;
+          if (!cfg.no_remote_charset)
+            cset_attr[1] = ATTR_GBCHR;
           break;
         case ANSI('B', ')'):
           compatibility(VT100);
-          cset_attr[1] = ATTR_ASCII;
+          if (!cfg.no_remote_charset)
+            cset_attr[1] = ATTR_ASCII;
           break;
         case ANSI('0', ')'):
           compatibility(VT100);
-          cset_attr[1] = ATTR_LINEDRW;
+          if (!cfg.no_remote_charset)
+            cset_attr[1] = ATTR_LINEDRW;
           break;
         case ANSI('U', ')'):
           compatibility(OTHER);
-          cset_attr[1] = ATTR_SCOACS;
+          if (!cfg.no_remote_charset)
+            cset_attr[1] = ATTR_SCOACS;
           break;
 
         case ANSI('8', '%'): /* Old Linux code */
         case ANSI('G', '%'):
           compatibility(OTHER);
-          utf = 1;
+          if (!cfg.no_remote_charset)
+            utf = 1;
           break;
         case ANSI('@', '%'):
           compatibility(OTHER);
-          utf = 0;
+          if (!cfg.no_remote_charset)
+            utf = 0;
           break;
         }
         break;
@@ -1762,6 +1893,25 @@ void term_out(void)
                 toggle_mode(esc_args[i], esc_query, TRUE);
             }
             break;
+          case 'i':
+          case ANSI_QUE('i'):
+            compatibility(VT100);
+            {
+              int i;
+              if (esc_nargs != 1)
+                break;
+              if (esc_args[0] == 5 && *cfg.printer) {
+                printing = TRUE;
+                only_printing = !esc_query;
+                print_state = 0;
+                term_print_setup();
+              } else if (esc_args[0] == 4 && printing) {
+                printing = FALSE;
+                only_printing = FALSE;
+                term_print_finish();
+              }
+            }
+            break;
           case 'l': /* toggle modes to low */
           case ANSI_QUE('l'):
             compatibility(VT100);
@@ -1863,14 +2013,20 @@ void term_out(void)
                 break;
               case 10: /* SCO acs off */
                 compatibility(SCOANSI);
+                if (cfg.no_remote_charset)
+                  break;
                 sco_acs = 0;
                 break;
               case 11: /* SCO acs on */
                 compatibility(SCOANSI);
+                if (cfg.no_remote_charset)
+                  break;
                 sco_acs = 1;
                 break;
               case 12: /* SCO acs on flipped */
                 compatibility(SCOANSI);
+                if (cfg.no_remote_charset)
+                  break;
                 sco_acs = 2;
                 break;
               case 22: /* disable bold */
@@ -1943,7 +2099,8 @@ void term_out(void)
              */
             if (esc_nargs <= 1 && (esc_args[0] < 1 || esc_args[0] >= 24)) {
               compatibility(VT340TEXT);
-              request_resize(cols, def(esc_args[0], 24));
+              if (!cfg.no_remote_resize)
+                request_resize(cols, def(esc_args[0], 24));
               deselect();
             } else if (esc_nargs >= 1 && esc_args[0] >= 1 && esc_args[0] < 24) {
               compatibility(OTHER);
@@ -1959,7 +2116,8 @@ void term_out(void)
                 break;
               case 3:
                 if (esc_nargs >= 3) {
-                  move_window(def(esc_args[1], 0), def(esc_args[2], 0));
+                  if (!cfg.no_remote_resize)
+                    move_window(def(esc_args[1], 0), def(esc_args[2], 0));
                 }
                 break;
               case 4:
@@ -1979,8 +2137,9 @@ void term_out(void)
                 break;
               case 8:
                 if (esc_nargs >= 3) {
-                  request_resize(def(esc_args[2], cfg.width),
-                                 def(esc_args[1], cfg.height));
+                  if (!cfg.no_remote_resize)
+                    request_resize(def(esc_args[2], cfg.width),
+                                   def(esc_args[1], cfg.height));
                 }
                 break;
               case 9:
@@ -2060,7 +2219,8 @@ void term_out(void)
              */
             compatibility(VT420);
             if (esc_nargs == 1 && esc_args[0] > 0) {
-              request_resize(cols, def(esc_args[0], cfg.height));
+              if (!cfg.no_remote_resize)
+                request_resize(cols, def(esc_args[0], cfg.height));
               deselect();
             }
             break;
@@ -2071,7 +2231,8 @@ void term_out(void)
              */
             compatibility(VT340TEXT);
             if (esc_nargs <= 1) {
-              request_resize(def(esc_args[0], cfg.width), rows);
+              if (!cfg.no_remote_resize)
+                request_resize(def(esc_args[0], cfg.width), rows);
               deselect();
             }
             break;
@@ -2197,10 +2358,12 @@ void term_out(void)
 			 * Well we should do a soft reset at this point ...
 			 */
 			if (!has_compat(VT420) && has_compat(VT100)) {
-			    if (reset_132)
-				request_resize(132, 24);
-			    else
-				request_resize(80, 24);
+			    if (!cfg.no_remote_resize) {
+				if (reset_132)
+				    request_resize(132, 24);
+				else
+				    request_resize(80, 24);
+			    }
 			}
 #endif
             break;
@@ -2585,6 +2748,8 @@ void term_out(void)
       check_selection(curs, cursplus);
     }
   }
+
+  term_print_flush();
 }
 
 #if 0
@@ -3284,7 +3449,8 @@ void term_mouse(
 {
   pos selpoint;
   unsigned long *ldata;
-  int raw_mouse = xterm_mouse && !(cfg.mouse_override && shift);
+  int raw_mouse =
+      (xterm_mouse && !cfg.no_mouse_rep && !(cfg.mouse_override && shift));
   int default_seltype;
 
   if (y < 0) {
@@ -3549,6 +3715,8 @@ int term_ldisc(int option)
  */
 int from_backend(int is_stderr, char *data, int len)
 {
+  assert(len > 0);
+
   bufchain_add(&inbuf, data, len);
 
   /*

@@ -35,7 +35,8 @@ static int raw_closing(Plug plug,
   }
   if (error_msg) {
     /* A socket error has occurred. */
-    connection_fatal(error_msg);
+    logevent(error_msg);
+    connection_fatal("%s", error_msg);
   } /* Otherwise, the remote side closed the connection normally. */
   return 0;
 }
@@ -93,7 +94,7 @@ static char *raw_init(char *host, int port, char **realhost, int nodelay)
     sprintf(buf, "Connecting to %.100s port %d", addrbuf, port);
     logevent(buf);
   }
-  s = sk_new(addr, port, 0, 1, nodelay, &fn_table_ptr);
+  s = new_connection(addr, *realhost, port, 0, 1, nodelay, &fn_table_ptr);
   if ((err = sk_socket_error(s)))
     return err;
 

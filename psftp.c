@@ -25,7 +25,7 @@
  */
 
 static int psftp_connect(char *userhost, char *user, int portnumber);
-static void do_sftp_init(void);
+static int do_sftp_init(void);
 
 /* ----------------------------------------------------------------------
  * sftp client state.
@@ -193,15 +193,15 @@ int sftp_cmd_quit(struct sftp_command *cmd)
  */
 static int sftp_ls_compare(const void *av, const void *bv)
 {
-  const struct fxp_name *a = (const struct fxp_name *)av;
-  const struct fxp_name *b = (const struct fxp_name *)bv;
-  return strcmp(a->filename, b->filename);
+  const struct fxp_name *const *a = (const struct fxp_name *const *)av;
+  const struct fxp_name *const *b = (const struct fxp_name *const *)bv;
+  return strcmp((*a)->filename, (*b)->filename);
 }
 int sftp_cmd_ls(struct sftp_command *cmd)
 {
   struct fxp_handle *dirh;
   struct fxp_names *names;
-  struct fxp_name *ournames;
+  struct fxp_name **ournames;
   int nnames, namesize;
   char *dir, *cdir;
   int i;
@@ -251,9 +251,8 @@ int sftp_cmd_ls(struct sftp_command *cmd)
       }
 
       for (i = 0; i < names->nnames; i++)
-        ournames[nnames++] = names->names[i];
+        ournames[nnames++] = fxp_dup_name(&names->names[i]);
 
-      names->nnames = 0; /* prevent free_names */
       fxp_free_names(names);
     }
     fxp_close(dirh);
@@ -267,8 +266,11 @@ int sftp_cmd_ls(struct sftp_command *cmd)
     /*
      * And print them.
      */
-    for (i = 0; i < nnames; i++)
-      printf("%s\n", ournames[i].longname);
+    for (i = 0; i < nnames; i++) {
+      printf("%s\n", ournames[i]->longname);
+      fxp_free_name(ournames[i]);
+    }
+    sfree(ournames);
   }
 
   sfree(cdir);
@@ -1372,14 +1374,14 @@ struct sftp_command *sftp_getcmd(FILE *fp, int mode, int modeflags)
   return cmd;
 }
 
-static void do_sftp_init(void)
+static int do_sftp_init(void)
 {
   /*
    * Do protocol initialisation.
    */
   if (!fxp_init()) {
     fprintf(stderr, "Fatal: unable to initialise SFTP: %s\n", fxp_error());
-    return;
+    return 1; /* failure */
   }
 
   /*
@@ -1394,6 +1396,7 @@ static void do_sftp_init(void)
     printf("Remote working directory is %s\n", homedir);
   }
   pwd = dupstr(homedir);
+  return 0;
 }
 
 void do_sftp(int mode, int modeflags, char *batchfile)
@@ -1460,7 +1463,7 @@ void fatalbox(char *fmt, ...)
   strcat(str, "\n");
   fputs(str, stderr);
 
-  exit(1);
+  cleanup_exit(1);
 }
 void connection_fatal(char *fmt, ...)
 {
@@ -1473,7 +1476,7 @@ void connection_fatal(char *fmt, ...)
   strcat(str, "\n");
   fputs(str, stderr);
 
-  exit(1);
+  cleanup_exit(1);
 }
 
 void ldisc_send(char *buf, int len, int interactive)
@@ -1518,6 +1521,8 @@ int from_backend(int is_stderr, char *data, int datalen)
 {
   unsigned char *p = (unsigned char *)data;
   unsigned len = (unsigned)datalen;
+
+  assert(len > 0);
 
   /*
    * stderr data is just spouted to local stderr and otherwise
@@ -1631,11 +1636,11 @@ static void init_winsock(void)
   winsock_ver = MAKEWORD(1, 1);
   if (WSAStartup(winsock_ver, &wsadata)) {
     fprintf(stderr, "Unable to initialise WinSock");
-    exit(1);
+    cleanup_exit(1);
   }
   if (LOBYTE(wsadata.wVersion) != 1 || HIBYTE(wsadata.wVersion) != 1) {
     fprintf(stderr, "WinSock version is incompatible with 1.1");
-    exit(1);
+    cleanup_exit(1);
   }
 }
 
@@ -1652,9 +1657,15 @@ static void usage(void)
   printf("  -bc       output batchfile commands\n");
   printf("  -be       don't stop batchfile processing if errors\n");
   printf("  -v        show verbose messages\n");
+  printf("  -load sessname  Load settings from saved session\n");
+  printf("  -l user   connect with specified username\n");
   printf("  -P port   connect to specified port\n");
   printf("  -pw passw login with specified password\n");
-  exit(1);
+  printf("  -1 -2     force use of particular SSH protocol version\n");
+  printf("  -C        enable compression\n");
+  printf("  -i key    private key file for authentication\n");
+  printf("  -batch    disable all interactive prompts\n");
+  cleanup_exit(1);
 }
 
 /*
@@ -1687,6 +1698,11 @@ static int psftp_connect(char *userhost, char *user, int portnumber)
     cfg.host[sizeof(cfg.host) - 1] = '\0';
     cfg.port = 22;
   }
+
+  /*
+   * Enact command-line overrides.
+   */
+  cmdline_run_saved();
 
   /*
    * Trim leading whitespace off the hostname if it's there.
@@ -1723,7 +1739,7 @@ static int psftp_connect(char *userhost, char *user, int portnumber)
     printf("login as: ");
     if (!fgets(cfg.username, sizeof(cfg.username), stdin)) {
       fprintf(stderr, "psftp: aborting\n");
-      exit(1);
+      cleanup_exit(1);
     } else {
       int len = strlen(cfg.username);
       if (cfg.username[len - 1] == '\n')
@@ -1790,6 +1806,17 @@ static int psftp_connect(char *userhost, char *user, int portnumber)
   return 0;
 }
 
+void cmdline_error(char *p, ...)
+{
+  va_list ap;
+  fprintf(stderr, "pscp: ");
+  va_start(ap, p);
+  vfprintf(stderr, p, ap);
+  va_end(ap);
+  fputc('\n', stderr);
+  exit(1);
+}
+
 /*
  * Main program. Parse arguments etc.
  */
@@ -1803,6 +1830,7 @@ int main(int argc, char *argv[])
   char *batchfile = NULL;
 
   flags = FLAG_STDERR | FLAG_INTERACTIVE;
+  cmdline_tooltype = TOOLTYPE_FILETRANSFER;
   ssh_get_line = &console_get_line;
   init_winsock();
   sk_init();
@@ -1810,28 +1838,34 @@ int main(int argc, char *argv[])
   userhost = user = NULL;
 
   for (i = 1; i < argc; i++) {
+    int ret;
     if (argv[i][0] != '-') {
       if (userhost)
         usage();
       else
         userhost = dupstr(argv[i]);
-    } else if (strcmp(argv[i], "-v") == 0) {
-      verbose = 1, flags |= FLAG_VERBOSE;
+      continue;
+    }
+    ret = cmdline_process_param(argv[i], i + 1 < argc ? argv[i + 1] : NULL, 1);
+    if (ret == -2) {
+      cmdline_error("option \"%s\" requires an argument", argv[i]);
+    } else if (ret == 2) {
+      i++; /* skip next argument */
+    } else if (ret == 1) {
+      /* We have our own verbosity in addition to `flags'. */
+      if (flags & FLAG_VERBOSE)
+        verbose = 1;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "-?") == 0) {
       usage();
     } else if (strcmp(argv[i], "-l") == 0 && i + 1 < argc) {
       user = argv[++i];
-    } else if (strcmp(argv[i], "-P") == 0 && i + 1 < argc) {
-      portnumber = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-pw") == 0 && i + 1 < argc) {
-      console_password = argv[++i];
+    } else if (strcmp(argv[i], "-batch") == 0) {
+      console_batch_mode = 1;
     } else if (strcmp(argv[i], "-b") == 0 && i + 1 < argc) {
       mode = 1;
       batchfile = argv[++i];
     } else if (strcmp(argv[i], "-bc") == 0) {
       modeflags = modeflags | 1;
-    } else if (strcmp(argv[i], "-batch") == 0) {
-      console_batch_mode = TRUE;
     } else if (strcmp(argv[i], "-be") == 0) {
       modeflags = modeflags | 2;
     } else if (strcmp(argv[i], "--") == 0) {
@@ -1852,7 +1886,8 @@ int main(int argc, char *argv[])
   if (userhost) {
     if (psftp_connect(userhost, user, portnumber))
       return 1;
-    do_sftp_init();
+    if (do_sftp_init())
+      return 1;
   } else {
     printf("psftp: no hostname specified; use \"open host.name\""
            " to connect\n");
