@@ -953,47 +953,25 @@ int base64_lines(int datalen)
   return (datalen + 47) / 48;
 }
 
-void base64_encode_atom(unsigned char *data, int n, char *out)
-{
-  static const char base64_chars[] =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-  unsigned word;
-
-  word = data[0] << 16;
-  if (n > 1)
-    word |= data[1] << 8;
-  if (n > 2)
-    word |= data[2];
-  out[0] = base64_chars[(word >> 18) & 0x3F];
-  out[1] = base64_chars[(word >> 12) & 0x3F];
-  if (n > 1)
-    out[2] = base64_chars[(word >> 6) & 0x3F];
-  else
-    out[2] = '=';
-  if (n > 2)
-    out[3] = base64_chars[word & 0x3F];
-  else
-    out[3] = '=';
-}
-
-void base64_encode(FILE *fp, unsigned char *data, int datalen)
+void base64_encode(FILE *fp, unsigned char *data, int datalen, int cpl)
 {
   int linelen = 0;
   char out[4];
-  int n;
+  int n, i;
 
   while (datalen > 0) {
-    if (linelen >= 64) {
-      linelen = 0;
-      fputc('\n', fp);
-    }
     n = (datalen < 3 ? datalen : 3);
     base64_encode_atom(data, n, out);
     data += n;
     datalen -= n;
-    fwrite(out, 1, 4, fp);
-    linelen += 4;
+    for (i = 0; i < 4; i++) {
+      if (linelen >= cpl) {
+        linelen = 0;
+        fputc('\n', fp);
+      }
+      fputc(out[i], fp);
+      linelen++;
+    }
   }
   fputc('\n', fp);
 }
@@ -1110,9 +1088,9 @@ int ssh2_save_userkey(char *filename,
   fprintf(fp, "Encryption: %s\n", cipherstr);
   fprintf(fp, "Comment: %s\n", key->comment);
   fprintf(fp, "Public-Lines: %d\n", base64_lines(pub_blob_len));
-  base64_encode(fp, pub_blob, pub_blob_len);
+  base64_encode(fp, pub_blob, pub_blob_len, 64);
   fprintf(fp, "Private-Lines: %d\n", base64_lines(priv_encrypted_len));
-  base64_encode(fp, priv_blob_encrypted, priv_encrypted_len);
+  base64_encode(fp, priv_blob_encrypted, priv_encrypted_len, 64);
   fprintf(fp, "Private-MAC: ");
   for (i = 0; i < 20; i++)
     fprintf(fp, "%02x", priv_mac[i]);
@@ -1127,22 +1105,65 @@ int ssh2_save_userkey(char *filename,
 }
 
 /* ----------------------------------------------------------------------
- * A function to determine which version of SSH to try on a private
- * key file. Returns 0 on failure, 1 or 2 on success.
+ * A function to determine the type of a private key file. Returns
+ * 0 on failure, 1 or 2 on success.
  */
-int keyfile_version(char *filename)
+int key_type(char *filename)
 {
   FILE *fp;
+  char buf[32];
+  const char putty2_sig[] = "PuTTY-User-Key-File-";
+  const char sshcom_sig[] = "---- BEGIN SSH2 ENCRYPTED PRIVAT";
+  const char openssh_sig[] = "-----BEGIN ";
   int i;
 
   fp = fopen(filename, "r");
   if (!fp)
-    return 0;
-  i = fgetc(fp);
+    return SSH_KEYTYPE_UNOPENABLE;
+  i = fread(buf, 1, sizeof(buf), fp);
   fclose(fp);
-  if (i == 'S')
-    return 1;   /* "SSH PRIVATE KEY FORMAT" etc */
-  if (i == 'P') /* "PuTTY-User-Key-File" etc */
-    return 2;
-  return 0; /* unrecognised or EOF */
+  if (i < 0)
+    return SSH_KEYTYPE_UNOPENABLE;
+  if (i < 32)
+    return SSH_KEYTYPE_UNKNOWN;
+  if (!memcmp(buf, rsa_signature, sizeof(rsa_signature) - 1))
+    return SSH_KEYTYPE_SSH1;
+  if (!memcmp(buf, putty2_sig, sizeof(putty2_sig) - 1))
+    return SSH_KEYTYPE_SSH2;
+  if (!memcmp(buf, openssh_sig, sizeof(openssh_sig) - 1))
+    return SSH_KEYTYPE_OPENSSH;
+  if (!memcmp(buf, sshcom_sig, sizeof(sshcom_sig) - 1))
+    return SSH_KEYTYPE_SSHCOM;
+  return SSH_KEYTYPE_UNKNOWN; /* unrecognised or EOF */
+}
+
+/*
+ * Convert the type word to a string, for `wrong type' error
+ * messages.
+ */
+char *key_type_to_str(int type)
+{
+  switch (type) {
+  case SSH_KEYTYPE_UNOPENABLE:
+    return "unable to open file";
+    break;
+  case SSH_KEYTYPE_UNKNOWN:
+    return "not a private key";
+    break;
+  case SSH_KEYTYPE_SSH1:
+    return "SSH1 private key";
+    break;
+  case SSH_KEYTYPE_SSH2:
+    return "PuTTY SSH2 private key";
+    break;
+  case SSH_KEYTYPE_OPENSSH:
+    return "OpenSSH SSH2 private key";
+    break;
+  case SSH_KEYTYPE_SSHCOM:
+    return "ssh.com SSH2 private key";
+    break;
+  default:
+    return "INTERNAL ERROR";
+    break;
+  }
 }

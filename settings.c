@@ -158,6 +158,17 @@ void save_settings(char *section, int do_host, Config *cfg)
   write_setting_i(sesskey, "TCPNoDelay", cfg->tcp_nodelay);
   write_setting_s(sesskey, "TerminalType", cfg->termtype);
   write_setting_s(sesskey, "TerminalSpeed", cfg->termspeed);
+
+  /* proxy settings */
+  write_setting_s(sesskey, "ProxyExcludeList", cfg->proxy_exclude_list);
+  write_setting_i(sesskey, "ProxyType", cfg->proxy_type);
+  write_setting_s(sesskey, "ProxyHost", cfg->proxy_host);
+  write_setting_i(sesskey, "ProxyPort", cfg->proxy_port);
+  write_setting_s(sesskey, "ProxyUsername", cfg->proxy_username);
+  write_setting_s(sesskey, "ProxyPassword", cfg->proxy_password);
+  write_setting_s(sesskey, "ProxyTelnetCommand", cfg->proxy_telnet_command);
+  write_setting_i(sesskey, "ProxySOCKSVersion", cfg->proxy_socks_version);
+
   {
     char buf[2 * sizeof(cfg->environmt)], *p, *q;
     p = buf;
@@ -187,7 +198,6 @@ void save_settings(char *section, int do_host, Config *cfg)
   write_setting_i(sesskey, "AuthTIS", cfg->try_tis_auth);
   write_setting_i(sesskey, "AuthKI", cfg->try_ki_auth);
   write_setting_i(sesskey, "SshProt", cfg->sshprot);
-  write_setting_i(sesskey, "BuggyMAC", cfg->buggymac);
   write_setting_i(sesskey, "SSH2DES", cfg->ssh2_des_cbc);
   write_setting_s(sesskey, "PublicKeyFile", cfg->keyfile);
   write_setting_s(sesskey, "RemoteCommand", cfg->remote_cmd);
@@ -198,6 +208,12 @@ void save_settings(char *section, int do_host, Config *cfg)
   write_setting_i(sesskey, "LinuxFunctionKeys", cfg->funky_type);
   write_setting_i(sesskey, "NoApplicationKeys", cfg->no_applic_k);
   write_setting_i(sesskey, "NoApplicationCursors", cfg->no_applic_c);
+  write_setting_i(sesskey, "NoMouseReporting", cfg->no_mouse_rep);
+  write_setting_i(sesskey, "NoRemoteResize", cfg->no_remote_resize);
+  write_setting_i(sesskey, "NoAltScreen", cfg->no_alt_screen);
+  write_setting_i(sesskey, "NoRemoteWinTitle", cfg->no_remote_wintitle);
+  write_setting_i(sesskey, "NoDBackspace", cfg->no_dbackspace);
+  write_setting_i(sesskey, "NoRemoteCharset", cfg->no_remote_charset);
   write_setting_i(sesskey, "ApplicationCursorKeys", cfg->app_cursor);
   write_setting_i(sesskey, "ApplicationKeypad", cfg->app_keypad);
   write_setting_i(sesskey, "NetHackKeypad", cfg->nethack_keypad);
@@ -267,6 +283,7 @@ void save_settings(char *section, int do_host, Config *cfg)
     write_setting_s(sesskey, buf, buf2);
   }
   write_setting_s(sesskey, "LineCodePage", cfg->line_codepage);
+  write_setting_s(sesskey, "Printer", cfg->printer);
   write_setting_i(sesskey, "CapsLockCyr", cfg->xlat_capslockcyr);
   write_setting_i(sesskey, "ScrollBar", cfg->scrollbar);
   write_setting_i(sesskey, "ScrollBarFullScreen", cfg->scrollbar_in_fullscreen);
@@ -298,7 +315,13 @@ void save_settings(char *section, int do_host, Config *cfg)
     *p = '\0';
     write_setting_s(sesskey, "PortForwardings", buf);
   }
-
+  write_setting_i(sesskey, "BugIgnore1", cfg->sshbug_ignore1);
+  write_setting_i(sesskey, "BugPlainPW1", cfg->sshbug_plainpw1);
+  write_setting_i(sesskey, "BugRSA1", cfg->sshbug_rsa1);
+  write_setting_i(sesskey, "BugHMAC2", cfg->sshbug_hmac2);
+  write_setting_i(sesskey, "BugDeriveKey2", cfg->sshbug_derivekey2);
+  write_setting_i(sesskey, "BugRSAPad2", cfg->sshbug_rsapad2);
+  write_setting_i(sesskey, "BugDHGEx2", cfg->sshbug_dhgex2);
   close_settings_w(sesskey);
 }
 
@@ -353,6 +376,33 @@ void load_settings(char *section, int do_host, Config *cfg)
        "38400,38400",
        cfg->termspeed,
        sizeof(cfg->termspeed));
+
+  /* proxy settings */
+  gpps(sesskey,
+       "ProxyExcludeList",
+       "",
+       cfg->proxy_exclude_list,
+       sizeof(cfg->proxy_exclude_list));
+  gppi(sesskey, "ProxyType", PROXY_NONE, &cfg->proxy_type);
+  gpps(sesskey, "ProxyHost", "proxy", cfg->proxy_host, sizeof(cfg->proxy_host));
+  gppi(sesskey, "ProxyPort", 80, &cfg->proxy_port);
+  gpps(sesskey,
+       "ProxyUsername",
+       "",
+       cfg->proxy_username,
+       sizeof(cfg->proxy_username));
+  gpps(sesskey,
+       "ProxyPassword",
+       "",
+       cfg->proxy_password,
+       sizeof(cfg->proxy_password));
+  gpps(sesskey,
+       "ProxyTelnetCommand",
+       "connect %host %port\\n",
+       cfg->proxy_telnet_command,
+       sizeof(cfg->proxy_telnet_command));
+  gppi(sesskey, "ProxySOCKSVersion", 5, &cfg->proxy_socks_version);
+
   {
     char buf[2 * sizeof(cfg->environmt)], *p, *q;
     gpps(sesskey, "Environment", "", buf, sizeof(buf));
@@ -385,7 +435,6 @@ void load_settings(char *section, int do_host, Config *cfg)
   gppi(sesskey, "ChangeUsername", 0, &cfg->change_username);
   gprefs(sesskey, "Cipher", "\0", ciphernames, CIPHER_MAX, cfg->ssh_cipherlist);
   gppi(sesskey, "SshProt", 1, &cfg->sshprot);
-  gppi(sesskey, "BuggyMAC", 0, &cfg->buggymac);
   gppi(sesskey, "SSH2DES", 0, &cfg->ssh2_des_cbc);
   gppi(sesskey, "AuthTIS", 0, &cfg->try_tis_auth);
   gppi(sesskey, "AuthKI", 1, &cfg->try_ki_auth);
@@ -398,6 +447,12 @@ void load_settings(char *section, int do_host, Config *cfg)
   gppi(sesskey, "LinuxFunctionKeys", 0, &cfg->funky_type);
   gppi(sesskey, "NoApplicationKeys", 0, &cfg->no_applic_k);
   gppi(sesskey, "NoApplicationCursors", 0, &cfg->no_applic_c);
+  gppi(sesskey, "NoMouseReporting", 0, &cfg->no_mouse_rep);
+  gppi(sesskey, "NoRemoteResize", 0, &cfg->no_remote_resize);
+  gppi(sesskey, "NoAltScreen", 0, &cfg->no_alt_screen);
+  gppi(sesskey, "NoRemoteWinTitle", 0, &cfg->no_remote_wintitle);
+  gppi(sesskey, "NoDBackspace", 0, &cfg->no_dbackspace);
+  gppi(sesskey, "NoRemoteCharset", 0, &cfg->no_remote_charset);
   gppi(sesskey, "ApplicationCursorKeys", 0, &cfg->app_cursor);
   gppi(sesskey, "ApplicationKeypad", 0, &cfg->app_keypad);
   gppi(sesskey, "NetHackKeypad", 0, &cfg->nethack_keypad);
@@ -515,6 +570,7 @@ void load_settings(char *section, int do_host, Config *cfg)
        "",
        cfg->line_codepage,
        sizeof(cfg->line_codepage));
+  gpps(sesskey, "Printer", "", cfg->printer, sizeof(cfg->printer));
   gppi(sesskey, "CapsLockCyr", 0, &cfg->xlat_capslockcyr);
   gppi(sesskey, "ScrollBar", 1, &cfg->scrollbar);
   gppi(sesskey, "ScrollBarFullScreen", 0, &cfg->scrollbar_in_fullscreen);
@@ -552,6 +608,21 @@ void load_settings(char *section, int do_host, Config *cfg)
     }
     *q = '\0';
   }
+  gppi(sesskey, "BugIgnore1", BUG_AUTO, &cfg->sshbug_ignore1);
+  gppi(sesskey, "BugPlainPW1", BUG_AUTO, &cfg->sshbug_plainpw1);
+  gppi(sesskey, "BugRSA1", BUG_AUTO, &cfg->sshbug_rsa1);
+  {
+    int i;
+    gppi(sesskey, "BugHMAC2", BUG_AUTO, &cfg->sshbug_hmac2);
+    if (cfg->sshbug_hmac2 == BUG_AUTO) {
+      gppi(sesskey, "BuggyMAC", 0, &i);
+      if (i == 1)
+        cfg->sshbug_hmac2 = BUG_ON;
+    }
+  }
+  gppi(sesskey, "BugDeriveKey2", BUG_AUTO, &cfg->sshbug_derivekey2);
+  gppi(sesskey, "BugRSAPad2", BUG_AUTO, &cfg->sshbug_rsapad2);
+  gppi(sesskey, "BugDHGEx2", BUG_AUTO, &cfg->sshbug_dhgex2);
 
   close_settings_r(sesskey);
 }

@@ -289,6 +289,21 @@ typedef struct {
   int warn_on_close;
   int ping_interval; /* in seconds */
   int tcp_nodelay;
+  /* Proxy options */
+  char proxy_exclude_list[512];
+  enum
+  {
+    PROXY_NONE,
+    PROXY_HTTP,
+    PROXY_SOCKS,
+    PROXY_TELNET
+  } proxy_type;
+  char proxy_host[512];
+  int proxy_port;
+  char proxy_username[32];
+  char proxy_password[32];
+  char proxy_telnet_command[512];
+  int proxy_socks_version;
   /* SSH options */
   char remote_cmd[512];
   char remote_cmd2[512]; /* fallback if the first fails
@@ -304,7 +319,6 @@ typedef struct {
   int ssh_cipherlist[CIPHER_MAX];
   char keyfile[FILENAME_MAX];
   int sshprot;      /* use v1 or v2 when both available */
-  int buggymac;     /* MAC bug commmercial <=v2.3.x SSH2 */
   int ssh2_des_cbc; /* "des-cbc" nonstandard SSH2 cipher */
   int try_tis_auth;
   int try_ki_auth;
@@ -314,16 +328,22 @@ typedef struct {
   char termtype[32];
   char termspeed[32];
   char environmt[1024]; /* VAR\tvalue\0VAR\tvalue\0\0 */
-  char username[32];
-  char localusername[32];
+  char username[100];
+  char localusername[100];
   int rfc_environ;
   int passive_telnet;
   /* Keyboard options */
   int bksp_is_delete;
   int rxvt_homeend;
   int funky_type;
-  int no_applic_c; /* totally disable app cursor keys */
-  int no_applic_k; /* totally disable app keypad */
+  int no_applic_c;        /* totally disable app cursor keys */
+  int no_applic_k;        /* totally disable app keypad */
+  int no_mouse_rep;       /* totally disable mouse reporting */
+  int no_remote_resize;   /* disable remote resizing */
+  int no_alt_screen;      /* disable alternate screen */
+  int no_remote_wintitle; /* disable remote retitling */
+  int no_dbackspace;      /* disable destructive backspace */
+  int no_remote_charset;  /* disable remote charset config */
   int app_cursor;
   int app_keypad;
   int nethack_keypad;
@@ -390,6 +410,7 @@ typedef struct {
   int sunken_edge;
   int window_border;
   char answerback[256];
+  char printer[128];
   /* Colour options */
   int try_palette;
   int bold_colour;
@@ -413,6 +434,15 @@ typedef struct {
   int rport_acceptall; /* same for remote forwarded ports (SSH2 only) */
   char portfwd[1024]; /* [LR]localport\thost:port\000[LR]localport\thost:port\000\000
                        */
+  /* SSH bug compatibility modes */
+  enum
+  {
+    BUG_AUTO,
+    BUG_OFF,
+    BUG_ON
+  } sshbug_ignore1,
+      sshbug_plainpw1, sshbug_rsa1, sshbug_hmac2, sshbug_derivekey2,
+      sshbug_rsapad2, sshbug_dhgex2;
 } Config;
 
 /*
@@ -488,6 +518,8 @@ void get_window_pos(int *x, int *y);
 void get_window_pixels(int *x, int *y);
 char *get_window_title(int icon);
 
+void cleanup_exit(int);
+
 /*
  * Exports from noise.c.
  */
@@ -549,6 +581,7 @@ int from_backend(int is_stderr, char *data, int len);
 void logfopen(void);
 void logfclose(void);
 void term_copyall(void);
+void term_reconfig(void);
 
 /*
  * Exports from logging.c.
@@ -559,6 +592,7 @@ enum
   PKT_INCOMING,
   PKT_OUTGOING
 };
+void log_eventlog(char *string);
 void log_packet(int direction, int type, char *texttype, void *data, int len);
 
 /*
@@ -580,13 +614,16 @@ extern Backend rlogin_backend;
 extern Backend telnet_backend;
 
 /*
- * Exports from ssh.c.
+ * Exports from ssh.c. (NB the getline variables have to be GLOBAL
+ * so that PuTTYtel will still compile - otherwise it would depend
+ * on ssh.c.)
  */
 
-extern int (*ssh_get_line)(const char *prompt,
+GLOBAL int (*ssh_get_line)(const char *prompt,
                            char *str,
                            int maxlen,
                            int is_pw);
+GLOBAL int ssh_getline_pw_only;
 extern Backend ssh_backend;
 
 /*
@@ -603,6 +640,7 @@ void random_add_noise(void *noise, int length);
 void random_init(void);
 int random_byte(void);
 void random_get_savedata(void **data, int *len);
+extern int random_active;
 
 /*
  * Exports from misc.c.
@@ -663,7 +701,31 @@ int wc_unescape(char *output, const char *wildcard);
  * windlg.c).
  */
 extern int console_batch_mode;
-extern char *console_password;
 int console_get_line(const char *prompt, char *str, int maxlen, int is_pw);
+
+/*
+ * Exports from printing.c.
+ */
+typedef struct printer_enum_tag printer_enum;
+typedef struct printer_job_tag printer_job;
+printer_enum *printer_start_enum(int *nprinters);
+char *printer_get_name(printer_enum *, int);
+void printer_finish_enum(printer_enum *);
+printer_job *printer_start_job(char *printer);
+void printer_job_data(printer_job *, void *, int);
+void printer_finish_job(printer_job *);
+
+/*
+ * Exports from cmdline.c (and also cmdline_error(), which is
+ * defined differently in various places and required _by_
+ * cmdline.c).
+ */
+int cmdline_process_param(char *, char *, int);
+void cmdline_run_saved(void);
+extern char *cmdline_password;
+#define TOOLTYPE_FILETRANSFER 1
+extern int cmdline_tooltype;
+
+void cmdline_error(char *, ...);
 
 #endif

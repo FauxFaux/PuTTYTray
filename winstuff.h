@@ -30,6 +30,11 @@ struct ctlpos {
 };
 
 /*
+ * Exports from winutils.c.
+ */
+void split_into_argv(char *, int *, char ***, char ***);
+
+/*
  * Private structure for prefslist state. Only in the header file
  * so that we can delegate allocation to callers.
  */
@@ -71,6 +76,8 @@ void static2btn(struct ctlpos *cp,
                 int bid2);
 void staticedit(
     struct ctlpos *cp, char *stext, int sid, int eid, int percentedit);
+void staticddl(
+    struct ctlpos *cp, char *stext, int sid, int lid, int percentlist);
 void combobox(struct ctlpos *cp, char *text, int staticid, int listid);
 void staticpassedit(
     struct ctlpos *cp, char *stext, int sid, int eid, int percentedit);

@@ -981,6 +981,7 @@ void aes256_encrypt_pubkey(unsigned char *key, unsigned char *blk, int len)
   aes_setup(&ctx, 16, key, 32);
   memset(ctx.iv, 0, sizeof(ctx.iv));
   aes_encrypt_cbc(blk, len, &ctx);
+  memset(&ctx, 0, sizeof(ctx));
 }
 
 void aes256_decrypt_pubkey(unsigned char *key, unsigned char *blk, int len)
@@ -989,6 +990,7 @@ void aes256_decrypt_pubkey(unsigned char *key, unsigned char *blk, int len)
   aes_setup(&ctx, 16, key, 32);
   memset(ctx.iv, 0, sizeof(ctx.iv));
   aes_decrypt_cbc(blk, len, &ctx);
+  memset(&ctx, 0, sizeof(ctx));
 }
 
 static const struct ssh2_cipher ssh_aes128 = {aes_csiv,

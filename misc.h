@@ -13,6 +13,8 @@
 char *dupstr(char *s);
 char *dupcat(char *s1, ...);
 
+void base64_encode_atom(unsigned char *data, int n, char *out);
+
 struct bufchain_granule;
 typedef struct bufchain_tag {
   struct bufchain_granule *head, *tail;
@@ -25,6 +27,7 @@ int bufchain_size(bufchain *ch);
 void bufchain_add(bufchain *ch, void *data, int len);
 void bufchain_prefix(bufchain *ch, void **data, int *len);
 void bufchain_consume(bufchain *ch, int len);
+void bufchain_fetch(bufchain *ch, void *data, int len);
 
 /*
  * Debugging functions.

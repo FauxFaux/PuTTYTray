@@ -51,6 +51,35 @@ char *dupcat(char *s1, ...)
 }
 
 /* ----------------------------------------------------------------------
+ * Base64 encoding routine. This is required in public-key writing
+ * but also in HTTP proxy handling, so it's centralised here.
+ */
+
+void base64_encode_atom(unsigned char *data, int n, char *out)
+{
+  static const char base64_chars[] =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+  unsigned word;
+
+  word = data[0] << 16;
+  if (n > 1)
+    word |= data[1] << 8;
+  if (n > 2)
+    word |= data[2];
+  out[0] = base64_chars[(word >> 18) & 0x3F];
+  out[1] = base64_chars[(word >> 12) & 0x3F];
+  if (n > 1)
+    out[2] = base64_chars[(word >> 6) & 0x3F];
+  else
+    out[2] = '=';
+  if (n > 2)
+    out[3] = base64_chars[word & 0x3F];
+  else
+    out[3] = '=';
+}
+
+/* ----------------------------------------------------------------------
  * Generic routines to deal with send buffers: a linked list of
  * smallish blocks, with the operations
  *
@@ -59,6 +88,7 @@ char *dupcat(char *s1, ...)
  *  - return a (pointer,length) pair giving some initial data in
  *    the list, suitable for passing to a send or write system
  *    call
+ *  - retrieve a larger amount of initial data from the list
  *  - return the current size of the buffer chain in bytes
  */
 
@@ -126,16 +156,23 @@ void bufchain_add(bufchain *ch, void *data, int len)
 
 void bufchain_consume(bufchain *ch, int len)
 {
+  struct bufchain_granule *tmp;
+
   assert(ch->buffersize >= len);
-  assert(ch->head != NULL && ch->head->bufpos + len <= ch->head->buflen);
-  ch->head->bufpos += len;
-  ch->buffersize -= len;
-  if (ch->head->bufpos >= ch->head->buflen) {
-    struct bufchain_granule *tmp = ch->head;
-    ch->head = tmp->next;
-    sfree(tmp);
-    if (!ch->head)
-      ch->tail = NULL;
+  while (len > 0) {
+    int remlen = len;
+    assert(ch->head != NULL);
+    if (remlen >= ch->head->buflen - ch->head->bufpos) {
+      remlen = ch->head->buflen - ch->head->bufpos;
+      tmp = ch->head;
+      ch->head = tmp->next;
+      sfree(tmp);
+      if (!ch->head)
+        ch->tail = NULL;
+    } else
+      ch->head->bufpos += remlen;
+    ch->buffersize -= remlen;
+    len -= remlen;
   }
 }
 
@@ -143,6 +180,28 @@ void bufchain_prefix(bufchain *ch, void **data, int *len)
 {
   *len = ch->head->buflen - ch->head->bufpos;
   *data = ch->head->buf + ch->head->bufpos;
+}
+
+void bufchain_fetch(bufchain *ch, void *data, int len)
+{
+  struct bufchain_granule *tmp;
+  char *data_c = (char *)data;
+
+  tmp = ch->head;
+
+  assert(ch->buffersize >= len);
+  while (len > 0) {
+    int remlen = len;
+
+    assert(tmp != NULL);
+    if (remlen >= tmp->buflen - tmp->bufpos)
+      remlen = tmp->buflen - tmp->bufpos;
+    memcpy(data_c, tmp->buf + tmp->bufpos, remlen);
+
+    tmp = tmp->next;
+    len -= remlen;
+    data_c += remlen;
+  }
 }
 
 /* ----------------------------------------------------------------------
@@ -293,7 +352,7 @@ static void *minefield_alloc(int size)
   /*
    * Update the admin region.
    */
-  for (i = start + 2; i < start + npages - 1; i++)
+  for (i = start + 2; i < start + npages + 1; i++)
     minefield_admin[i] = 0xFFFE; /* used but no region starts here */
   minefield_admin[start + 1] = region_start % PAGESIZE;
 
@@ -407,12 +466,14 @@ void *safemalloc(size_t size)
     char str[200];
 #ifdef MALLOC_LOG
     sprintf(str, "Out of memory! (%s:%d, size=%d)", mlog_file, mlog_line, size);
+    fprintf(fp, "*** %s\n", str);
+    fclose(fp);
 #else
     strcpy(str, "Out of memory!");
 #endif
     MessageBox(
         NULL, str, "PuTTY Fatal Error", MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
-    exit(1);
+    cleanup_exit(1);
   }
 #ifdef MALLOC_LOG
   if (fp)
@@ -441,12 +502,14 @@ void *saferealloc(void *ptr, size_t size)
     char str[200];
 #ifdef MALLOC_LOG
     sprintf(str, "Out of memory! (%s:%d, size=%d)", mlog_file, mlog_line, size);
+    fprintf(fp, "*** %s\n", str);
+    fclose(fp);
 #else
     strcpy(str, "Out of memory!");
 #endif
     MessageBox(
         NULL, str, "PuTTY Fatal Error", MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
-    exit(1);
+    cleanup_exit(1);
   }
 #ifdef MALLOC_LOG
   if (fp)

@@ -109,6 +109,7 @@ static LPARAM pend_netevent_lParam = 0;
 static void enact_pending_netevent(void);
 static void flash_window(int mode);
 static void sys_cursor_update(void);
+static int get_fullscreen_rect(RECT *ss);
 
 static time_t last_movement = 0;
 
@@ -157,6 +158,8 @@ static char *window_name, *icon_name;
 
 static int compose_state = 0;
 
+static int wsa_started = 0;
+
 static OSVERSIONINFO osVersion;
 
 static UINT wm_mousewheel = WM_MOUSEWHEEL;
@@ -194,6 +197,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     WSACleanup();
     return 1;
   }
+  wsa_started = 1;
   /* WISHLIST: maybe allow config tweaking even if winsock not present? */
   sk_init();
 
@@ -258,6 +262,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
    */
   {
     char *p;
+    int got_host = 0;
 
     default_protocol = DEFAULT_PROTOCOL;
     default_port = DEFAULT_PORT;
@@ -266,50 +271,16 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     do_defaults(NULL, &cfg);
 
     p = cmdline;
+
+    /*
+     * Process a couple of command-line options which are more
+     * easily dealt with before the line is broken up into
+     * words. These are the soon-to-be-defunct @sessionname and
+     * the internal-use-only &sharedmemoryhandle, neither of
+     * which are combined with anything else.
+     */
     while (*p && isspace(*p))
       p++;
-
-    /*
-     * Process command line options first. Yes, this can be
-     * done better, and it will be as soon as I have the
-     * energy...
-     */
-    while (*p == '-') {
-      char *q = p + strcspn(p, " \t");
-      p++;
-      if (q == p + 3 && tolower(p[0]) == 's' && tolower(p[1]) == 's' &&
-          tolower(p[2]) == 'h') {
-        default_protocol = cfg.protocol = PROT_SSH;
-        default_port = cfg.port = 22;
-      } else if (q == p + 7 && tolower(p[0]) == 'c' && tolower(p[1]) == 'l' &&
-                 tolower(p[2]) == 'e' && tolower(p[3]) == 'a' &&
-                 tolower(p[4]) == 'n' && tolower(p[5]) == 'u' &&
-                 tolower(p[6]) == 'p') {
-        /*
-         * `putty -cleanup'. Remove all registry entries
-         * associated with PuTTY, and also find and delete
-         * the random seed file.
-         */
-        if (MessageBox(NULL,
-                       "This procedure will remove ALL Registry\n"
-                       "entries associated with PuTTY, and will\n"
-                       "also remove the PuTTY random seed file.\n"
-                       "\n"
-                       "THIS PROCESS WILL DESTROY YOUR SAVED\n"
-                       "SESSIONS. Are you really sure you want\n"
-                       "to continue?",
-                       "PuTTY Warning",
-                       MB_YESNO | MB_ICONWARNING) == IDYES) {
-          cleanup_all();
-        }
-        exit(0);
-      }
-      p = q + strspn(q, " \t");
-    }
-
-    /*
-     * An initial @ means to activate a saved session.
-     */
     if (*p == '@') {
       int i = strlen(p);
       while (i > 1 && isspace(p[i - 1]))
@@ -339,51 +310,105 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
         WSACleanup();
         return 0;
       }
-    } else if (*p) {
-      char *q = p;
-      /*
-       * If the hostname starts with "telnet:", set the
-       * protocol to Telnet and process the string as a
-       * Telnet URL.
-       */
-      if (!strncmp(q, "telnet:", 7)) {
-        char c;
-
-        q += 7;
-        if (q[0] == '/' && q[1] == '/')
-          q += 2;
-        cfg.protocol = PROT_TELNET;
-        p = q;
-        while (*p && *p != ':' && *p != '/')
-          p++;
-        c = *p;
-        if (*p)
-          *p++ = '\0';
-        if (c == ':')
-          cfg.port = atoi(p);
-        else
-          cfg.port = -1;
-        strncpy(cfg.host, q, sizeof(cfg.host) - 1);
-        cfg.host[sizeof(cfg.host) - 1] = '\0';
-      } else {
-        while (*p && !isspace(*p))
-          p++;
-        if (*p)
-          *p++ = '\0';
-        strncpy(cfg.host, q, sizeof(cfg.host) - 1);
-        cfg.host[sizeof(cfg.host) - 1] = '\0';
-        while (*p && isspace(*p))
-          p++;
-        if (*p)
-          cfg.port = atoi(p);
-        else
-          cfg.port = -1;
-      }
     } else {
-      if (!do_config()) {
-        WSACleanup();
-        return 0;
+      /*
+       * Otherwise, break up the command line and deal with
+       * it sensibly.
+       */
+      int argc, i;
+      char **argv;
+
+      split_into_argv(cmdline, &argc, &argv, NULL);
+
+      for (i = 0; i < argc; i++) {
+        char *p = argv[i];
+        int ret;
+
+        ret = cmdline_process_param(p, i + 1 < argc ? argv[i + 1] : NULL, 1);
+        if (ret == -2) {
+          cmdline_error("option \"%s\" requires an argument", p);
+        } else if (ret == 2) {
+          i++; /* skip next argument */
+        } else if (ret == 1) {
+          continue; /* nothing further needs doing */
+        } else if (!strcmp(p, "-cleanup")) {
+          /*
+           * `putty -cleanup'. Remove all registry
+           * entries associated with PuTTY, and also find
+           * and delete the random seed file.
+           */
+          if (MessageBox(NULL,
+                         "This procedure will remove ALL Registry\n"
+                         "entries associated with PuTTY, and will\n"
+                         "also remove the PuTTY random seed file.\n"
+                         "\n"
+                         "THIS PROCESS WILL DESTROY YOUR SAVED\n"
+                         "SESSIONS. Are you really sure you want\n"
+                         "to continue?",
+                         "PuTTY Warning",
+                         MB_YESNO | MB_ICONWARNING) == IDYES) {
+            cleanup_all();
+          }
+          exit(0);
+        } else if (*p != '-') {
+          char *q = p;
+          if (got_host) {
+            /*
+             * If we already have a host name, treat
+             * this argument as a port number. NB we
+             * have to treat this as a saved -P
+             * argument, so that it will be deferred
+             * until it's a good moment to run it.
+             */
+            int ret = cmdline_process_param("-P", p, 1);
+            assert(ret == 2);
+          } else if (!strncmp(q, "telnet:", 7)) {
+            /*
+             * If the hostname starts with "telnet:",
+             * set the protocol to Telnet and process
+             * the string as a Telnet URL.
+             */
+            char c;
+
+            q += 7;
+            if (q[0] == '/' && q[1] == '/')
+              q += 2;
+            cfg.protocol = PROT_TELNET;
+            p = q;
+            while (*p && *p != ':' && *p != '/')
+              p++;
+            c = *p;
+            if (*p)
+              *p++ = '\0';
+            if (c == ':')
+              cfg.port = atoi(p);
+            else
+              cfg.port = -1;
+            strncpy(cfg.host, q, sizeof(cfg.host) - 1);
+            cfg.host[sizeof(cfg.host) - 1] = '\0';
+            got_host = 1;
+          } else {
+            /*
+             * Otherwise, treat this argument as a host
+             * name.
+             */
+            while (*p && !isspace(*p))
+              p++;
+            if (*p)
+              *p++ = '\0';
+            strncpy(cfg.host, q, sizeof(cfg.host) - 1);
+            cfg.host[sizeof(cfg.host) - 1] = '\0';
+            got_host = 1;
+          }
+        }
       }
+    }
+
+    cmdline_run_saved();
+
+    if (!*cfg.host && !do_config()) {
+      WSACleanup();
+      return 0;
     }
 
     /*
@@ -483,8 +508,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   guess_height = extra_height + font_height * rows;
   {
     RECT r;
-    HWND w = GetDesktopWindow();
-    GetWindowRect(w, &r);
+    get_fullscreen_rect(&r);
     if (guess_width > r.right - r.left)
       guess_width = r.right - r.left;
     if (guess_height > r.bottom - r.top)
@@ -748,7 +772,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
         timer_id = 0;
       }
       HideCaret(hwnd);
-      if (GetCapture() != hwnd)
+      if (GetCapture() != hwnd ||
+          (send_raw_mouse && !(cfg.mouse_override && is_shift_pressed())))
         term_out();
       term_update();
       ShowCaret(hwnd);
@@ -776,6 +801,15 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     }
   }
 
+  cleanup_exit(msg.wParam); /* this doesn't return... */
+  return msg.wParam;        /* ... but optimiser doesn't know */
+}
+
+/*
+ * Clean up and exit.
+ */
+void cleanup_exit(int code)
+{
   /*
    * Clean up.
    */
@@ -783,7 +817,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   sfree(logpal);
   if (pal)
     DeleteObject(pal);
-  WSACleanup();
+  sk_cleanup();
+  if (wsa_started)
+    WSACleanup();
 
   if (cfg.protocol == PROT_SSH) {
     random_save_seed();
@@ -792,7 +828,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 #endif
   }
 
-  return msg.wParam;
+  exit(code);
 }
 
 /*
@@ -825,6 +861,7 @@ char *do_select(SOCKET skt, int startup)
  */
 void set_raw_mouse_mode(int activate)
 {
+  activate = activate && !cfg.no_mouse_rep;
   send_raw_mouse = activate;
   SetCursor(LoadCursor(NULL, activate ? IDC_ARROW : IDC_IBEAM));
 }
@@ -847,6 +884,21 @@ void connection_fatal(char *fmt, ...)
     session_closed = TRUE;
     SetWindowText(hwnd, "PuTTY (inactive)");
   }
+}
+
+/*
+ * Report an error at the command-line parsing stage.
+ */
+void cmdline_error(char *fmt, ...)
+{
+  va_list ap;
+  char stuff[200];
+
+  va_start(ap, fmt);
+  vsprintf(stuff, fmt, ap);
+  va_end(ap);
+  MessageBox(hwnd, stuff, "PuTTY Command Line Error", MB_ICONERROR | MB_OK);
+  exit(1);
 }
 
 /*
@@ -1236,7 +1288,7 @@ void request_resize(int w, int h)
     switch (first_time) {
     case 1:
       /* Get the size of the screen */
-      if (GetClientRect(GetDesktopWindow(), &ss))
+      if (get_fullscreen_rect(&ss))
         /* first_time = 0 */;
       else {
         first_time = 2;
@@ -1413,7 +1465,8 @@ static void reset_window(int reinit)
       static RECT ss;
       int width, height;
 
-      GetClientRect(GetDesktopWindow(), &ss);
+      get_fullscreen_rect(&ss);
+
       width = (ss.right - ss.left - extra_width) / font_width;
       height = (ss.bottom - ss.top - extra_height) / font_height;
 
@@ -1561,6 +1614,17 @@ static int is_alt_pressed(void)
   return FALSE;
 }
 
+static int is_shift_pressed(void)
+{
+  BYTE keystate[256];
+  int r = GetKeyboardState(keystate);
+  if (!r)
+    return FALSE;
+  if (keystate[VK_SHIFT] & 0x80)
+    return TRUE;
+  return FALSE;
+}
+
 static int resizing;
 
 static LRESULT CALLBACK WndProc(HWND hwnd,
@@ -1577,7 +1641,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
   case WM_TIMER:
     if (pending_netevent)
       enact_pending_netevent();
-    if (GetCapture() != hwnd)
+    if (GetCapture() != hwnd ||
+        (send_raw_mouse && !(cfg.mouse_override && is_shift_pressed())))
       term_out();
     noise_regular();
     HideCaret(hwnd);
@@ -1721,6 +1786,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       pal = NULL;
       cfgtopalette();
       init_palette();
+
+      /* Give terminal a heads-up on miscellaneous stuff */
+      term_reconfig();
 
       /* Screen size changed ? */
       if (cfg.height != prev_cfg.height || cfg.width != prev_cfg.width ||
@@ -2050,6 +2118,19 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       edge = CreatePen(PS_SOLID, 0, colours[(ATTR_DEFBG >> ATTR_BGSHIFT) * 2]);
       oldpen = SelectObject(hdc, edge);
 
+      /*
+       * Jordan Russell reports that this apparently
+       * ineffectual IntersectClipRect() call masks a
+       * Windows NT/2K bug causing strange display
+       * problems when the PuTTY window is taller than
+       * the primary monitor. It seems harmless enough...
+       */
+      IntersectClipRect(hdc,
+                        p.rcPaint.left,
+                        p.rcPaint.top,
+                        p.rcPaint.right,
+                        p.rcPaint.bottom);
+
       ExcludeClipRect(hdc,
                       offset_width,
                       offset_height,
@@ -2247,8 +2328,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     if (wParam == SIZE_RESTORED)
       clear_full_screen();
     if (wParam == SIZE_MAXIMIZED && fullscr_on_max) {
-      make_full_screen();
       fullscr_on_max = FALSE;
+      make_full_screen();
     }
 
     if (cfg.resize_action == RESIZE_DISABLED) {
@@ -2501,7 +2582,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       return TRUE;
     }
   default:
-    if (message == wm_mousewheel) {
+    if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
       int shift_pressed = 0, control_pressed = 0, alt_pressed = 0;
 
       if (message == WM_MOUSEWHEEL) {
@@ -4259,7 +4340,7 @@ void fatalbox(char *fmt, ...)
   vsprintf(stuff, fmt, ap);
   va_end(ap);
   MessageBox(hwnd, stuff, "PuTTY Fatal Error", MB_ICONERROR | MB_OK);
-  exit(1);
+  cleanup_exit(1);
 }
 
 /*
@@ -4451,6 +4532,31 @@ int is_full_screen()
   return TRUE;
 }
 
+/* Get the rect/size of a full screen window using the nearest available
+ * monitor in multimon systems; default to something sensible if only
+ * one monitor is present. */
+static int get_fullscreen_rect(RECT *ss)
+{
+#ifdef MONITOR_DEFAULTTONEAREST
+  HMONITOR mon;
+  MONITORINFO mi;
+  mon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+  mi.cbSize = sizeof(mi);
+  GetMonitorInfo(mon, &mi);
+
+  /* structure copy */
+  *ss = mi.rcMonitor;
+  return TRUE;
+#else
+  /* could also use code like this:
+          ss->left = ss->top = 0;
+          ss->right = GetSystemMetrics(SM_CXSCREEN);
+          ss->bottom = GetSystemMetrics(SM_CYSCREEN);
+  */
+  return GetClientRect(GetDesktopWindow(), ss);
+#endif
+}
+
 /*
  * Go full-screen. This should only be called when we are already
  * maximised.
@@ -4458,9 +4564,12 @@ int is_full_screen()
 void make_full_screen()
 {
   DWORD style;
-  int x, y, w, h;
+  RECT ss;
 
   assert(IsZoomed(hwnd));
+
+  if (is_full_screen())
+    return;
 
   /* Remove the window furniture. */
   style = GetWindowLong(hwnd, GWL_STYLE);
@@ -4472,24 +4581,14 @@ void make_full_screen()
   SetWindowLong(hwnd, GWL_STYLE, style);
 
   /* Resize ourselves to exactly cover the nearest monitor. */
-#ifdef MONITOR_DEFAULTTONEAREST
-  {
-    HMONITOR mon;
-    MONITORINFO mi;
-    mon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-    mi.cbSize = sizeof(mi);
-    GetMonitorInfo(mon, &mi);
-    x = mi.rcMonitor.left;
-    y = mi.rcMonitor.top;
-    w = mi.rcMonitor.right;
-    h = mi.rcMonitor.bottom;
-  }
-#else
-  x = y = 0;
-  w = GetSystemMetrics(SM_CXSCREEN);
-  h = GetSystemMetrics(SM_CYSCREEN);
-#endif
-  SetWindowPos(hwnd, HWND_TOP, x, y, w, h, SWP_FRAMECHANGED);
+  get_fullscreen_rect(&ss);
+  SetWindowPos(hwnd,
+               HWND_TOP,
+               ss.left,
+               ss.top,
+               ss.right - ss.left,
+               ss.bottom - ss.top,
+               SWP_FRAMECHANGED);
 
   /* Tick the menu item in the System menu. */
   CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_FULLSCREEN, MF_CHECKED);

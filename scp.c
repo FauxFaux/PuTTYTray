@@ -42,15 +42,39 @@
                          (LONGLONG)11644473600))
 
 /* GUI Adaptation - Sept 2000 */
+
+/* This is just a base value from which the main message numbers are
+ * derived. */
 #define WM_APP_BASE 0x8000
+
+/* These two pass a single character value in wParam. They represent
+ * the visible output from PSCP. */
 #define WM_STD_OUT_CHAR (WM_APP_BASE + 400)
 #define WM_STD_ERR_CHAR (WM_APP_BASE + 401)
+
+/* These pass a transfer status update. WM_STATS_CHAR passes a single
+ * character in wParam, and is called repeatedly to pass the name of
+ * the file, terminated with "\n". WM_STATS_SIZE passes the size of
+ * the file being transferred in wParam. WM_STATS_ELAPSED is called
+ * to pass the elapsed time (in seconds) in wParam, and
+ * WM_STATS_PERCENT passes the percentage of the transfer which is
+ * complete, also in wParam. */
 #define WM_STATS_CHAR (WM_APP_BASE + 402)
 #define WM_STATS_SIZE (WM_APP_BASE + 403)
 #define WM_STATS_PERCENT (WM_APP_BASE + 404)
 #define WM_STATS_ELAPSED (WM_APP_BASE + 405)
+
+/* These are used at the end of a run to pass an error code in
+ * wParam: zero means success, nonzero means failure. WM_RET_ERR_CNT
+ * is used after a copy, and WM_LS_RET_ERR_CNT is used after a file
+ * list operation. */
 #define WM_RET_ERR_CNT (WM_APP_BASE + 406)
 #define WM_LS_RET_ERR_CNT (WM_APP_BASE + 407)
+
+/* More transfer status update messages. WM_STATS_DONE passes the
+ * number of bytes sent so far in wParam. WM_STATS_ETA passes the
+ * estimated time to completion (in seconds). WM_STATS_RATEBS passes
+ * the average transfer rate (in bytes per second). */
 #define WM_STATS_DONE (WM_APP_BASE + 408)
 #define WM_STATS_ETA (WM_APP_BASE + 409)
 #define WM_STATS_RATEBS (WM_APP_BASE + 410)
@@ -215,7 +239,7 @@ void fatalbox(char *fmt, ...)
       SleepEx(1000, TRUE);
   }
 
-  exit(1);
+  cleanup_exit(1);
 }
 void connection_fatal(char *fmt, ...)
 {
@@ -238,7 +262,7 @@ void connection_fatal(char *fmt, ...)
       SleepEx(1000, TRUE);
   }
 
-  exit(1);
+  cleanup_exit(1);
 }
 
 /*
@@ -272,6 +296,8 @@ int from_backend(int is_stderr, char *data, int datalen)
 {
   unsigned char *p = (unsigned char *)data;
   unsigned len = (unsigned)datalen;
+
+  assert(len > 0);
 
   /*
    * stderr data is just spouted to local stderr and otherwise
@@ -406,7 +432,7 @@ static void bump(char *fmt, ...)
       SleepEx(1000, TRUE);
   }
 
-  exit(1);
+  cleanup_exit(1);
 }
 
 /*
@@ -429,6 +455,11 @@ static void do_cmd(char *host, char *user, char *cmd)
     cfg.host[sizeof(cfg.host) - 1] = '\0';
     cfg.port = 22;
   }
+
+  /*
+   * Enact command-line overrides.
+   */
+  cmdline_run_saved();
 
   /*
    * Trim leading whitespace off the hostname if it's there.
@@ -676,6 +707,12 @@ void scp_sftp_listdir(char *dirname)
   int nnames, namesize;
   int i;
 
+  if (!fxp_init()) {
+    tell_user(stderr, "unable to initialise SFTP: %s", fxp_error());
+    errs++;
+    return;
+  }
+
   printf("Listing directory %s\n", dirname);
 
   dirh = fxp_opendir(dirname);
@@ -756,6 +793,12 @@ void scp_source_setup(char *target, int shouldbedir)
      * directory.
      */
     struct fxp_attrs attrs;
+
+    if (!fxp_init()) {
+      tell_user(stderr, "unable to initialise SFTP: %s", fxp_error());
+      errs++;
+      return 1;
+    }
 
     if (!fxp_stat(target, &attrs) ||
         !(attrs.flags & SSH_FILEXFER_ATTR_PERMISSIONS))
@@ -966,6 +1009,12 @@ int scp_sink_setup(char *source, int preserve, int recursive)
 {
   if (using_sftp) {
     char *newsource;
+
+    if (!fxp_init()) {
+      tell_user(stderr, "unable to initialise SFTP: %s", fxp_error());
+      errs++;
+      return 1;
+    }
     /*
      * It's possible that the source string we've been given
      * contains a wildcard. If so, we must split the directory
@@ -2056,8 +2105,14 @@ static void usage(void)
   printf("  -q        quiet, don't show statistics\n");
   printf("  -r        copy directories recursively\n");
   printf("  -v        show verbose messages\n");
+  printf("  -load sessname  Load settings from saved session\n");
   printf("  -P port   connect to specified port\n");
+  printf("  -l user   connect with specified username\n");
   printf("  -pw passw login with specified password\n");
+  printf("  -1 -2     force use of particular SSH protocol version\n");
+  printf("  -C        enable compression\n");
+  printf("  -i key    private key file for authentication\n");
+  printf("  -batch    disable all interactive prompts\n");
   printf("  -unsafe   allow server-side wildcards (DANGEROUS)\n");
 #if 0
     /*
@@ -2070,6 +2125,17 @@ static void usage(void)
     printf
 	("  -gui hWnd GUI mode with the windows handle for receiving messages\n");
 #endif
+  cleanup_exit(1);
+}
+
+void cmdline_error(char *p, ...)
+{
+  va_list ap;
+  fprintf(stderr, "pscp: ");
+  va_start(ap, p);
+  vfprintf(stderr, p, ap);
+  va_end(ap);
+  fputc('\n', stderr);
   exit(1);
 }
 
@@ -2083,38 +2149,43 @@ int main(int argc, char *argv[])
   default_protocol = PROT_TELNET;
 
   flags = FLAG_STDERR;
+  cmdline_tooltype = TOOLTYPE_FILETRANSFER;
   ssh_get_line = &console_get_line;
   init_winsock();
   sk_init();
 
   for (i = 1; i < argc; i++) {
+    int ret;
     if (argv[i][0] != '-')
       break;
-    if (strcmp(argv[i], "-v") == 0)
-      verbose = 1, flags |= FLAG_VERBOSE;
-    else if (strcmp(argv[i], "-r") == 0)
+    ret = cmdline_process_param(argv[i], i + 1 < argc ? argv[i + 1] : NULL, 1);
+    if (ret == -2) {
+      cmdline_error("option \"%s\" requires an argument", argv[i]);
+    } else if (ret == 2) {
+      i++; /* skip next argument */
+    } else if (ret == 1) {
+      /* We have our own verbosity in addition to `flags'. */
+      if (flags & FLAG_VERBOSE)
+        verbose = 1;
+    } else if (strcmp(argv[i], "-r") == 0) {
       recursive = 1;
-    else if (strcmp(argv[i], "-p") == 0)
+    } else if (strcmp(argv[i], "-p") == 0) {
       preserve = 1;
-    else if (strcmp(argv[i], "-q") == 0)
+    } else if (strcmp(argv[i], "-q") == 0) {
       statistics = 0;
-    else if (strcmp(argv[i], "-batch") == 0)
-      console_batch_mode = 1;
-    else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "-?") == 0)
+    } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "-?") == 0) {
       usage();
-    else if (strcmp(argv[i], "-P") == 0 && i + 1 < argc)
-      portnumber = atoi(argv[++i]);
-    else if (strcmp(argv[i], "-pw") == 0 && i + 1 < argc)
-      console_password = argv[++i];
-    else if (strcmp(argv[i], "-gui") == 0 && i + 1 < argc) {
+    } else if (strcmp(argv[i], "-gui") == 0 && i + 1 < argc) {
       gui_hwnd = argv[++i];
       gui_mode = 1;
       console_batch_mode = TRUE;
-    } else if (strcmp(argv[i], "-ls") == 0)
+    } else if (strcmp(argv[i], "-ls") == 0) {
       list = 1;
-    else if (strcmp(argv[i], "-unsafe") == 0)
+    } else if (strcmp(argv[i], "-batch") == 0) {
+      console_batch_mode = 1;
+    } else if (strcmp(argv[i], "-unsafe") == 0) {
       scp_unsafe_mode = 1;
-    else if (strcmp(argv[i], "--") == 0) {
+    } else if (strcmp(argv[i], "--") == 0) {
       i++;
       break;
     } else
