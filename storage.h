@@ -25,10 +25,14 @@
  * A given key will be written at most once while saving a session.
  * Keys may be up to 255 characters long.  String values have no length
  * limit.
+ *
+ * Any returned error message must be freed after use.
  */
-void *open_settings_w(char *sessionname);
-void write_setting_s(void *handle, char *key, char *value);
-void write_setting_i(void *handle, char *key, int value);
+void *open_settings_w(const char *sessionname, char **errmsg);
+void write_setting_s(void *handle, const char *key, const char *value);
+void write_setting_i(void *handle, const char *key, int value);
+void write_setting_filename(void *handle, const char *key, Filename value);
+void write_setting_fontspec(void *handle, const char *key, FontSpec font);
 void close_settings_w(void *handle);
 
 /*
@@ -44,16 +48,21 @@ void close_settings_w(void *handle);
  * read_setting_s() can return NULL, in which case the caller
  * should invent a sensible default. If an integer setting is not
  * present, read_setting_i() returns its provided default.
+ *
+ * read_setting_filename() and read_setting_fontspec() each read into
+ * the provided buffer, and return zero if they failed to.
  */
-void *open_settings_r(char *sessionname);
-char *read_setting_s(void *handle, char *key, char *buffer, int buflen);
-int read_setting_i(void *handle, char *key, int defvalue);
+void *open_settings_r(const char *sessionname);
+char *read_setting_s(void *handle, const char *key, char *buffer, int buflen);
+int read_setting_i(void *handle, const char *key, int defvalue);
+int read_setting_filename(void *handle, const char *key, Filename *value);
+int read_setting_fontspec(void *handle, const char *key, FontSpec *font);
 void close_settings_r(void *handle);
 
 /*
  * Delete a whole saved session.
  */
-void del_settings(char *sessionname);
+void del_settings(const char *sessionname);
 
 /*
  * Enumerate all saved sessions.
@@ -71,13 +80,19 @@ void enum_settings_finish(void *handle);
  * be 0 (entry matches database), 1 (entry is absent in database),
  * or 2 (entry exists in database and is different).
  */
-int verify_host_key(char *hostname, int port, char *keytype, char *key);
+int verify_host_key(const char *hostname,
+                    int port,
+                    const char *keytype,
+                    const char *key);
 
 /*
  * Write a host key into the database, overwriting any previous
  * entry that might have been there.
  */
-void store_host_key(char *hostname, int port, char *keytype, char *key);
+void store_host_key(const char *hostname,
+                    int port,
+                    const char *keytype,
+                    const char *key);
 
 /* ----------------------------------------------------------------------
  * Functions to access PuTTY's random number seed file.

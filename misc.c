@@ -1,6 +1,7 @@
-#include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <ctype.h>
 #include <assert.h>
 #include "putty.h"
 
@@ -8,16 +9,19 @@
  * String handling routines.
  */
 
-char *dupstr(char *s)
+char *dupstr(const char *s)
 {
-  int len = strlen(s);
-  char *p = smalloc(len + 1);
-  strcpy(p, s);
+  char *p = NULL;
+  if (s) {
+    int len = strlen(s);
+    p = snewn(len + 1, char);
+    strcpy(p, s);
+  }
   return p;
 }
 
 /* Allocate the concatenation of N strings. Terminate arg list with NULL. */
-char *dupcat(char *s1, ...)
+char *dupcat(const char *s1, ...)
 {
   int len;
   char *p, *q, *sn;
@@ -33,7 +37,7 @@ char *dupcat(char *s1, ...)
   }
   va_end(ap);
 
-  p = smalloc(len + 1);
+  p = snewn(len + 1, char);
   strcpy(p, s1);
   q = p + strlen(p);
 
@@ -48,6 +52,56 @@ char *dupcat(char *s1, ...)
   va_end(ap);
 
   return p;
+}
+
+/*
+ * Do an sprintf(), but into a custom-allocated buffer.
+ *
+ * Irritatingly, we don't seem to be able to do this portably using
+ * vsnprintf(), because there appear to be issues with re-using the
+ * same va_list for two calls, and the excellent C99 va_copy is not
+ * yet widespread. Bah. Instead I'm going to do a horrid, horrid
+ * hack, in which I trawl the format string myself, work out the
+ * maximum length of each format component, and resize the buffer
+ * before printing it.
+ */
+char *dupprintf(const char *fmt, ...)
+{
+  char *ret;
+  va_list ap;
+  va_start(ap, fmt);
+  ret = dupvprintf(fmt, ap);
+  va_end(ap);
+  return ret;
+}
+char *dupvprintf(const char *fmt, va_list ap)
+{
+  char *buf;
+  int len, size;
+
+  buf = snewn(512, char);
+  size = 512;
+
+  while (1) {
+#ifdef _WINDOWS
+#define vsnprintf _vsnprintf
+#endif
+    len = vsnprintf(buf, size, fmt, ap);
+    if (len >= 0 && len < size) {
+      /* This is the C99-specified criterion for snprintf to have
+       * been completely successful. */
+      return buf;
+    } else if (len > 0) {
+      /* This is the C99 error condition: the returned length is
+       * the required buffer size not counting the NUL. */
+      size = len + 1;
+    } else {
+      /* This is the pre-C99 glibc error condition: <0 means the
+       * buffer wasn't big enough, so we enlarge it a bit and hope. */
+      size += 512;
+    }
+    buf = sresize(buf, size, char);
+  }
 }
 
 /* ----------------------------------------------------------------------
@@ -123,9 +177,12 @@ int bufchain_size(bufchain *ch)
   return ch->buffersize;
 }
 
-void bufchain_add(bufchain *ch, void *data, int len)
+void bufchain_add(bufchain *ch, const void *data, int len)
 {
-  char *buf = (char *)data;
+  const char *buf = (const char *)data;
+
+  if (len == 0)
+    return;
 
   ch->buffersize += len;
 
@@ -139,7 +196,7 @@ void bufchain_add(bufchain *ch, void *data, int len)
   while (len > 0) {
     int grainlen = min(len, BUFFER_GRANULE);
     struct bufchain_granule *newbuf;
-    newbuf = smalloc(sizeof(struct bufchain_granule));
+    newbuf = snew(struct bufchain_granule);
     newbuf->bufpos = 0;
     newbuf->buflen = grainlen;
     memcpy(newbuf->buf, buf, grainlen);
@@ -215,225 +272,10 @@ void bufchain_fetch(bufchain *ch, void *data, int len)
  */
 
 #ifdef MINEFIELD
-/*
- * Minefield - a Windows equivalent for Electric Fence
- */
-
-#define PAGESIZE 4096
-
-/*
- * Design:
- *
- * We start by reserving as much virtual address space as Windows
- * will sensibly (or not sensibly) let us have. We flag it all as
- * invalid memory.
- *
- * Any allocation attempt is satisfied by committing one or more
- * pages, with an uncommitted page on either side. The returned
- * memory region is jammed up against the _end_ of the pages.
- *
- * Freeing anything causes instantaneous decommitment of the pages
- * involved, so stale pointers are caught as soon as possible.
- */
-
-static int minefield_initialised = 0;
-static void *minefield_region = NULL;
-static long minefield_size = 0;
-static long minefield_npages = 0;
-static long minefield_curpos = 0;
-static unsigned short *minefield_admin = NULL;
-static void *minefield_pages = NULL;
-
-static void minefield_admin_hide(int hide)
-{
-  int access = hide ? PAGE_NOACCESS : PAGE_READWRITE;
-  VirtualProtect(minefield_admin, minefield_npages * 2, access, NULL);
-}
-
-static void minefield_init(void)
-{
-  int size;
-  int admin_size;
-  int i;
-
-  for (size = 0x40000000; size > 0; size = ((size >> 3) * 7) & ~0xFFF) {
-    minefield_region = VirtualAlloc(NULL, size, MEM_RESERVE, PAGE_NOACCESS);
-    if (minefield_region)
-      break;
-  }
-  minefield_size = size;
-
-  /*
-   * Firstly, allocate a section of that to be the admin block.
-   * We'll need a two-byte field for each page.
-   */
-  minefield_admin = minefield_region;
-  minefield_npages = minefield_size / PAGESIZE;
-  admin_size = (minefield_npages * 2 + PAGESIZE - 1) & ~(PAGESIZE - 1);
-  minefield_npages = (minefield_size - admin_size) / PAGESIZE;
-  minefield_pages = (char *)minefield_region + admin_size;
-
-  /*
-   * Commit the admin region.
-   */
-  VirtualAlloc(
-      minefield_admin, minefield_npages * 2, MEM_COMMIT, PAGE_READWRITE);
-
-  /*
-   * Mark all pages as unused (0xFFFF).
-   */
-  for (i = 0; i < minefield_npages; i++)
-    minefield_admin[i] = 0xFFFF;
-
-  /*
-   * Hide the admin region.
-   */
-  minefield_admin_hide(1);
-
-  minefield_initialised = 1;
-}
-
-static void minefield_bomb(void)
-{
-  div(1, *(int *)minefield_pages);
-}
-
-static void *minefield_alloc(int size)
-{
-  int npages;
-  int pos, lim, region_end, region_start;
-  int start;
-  int i;
-
-  npages = (size + PAGESIZE - 1) / PAGESIZE;
-
-  minefield_admin_hide(0);
-
-  /*
-   * Search from current position until we find a contiguous
-   * bunch of npages+2 unused pages.
-   */
-  pos = minefield_curpos;
-  lim = minefield_npages;
-  while (1) {
-    /* Skip over used pages. */
-    while (pos < lim && minefield_admin[pos] != 0xFFFF)
-      pos++;
-    /* Count unused pages. */
-    start = pos;
-    while (pos < lim && pos - start < npages + 2 &&
-           minefield_admin[pos] == 0xFFFF)
-      pos++;
-    if (pos - start == npages + 2)
-      break;
-    /* If we've reached the limit, reset the limit or stop. */
-    if (pos >= lim) {
-      if (lim == minefield_npages) {
-        /* go round and start again at zero */
-        lim = minefield_curpos;
-        pos = 0;
-      } else {
-        minefield_admin_hide(1);
-        return NULL;
-      }
-    }
-  }
-
-  minefield_curpos = pos - 1;
-
-  /*
-   * We have npages+2 unused pages starting at start. We leave
-   * the first and last of these alone and use the rest.
-   */
-  region_end = (start + npages + 1) * PAGESIZE;
-  region_start = region_end - size;
-  /* FIXME: could align here if we wanted */
-
-  /*
-   * Update the admin region.
-   */
-  for (i = start + 2; i < start + npages + 1; i++)
-    minefield_admin[i] = 0xFFFE; /* used but no region starts here */
-  minefield_admin[start + 1] = region_start % PAGESIZE;
-
-  minefield_admin_hide(1);
-
-  VirtualAlloc(
-      (char *)minefield_pages + region_start, size, MEM_COMMIT, PAGE_READWRITE);
-  return (char *)minefield_pages + region_start;
-}
-
-static void minefield_free(void *ptr)
-{
-  int region_start, i, j;
-
-  minefield_admin_hide(0);
-
-  region_start = (char *)ptr - (char *)minefield_pages;
-  i = region_start / PAGESIZE;
-  if (i < 0 || i >= minefield_npages ||
-      minefield_admin[i] != region_start % PAGESIZE)
-    minefield_bomb();
-  for (j = i; j < minefield_npages && minefield_admin[j] != 0xFFFF; j++) {
-    minefield_admin[j] = 0xFFFF;
-  }
-
-  VirtualFree(ptr, j * PAGESIZE - region_start, MEM_DECOMMIT);
-
-  minefield_admin_hide(1);
-}
-
-static int minefield_get_size(void *ptr)
-{
-  int region_start, i, j;
-
-  minefield_admin_hide(0);
-
-  region_start = (char *)ptr - (char *)minefield_pages;
-  i = region_start / PAGESIZE;
-  if (i < 0 || i >= minefield_npages ||
-      minefield_admin[i] != region_start % PAGESIZE)
-    minefield_bomb();
-  for (j = i; j < minefield_npages && minefield_admin[j] != 0xFFFF; j++)
-    ;
-
-  minefield_admin_hide(1);
-
-  return j * PAGESIZE - region_start;
-}
-
-static void *minefield_c_malloc(size_t size)
-{
-  if (!minefield_initialised)
-    minefield_init();
-  return minefield_alloc(size);
-}
-
-static void minefield_c_free(void *p)
-{
-  if (!minefield_initialised)
-    minefield_init();
-  minefield_free(p);
-}
-
-/*
- * realloc _always_ moves the chunk, for rapid detection of code
- * that assumes it won't.
- */
-static void *minefield_c_realloc(void *p, size_t size)
-{
-  size_t oldsize;
-  void *q;
-  if (!minefield_initialised)
-    minefield_init();
-  q = minefield_alloc(size);
-  oldsize = minefield_get_size(p);
-  memcpy(q, p, (oldsize < size ? oldsize : size));
-  minefield_free(p);
-  return q;
-}
-
-#endif /* MINEFIELD */
+void *minefield_c_malloc(size_t size);
+void minefield_c_free(void *p);
+void *minefield_c_realloc(void *p, size_t size);
+#endif
 
 #ifdef MALLOC_LOG
 static FILE *fp = NULL;
@@ -471,9 +313,7 @@ void *safemalloc(size_t size)
 #else
     strcpy(str, "Out of memory!");
 #endif
-    MessageBox(
-        NULL, str, "PuTTY Fatal Error", MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
-    cleanup_exit(1);
+    modalfatalbox(str);
   }
 #ifdef MALLOC_LOG
   if (fp)
@@ -507,9 +347,7 @@ void *saferealloc(void *ptr, size_t size)
 #else
     strcpy(str, "Out of memory!");
 #endif
-    MessageBox(
-        NULL, str, "PuTTY Fatal Error", MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
-    cleanup_exit(1);
+    modalfatalbox(str);
   }
 #ifdef MALLOC_LOG
   if (fp)
@@ -542,34 +380,17 @@ void safefree(void *ptr)
  */
 
 #ifdef DEBUG
-static FILE *debug_fp = NULL;
-static int debug_got_console = 0;
+extern void dputs(char *); /* defined in per-platform *misc.c */
 
-static void dputs(char *buf)
+void debug_printf(char *fmt, ...)
 {
-  DWORD dw;
-
-  if (!debug_got_console) {
-    AllocConsole();
-    debug_got_console = 1;
-  }
-  if (!debug_fp) {
-    debug_fp = fopen("debug.log", "w");
-  }
-
-  WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), buf, strlen(buf), &dw, NULL);
-  fputs(buf, debug_fp);
-  fflush(debug_fp);
-}
-
-void dprintf(char *fmt, ...)
-{
-  char buf[2048];
+  char *buf;
   va_list ap;
 
   va_start(ap, fmt);
-  vsprintf(buf, fmt, ap);
+  buf = dupvprintf(fmt, ap);
   dputs(buf);
+  sfree(buf);
   va_end(ap);
 }
 
@@ -580,7 +401,7 @@ void debug_memdump(void *buf, int len, int L)
   char foo[17];
   if (L) {
     int delta;
-    dprintf("\t%d (0x%x) bytes:\n", len, len);
+    debug_printf("\t%d (0x%x) bytes:\n", len, len);
     delta = 15 & (int)p;
     p -= delta;
     len += delta;
@@ -588,22 +409,22 @@ void debug_memdump(void *buf, int len, int L)
   for (; 0 < len; p += 16, len -= 16) {
     dputs("  ");
     if (L)
-      dprintf("%p: ", p);
+      debug_printf("%p: ", p);
     strcpy(foo, "................"); /* sixteen dots */
     for (i = 0; i < 16 && i < len; ++i) {
       if (&p[i] < (unsigned char *)buf) {
         dputs("   "); /* 3 spaces */
         foo[i] = ' ';
       } else {
-        dprintf("%c%02.2x",
-                &p[i] != (unsigned char *)buf && i % 4 ? '.' : ' ',
-                p[i]);
+        debug_printf("%c%02.2x",
+                     &p[i] != (unsigned char *)buf && i % 4 ? '.' : ' ',
+                     p[i]);
         if (p[i] >= ' ' && p[i] <= '~')
           foo[i] = (char)p[i];
       }
     }
     foo[i] = '\0';
-    dprintf("%*s%s\n", (16 - i) * 3 + 2, "", foo);
+    debug_printf("%*s%s\n", (16 - i) * 3 + 2, "", foo);
   }
 }
 

@@ -2,10 +2,6 @@
  * PLink - a command-line (stdin/stdout) variant of PuTTY.
  */
 
-#ifndef AUTO_WINSOCK
-#include <winsock2.h>
-#endif
-#include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -16,7 +12,16 @@
 #include "storage.h"
 #include "tree234.h"
 
+#define WM_AGENT_CALLBACK (WM_XUSER + 4)
+
 #define MAX_STDIN_BACKLOG 4096
+
+struct agent_callback {
+  void (*callback)(void *, void *, int);
+  void *callback_ctx;
+  void *data;
+  int len;
+};
 
 void fatalbox(char *p, ...)
 {
@@ -26,10 +31,9 @@ void fatalbox(char *p, ...)
   vfprintf(stderr, p, ap);
   va_end(ap);
   fputc('\n', stderr);
-  WSACleanup();
   cleanup_exit(1);
 }
-void connection_fatal(char *p, ...)
+void modalfatalbox(char *p, ...)
 {
   va_list ap;
   fprintf(stderr, "FATAL ERROR: ");
@@ -37,7 +41,16 @@ void connection_fatal(char *p, ...)
   vfprintf(stderr, p, ap);
   va_end(ap);
   fputc('\n', stderr);
-  WSACleanup();
+  cleanup_exit(1);
+}
+void connection_fatal(void *frontend, char *p, ...)
+{
+  va_list ap;
+  fprintf(stderr, "FATAL ERROR: ");
+  va_start(ap, p);
+  vfprintf(stderr, p, ap);
+  va_end(ap);
+  fputc('\n', stderr);
   cleanup_exit(1);
 }
 void cmdline_error(char *p, ...)
@@ -51,18 +64,20 @@ void cmdline_error(char *p, ...)
   exit(1);
 }
 
-static char *password = NULL;
-
 HANDLE inhandle, outhandle, errhandle;
 DWORD orig_console_mode;
 
 WSAEVENT netevent;
 
-int term_ldisc(int mode)
+static Backend *back;
+static void *backhandle;
+static Config cfg;
+
+int term_ldisc(Terminal *term, int mode)
 {
   return FALSE;
 }
-void ldisc_update(int echo, int edit)
+void ldisc_update(void *frontend, int echo, int edit)
 {
   /* Update stdin read mode to reflect changes in line discipline. */
   DWORD mode;
@@ -157,12 +172,12 @@ void try_output(int is_stderr)
   }
 }
 
-int from_backend(int is_stderr, char *data, int len)
+int from_backend(void *frontend_handle,
+                 int is_stderr,
+                 const char *data,
+                 int len)
 {
-  HANDLE h = (is_stderr ? errhandle : outhandle);
   int osize, esize;
-
-  assert(len > 0);
 
   if (is_stderr) {
     bufchain_add(&stderr_data, data, len);
@@ -176,6 +191,21 @@ int from_backend(int is_stderr, char *data, int len)
   esize = bufchain_size(&stderr_data);
 
   return osize + esize;
+}
+
+static DWORD main_thread_id;
+
+void agent_schedule_callback(void (*callback)(void *, void *, int),
+                             void *callback_ctx,
+                             void *data,
+                             int len)
+{
+  struct agent_callback *c = snew(struct agent_callback);
+  c->callback = callback;
+  c->callback_ctx = callback_ctx;
+  c->data = data;
+  c->len = len;
+  PostThreadMessage(main_thread_id, WM_AGENT_CALLBACK, 0, (LPARAM)c);
 }
 
 /*
@@ -198,16 +228,19 @@ static void usage(void)
   printf("  -batch    disable all interactive prompts\n");
   printf("The following options only apply to SSH connections:\n");
   printf("  -pw passw login with specified password\n");
-  printf("  -L listen-port:host:port   Forward local port to "
-         "remote address\n");
-  printf("  -R listen-port:host:port   Forward remote port to"
-         " local address\n");
+  printf("  -D [listen-IP:]listen-port\n");
+  printf("            Dynamic SOCKS-based port forwarding\n");
+  printf("  -L [listen-IP:]listen-port:host:port\n");
+  printf("            Forward local port to remote address\n");
+  printf("  -R [listen-IP:]listen-port:host:port\n");
+  printf("            Forward remote port to local address\n");
   printf("  -X -x     enable / disable X11 forwarding\n");
   printf("  -A -a     enable / disable agent forwarding\n");
   printf("  -t -T     enable / disable pty allocation\n");
   printf("  -1 -2     force use of particular protocol version\n");
   printf("  -C        enable compression\n");
   printf("  -i key    private key file for authentication\n");
+  printf("  -s        remote command is an SSH subsystem (SSH-2 only)\n");
   exit(1);
 }
 
@@ -219,12 +252,12 @@ char *do_select(SOCKET skt, int startup)
   } else {
     events = 0;
   }
-  if (WSAEventSelect(skt, netevent, events) == SOCKET_ERROR) {
-    switch (WSAGetLastError()) {
+  if (p_WSAEventSelect(skt, netevent, events) == SOCKET_ERROR) {
+    switch (p_WSAGetLastError()) {
     case WSAENETDOWN:
       return "Network is down";
     default:
-      return "WSAAsyncSelect(): unknown error";
+      return "WSAEventSelect(): unknown error";
     }
   }
   return NULL;
@@ -232,8 +265,6 @@ char *do_select(SOCKET skt, int startup)
 
 int main(int argc, char **argv)
 {
-  WSADATA wsadata;
-  WORD winsock_ver;
   WSAEVENT stdinevent, stdoutevent, stderrevent;
   HANDLE handles[4];
   DWORD in_threadid, out_threadid, err_threadid;
@@ -245,6 +276,8 @@ int main(int argc, char **argv)
   int skcount, sksize;
   int connopen;
   int exitcode;
+  int errors;
+  int use_subsystem = 0;
 
   ssh_get_line = console_get_line;
 
@@ -264,6 +297,7 @@ int main(int argc, char **argv)
   do_defaults(NULL, &cfg);
   default_protocol = cfg.protocol;
   default_port = cfg.port;
+  errors = 0;
   {
     /*
      * Override the default protocol if PLINK_PROTOCOL is set.
@@ -283,17 +317,22 @@ int main(int argc, char **argv)
   while (--argc) {
     char *p = *++argv;
     if (*p == '-') {
-      int ret = cmdline_process_param(p, (argc > 1 ? argv[1] : NULL), 1);
+      int ret = cmdline_process_param(p, (argc > 1 ? argv[1] : NULL), 1, &cfg);
       if (ret == -2) {
         fprintf(stderr, "plink: option \"%s\" requires an argument\n", p);
+        errors = 1;
       } else if (ret == 2) {
         --argc, ++argv;
       } else if (ret == 1) {
         continue;
       } else if (!strcmp(p, "-batch")) {
         console_batch_mode = 1;
-      } else if (!strcmp(p, "-log")) {
-        logfile = "putty.log";
+      } else if (!strcmp(p, "-s")) {
+        /* Save status to write to cfg later. */
+        use_subsystem = 1;
+      } else {
+        fprintf(stderr, "plink: unknown option \"%s\"\n", p);
+        errors = 1;
       }
     } else if (*p) {
       if (!*cfg.host) {
@@ -390,13 +429,13 @@ int main(int argc, char **argv)
           while (*p) {
             if (cmdlen >= cmdsize) {
               cmdsize = cmdlen + 512;
-              command = srealloc(command, cmdsize);
+              command = sresize(command, cmdsize, char);
             }
             command[cmdlen++] = *p++;
           }
           if (cmdlen >= cmdsize) {
             cmdsize = cmdlen + 512;
-            command = srealloc(command, cmdsize);
+            command = sresize(command, cmdsize, char);
           }
           command[cmdlen++] = ' '; /* always add trailing space */
           if (--argc)
@@ -413,6 +452,9 @@ int main(int argc, char **argv)
       }
     }
   }
+
+  if (errors)
+    return 1;
 
   if (!*cfg.host) {
     usage();
@@ -442,12 +484,33 @@ int main(int argc, char **argv)
   /*
    * Perform command-line overrides on session configuration.
    */
-  cmdline_run_saved();
+  cmdline_run_saved(&cfg);
+
+  /*
+   * Apply subsystem status.
+   */
+  if (use_subsystem)
+    cfg.ssh_subsys = TRUE;
 
   /*
    * Trim a colon suffix off the hostname if it's there.
    */
   cfg.host[strcspn(cfg.host, ":")] = '\0';
+
+  /*
+   * Remove any remaining whitespace from the hostname.
+   */
+  {
+    int p1 = 0, p2 = 0;
+    while (cfg.host[p2] != '\0') {
+      if (cfg.host[p2] != ' ' && cfg.host[p2] != '\t') {
+        cfg.host[p1] = cfg.host[p2];
+        p1++;
+      }
+      p2++;
+    }
+    cfg.host[p1] = '\0';
+  }
 
   if (!*cfg.remote_cmd_ptr)
     flags |= FLAG_INTERACTIVE;
@@ -476,44 +539,33 @@ int main(int argc, char **argv)
   if (portnumber != -1)
     cfg.port = portnumber;
 
-  /*
-   * Initialise WinSock.
-   */
-  winsock_ver = MAKEWORD(2, 0);
-  if (WSAStartup(winsock_ver, &wsadata)) {
-    MessageBox(NULL,
-               "Unable to initialise WinSock",
-               "WinSock Error",
-               MB_OK | MB_ICONEXCLAMATION);
-    return 1;
-  }
-  if (LOBYTE(wsadata.wVersion) != 2 || HIBYTE(wsadata.wVersion) != 0) {
-    MessageBox(NULL,
-               "WinSock version is incompatible with 2.0",
-               "WinSock Error",
-               MB_OK | MB_ICONEXCLAMATION);
-    WSACleanup();
-    return 1;
-  }
   sk_init();
+  if (p_WSAEventSelect == NULL) {
+    fprintf(stderr, "Plink requires WinSock 2\n");
+    return 1;
+  }
 
   /*
    * Start up the connection.
    */
   netevent = CreateEvent(NULL, FALSE, FALSE, NULL);
   {
-    char *error;
+    const char *error;
     char *realhost;
     /* nodelay is only useful if stdin is a character device (console) */
     int nodelay =
         cfg.tcp_nodelay &&
         (GetFileType(GetStdHandle(STD_INPUT_HANDLE)) == FILE_TYPE_CHAR);
 
-    error = back->init(cfg.host, cfg.port, &realhost, nodelay);
+    error = back->init(
+        NULL, &backhandle, &cfg, cfg.host, cfg.port, &realhost, nodelay);
     if (error) {
       fprintf(stderr, "Unable to open connection:\n%s", error);
       return 1;
     }
+    logctx = log_init(NULL, &cfg);
+    back->provide_logctx(backhandle, logctx);
+    console_provide_logctx(logctx);
     sfree(realhost);
   }
   connopen = 1;
@@ -527,6 +579,8 @@ int main(int argc, char **argv)
   errhandle = GetStdHandle(STD_ERROR_HANDLE);
   GetConsoleMode(inhandle, &orig_console_mode);
   SetConsoleMode(inhandle, ENABLE_PROCESSED_INPUT);
+
+  main_thread_id = GetCurrentThreadId();
 
   /*
    * Turn off ECHO and LINE input modes. We don't care if this
@@ -563,7 +617,7 @@ int main(int argc, char **argv)
   while (1) {
     int n;
 
-    if (!sending && back->sendok()) {
+    if (!sending && back->sendok(backhandle)) {
       /*
        * Create a separate thread to read from stdin. This is
        * a total pain, but I can't find another way to do it:
@@ -589,7 +643,7 @@ int main(int argc, char **argv)
       sending = TRUE;
     }
 
-    n = WaitForMultipleObjects(4, handles, FALSE, INFINITE);
+    n = MsgWaitForMultipleObjects(4, handles, FALSE, INFINITE, QS_POSTMESSAGE);
     if (n == 0) {
       WSANETWORKEVENTS things;
       SOCKET socket;
@@ -612,7 +666,7 @@ int main(int argc, char **argv)
       /* Expand the buffer if necessary. */
       if (i > sksize) {
         sksize = i + 16;
-        sklist = srealloc(sklist, sksize * sizeof(*sklist));
+        sklist = sresize(sklist, sksize, SOCKET);
       }
 
       /* Retrieve the sockets into sklist. */
@@ -627,7 +681,7 @@ int main(int argc, char **argv)
         WPARAM wp;
         socket = sklist[i];
         wp = (WPARAM)socket;
-        if (!WSAEnumNetworkEvents(socket, NULL, &things)) {
+        if (!p_WSAEnumNetworkEvents(socket, NULL, &things)) {
           static const struct {
             int bit, mask;
           } eventtypes[] = {
@@ -655,11 +709,11 @@ int main(int argc, char **argv)
     } else if (n == 1) {
       reading = 0;
       noise_ultralight(idata.len);
-      if (connopen && back->socket() != NULL) {
+      if (connopen && back->socket(backhandle) != NULL) {
         if (idata.len > 0) {
-          back->send(idata.buffer, idata.len);
+          back->send(backhandle, idata.buffer, idata.len);
         } else {
-          back->special(TS_EOF);
+          back->special(backhandle, TS_EOF);
         }
       }
     } else if (n == 2) {
@@ -671,9 +725,10 @@ int main(int argc, char **argv)
       bufchain_consume(&stdout_data, odata.lenwritten);
       if (bufchain_size(&stdout_data) > 0)
         try_output(0);
-      if (connopen && back->socket() != NULL) {
-        back->unthrottle(bufchain_size(&stdout_data) +
-                         bufchain_size(&stderr_data));
+      if (connopen && back->socket(backhandle) != NULL) {
+        back->unthrottle(backhandle,
+                         bufchain_size(&stdout_data) +
+                             bufchain_size(&stderr_data));
       }
     } else if (n == 3) {
       edata.busy = 0;
@@ -684,24 +739,36 @@ int main(int argc, char **argv)
       bufchain_consume(&stderr_data, edata.lenwritten);
       if (bufchain_size(&stderr_data) > 0)
         try_output(1);
-      if (connopen && back->socket() != NULL) {
-        back->unthrottle(bufchain_size(&stdout_data) +
-                         bufchain_size(&stderr_data));
+      if (connopen && back->socket(backhandle) != NULL) {
+        back->unthrottle(backhandle,
+                         bufchain_size(&stdout_data) +
+                             bufchain_size(&stderr_data));
+      }
+    } else if (n == 4) {
+      MSG msg;
+      while (PeekMessage(&msg,
+                         INVALID_HANDLE_VALUE,
+                         WM_AGENT_CALLBACK,
+                         WM_AGENT_CALLBACK,
+                         PM_REMOVE)) {
+        struct agent_callback *c = (struct agent_callback *)msg.lParam;
+        c->callback(c->callback_ctx, c->data, c->len);
+        sfree(c);
       }
     }
-    if (!reading && back->sendbuffer() < MAX_STDIN_BACKLOG) {
+    if (!reading && back->sendbuffer(backhandle) < MAX_STDIN_BACKLOG) {
       SetEvent(idata.eventback);
       reading = 1;
     }
-    if ((!connopen || back->socket() == NULL) &&
+    if ((!connopen || back->socket(backhandle) == NULL) &&
         bufchain_size(&stdout_data) == 0 && bufchain_size(&stderr_data) == 0)
       break; /* we closed the connection */
   }
-  WSACleanup();
-  exitcode = back->exitcode();
+  exitcode = back->exitcode(backhandle);
   if (exitcode < 0) {
     fprintf(stderr, "Remote process exit code unavailable\n");
     exitcode = 1; /* this is an error condition */
   }
-  return exitcode;
+  cleanup_exit(exitcode);
+  return 0; /* placate compiler warning */
 }

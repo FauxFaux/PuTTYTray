@@ -800,6 +800,10 @@ STARTOVER:
   moduli[NPRIMES] = modulus;
   residues[NPRIMES] =
       (bignum_mod_short(p, (unsigned short)modulus) + modulus - residue);
+  if (factor)
+    multipliers[NPRIMES] = bignum_mod_short(factor, modulus);
+  else
+    multipliers[NPRIMES] = 1;
   delta = 0;
   while (1) {
     for (i = 0; i < (sizeof(moduli) / sizeof(*moduli)); i++)
@@ -858,7 +862,7 @@ STARTOVER:
    * Next, write p-1 as q*2^k.
    */
   for (k = 0; bignum_bit(p, k) == !k; k++)
-    ; /* find first 1 bit in p-1 */
+    continue; /* find first 1 bit in p-1 */
   q = bignum_rshift(p, k);
   /* And store p-1 itself, which we'll need. */
   pm1 = copybn(p);

@@ -72,7 +72,7 @@ static Bignum getmp(char **data, int *datalen)
     return NULL;
   if (p[0] & 0x80)
     return NULL; /* negative mp */
-  b = bignum_from_bytes(p, length);
+  b = bignum_from_bytes((unsigned char *)p, length);
   return b;
 }
 
@@ -80,7 +80,7 @@ static Bignum get160(char **data, int *datalen)
 {
   Bignum b;
 
-  b = bignum_from_bytes(*data, 20);
+  b = bignum_from_bytes((unsigned char *)*data, 20);
   *data += 20;
   *datalen -= 20;
 
@@ -93,7 +93,7 @@ static void *dss_newkey(char *data, int len)
   int slen;
   struct dss_key *dss;
 
-  dss = smalloc(sizeof(struct dss_key));
+  dss = snew(struct dss_key);
   if (!dss)
     return NULL;
   getstring(&data, &len, &p, &slen);
@@ -143,7 +143,7 @@ static char *dss_fmtkey(void *key)
   len += 4 * (bignum_bitcount(dss->q) + 15) / 16;
   len += 4 * (bignum_bitcount(dss->g) + 15) / 16;
   len += 4 * (bignum_bitcount(dss->y) + 15) / 16;
-  p = smalloc(len);
+  p = snewn(len, char);
   if (!p)
     return NULL;
 
@@ -186,7 +186,7 @@ static char *dss_fingerprint(void *key)
   int numlen, i;
 
   MD5Init(&md5c);
-  MD5Update(&md5c, "\0\0\0\7ssh-dss", 11);
+  MD5Update(&md5c, (unsigned char *)"\0\0\0\7ssh-dss", 11);
 
 #define ADD_BIGNUM(bignum)                                                     \
   numlen = (bignum_bitcount(bignum) + 8) / 8;                                  \
@@ -207,7 +207,7 @@ static char *dss_fingerprint(void *key)
   sprintf(buffer, "ssh-dss %d ", bignum_bitcount(dss->p));
   for (i = 0; i < 16; i++)
     sprintf(buffer + strlen(buffer), "%s%02x", i ? ":" : "", digest[i]);
-  ret = smalloc(strlen(buffer) + 1);
+  ret = snewn(strlen(buffer) + 1, char);
   if (ret)
     strcpy(ret, buffer);
   return ret;
@@ -266,7 +266,7 @@ static int dss_verifysig(
   /*
    * Step 2. u1 <- SHA(message) * w mod q.
    */
-  SHA_Simple(data, datalen, hash);
+  SHA_Simple(data, datalen, (unsigned char *)hash);
   p = hash;
   slen = 20;
   sha = get160(&p, &slen);
@@ -320,7 +320,7 @@ static unsigned char *dss_public_blob(void *key, int *len)
    * 27 + sum of lengths. (five length fields, 20+7=27).
    */
   bloblen = 27 + plen + qlen + glen + ylen;
-  blob = smalloc(bloblen);
+  blob = snewn(bloblen, unsigned char);
   p = blob;
   PUT_32BIT(p, 7);
   p += 4;
@@ -360,7 +360,7 @@ static unsigned char *dss_private_blob(void *key, int *len)
    * mpint x, string[20] the SHA of p||q||g. Total 4 + xlen.
    */
   bloblen = 4 + xlen;
-  blob = smalloc(bloblen);
+  blob = snewn(bloblen, unsigned char);
   p = blob;
   PUT_32BIT(p, xlen);
   p += 4;
@@ -422,7 +422,7 @@ static void *dss_openssh_createkey(unsigned char **blob, int *len)
   char **b = (char **)blob;
   struct dss_key *dss;
 
-  dss = smalloc(sizeof(struct dss_key));
+  dss = snew(struct dss_key);
   if (!dss)
     return NULL;
 
@@ -472,7 +472,19 @@ static int dss_openssh_fmtkey(void *key, unsigned char *blob, int len)
   return bloblen;
 }
 
-unsigned char *dss_sign(void *key, char *data, int datalen, int *siglen)
+static int dss_pubkey_bits(void *blob, int len)
+{
+  struct dss_key *dss;
+  int ret;
+
+  dss = dss_newkey((char *)blob, len);
+  ret = bignum_bitcount(dss->p);
+  dss_freekey(dss);
+
+  return ret;
+}
+
+static unsigned char *dss_sign(void *key, char *data, int datalen, int *siglen)
 {
   /*
    * The basic DSS signing algorithm is:
@@ -605,7 +617,7 @@ unsigned char *dss_sign(void *key, char *data, int datalen, int *siglen)
    * i.e. 4+7 + 4+40 bytes.
    */
   nbytes = 4 + 7 + 4 + 40;
-  bytes = smalloc(nbytes);
+  bytes = snewn(nbytes, unsigned char);
   PUT_32BIT(bytes, 7);
   memcpy(bytes + 4, "ssh-dss", 7);
   PUT_32BIT(bytes + 4 + 7, 40);
@@ -628,6 +640,7 @@ const struct ssh_signkey ssh_dss = {dss_newkey,
                                     dss_createkey,
                                     dss_openssh_createkey,
                                     dss_openssh_fmtkey,
+                                    dss_pubkey_bits,
                                     dss_fingerprint,
                                     dss_verifysig,
                                     dss_sign,

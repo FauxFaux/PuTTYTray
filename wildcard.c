@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "putty.h"
+
 /*
  * Definition of wildcard syntax:
  *
@@ -55,7 +57,7 @@ enum
 {
   WC_TRAILINGBACKSLASH = 1,
   WC_UNCLOSEDCLASS,
-  WC_INVALIDRANGE,
+  WC_INVALIDRANGE
 };
 
 /*

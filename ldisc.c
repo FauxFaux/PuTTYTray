@@ -5,30 +5,32 @@
  * depending on what's currently configured.
  */
 
-#include <windows.h>
 #include <stdio.h>
 #include <ctype.h>
 
 #include "putty.h"
+#include "terminal.h"
+#include "ldisc.h"
 
 #define ECHOING                                                                \
-  (cfg.localecho == LD_YES || (cfg.localecho == LD_BACKEND &&                  \
-                               (back->ldisc(LD_ECHO) || term_ldisc(LD_ECHO))))
+  (ldisc->cfg->localecho == FORCE_ON ||                                        \
+   (ldisc->cfg->localecho == AUTO &&                                           \
+    (ldisc->back->ldisc(ldisc->backhandle, LD_ECHO) ||                         \
+     term_ldisc(ldisc->term, LD_ECHO))))
 #define EDITING                                                                \
-  (cfg.localedit == LD_YES || (cfg.localedit == LD_BACKEND &&                  \
-                               (back->ldisc(LD_EDIT) || term_ldisc(LD_EDIT))))
+  (ldisc->cfg->localedit == FORCE_ON ||                                        \
+   (ldisc->cfg->localedit == AUTO &&                                           \
+    (ldisc->back->ldisc(ldisc->backhandle, LD_EDIT) ||                         \
+     term_ldisc(ldisc->term, LD_EDIT))))
 
-static void c_write(char *buf, int len)
+static void c_write(Ldisc ldisc, char *buf, int len)
 {
-  from_backend(0, buf, len);
+  from_backend(ldisc->frontend, 0, buf, len);
 }
 
-static char *term_buf = NULL;
-static int term_buflen = 0, term_bufsiz = 0, term_quotenext = 0;
-
-static int plen(unsigned char c)
+static int plen(Ldisc ldisc, unsigned char c)
 {
-  if ((c >= 32 && c <= 126) || (c >= 160 && !in_utf))
+  if ((c >= 32 && c <= 126) || (c >= 160 && !in_utf(ldisc->term)))
     return 1;
   else if (c < 128)
     return 2; /* ^x for some x */
@@ -36,42 +38,91 @@ static int plen(unsigned char c)
     return 4; /* <XY> for hex XY */
 }
 
-static void pwrite(unsigned char c)
+static void pwrite(Ldisc ldisc, unsigned char c)
 {
-  if ((c >= 32 && c <= 126) || (c >= 160 && !in_utf)) {
-    c_write(&c, 1);
+  if ((c >= 32 && c <= 126) || (c >= 160 && !in_utf(ldisc->term))) {
+    c_write(ldisc, (char *)&c, 1);
   } else if (c < 128) {
     char cc[2];
     cc[1] = (c == 127 ? '?' : c + 0x40);
     cc[0] = '^';
-    c_write(cc, 2);
+    c_write(ldisc, cc, 2);
   } else {
     char cc[5];
     sprintf(cc, "<%02X>", c);
-    c_write(cc, 4);
+    c_write(ldisc, cc, 4);
   }
 }
 
-static void bsb(int n)
+static void bsb(Ldisc ldisc, int n)
 {
   while (n--)
-    c_write("\010 \010", 3);
+    c_write(ldisc, "\010 \010", 3);
 }
 
 #define CTRL(x) (x ^ '@')
 #define KCTRL(x) ((x ^ '@') | 0x100)
 
-void ldisc_send(char *buf, int len, int interactive)
+void *ldisc_create(Config *mycfg,
+                   Terminal *term,
+                   Backend *back,
+                   void *backhandle,
+                   void *frontend)
 {
+  Ldisc ldisc = snew(struct ldisc_tag);
+
+  ldisc->buf = NULL;
+  ldisc->buflen = 0;
+  ldisc->bufsiz = 0;
+  ldisc->quotenext = 0;
+
+  ldisc->cfg = mycfg;
+  ldisc->back = back;
+  ldisc->backhandle = backhandle;
+  ldisc->term = term;
+  ldisc->frontend = frontend;
+
+  /* Link ourselves into the backend and the terminal */
+  if (term)
+    term->ldisc = ldisc;
+  if (back)
+    back->provide_ldisc(backhandle, ldisc);
+
+  return ldisc;
+}
+
+void ldisc_free(void *handle)
+{
+  Ldisc ldisc = (Ldisc)handle;
+
+  if (ldisc->term)
+    ldisc->term->ldisc = NULL;
+  if (ldisc->back)
+    ldisc->back->provide_ldisc(ldisc->backhandle, NULL);
+  if (ldisc->buf)
+    sfree(ldisc->buf);
+  sfree(ldisc);
+}
+
+void ldisc_send(void *handle, char *buf, int len, int interactive)
+{
+  Ldisc ldisc = (Ldisc)handle;
   int keyflag = 0;
   /*
    * Called with len=0 when the options change. We must inform
    * the front end in case it needs to know.
    */
   if (len == 0) {
-    void ldisc_update(int echo, int edit);
-    ldisc_update(ECHOING, EDITING);
+    ldisc_update(ldisc->frontend, ECHOING, EDITING);
+    return;
   }
+  /*
+   * Notify the front end that something was pressed, in case
+   * it's depending on finding out (e.g. keypress termination for
+   * Close On Exit).
+   */
+  frontend_keypress(ldisc->frontend);
+
   /*
    * Less than zero means null terminated special string.
    */
@@ -88,7 +139,7 @@ void ldisc_send(char *buf, int len, int interactive)
       c = *buf++ + keyflag;
       if (!interactive && c == '\r')
         c += KCTRL('@');
-      switch (term_quotenext ? ' ' : c) {
+      switch (ldisc->quotenext ? ' ' : c) {
         /*
          * ^h/^?: delete one char and output one BSB
          * ^w: delete, and output BSBs, to return to last
@@ -105,19 +156,20 @@ void ldisc_send(char *buf, int len, int interactive)
          */
       case KCTRL('H'):
       case KCTRL('?'): /* backspace/delete */
-        if (term_buflen > 0) {
+        if (ldisc->buflen > 0) {
           if (ECHOING)
-            bsb(plen(term_buf[term_buflen - 1]));
-          term_buflen--;
+            bsb(ldisc, plen(ldisc, ldisc->buf[ldisc->buflen - 1]));
+          ldisc->buflen--;
         }
         break;
       case CTRL('W'): /* delete word */
-        while (term_buflen > 0) {
+        while (ldisc->buflen > 0) {
           if (ECHOING)
-            bsb(plen(term_buf[term_buflen - 1]));
-          term_buflen--;
-          if (term_buflen > 0 && isspace(term_buf[term_buflen - 1]) &&
-              !isspace(term_buf[term_buflen]))
+            bsb(ldisc, plen(ldisc, ldisc->buf[ldisc->buflen - 1]));
+          ldisc->buflen--;
+          if (ldisc->buflen > 0 &&
+              isspace((unsigned char)ldisc->buf[ldisc->buflen - 1]) &&
+              !isspace((unsigned char)ldisc->buf[ldisc->buflen]))
             break;
         }
         break;
@@ -125,43 +177,43 @@ void ldisc_send(char *buf, int len, int interactive)
       case CTRL('C'):  /* Send IP */
       case CTRL('\\'): /* Quit */
       case CTRL('Z'):  /* Suspend */
-        while (term_buflen > 0) {
+        while (ldisc->buflen > 0) {
           if (ECHOING)
-            bsb(plen(term_buf[term_buflen - 1]));
-          term_buflen--;
+            bsb(ldisc, plen(ldisc, ldisc->buf[ldisc->buflen - 1]));
+          ldisc->buflen--;
         }
-        back->special(TS_EL);
+        ldisc->back->special(ldisc->backhandle, TS_EL);
         /*
          * We don't send IP, SUSP or ABORT if the user has
          * configured telnet specials off! This breaks
          * talkers otherwise.
          */
-        if (!cfg.telnet_keyboard)
+        if (!ldisc->cfg->telnet_keyboard)
           goto default_case;
         if (c == CTRL('C'))
-          back->special(TS_IP);
+          ldisc->back->special(ldisc->backhandle, TS_IP);
         if (c == CTRL('Z'))
-          back->special(TS_SUSP);
+          ldisc->back->special(ldisc->backhandle, TS_SUSP);
         if (c == CTRL('\\'))
-          back->special(TS_ABORT);
+          ldisc->back->special(ldisc->backhandle, TS_ABORT);
         break;
       case CTRL('R'): /* redraw line */
         if (ECHOING) {
           int i;
-          c_write("^R\r\n", 4);
-          for (i = 0; i < term_buflen; i++)
-            pwrite(term_buf[i]);
+          c_write(ldisc, "^R\r\n", 4);
+          for (i = 0; i < ldisc->buflen; i++)
+            pwrite(ldisc, ldisc->buf[i]);
         }
         break;
       case CTRL('V'): /* quote next char */
-        term_quotenext = TRUE;
+        ldisc->quotenext = TRUE;
         break;
       case CTRL('D'): /* logout or send */
-        if (term_buflen == 0) {
-          back->special(TS_EOF);
+        if (ldisc->buflen == 0) {
+          ldisc->back->special(ldisc->backhandle, TS_EOF);
         } else {
-          back->send(term_buf, term_buflen);
-          term_buflen = 0;
+          ldisc->back->send(ldisc->backhandle, ldisc->buf, ldisc->buflen);
+          ldisc->buflen = 0;
         }
         break;
         /*
@@ -188,82 +240,83 @@ void ldisc_send(char *buf, int len, int interactive)
          *    default clause because of the break.
          */
       case CTRL('J'):
-        if (cfg.protocol == PROT_RAW && term_buflen > 0 &&
-            term_buf[term_buflen - 1] == '\r') {
+        if (ldisc->cfg->protocol == PROT_RAW && ldisc->buflen > 0 &&
+            ldisc->buf[ldisc->buflen - 1] == '\r') {
           if (ECHOING)
-            bsb(plen(term_buf[term_buflen - 1]));
-          term_buflen--;
+            bsb(ldisc, plen(ldisc, ldisc->buf[ldisc->buflen - 1]));
+          ldisc->buflen--;
           /* FALLTHROUGH */
         case KCTRL('M'): /* send with newline */
-          if (term_buflen > 0)
-            back->send(term_buf, term_buflen);
-          if (cfg.protocol == PROT_RAW)
-            back->send("\r\n", 2);
-          else if (cfg.protocol == PROT_TELNET && cfg.telnet_newline)
-            back->special(TS_EOL);
+          if (ldisc->buflen > 0)
+            ldisc->back->send(ldisc->backhandle, ldisc->buf, ldisc->buflen);
+          if (ldisc->cfg->protocol == PROT_RAW)
+            ldisc->back->send(ldisc->backhandle, "\r\n", 2);
+          else if (ldisc->cfg->protocol == PROT_TELNET &&
+                   ldisc->cfg->telnet_newline)
+            ldisc->back->special(ldisc->backhandle, TS_EOL);
           else
-            back->send("\r", 1);
+            ldisc->back->send(ldisc->backhandle, "\r", 1);
           if (ECHOING)
-            c_write("\r\n", 2);
-          term_buflen = 0;
+            c_write(ldisc, "\r\n", 2);
+          ldisc->buflen = 0;
           break;
         }
         /* FALLTHROUGH */
       default: /* get to this label from ^V handler */
       default_case:
-        if (term_buflen >= term_bufsiz) {
-          term_bufsiz = term_buflen + 256;
-          term_buf = saferealloc(term_buf, term_bufsiz);
+        if (ldisc->buflen >= ldisc->bufsiz) {
+          ldisc->bufsiz = ldisc->buflen + 256;
+          ldisc->buf = sresize(ldisc->buf, ldisc->bufsiz, char);
         }
-        term_buf[term_buflen++] = c;
+        ldisc->buf[ldisc->buflen++] = c;
         if (ECHOING)
-          pwrite((unsigned char)c);
-        term_quotenext = FALSE;
+          pwrite(ldisc, (unsigned char)c);
+        ldisc->quotenext = FALSE;
         break;
       }
     }
   } else {
-    if (term_buflen != 0) {
-      back->send(term_buf, term_buflen);
-      while (term_buflen > 0) {
-        bsb(plen(term_buf[term_buflen - 1]));
-        term_buflen--;
+    if (ldisc->buflen != 0) {
+      ldisc->back->send(ldisc->backhandle, ldisc->buf, ldisc->buflen);
+      while (ldisc->buflen > 0) {
+        bsb(ldisc, plen(ldisc, ldisc->buf[ldisc->buflen - 1]));
+        ldisc->buflen--;
       }
     }
     if (len > 0) {
       if (ECHOING)
-        c_write(buf, len);
-      if (keyflag && cfg.protocol == PROT_TELNET && len == 1) {
+        c_write(ldisc, buf, len);
+      if (keyflag && ldisc->cfg->protocol == PROT_TELNET && len == 1) {
         switch (buf[0]) {
         case CTRL('M'):
-          if (cfg.protocol == PROT_TELNET && cfg.telnet_newline)
-            back->special(TS_EOL);
+          if (ldisc->cfg->protocol == PROT_TELNET && ldisc->cfg->telnet_newline)
+            ldisc->back->special(ldisc->backhandle, TS_EOL);
           else
-            back->send("\r", 1);
+            ldisc->back->send(ldisc->backhandle, "\r", 1);
           break;
         case CTRL('?'):
         case CTRL('H'):
-          if (cfg.telnet_keyboard) {
-            back->special(TS_EC);
+          if (ldisc->cfg->telnet_keyboard) {
+            ldisc->back->special(ldisc->backhandle, TS_EC);
             break;
           }
         case CTRL('C'):
-          if (cfg.telnet_keyboard) {
-            back->special(TS_IP);
+          if (ldisc->cfg->telnet_keyboard) {
+            ldisc->back->special(ldisc->backhandle, TS_IP);
             break;
           }
         case CTRL('Z'):
-          if (cfg.telnet_keyboard) {
-            back->special(TS_SUSP);
+          if (ldisc->cfg->telnet_keyboard) {
+            ldisc->back->special(ldisc->backhandle, TS_SUSP);
             break;
           }
 
         default:
-          back->send(buf, len);
+          ldisc->back->send(ldisc->backhandle, buf, len);
           break;
         }
       } else
-        back->send(buf, len);
+        ldisc->back->send(ldisc->backhandle, buf, len);
     }
   }
 }

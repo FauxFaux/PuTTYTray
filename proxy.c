@@ -5,14 +5,19 @@
  * code and the higher level backend.
  */
 
-#include <windows.h>
-
 #include <assert.h>
+#include <ctype.h>
+#include <string.h>
 
 #define DEFINE_PLUG_METHOD_MACROS
 #include "putty.h"
 #include "network.h"
 #include "proxy.h"
+
+#define do_proxy_dns(cfg)                                                      \
+  (cfg->proxy_dns == FORCE_ON ||                                               \
+   (cfg->proxy_dns == AUTO && cfg->proxy_type != PROXY_SOCKS4 &&               \
+    cfg->proxy_type != PROXY_SOCKS5))
 
 /*
  * Call this when proxy negotiation is complete, so that this
@@ -22,27 +27,38 @@ void proxy_activate(Proxy_Socket p)
 {
   void *data;
   int len;
+  long output_before, output_after;
 
   p->state = PROXY_STATE_ACTIVE;
 
-  /* let's try to keep extra receive events from coming through */
+  /* we want to ignore new receive events until we have sent
+   * all of our buffered receive data.
+   */
   sk_set_frozen(p->sub_socket, 1);
+
+  /* how many bytes of output have we buffered? */
+  output_before = bufchain_size(&p->pending_oob_output_data) +
+                  bufchain_size(&p->pending_output_data);
+  /* and keep track of how many bytes do not get sent. */
+  output_after = 0;
 
   /* send buffered OOB writes */
   while (bufchain_size(&p->pending_oob_output_data) > 0) {
     bufchain_prefix(&p->pending_oob_output_data, &data, &len);
-    sk_write_oob(p->sub_socket, data, len);
+    output_after += sk_write_oob(p->sub_socket, data, len);
     bufchain_consume(&p->pending_oob_output_data, len);
   }
-  bufchain_clear(&p->pending_oob_output_data);
 
   /* send buffered normal writes */
   while (bufchain_size(&p->pending_output_data) > 0) {
     bufchain_prefix(&p->pending_output_data, &data, &len);
-    sk_write(p->sub_socket, data, len);
+    output_after += sk_write(p->sub_socket, data, len);
     bufchain_consume(&p->pending_output_data, len);
   }
-  bufchain_clear(&p->pending_output_data);
+
+  /* if we managed to send any data, let the higher levels know. */
+  if (output_after < output_before)
+    plug_sent(p->plug, output_after);
 
   /* if we were asked to flush the output during
    * the proxy negotiation process, do so now.
@@ -50,16 +66,12 @@ void proxy_activate(Proxy_Socket p)
   if (p->pending_flush)
     sk_flush(p->sub_socket);
 
-  /* forward buffered recv data to the backend */
-  while (bufchain_size(&p->pending_input_data) > 0) {
-    bufchain_prefix(&p->pending_input_data, &data, &len);
-    plug_receive(p->plug, 0, data, len);
-    bufchain_consume(&p->pending_input_data, len);
-  }
-  bufchain_clear(&p->pending_input_data);
-
-  /* now set the underlying socket to whatever freeze state they wanted */
-  sk_set_frozen(p->sub_socket, p->freeze);
+  /* if the backend wanted the socket unfrozen, try to unfreeze.
+   * our set_frozen handler will flush buffered receive data before
+   * unfreezing the actual underlying socket.
+   */
+  if (!p->freeze)
+    sk_set_frozen((Socket)p, 0);
 }
 
 /* basic proxy socket functions */
@@ -78,10 +90,11 @@ static void sk_proxy_close(Socket s)
   Proxy_Socket ps = (Proxy_Socket)s;
 
   sk_close(ps->sub_socket);
+  sk_addr_free(ps->remote_addr);
   sfree(ps);
 }
 
-static int sk_proxy_write(Socket s, char *data, int len)
+static int sk_proxy_write(Socket s, const char *data, int len)
 {
   Proxy_Socket ps = (Proxy_Socket)s;
 
@@ -92,7 +105,7 @@ static int sk_proxy_write(Socket s, char *data, int len)
   return sk_write(ps->sub_socket, data, len);
 }
 
-static int sk_proxy_write_oob(Socket s, char *data, int len)
+static int sk_proxy_write_oob(Socket s, const char *data, int len)
 {
   Proxy_Socket ps = (Proxy_Socket)s;
 
@@ -136,10 +149,39 @@ static void sk_proxy_set_frozen(Socket s, int is_frozen)
     ps->freeze = is_frozen;
     return;
   }
+
+  /* handle any remaining buffered recv data first */
+  if (bufchain_size(&ps->pending_input_data) > 0) {
+    ps->freeze = is_frozen;
+
+    /* loop while we still have buffered data, and while we are
+     * unfrozen. the plug_receive call in the loop could result
+     * in a call back into this function refreezing the socket,
+     * so we have to check each time.
+     */
+    while (!ps->freeze && bufchain_size(&ps->pending_input_data) > 0) {
+      void *data;
+      char databuf[512];
+      int len;
+      bufchain_prefix(&ps->pending_input_data, &data, &len);
+      if (len > lenof(databuf))
+        len = lenof(databuf);
+      memcpy(databuf, data, len);
+      bufchain_consume(&ps->pending_input_data, len);
+      plug_receive(ps->plug, 0, databuf, len);
+    }
+
+    /* if we're still frozen, we'll have to wait for another
+     * call from the backend to finish unbuffering the data.
+     */
+    if (ps->freeze)
+      return;
+  }
+
   sk_set_frozen(ps->sub_socket, is_frozen);
 }
 
-static char *sk_proxy_socket_error(Socket s)
+static const char *sk_proxy_socket_error(Socket s)
 {
   Proxy_Socket ps = (Proxy_Socket)s;
   if (ps->error != NULL || ps->sub_socket == NULL) {
@@ -151,7 +193,7 @@ static char *sk_proxy_socket_error(Socket s)
 /* basic proxy plug functions */
 
 static int plug_proxy_closing(Plug p,
-                              char *error_msg,
+                              const char *error_msg,
                               int error_code,
                               int calling_back)
 {
@@ -199,7 +241,7 @@ static void plug_proxy_sent(Plug p, int bufsize)
   plug_sent(ps->plug, bufsize);
 }
 
-static int plug_proxy_accepting(Plug p, void *sock)
+static int plug_proxy_accepting(Plug p, OSSocket sock)
 {
   Proxy_Plug pp = (Proxy_Plug)p;
   Proxy_Socket ps = pp->proxy_socket;
@@ -211,20 +253,38 @@ static int plug_proxy_accepting(Plug p, void *sock)
   return plug_accepting(ps->plug, sock);
 }
 
-static int proxy_for_destination(SockAddr addr, char *hostname, int port)
+/*
+ * This function can accept a NULL pointer as `addr', in which case
+ * it will only check the host name.
+ */
+static int proxy_for_destination(SockAddr addr,
+                                 char *hostname,
+                                 int port,
+                                 const Config *cfg)
 {
   int s = 0, e = 0;
   char hostip[64];
   int hostip_len, hostname_len;
-  char *exclude_list;
+  const char *exclude_list;
+
+  /*
+   * Check the host name and IP against the hard-coded
+   * representations of `localhost'.
+   */
+  if (!cfg->even_proxy_localhost &&
+      (sk_hostname_is_local(hostname) || (addr && sk_address_is_local(addr))))
+    return 0; /* do not proxy */
 
   /* we want a string representation of the IP address for comparisons */
-  sk_getaddr(addr, hostip, 64);
+  if (addr) {
+    sk_getaddr(addr, hostip, 64);
+    hostip_len = strlen(hostip);
+  } else
+    hostip_len = 0; /* placate gcc; shouldn't be required */
 
-  hostip_len = strlen(hostip);
   hostname_len = strlen(hostname);
 
-  exclude_list = cfg.proxy_exclude_list;
+  exclude_list = cfg->proxy_exclude_list;
 
   /* now parse the exclude list, and see if either our IP
    * or hostname matches anything in it.
@@ -232,7 +292,7 @@ static int proxy_for_destination(SockAddr addr, char *hostname, int port)
 
   while (exclude_list[s]) {
     while (exclude_list[s] &&
-           (isspace(exclude_list[s]) || exclude_list[s] == ','))
+           (isspace((unsigned char)exclude_list[s]) || exclude_list[s] == ','))
       s++;
 
     if (!exclude_list[s])
@@ -241,16 +301,16 @@ static int proxy_for_destination(SockAddr addr, char *hostname, int port)
     e = s;
 
     while (exclude_list[e] &&
-           (isalnum(exclude_list[e]) || exclude_list[e] == '-' ||
+           (isalnum((unsigned char)exclude_list[e]) || exclude_list[e] == '-' ||
             exclude_list[e] == '.' || exclude_list[e] == '*'))
       e++;
 
     if (exclude_list[s] == '*') {
       /* wildcard at beginning of entry */
 
-      if (strnicmp(hostip + hostip_len - (e - s - 1),
-                   exclude_list + s + 1,
-                   e - s - 1) == 0 ||
+      if ((addr && strnicmp(hostip + hostip_len - (e - s - 1),
+                            exclude_list + s + 1,
+                            e - s - 1) == 0) ||
           strnicmp(hostname + hostname_len - (e - s - 1),
                    exclude_list + s + 1,
                    e - s - 1) == 0)
@@ -259,7 +319,7 @@ static int proxy_for_destination(SockAddr addr, char *hostname, int port)
     } else if (exclude_list[e - 1] == '*') {
       /* wildcard at end of entry */
 
-      if (strnicmp(hostip, exclude_list + s, e - s - 1) == 0 ||
+      if ((addr && strnicmp(hostip, exclude_list + s, e - s - 1) == 0) ||
           strnicmp(hostname, exclude_list + s, e - s - 1) == 0)
         return 0; /* IP/hostname range excluded. do not use proxy. */
 
@@ -268,17 +328,36 @@ static int proxy_for_destination(SockAddr addr, char *hostname, int port)
        * match (ie. a specific IP)
        */
 
-      if (stricmp(hostip, exclude_list + s) == 0)
+      if (addr && strnicmp(hostip, exclude_list + s, e - s) == 0)
         return 0; /* IP/hostname excluded. do not use proxy. */
-      if (stricmp(hostname, exclude_list + s) == 0)
+      if (strnicmp(hostname, exclude_list + s, e - s) == 0)
         return 0; /* IP/hostname excluded. do not use proxy. */
     }
 
     s = e;
+
+    /* Make sure we really have reached the next comma or end-of-string */
+    while (exclude_list[s] && !isspace((unsigned char)exclude_list[s]) &&
+           exclude_list[s] != ',')
+      s++;
   }
 
   /* no matches in the exclude list, so use the proxy */
   return 1;
+}
+
+SockAddr name_lookup(char *host,
+                     int port,
+                     char **canonicalname,
+                     const Config *cfg)
+{
+  if (cfg->proxy_type != PROXY_NONE && do_proxy_dns(cfg) &&
+      proxy_for_destination(NULL, host, port, cfg)) {
+    *canonicalname = dupstr(host);
+    return sk_nonamelookup(host);
+  }
+
+  return sk_namelookup(host, canonicalname);
 }
 
 Socket new_connection(SockAddr addr,
@@ -287,9 +366,10 @@ Socket new_connection(SockAddr addr,
                       int privport,
                       int oobinline,
                       int nodelay,
-                      Plug plug)
+                      Plug plug,
+                      const Config *cfg)
 {
-  static struct socket_function_table socket_fn_table = {
+  static const struct socket_function_table socket_fn_table = {
       sk_proxy_plug,
       sk_proxy_close,
       sk_proxy_write,
@@ -300,23 +380,35 @@ Socket new_connection(SockAddr addr,
       sk_proxy_set_frozen,
       sk_proxy_socket_error};
 
-  static struct plug_function_table plug_fn_table = {plug_proxy_closing,
-                                                     plug_proxy_receive,
-                                                     plug_proxy_sent,
-                                                     plug_proxy_accepting};
+  static const struct plug_function_table plug_fn_table = {
+      plug_proxy_closing,
+      plug_proxy_receive,
+      plug_proxy_sent,
+      plug_proxy_accepting};
 
-  if (cfg.proxy_type != PROXY_NONE &&
-      proxy_for_destination(addr, hostname, port)) {
+  if (cfg->proxy_type != PROXY_NONE &&
+      proxy_for_destination(addr, hostname, port, cfg)) {
     Proxy_Socket ret;
     Proxy_Plug pplug;
     SockAddr proxy_addr;
     char *proxy_canonical_name;
+    Socket sret;
 
-    ret = smalloc(sizeof(struct Socket_proxy_tag));
+    if ((sret = platform_new_connection(
+             addr, hostname, port, privport, oobinline, nodelay, plug, cfg)) !=
+        NULL)
+      return sret;
+
+    ret = snew(struct Socket_proxy_tag);
     ret->fn = &socket_fn_table;
+    ret->cfg = *cfg; /* STRUCTURE COPY */
     ret->plug = plug;
-    ret->remote_addr = addr;
+    ret->remote_addr = addr; /* will need to be freed on close */
     ret->remote_port = port;
+
+    ret->error = NULL;
+    ret->pending_flush = 0;
+    ret->freeze = 0;
 
     bufchain_init(&ret->pending_input_data);
     bufchain_init(&ret->pending_output_data);
@@ -324,15 +416,15 @@ Socket new_connection(SockAddr addr,
 
     ret->sub_socket = NULL;
     ret->state = PROXY_STATE_NEW;
+    ret->negotiate = NULL;
 
-    if (cfg.proxy_type == PROXY_HTTP) {
+    if (cfg->proxy_type == PROXY_HTTP) {
       ret->negotiate = proxy_http_negotiate;
-    } else if (cfg.proxy_type == PROXY_SOCKS) {
-      if (cfg.proxy_socks_version == 4)
-        ret->negotiate = proxy_socks4_negotiate;
-      else
-        ret->negotiate = proxy_socks5_negotiate;
-    } else if (cfg.proxy_type == PROXY_TELNET) {
+    } else if (cfg->proxy_type == PROXY_SOCKS4) {
+      ret->negotiate = proxy_socks4_negotiate;
+    } else if (cfg->proxy_type == PROXY_SOCKS5) {
+      ret->negotiate = proxy_socks5_negotiate;
+    } else if (cfg->proxy_type == PROXY_TELNET) {
       ret->negotiate = proxy_telnet_negotiate;
     } else {
       ret->error = "Proxy error: Unknown proxy method";
@@ -341,23 +433,25 @@ Socket new_connection(SockAddr addr,
 
     /* create the proxy plug to map calls from the actual
      * socket into our proxy socket layer */
-    pplug = smalloc(sizeof(struct Plug_proxy_tag));
+    pplug = snew(struct Plug_proxy_tag);
     pplug->fn = &plug_fn_table;
     pplug->proxy_socket = ret;
 
     /* look-up proxy */
-    proxy_addr = sk_namelookup(cfg.proxy_host, &proxy_canonical_name);
+    proxy_addr = sk_namelookup(cfg->proxy_host, &proxy_canonical_name);
+    if (sk_addr_error(proxy_addr) != NULL) {
+      ret->error = "Proxy error: Unable to resolve proxy host name";
+      return (Socket)ret;
+    }
     sfree(proxy_canonical_name);
 
     /* create the actual socket we will be using,
      * connected to our proxy server and port.
      */
     ret->sub_socket = sk_new(
-        proxy_addr, cfg.proxy_port, privport, oobinline, nodelay, (Plug)pplug);
+        proxy_addr, cfg->proxy_port, privport, oobinline, nodelay, (Plug)pplug);
     if (sk_socket_error(ret->sub_socket) != NULL)
       return (Socket)ret;
-
-    sk_addr_free(proxy_addr);
 
     /* start the proxy negotiation process... */
     sk_set_frozen(ret->sub_socket, 0);
@@ -370,13 +464,14 @@ Socket new_connection(SockAddr addr,
   return sk_new(addr, port, privport, oobinline, nodelay, plug);
 }
 
-Socket new_listener(int port, Plug plug, int local_host_only)
+Socket new_listener(
+    char *srcaddr, int port, Plug plug, int local_host_only, const Config *cfg)
 {
   /* TODO: SOCKS (and potentially others) support inbound
    * TODO: connections via the proxy. support them.
    */
 
-  return sk_newlistener(port, plug, local_host_only);
+  return sk_newlistener(srcaddr, port, plug, local_host_only);
 }
 
 /* ----------------------------------------------------------------------
@@ -424,33 +519,33 @@ int proxy_http_negotiate(Proxy_Socket p, int change)
      * for this proxy method, it's just a simple HTTP
      * request
      */
-    char buf[256], dest[64];
+    char *buf, dest[512];
 
-    sk_getaddr(p->remote_addr, dest, 64);
+    sk_getaddr(p->remote_addr, dest, lenof(dest));
 
-    sprintf(buf,
-            "CONNECT %s:%i HTTP/1.1\r\nHost: %s:%i\r\n",
-            dest,
-            p->remote_port,
-            dest,
-            p->remote_port);
+    buf = dupprintf("CONNECT %s:%i HTTP/1.1\r\nHost: %s:%i\r\n",
+                    dest,
+                    p->remote_port,
+                    dest,
+                    p->remote_port);
     sk_write(p->sub_socket, buf, strlen(buf));
+    sfree(buf);
 
-    if (cfg.proxy_username[0] || cfg.proxy_password[0]) {
-      char buf[sizeof(cfg.proxy_username) + sizeof(cfg.proxy_password)];
+    if (p->cfg.proxy_username[0] || p->cfg.proxy_password[0]) {
+      char buf[sizeof(p->cfg.proxy_username) + sizeof(p->cfg.proxy_password)];
       char buf2[sizeof(buf) * 4 / 3 + 100];
       int i, j, len;
-      sprintf(buf, "%s:%s", cfg.proxy_username, cfg.proxy_password);
+      sprintf(buf, "%s:%s", p->cfg.proxy_username, p->cfg.proxy_password);
       len = strlen(buf);
-      sprintf(buf2, "Proxy-Authorization: basic ");
+      sprintf(buf2, "Proxy-Authorization: Basic ");
       for (i = 0, j = strlen(buf2); i < len; i += 3, j += 4)
-        base64_encode_atom(buf + i, (len - i > 3 ? 3 : len - i), buf2 + j);
+        base64_encode_atom(
+            (unsigned char *)(buf + i), (len - i > 3 ? 3 : len - i), buf2 + j);
       strcpy(buf2 + j, "\r\n");
       sk_write(p->sub_socket, buf2, strlen(buf2));
     }
 
-    sprintf(buf, "\r\n");
-    sk_write(p->sub_socket, buf, strlen(buf));
+    sk_write(p->sub_socket, "\r\n", 2);
 
     p->state = 1;
     return 0;
@@ -503,8 +598,14 @@ int proxy_http_negotiate(Proxy_Socket p, int change)
       /* get the status line */
       len = bufchain_size(&p->pending_input_data);
       assert(len > 0); /* or we wouldn't be here */
-      data = smalloc(len);
+      data = snewn(len + 1, char);
       bufchain_fetch(&p->pending_input_data, data, len);
+      /*
+       * We must NUL-terminate this data, because Windows
+       * sscanf appears to require a NUL at the end of the
+       * string because it strlens it _first_. Sigh.
+       */
+      data[len] = '\0';
 
       eol = get_line_end(data, len);
       if (eol < 0) {
@@ -529,12 +630,13 @@ int proxy_http_negotiate(Proxy_Socket p, int change)
       bufchain_consume(&p->pending_input_data, eol);
       if (data[status] != '2') {
         /* error */
-        char buf[1024];
+        char *buf;
         data[eol] = '\0';
         while (eol > status && (data[eol - 1] == '\r' || data[eol - 1] == '\n'))
           data[--eol] = '\0';
-        sprintf(buf, "Proxy error: %.900s", data + status);
+        buf = dupprintf("Proxy error: %s", data + status);
         plug_closing(p->plug, buf, PROXY_ERROR_GENERAL, 0);
+        sfree(buf);
         sfree(data);
         return 1;
       }
@@ -552,7 +654,7 @@ int proxy_http_negotiate(Proxy_Socket p, int change)
 
       len = bufchain_size(&p->pending_input_data);
       assert(len > 0); /* or we wouldn't be here */
-      data = smalloc(len);
+      data = snewn(len, char);
       datap = data;
       bufchain_fetch(&p->pending_input_data, data, len);
 
@@ -564,6 +666,7 @@ int proxy_http_negotiate(Proxy_Socket p, int change)
       while (eol > 2) {
         bufchain_consume(&p->pending_input_data, eol);
         datap += eol;
+        len -= eol;
         eol = get_line_end(datap, len);
       }
 
@@ -608,21 +711,31 @@ int proxy_socks4_negotiate(Proxy_Socket p, int change)
      *  user ID (variable length, null terminated string)
      */
 
-    int length;
-    char *command;
+    int length, type, namelen;
+    char *command, addr[4], hostname[512];
 
-    if (sk_addrtype(p->remote_addr) != AF_INET) {
+    type = sk_addrtype(p->remote_addr);
+    if (type == ADDRTYPE_IPV6) {
       plug_closing(p->plug,
                    "Proxy error: SOCKS version 4 does"
                    " not support IPv6",
                    PROXY_ERROR_GENERAL,
                    0);
       return 1;
+    } else if (type == ADDRTYPE_IPV4) {
+      namelen = 0;
+      sk_addrcopy(p->remote_addr, addr);
+    } else { /* type == ADDRTYPE_NAME */
+      assert(type == ADDRTYPE_NAME);
+      sk_getaddr(p->remote_addr, hostname, lenof(hostname));
+      namelen = strlen(hostname) + 1; /* include the NUL */
+      addr[0] = addr[1] = addr[2] = 0;
+      addr[3] = 1;
     }
 
-    length = strlen(cfg.proxy_username) + 9;
-    command = (char *)malloc(length);
-    strcpy(command + 8, cfg.proxy_username);
+    length = strlen(p->cfg.proxy_username) + namelen + 9;
+    command = snewn(length, char);
+    strcpy(command + 8, p->cfg.proxy_username);
 
     command[0] = 4; /* version 4 */
     command[1] = 1; /* CONNECT command */
@@ -632,10 +745,13 @@ int proxy_socks4_negotiate(Proxy_Socket p, int change)
     command[3] = (char)p->remote_port & 0xff;
 
     /* address */
-    sk_addrcopy(p->remote_addr, command + 4);
+    memcpy(command + 4, addr, 4);
+
+    /* hostname */
+    memcpy(command + 8 + strlen(p->cfg.proxy_username) + 1, hostname, namelen);
 
     sk_write(p->sub_socket, command, length);
-    free(command);
+    sfree(command);
 
     p->state = 1;
     return 0;
@@ -770,7 +886,7 @@ int proxy_socks5_negotiate(Proxy_Socket p, int change)
     int len;
 
     command[0] = 5; /* version 5 */
-    if (cfg.proxy_username[0] || cfg.proxy_password[0]) {
+    if (p->cfg.proxy_username[0] || p->cfg.proxy_password[0]) {
       command[1] = 2;    /* two methods supported: */
       command[2] = 0x00; /* no authentication */
       command[3] = 0x02; /* username/password */
@@ -926,23 +1042,30 @@ int proxy_socks5_negotiate(Proxy_Socket p, int change)
        *  dest. port (2 bytes) [network order]
        */
 
-      char command[22];
+      char command[512];
       int len;
+      int type;
 
-      if (sk_addrtype(p->remote_addr) == AF_INET) {
-        len = 10;
+      type = sk_addrtype(p->remote_addr);
+      if (type == ADDRTYPE_IPV4) {
+        len = 10;       /* 4 hdr + 4 addr + 2 trailer */
         command[3] = 1; /* IPv4 */
-      } else {
-        len = 22;
+        sk_addrcopy(p->remote_addr, command + 4);
+      } else if (type == ADDRTYPE_IPV6) {
+        len = 22;       /* 4 hdr + 16 addr + 2 trailer */
         command[3] = 4; /* IPv6 */
+        sk_addrcopy(p->remote_addr, command + 4);
+      } else {
+        assert(type == ADDRTYPE_NAME);
+        command[3] = 3;
+        sk_getaddr(p->remote_addr, command + 5, 256);
+        command[4] = strlen(command + 5);
+        len = 7 + command[4]; /* 4 hdr, 1 len, N addr, 2 trailer */
       }
 
       command[0] = 5; /* version 5 */
       command[1] = 1; /* CONNECT command */
       command[2] = 0x00;
-
-      /* address */
-      sk_addrcopy(p->remote_addr, command + 4);
 
       /* port */
       command[len - 2] = (char)(p->remote_port >> 8) & 0xff;
@@ -1075,24 +1198,24 @@ int proxy_socks5_negotiate(Proxy_Socket p, int change)
     }
 
     if (p->state == 5) {
-      if (cfg.proxy_username[0] || cfg.proxy_password[0]) {
+      if (p->cfg.proxy_username[0] || p->cfg.proxy_password[0]) {
         char userpwbuf[514];
         int ulen, plen;
-        ulen = strlen(cfg.proxy_username);
+        ulen = strlen(p->cfg.proxy_username);
         if (ulen > 255)
           ulen = 255;
         if (ulen < 1)
           ulen = 1;
-        plen = strlen(cfg.proxy_password);
+        plen = strlen(p->cfg.proxy_password);
         if (plen > 255)
           plen = 255;
         if (plen < 1)
           plen = 1;
         userpwbuf[0] = 1; /* version number of subnegotiation */
         userpwbuf[1] = ulen;
-        memcpy(userpwbuf + 2, cfg.proxy_username, ulen);
+        memcpy(userpwbuf + 2, p->cfg.proxy_username, ulen);
         userpwbuf[ulen + 2] = plen;
-        memcpy(userpwbuf + ulen + 3, cfg.proxy_password, plen);
+        memcpy(userpwbuf + ulen + 3, p->cfg.proxy_password, plen);
         sk_write(p->sub_socket, userpwbuf, ulen + plen + 3);
         p->state = 7;
       } else
@@ -1131,153 +1254,212 @@ int proxy_socks5_negotiate(Proxy_Socket p, int change)
  * standardised or at all well-defined.)
  */
 
+char *format_telnet_command(SockAddr addr, int port, const Config *cfg)
+{
+  char *ret = NULL;
+  int retlen = 0, retsize = 0;
+  int so = 0, eo = 0;
+#define ENSURE(n)                                                              \
+  do {                                                                         \
+    if (retsize < retlen + n) {                                                \
+      retsize = retlen + n + 512;                                              \
+      ret = sresize(ret, retsize, char);                                       \
+    }                                                                          \
+  } while (0)
+
+  /* we need to escape \\, \%, \r, \n, \t, \x??, \0???,
+   * %%, %host, %port, %user, and %pass
+   */
+
+  while (cfg->proxy_telnet_command[eo] != 0) {
+
+    /* scan forward until we hit end-of-line,
+     * or an escape character (\ or %) */
+    while (cfg->proxy_telnet_command[eo] != 0 &&
+           cfg->proxy_telnet_command[eo] != '%' &&
+           cfg->proxy_telnet_command[eo] != '\\')
+      eo++;
+
+    /* if we hit eol, break out of our escaping loop */
+    if (cfg->proxy_telnet_command[eo] == 0)
+      break;
+
+    /* if there was any unescaped text before the escape
+     * character, send that now */
+    if (eo != so) {
+      ENSURE(eo - so);
+      memcpy(ret + retlen, cfg->proxy_telnet_command + so, eo - so);
+      retlen += eo - so;
+    }
+
+    so = eo++;
+
+    /* if the escape character was the last character of
+     * the line, we'll just stop and send it. */
+    if (cfg->proxy_telnet_command[eo] == 0)
+      break;
+
+    if (cfg->proxy_telnet_command[so] == '\\') {
+
+      /* we recognize \\, \%, \r, \n, \t, \x??.
+       * anything else, we just send unescaped (including the \).
+       */
+
+      switch (cfg->proxy_telnet_command[eo]) {
+
+      case '\\':
+        ENSURE(1);
+        ret[retlen++] = '\\';
+        eo++;
+        break;
+
+      case '%':
+        ENSURE(1);
+        ret[retlen++] = '%';
+        eo++;
+        break;
+
+      case 'r':
+        ENSURE(1);
+        ret[retlen++] = '\r';
+        eo++;
+        break;
+
+      case 'n':
+        ENSURE(1);
+        ret[retlen++] = '\n';
+        eo++;
+        break;
+
+      case 't':
+        ENSURE(1);
+        ret[retlen++] = '\t';
+        eo++;
+        break;
+
+      case 'x':
+      case 'X': {
+        /* escaped hexadecimal value (ie. \xff) */
+        unsigned char v = 0;
+        int i = 0;
+
+        for (;;) {
+          eo++;
+          if (cfg->proxy_telnet_command[eo] >= '0' &&
+              cfg->proxy_telnet_command[eo] <= '9')
+            v += cfg->proxy_telnet_command[eo] - '0';
+          else if (cfg->proxy_telnet_command[eo] >= 'a' &&
+                   cfg->proxy_telnet_command[eo] <= 'f')
+            v += cfg->proxy_telnet_command[eo] - 'a' + 10;
+          else if (cfg->proxy_telnet_command[eo] >= 'A' &&
+                   cfg->proxy_telnet_command[eo] <= 'F')
+            v += cfg->proxy_telnet_command[eo] - 'A' + 10;
+          else {
+            /* non hex character, so we abort and just
+             * send the whole thing unescaped (including \x)
+             */
+            ENSURE(1);
+            ret[retlen++] = '\\';
+            eo = so + 1;
+            break;
+          }
+
+          /* we only extract two hex characters */
+          if (i == 1) {
+            ENSURE(1);
+            ret[retlen++] = v;
+            eo++;
+            break;
+          }
+
+          i++;
+          v <<= 4;
+        }
+      } break;
+
+      default:
+        ENSURE(2);
+        memcpy(ret + retlen, cfg->proxy_telnet_command + so, 2);
+        retlen += 2;
+        eo++;
+        break;
+      }
+    } else {
+
+      /* % escape. we recognize %%, %host, %port, %user, %pass.
+       * anything else, we just send unescaped (including the %).
+       */
+
+      if (cfg->proxy_telnet_command[eo] == '%') {
+        ENSURE(1);
+        ret[retlen++] = '%';
+        eo++;
+      } else if (strnicmp(cfg->proxy_telnet_command + eo, "host", 4) == 0) {
+        char dest[512];
+        int destlen;
+        sk_getaddr(addr, dest, lenof(dest));
+        destlen = strlen(dest);
+        ENSURE(destlen);
+        memcpy(ret + retlen, dest, destlen);
+        retlen += destlen;
+        eo += 4;
+      } else if (strnicmp(cfg->proxy_telnet_command + eo, "port", 4) == 0) {
+        char portstr[8], portlen;
+        portlen = sprintf(portstr, "%i", port);
+        ENSURE(portlen);
+        memcpy(ret + retlen, portstr, portlen);
+        retlen += portlen;
+        eo += 4;
+      } else if (strnicmp(cfg->proxy_telnet_command + eo, "user", 4) == 0) {
+        int userlen = strlen(cfg->proxy_username);
+        ENSURE(userlen);
+        memcpy(ret + retlen, cfg->proxy_username, userlen);
+        retlen += userlen;
+        eo += 4;
+      } else if (strnicmp(cfg->proxy_telnet_command + eo, "pass", 4) == 0) {
+        int passlen = strlen(cfg->proxy_password);
+        ENSURE(passlen);
+        memcpy(ret + retlen, cfg->proxy_password, passlen);
+        retlen += passlen;
+        eo += 4;
+      } else {
+        /* we don't escape this, so send the % now, and
+         * don't advance eo, so that we'll consider the
+         * text immediately following the % as unescaped.
+         */
+        ENSURE(1);
+        ret[retlen++] = '%';
+      }
+    }
+
+    /* resume scanning for additional escapes after this one. */
+    so = eo;
+  }
+
+  /* if there is any unescaped text at the end of the line, send it */
+  if (eo != so) {
+    ENSURE(eo - so);
+    memcpy(ret + retlen, cfg->proxy_telnet_command + so, eo - so);
+    retlen += eo - so;
+  }
+
+  ENSURE(1);
+  ret[retlen] = '\0';
+  return ret;
+
+#undef ENSURE
+}
+
 int proxy_telnet_negotiate(Proxy_Socket p, int change)
 {
   if (p->state == PROXY_CHANGE_NEW) {
+    char *formatted_cmd;
 
-    int so = 0, eo = 0;
+    formatted_cmd =
+        format_telnet_command(p->remote_addr, p->remote_port, &p->cfg);
 
-    /* we need to escape \\, \%, \r, \n, \t, \x??, \0???,
-     * %%, %host, and %port
-     */
-
-    while (cfg.proxy_telnet_command[eo] != 0) {
-
-      /* scan forward until we hit end-of-line,
-       * or an escape character (\ or %) */
-      while (cfg.proxy_telnet_command[eo] != 0 &&
-             cfg.proxy_telnet_command[eo] != '%' &&
-             cfg.proxy_telnet_command[eo] != '\\')
-        eo++;
-
-      /* if we hit eol, break out of our escaping loop */
-      if (cfg.proxy_telnet_command[eo] == 0)
-        break;
-
-      /* if there was any unescaped text before the escape
-       * character, send that now */
-      if (eo != so) {
-        sk_write(p->sub_socket, cfg.proxy_telnet_command + so, eo - so);
-      }
-
-      so = eo++;
-
-      /* if the escape character was the last character of
-       * the line, we'll just stop and send it. */
-      if (cfg.proxy_telnet_command[eo] == 0)
-        break;
-
-      if (cfg.proxy_telnet_command[so] == '\\') {
-
-        /* we recognize \\, \%, \r, \n, \t, \x??.
-         * anything else, we just send unescaped (including the \).
-         */
-
-        switch (cfg.proxy_telnet_command[eo]) {
-
-        case '\\':
-          sk_write(p->sub_socket, "\\", 1);
-          eo++;
-          break;
-
-        case '%':
-          sk_write(p->sub_socket, "%%", 1);
-          eo++;
-          break;
-
-        case 'r':
-          sk_write(p->sub_socket, "\r", 1);
-          eo++;
-          break;
-
-        case 'n':
-          sk_write(p->sub_socket, "\n", 1);
-          eo++;
-          break;
-
-        case 't':
-          sk_write(p->sub_socket, "\t", 1);
-          eo++;
-          break;
-
-        case 'x':
-        case 'X': {
-          /* escaped hexadecimal value (ie. \xff) */
-          unsigned char v = 0;
-          int i = 0;
-
-          for (;;) {
-            eo++;
-            if (cfg.proxy_telnet_command[eo] >= '0' &&
-                cfg.proxy_telnet_command[eo] <= '9')
-              v += cfg.proxy_telnet_command[eo] - '0';
-            else if (cfg.proxy_telnet_command[eo] >= 'a' &&
-                     cfg.proxy_telnet_command[eo] <= 'f')
-              v += cfg.proxy_telnet_command[eo] - 'a' + 10;
-            else if (cfg.proxy_telnet_command[eo] >= 'A' &&
-                     cfg.proxy_telnet_command[eo] <= 'F')
-              v += cfg.proxy_telnet_command[eo] - 'A' + 10;
-            else {
-              /* non hex character, so we abort and just
-               * send the whole thing unescaped (including \x)
-               */
-              sk_write(p->sub_socket, "\\", 1);
-              eo = so + 1;
-              break;
-            }
-
-            /* we only extract two hex characters */
-            if (i == 1) {
-              sk_write(p->sub_socket, &v, 1);
-              eo++;
-              break;
-            }
-
-            i++;
-            v <<= 4;
-          }
-        } break;
-
-        default:
-          sk_write(p->sub_socket, cfg.proxy_telnet_command + so, 2);
-          eo++;
-          break;
-        }
-      } else {
-
-        /* % escape. we recognize %%, %host, %port. anything else,
-         * we just send unescaped (including the %). */
-
-        if (cfg.proxy_telnet_command[eo] == '%') {
-          sk_write(p->sub_socket, "%", 1);
-          eo++;
-        } else if (strnicmp(cfg.proxy_telnet_command + eo, "host", 4) == 0) {
-          char dest[64];
-          sk_getaddr(p->remote_addr, dest, 64);
-          sk_write(p->sub_socket, dest, strlen(dest));
-          eo += 4;
-        } else if (strnicmp(cfg.proxy_telnet_command + eo, "port", 4) == 0) {
-          char port[8];
-          sprintf(port, "%i", p->remote_port);
-          sk_write(p->sub_socket, port, strlen(port));
-          eo += 4;
-        } else {
-          /* we don't escape this, so send the % now, and
-           * don't advance eo, so that we'll consider the
-           * text immediately following the % as unescaped.
-           */
-          sk_write(p->sub_socket, "%", 1);
-        }
-      }
-
-      /* resume scanning for additional escapes after this one. */
-      so = eo;
-    }
-
-    /* if there is any unescaped text at the end of the line, send it */
-    if (eo != so) {
-      sk_write(p->sub_socket, cfg.proxy_telnet_command + so, eo - so);
-    }
+    sk_write(p->sub_socket, formatted_cmd, strlen(formatted_cmd));
+    sfree(formatted_cmd);
 
     p->state = 1;
     return 0;

@@ -3,9 +3,9 @@
  * defined in storage.h.
  */
 
-#include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 #include "putty.h"
 #include "storage.h"
 
@@ -13,9 +13,9 @@ static const char *const puttystr = PUTTY_REG_POS "\\Sessions";
 
 static char seedpath[2 * MAX_PATH + 10] = "\0";
 
-static char hex[16] = "0123456789ABCDEF";
+static const char hex[16] = "0123456789ABCDEF";
 
-static void mungestr(char *in, char *out)
+static void mungestr(const char *in, char *out)
 {
   int candot = 0;
 
@@ -34,7 +34,7 @@ static void mungestr(char *in, char *out)
   return;
 }
 
-static void unmungestr(char *in, char *out, int outlen)
+static void unmungestr(const char *in, char *out, int outlen)
 {
   while (*in) {
     if (*in == '%' && in[1] && in[2]) {
@@ -59,35 +59,48 @@ static void unmungestr(char *in, char *out, int outlen)
   return;
 }
 
-void *open_settings_w(char *sessionname)
+void *open_settings_w(const char *sessionname, char **errmsg)
 {
   HKEY subkey1, sesskey;
   int ret;
   char *p;
 
-  p = smalloc(3 * strlen(sessionname) + 1);
+  *errmsg = NULL;
+
+  if (!sessionname || !*sessionname)
+    sessionname = "Default Settings";
+
+  p = snewn(3 * strlen(sessionname) + 1, char);
   mungestr(sessionname, p);
 
   ret = RegCreateKey(HKEY_CURRENT_USER, puttystr, &subkey1);
   if (ret != ERROR_SUCCESS) {
     sfree(p);
+    *errmsg = dupprintf("Unable to create registry key\n"
+                        "HKEY_CURRENT_USER%s",
+                        puttystr);
     return NULL;
   }
   ret = RegCreateKey(subkey1, p, &sesskey);
   sfree(p);
   RegCloseKey(subkey1);
-  if (ret != ERROR_SUCCESS)
+  if (ret != ERROR_SUCCESS) {
+    *errmsg = dupprintf("Unable to create registry key\n"
+                        "HKEY_CURRENT_USER%s\\%s",
+                        puttystr,
+                        p);
     return NULL;
+  }
   return (void *)sesskey;
 }
 
-void write_setting_s(void *handle, char *key, char *value)
+void write_setting_s(void *handle, const char *key, const char *value)
 {
   if (handle)
     RegSetValueEx((HKEY)handle, key, 0, REG_SZ, value, 1 + strlen(value));
 }
 
-void write_setting_i(void *handle, char *key, int value)
+void write_setting_i(void *handle, const char *key, int value)
 {
   if (handle)
     RegSetValueEx(
@@ -99,12 +112,15 @@ void close_settings_w(void *handle)
   RegCloseKey((HKEY)handle);
 }
 
-void *open_settings_r(char *sessionname)
+void *open_settings_r(const char *sessionname)
 {
   HKEY subkey1, sesskey;
   char *p;
 
-  p = smalloc(3 * strlen(sessionname) + 1);
+  if (!sessionname || !*sessionname)
+    sessionname = "Default Settings";
+
+  p = snewn(3 * strlen(sessionname) + 1, char);
   mungestr(sessionname, p);
 
   if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS) {
@@ -121,7 +137,7 @@ void *open_settings_r(char *sessionname)
   return (void *)sesskey;
 }
 
-char *read_setting_s(void *handle, char *key, char *buffer, int buflen)
+char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
 {
   DWORD type, size;
   size = buflen;
@@ -135,7 +151,7 @@ char *read_setting_s(void *handle, char *key, char *buffer, int buflen)
     return buffer;
 }
 
-int read_setting_i(void *handle, char *key, int defvalue)
+int read_setting_i(void *handle, const char *key, int defvalue)
 {
   DWORD type, val, size;
   size = sizeof(val);
@@ -149,12 +165,64 @@ int read_setting_i(void *handle, char *key, int defvalue)
     return val;
 }
 
+int read_setting_fontspec(void *handle, const char *name, FontSpec *result)
+{
+  char *settingname;
+  FontSpec ret;
+
+  if (!read_setting_s(handle, name, ret.name, sizeof(ret.name)))
+    return 0;
+  settingname = dupcat(name, "IsBold", NULL);
+  ret.isbold = read_setting_i(handle, settingname, -1);
+  sfree(settingname);
+  if (ret.isbold == -1)
+    return 0;
+  settingname = dupcat(name, "CharSet", NULL);
+  ret.charset = read_setting_i(handle, settingname, -1);
+  sfree(settingname);
+  if (ret.charset == -1)
+    return 0;
+  settingname = dupcat(name, "Height", NULL);
+  ret.height = read_setting_i(handle, settingname, INT_MIN);
+  sfree(settingname);
+  if (ret.height == INT_MIN)
+    return 0;
+  *result = ret;
+  return 1;
+}
+
+void write_setting_fontspec(void *handle, const char *name, FontSpec font)
+{
+  char *settingname;
+
+  write_setting_s(handle, name, font.name);
+  settingname = dupcat(name, "IsBold", NULL);
+  write_setting_i(handle, settingname, font.isbold);
+  sfree(settingname);
+  settingname = dupcat(name, "CharSet", NULL);
+  write_setting_i(handle, settingname, font.charset);
+  sfree(settingname);
+  settingname = dupcat(name, "Height", NULL);
+  write_setting_i(handle, settingname, font.height);
+  sfree(settingname);
+}
+
+int read_setting_filename(void *handle, const char *name, Filename *result)
+{
+  return !!read_setting_s(handle, name, result->path, sizeof(result->path));
+}
+
+void write_setting_filename(void *handle, const char *name, Filename result)
+{
+  write_setting_s(handle, name, result.path);
+}
+
 void close_settings_r(void *handle)
 {
   RegCloseKey((HKEY)handle);
 }
 
-void del_settings(char *sessionname)
+void del_settings(const char *sessionname)
 {
   HKEY subkey1;
   char *p;
@@ -162,7 +230,7 @@ void del_settings(char *sessionname)
   if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS)
     return;
 
-  p = smalloc(3 * strlen(sessionname) + 1);
+  p = snewn(3 * strlen(sessionname) + 1, char);
   mungestr(sessionname, p);
   RegDeleteKey(subkey1, p);
   sfree(p);
@@ -183,7 +251,7 @@ void *enum_settings_start(void)
   if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &key) != ERROR_SUCCESS)
     return NULL;
 
-  ret = smalloc(sizeof(*ret));
+  ret = snew(struct enumsettings);
   if (ret) {
     ret->key = key;
     ret->i = 0;
@@ -196,14 +264,15 @@ char *enum_settings_next(void *handle, char *buffer, int buflen)
 {
   struct enumsettings *e = (struct enumsettings *)handle;
   char *otherbuf;
-  otherbuf = smalloc(3 * buflen);
-  if (otherbuf &&
-      RegEnumKey(e->key, e->i++, otherbuf, 3 * buflen) == ERROR_SUCCESS) {
+  otherbuf = snewn(3 * buflen, char);
+  if (RegEnumKey(e->key, e->i++, otherbuf, 3 * buflen) == ERROR_SUCCESS) {
     unmungestr(otherbuf, buffer, buflen);
     sfree(otherbuf);
     return buffer;
-  } else
+  } else {
+    sfree(otherbuf);
     return NULL;
+  }
 }
 
 void enum_settings_finish(void *handle)
@@ -214,9 +283,9 @@ void enum_settings_finish(void *handle)
 }
 
 static void hostkey_regname(char *buffer,
-                            char *hostname,
+                            const char *hostname,
                             int port,
-                            char *keytype)
+                            const char *keytype)
 {
   int len;
   strcpy(buffer, keytype);
@@ -226,7 +295,10 @@ static void hostkey_regname(char *buffer,
   mungestr(hostname, buffer + strlen(buffer));
 }
 
-int verify_host_key(char *hostname, int port, char *keytype, char *key)
+int verify_host_key(const char *hostname,
+                    int port,
+                    const char *keytype,
+                    const char *key)
 {
   char *otherstr, *regname;
   int len;
@@ -241,8 +313,8 @@ int verify_host_key(char *hostname, int port, char *keytype, char *key)
    * Now read a saved key in from the registry and see what it
    * says.
    */
-  otherstr = smalloc(len);
-  regname = smalloc(3 * (strlen(hostname) + strlen(keytype)) + 15);
+  otherstr = snewn(len, char);
+  regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
 
   hostkey_regname(regname, hostname, port, keytype);
 
@@ -261,7 +333,7 @@ int verify_host_key(char *hostname, int port, char *keytype, char *key)
      * under just the hostname and translate that.
      */
     char *justhost = regname + 1 + strcspn(regname, ":");
-    char *oldstyle = smalloc(len + 10); /* safety margin */
+    char *oldstyle = snewn(len + 10, char); /* safety margin */
     readlen = len;
     ret = RegQueryValueEx(rkey, justhost, NULL, &type, oldstyle, &readlen);
 
@@ -329,12 +401,15 @@ int verify_host_key(char *hostname, int port, char *keytype, char *key)
     return 0; /* key matched OK in registry */
 }
 
-void store_host_key(char *hostname, int port, char *keytype, char *key)
+void store_host_key(const char *hostname,
+                    int port,
+                    const char *keytype,
+                    const char *key)
 {
   char *regname;
   HKEY rkey;
 
-  regname = smalloc(3 * (strlen(hostname) + strlen(keytype)) + 15);
+  regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
 
   hostkey_regname(regname, hostname, port, keytype);
 

@@ -1,4 +1,3 @@
-#include <windows.h>
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -17,9 +16,14 @@
  * local modifications such as -L are evaluated; and if you specify
  * a protocol and a port, the protocol is set up first so that the
  * port can override its choice of port number.
+ *
+ * (In fact -load is not saved at all, since in at least Plink the
+ * processing of further command-line options depends on whether or
+ * not the loaded session contained a hostname. So it must be
+ * executed immediately.)
  */
 
-#define NPRIORITIES 3
+#define NPRIORITIES 2
 
 struct cmdline_saved_param {
   char *p, *value;
@@ -39,12 +43,20 @@ static void cmdline_save_param(char *p, char *value, int pri)
 {
   if (saves[pri].nsaved >= saves[pri].savesize) {
     saves[pri].savesize = saves[pri].nsaved + 32;
-    saves[pri].params = srealloc(
-        saves[pri].params, saves[pri].savesize * sizeof(*saves[pri].params));
+    saves[pri].params = sresize(
+        saves[pri].params, saves[pri].savesize, struct cmdline_saved_param);
   }
   saves[pri].params[saves[pri].nsaved].p = p;
   saves[pri].params[saves[pri].nsaved].value = value;
   saves[pri].nsaved++;
+}
+
+void cmdline_cleanup(void)
+{
+  int pri;
+
+  for (pri = 0; pri < NPRIORITIES; pri++)
+    sfree(saves[pri].params);
 }
 
 #define SAVEABLE(pri)                                                          \
@@ -117,47 +129,50 @@ static int cmdline_check_unavailable(int flag, char *p)
     if ((x) == 2 && !value)                                                    \
       return -2;                                                               \
     ret = x;                                                                   \
+    if (need_save < 0)                                                         \
+      return x;                                                                \
   } while (0)
 
-int cmdline_process_param(char *p, char *value, int need_save)
+int cmdline_process_param(char *p, char *value, int need_save, Config *cfg)
 {
   int ret = 0;
 
   if (!strcmp(p, "-load")) {
     RETURN(2);
-    SAVEABLE(0); /* very high priority */
-    do_defaults(value, &cfg);
+    /* This parameter must be processed immediately rather than being
+     * saved. */
+    do_defaults(value, cfg);
     return 2;
   }
   if (!strcmp(p, "-ssh")) {
     RETURN(1);
-    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER);
-    SAVEABLE(1);
-    default_protocol = cfg.protocol = PROT_SSH;
-    default_port = cfg.port = 22;
+    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    default_protocol = cfg->protocol = PROT_SSH;
+    default_port = cfg->port = 22;
     return 1;
   }
   if (!strcmp(p, "-telnet")) {
     RETURN(1);
-    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER);
-    SAVEABLE(1);
-    default_protocol = cfg.protocol = PROT_TELNET;
-    default_port = cfg.port = 23;
+    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    default_protocol = cfg->protocol = PROT_TELNET;
+    default_port = cfg->port = 23;
     return 1;
   }
   if (!strcmp(p, "-rlogin")) {
     RETURN(1);
-    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER);
-    SAVEABLE(1);
-    default_protocol = cfg.protocol = PROT_RLOGIN;
-    default_port = cfg.port = 513;
+    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    default_protocol = cfg->protocol = PROT_RLOGIN;
+    default_port = cfg->port = 513;
     return 1;
   }
   if (!strcmp(p, "-raw")) {
     RETURN(1);
-    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER);
-    SAVEABLE(1);
-    default_protocol = cfg.protocol = PROT_RAW;
+    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    default_protocol = cfg->protocol = PROT_RAW;
   }
   if (!strcmp(p, "-v")) {
     RETURN(1);
@@ -165,36 +180,55 @@ int cmdline_process_param(char *p, char *value, int need_save)
   }
   if (!strcmp(p, "-l")) {
     RETURN(2);
-    SAVEABLE(1);
-    strncpy(cfg.username, value, sizeof(cfg.username));
-    cfg.username[sizeof(cfg.username) - 1] = '\0';
+    UNAVAILABLE_IN(TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    strncpy(cfg->username, value, sizeof(cfg->username));
+    cfg->username[sizeof(cfg->username) - 1] = '\0';
   }
-  if ((!strcmp(p, "-L") || !strcmp(p, "-R"))) {
-    char *fwd, *ptr, *q;
-    int i = 0;
+  if ((!strcmp(p, "-L") || !strcmp(p, "-R") || !strcmp(p, "-D"))) {
+    char *fwd, *ptr, *q, *qq;
+    int dynamic, i = 0;
     RETURN(2);
-    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER);
-    SAVEABLE(1);
+    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    dynamic = !strcmp(p, "-D");
     fwd = value;
-    ptr = cfg.portfwd;
+    ptr = cfg->portfwd;
     /* if multiple forwards, find end of list */
-    if (ptr[0] == 'R' || ptr[0] == 'L') {
-      for (i = 0; i < sizeof(cfg.portfwd) - 2; i++)
+    if (ptr[0] == 'R' || ptr[0] == 'L' || ptr[0] == 'D') {
+      for (i = 0; i < sizeof(cfg->portfwd) - 2; i++)
         if (ptr[i] == '\000' && ptr[i + 1] == '\000')
           break;
       ptr = ptr + i + 1; /* point to next forward slot */
     }
-    ptr[0] = p[1]; /* insert a 'L' or 'R' at the start */
-    if (strlen(fwd) > sizeof(cfg.portfwd) - i - 2) {
+    ptr[0] = p[1]; /* insert a 'L', 'R' or 'D' at the start */
+    if (strlen(fwd) > sizeof(cfg->portfwd) - i - 2) {
       cmdline_error("out of space for port forwardings");
       return ret;
     }
-    strncpy(ptr + 1, fwd, sizeof(cfg.portfwd) - i);
-    q = strchr(ptr, ':');
-    if (q)
-      *q = '\t'; /* replace first : with \t */
-    cfg.portfwd[sizeof(cfg.portfwd) - 1] = '\0';
-    cfg.portfwd[sizeof(cfg.portfwd) - 2] = '\0';
+    strncpy(ptr + 1, fwd, sizeof(cfg->portfwd) - i);
+    if (!dynamic) {
+      /*
+       * We expect _at least_ two colons in this string. The
+       * possible formats are `sourceport:desthost:destport',
+       * or `sourceip:sourceport:desthost:destport' if you're
+       * specifying a particular loopback address. We need to
+       * replace the one between source and dest with a \t;
+       * this means we must find the second-to-last colon in
+       * the string.
+       */
+      q = qq = strchr(ptr, ':');
+      while (qq) {
+        char *qqq = strchr(qq + 1, ':');
+        if (qqq)
+          q = qq;
+        qq = qqq;
+      }
+      if (q)
+        *q = '\t'; /* replace second-last colon with \t */
+    }
+    cfg->portfwd[sizeof(cfg->portfwd) - 1] = '\0';
+    cfg->portfwd[sizeof(cfg->portfwd) - 2] = '\0';
     ptr[strlen(ptr) + 1] = '\000'; /* append two '\000' */
   }
   if (!strcmp(p, "-m")) {
@@ -204,8 +238,8 @@ int cmdline_process_param(char *p, char *value, int need_save)
     int c, d;
 
     RETURN(2);
-    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER);
-    SAVEABLE(1);
+    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
 
     filename = value;
 
@@ -225,21 +259,23 @@ int cmdline_process_param(char *p, char *value, int need_save)
         d = 0;
       if (cmdlen >= cmdsize) {
         cmdsize = cmdlen + 512;
-        command = srealloc(command, cmdsize);
+        command = sresize(command, cmdsize, char);
       }
       command[cmdlen++] = d;
     } while (c != EOF);
-    cfg.remote_cmd_ptr = command;
-    cfg.remote_cmd_ptr2 = NULL;
-    cfg.nopty = TRUE; /* command => no terminal */
+    cfg->remote_cmd_ptr = command;
+    cfg->remote_cmd_ptr2 = NULL;
+    cfg->nopty = TRUE; /* command => no terminal */
   }
   if (!strcmp(p, "-P")) {
     RETURN(2);
-    SAVEABLE(2); /* lower priority than -ssh,-telnet */
-    cfg.port = atoi(value);
+    UNAVAILABLE_IN(TOOLTYPE_NONNETWORK);
+    SAVEABLE(1); /* lower priority than -ssh,-telnet */
+    cfg->port = atoi(value);
   }
   if (!strcmp(p, "-pw")) {
     RETURN(2);
+    UNAVAILABLE_IN(TOOLTYPE_NONNETWORK);
     cmdline_password = value;
     ssh_get_line = cmdline_get_line;
     ssh_getline_pw_only = TRUE;
@@ -247,75 +283,78 @@ int cmdline_process_param(char *p, char *value, int need_save)
 
   if (!strcmp(p, "-A")) {
     RETURN(1);
-    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER);
-    SAVEABLE(1);
-    cfg.agentfwd = 1;
+    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    cfg->agentfwd = 1;
   }
   if (!strcmp(p, "-a")) {
     RETURN(1);
-    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER);
-    SAVEABLE(1);
-    cfg.agentfwd = 0;
+    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    cfg->agentfwd = 0;
   }
 
   if (!strcmp(p, "-X")) {
     RETURN(1);
-    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER);
-    SAVEABLE(1);
-    cfg.x11_forward = 1;
+    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    cfg->x11_forward = 1;
   }
   if (!strcmp(p, "-x")) {
     RETURN(1);
-    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER);
-    SAVEABLE(1);
-    cfg.x11_forward = 0;
+    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    cfg->x11_forward = 0;
   }
 
   if (!strcmp(p, "-t")) {
     RETURN(1);
-    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER);
-    SAVEABLE(1);
-    cfg.nopty = 0;
+    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    cfg->nopty = 0;
   }
   if (!strcmp(p, "-T")) {
     RETURN(1);
-    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER);
-    SAVEABLE(1);
-    cfg.nopty = 1;
+    UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    cfg->nopty = 1;
   }
 
   if (!strcmp(p, "-C")) {
     RETURN(1);
-    SAVEABLE(1);
-    cfg.compression = 1;
+    UNAVAILABLE_IN(TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    cfg->compression = 1;
   }
 
   if (!strcmp(p, "-1")) {
     RETURN(1);
-    SAVEABLE(1);
-    cfg.sshprot = 0; /* ssh protocol 1 only */
+    UNAVAILABLE_IN(TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    cfg->sshprot = 0; /* ssh protocol 1 only */
   }
   if (!strcmp(p, "-2")) {
     RETURN(1);
-    SAVEABLE(1);
-    cfg.sshprot = 3; /* ssh protocol 2 only */
+    UNAVAILABLE_IN(TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    cfg->sshprot = 3; /* ssh protocol 2 only */
   }
 
   if (!strcmp(p, "-i")) {
     RETURN(2);
-    SAVEABLE(1);
-    strncpy(cfg.keyfile, value, sizeof(cfg.keyfile));
-    cfg.keyfile[sizeof(cfg.keyfile) - 1] = '\0';
+    UNAVAILABLE_IN(TOOLTYPE_NONNETWORK);
+    SAVEABLE(0);
+    cfg->keyfile = filename_from_str(value);
   }
 
   return ret; /* unrecognised */
 }
 
-void cmdline_run_saved(void)
+void cmdline_run_saved(Config *cfg)
 {
   int pri, i;
   for (pri = 0; pri < NPRIORITIES; pri++)
     for (i = 0; i < saves[pri].nsaved; i++)
       cmdline_process_param(
-          saves[pri].params[i].p, saves[pri].params[i].value, 0);
+          saves[pri].params[i].p, saves[pri].params[i].value, 0, cfg);
 }

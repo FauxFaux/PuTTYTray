@@ -6,7 +6,9 @@
  * Markus Kuhn -- 2001-01-12 -- public domain
  */
 
-#include <wchar.h>
+#include <stddef.h>
+
+#include "putty.h"
 
 struct interval {
   unsigned short first;
