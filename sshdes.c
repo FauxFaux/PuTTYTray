@@ -632,6 +632,37 @@ static void des_3cbc_encrypt(unsigned char *dest,
   des_cbc_encrypt(dest, src, len, &scheds[2]);
 }
 
+static void des_cbc3_encrypt(unsigned char *dest,
+                             const unsigned char *src,
+                             unsigned int len,
+                             DESContext *scheds)
+{
+  word32 out[2], iv0, iv1;
+  unsigned int i;
+
+  assert((len & 7) == 0);
+
+  iv0 = scheds->eiv0;
+  iv1 = scheds->eiv1;
+  for (i = 0; i < len; i += 8) {
+    iv0 ^= GET_32BIT_MSB_FIRST(src);
+    src += 4;
+    iv1 ^= GET_32BIT_MSB_FIRST(src);
+    src += 4;
+    des_encipher(out, iv0, iv1, &scheds[0]);
+    des_decipher(out, out[0], out[1], &scheds[1]);
+    des_encipher(out, out[0], out[1], &scheds[2]);
+    iv0 = out[0];
+    iv1 = out[1];
+    PUT_32BIT_MSB_FIRST(dest, iv0);
+    dest += 4;
+    PUT_32BIT_MSB_FIRST(dest, iv1);
+    dest += 4;
+  }
+  scheds->eiv0 = iv0;
+  scheds->eiv1 = iv1;
+}
+
 static void des_3cbc_decrypt(unsigned char *dest,
                              const unsigned char *src,
                              unsigned int len,
@@ -642,46 +673,157 @@ static void des_3cbc_decrypt(unsigned char *dest,
   des_cbc_decrypt(dest, src, len, &scheds[0]);
 }
 
-static DESContext keys[3];
+static void des_cbc3_decrypt(unsigned char *dest,
+                             const unsigned char *src,
+                             unsigned int len,
+                             DESContext *scheds)
+{
+  word32 out[2], iv0, iv1, xL, xR;
+  unsigned int i;
+
+  assert((len & 7) == 0);
+
+  iv0 = scheds->div0;
+  iv1 = scheds->div1;
+  for (i = 0; i < len; i += 8) {
+    xL = GET_32BIT_MSB_FIRST(src);
+    src += 4;
+    xR = GET_32BIT_MSB_FIRST(src);
+    src += 4;
+    des_decipher(out, xL, xR, &scheds[2]);
+    des_encipher(out, out[0], out[1], &scheds[1]);
+    des_decipher(out, out[0], out[1], &scheds[0]);
+    iv0 ^= out[0];
+    iv1 ^= out[1];
+    PUT_32BIT_MSB_FIRST(dest, iv0);
+    dest += 4;
+    PUT_32BIT_MSB_FIRST(dest, iv1);
+    dest += 4;
+    iv0 = xL;
+    iv1 = xR;
+  }
+  scheds->div0 = iv0;
+  scheds->div1 = iv1;
+}
+
+static DESContext cskeys[3], sckeys[3];
+
+static void des3_cskey(unsigned char *key)
+{
+  des_key_setup(
+      GET_32BIT_MSB_FIRST(key), GET_32BIT_MSB_FIRST(key + 4), &cskeys[0]);
+  des_key_setup(
+      GET_32BIT_MSB_FIRST(key + 8), GET_32BIT_MSB_FIRST(key + 12), &cskeys[1]);
+  des_key_setup(
+      GET_32BIT_MSB_FIRST(key + 16), GET_32BIT_MSB_FIRST(key + 20), &cskeys[2]);
+  logevent("Initialised triple-DES client->server encryption");
+}
+
+static void des3_csiv(unsigned char *key)
+{
+  cskeys[0].eiv0 = GET_32BIT_MSB_FIRST(key);
+  cskeys[0].eiv1 = GET_32BIT_MSB_FIRST(key + 4);
+}
+
+static void des3_sciv(unsigned char *key)
+{
+  sckeys[0].div0 = GET_32BIT_MSB_FIRST(key);
+  sckeys[0].div1 = GET_32BIT_MSB_FIRST(key + 4);
+}
+
+static void des3_sckey(unsigned char *key)
+{
+  des_key_setup(
+      GET_32BIT_MSB_FIRST(key), GET_32BIT_MSB_FIRST(key + 4), &sckeys[0]);
+  des_key_setup(
+      GET_32BIT_MSB_FIRST(key + 8), GET_32BIT_MSB_FIRST(key + 12), &sckeys[1]);
+  des_key_setup(
+      GET_32BIT_MSB_FIRST(key + 16), GET_32BIT_MSB_FIRST(key + 20), &sckeys[2]);
+  logevent("Initialised triple-DES server->client encryption");
+}
 
 static void des3_sesskey(unsigned char *key)
 {
-  des_key_setup(
-      GET_32BIT_MSB_FIRST(key), GET_32BIT_MSB_FIRST(key + 4), &keys[0]);
-  des_key_setup(
-      GET_32BIT_MSB_FIRST(key + 8), GET_32BIT_MSB_FIRST(key + 12), &keys[1]);
-  des_key_setup(
-      GET_32BIT_MSB_FIRST(key + 16), GET_32BIT_MSB_FIRST(key + 20), &keys[2]);
-  logevent("Initialised triple-DES encryption");
+  des3_cskey(key);
+  des3_sckey(key);
 }
 
 static void des3_encrypt_blk(unsigned char *blk, int len)
 {
-  des_3cbc_encrypt(blk, blk, len, keys);
+  des_3cbc_encrypt(blk, blk, len, cskeys);
 }
 
 static void des3_decrypt_blk(unsigned char *blk, int len)
 {
-  des_3cbc_decrypt(blk, blk, len, keys);
+  des_3cbc_decrypt(blk, blk, len, sckeys);
 }
 
-struct ssh_cipher ssh_3des = {des3_sesskey, des3_encrypt_blk, des3_decrypt_blk};
+static void des3_ssh2_encrypt_blk(unsigned char *blk, int len)
+{
+  des_cbc3_encrypt(blk, blk, len, cskeys);
+}
+
+static void des3_ssh2_decrypt_blk(unsigned char *blk, int len)
+{
+  des_cbc3_decrypt(blk, blk, len, sckeys);
+}
+
+void des3_decrypt_pubkey(unsigned char *key, unsigned char *blk, int len)
+{
+  DESContext ourkeys[3];
+  des_key_setup(
+      GET_32BIT_MSB_FIRST(key), GET_32BIT_MSB_FIRST(key + 4), &ourkeys[0]);
+  des_key_setup(
+      GET_32BIT_MSB_FIRST(key + 8), GET_32BIT_MSB_FIRST(key + 12), &ourkeys[1]);
+  des_key_setup(
+      GET_32BIT_MSB_FIRST(key), GET_32BIT_MSB_FIRST(key + 4), &ourkeys[2]);
+  des_3cbc_decrypt(blk, blk, len, ourkeys);
+}
+
+struct ssh_cipher ssh_3des_ssh2 = {NULL,
+                                   des3_csiv,
+                                   des3_cskey,
+                                   des3_sciv,
+                                   des3_sckey,
+                                   des3_ssh2_encrypt_blk,
+                                   des3_ssh2_decrypt_blk,
+                                   "3des-cbc",
+                                   8};
+
+struct ssh_cipher ssh_3des = {des3_sesskey,
+                              NULL,
+                              NULL,
+                              NULL,
+                              NULL,
+                              des3_encrypt_blk,
+                              des3_decrypt_blk,
+                              "3des-cbc",
+                              8};
 
 static void des_sesskey(unsigned char *key)
 {
   des_key_setup(
-      GET_32BIT_MSB_FIRST(key), GET_32BIT_MSB_FIRST(key + 4), &keys[0]);
+      GET_32BIT_MSB_FIRST(key), GET_32BIT_MSB_FIRST(key + 4), &cskeys[0]);
   logevent("Initialised single-DES encryption");
 }
 
 static void des_encrypt_blk(unsigned char *blk, int len)
 {
-  des_cbc_encrypt(blk, blk, len, keys);
+  des_cbc_encrypt(blk, blk, len, cskeys);
 }
 
 static void des_decrypt_blk(unsigned char *blk, int len)
 {
-  des_cbc_decrypt(blk, blk, len, keys);
+  des_cbc_decrypt(blk, blk, len, cskeys);
 }
 
-struct ssh_cipher ssh_des = {des_sesskey, des_encrypt_blk, des_decrypt_blk};
+struct ssh_cipher ssh_des = {
+    des_sesskey,
+    NULL,
+    NULL,
+    NULL,
+    NULL, /* SSH 2 bits - unused */
+    des_encrypt_blk,
+    des_decrypt_blk,
+    "des-cbc", /* should never be used - not a valid cipher in ssh2 */
+    8};

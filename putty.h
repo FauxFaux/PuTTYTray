@@ -2,6 +2,10 @@
 #define PUTTY_PUTTY_H
 
 #define PUTTY_REG_POS "Software\\SimonTatham\\PuTTY"
+#define PUTTY_REG_PARENT "Software\\SimonTatham"
+#define PUTTY_REG_PARENT_CHILD "PuTTY"
+#define PUTTY_REG_GPARENT "Software"
+#define PUTTY_REG_GPARENT_CHILD "SimonTatham"
 
 /*
  * Global variables. Most modules declare these `extern', but
@@ -20,6 +24,12 @@ GLOBAL HINSTANCE putty_inst;
 #define ATTR_PASCURS 0x40000000UL /* passive cursor (box) */
 #define ATTR_INVALID 0x20000000UL
 #define ATTR_WRAPPED 0x10000000UL
+
+#define LATTR_NORM 0x00000000UL
+#define LATTR_WIDE 0x01000000UL
+#define LATTR_TOP 0x02000000UL
+#define LATTR_BOT 0x03000000UL
+#define LATTR_MODE 0x03000000UL
 
 #define ATTR_ASCII 0x00000000UL   /* normal ASCII charset ESC ( B */
 #define ATTR_GBCHR 0x00100000UL   /* UK variant   charset ESC ( A */
@@ -52,10 +62,15 @@ GLOBAL int rows, cols, savelines;
 
 GLOBAL int font_width, font_height;
 
+#define c_write1(_C)                                                           \
+  do {                                                                         \
+    if (inbuf_head >= INBUF_SIZE)                                              \
+      term_out();                                                              \
+    inbuf[inbuf_head++] = (_C);                                                \
+  } while (0)
 #define INBUF_SIZE 2048
-#define INBUF_MASK (INBUF_SIZE - 1)
 GLOBAL unsigned char inbuf[INBUF_SIZE];
-GLOBAL int inbuf_head, inbuf_reap;
+GLOBAL int inbuf_head;
 
 #define OUTBUF_SIZE 2048
 #define OUTBUF_MASK (OUTBUF_SIZE - 1)
@@ -64,22 +79,13 @@ GLOBAL int outbuf_head, outbuf_reap;
 
 GLOBAL int has_focus;
 
-GLOBAL int app_cursor_keys, app_keypad_keys;
+GLOBAL int app_cursor_keys, app_keypad_keys, vt52_mode;
+GLOBAL int repeat_off, cr_lf_return;
 
 GLOBAL int seen_key_event;
 GLOBAL int seen_disp_event;
 
 GLOBAL int session_closed;
-
-typedef enum
-{
-  US_NONE = 0,
-  US_KEY = 1,
-  US_DISP = 2,
-  US_BOTH = 3
-} Unscroll_Trigger;
-
-GLOBAL Unscroll_Trigger unscroll_event;
 
 GLOBAL char *logfile;
 
@@ -107,7 +113,8 @@ typedef enum
   TS_EOR,
   TS_EOF,
   TS_LECHO,
-  TS_RECHO
+  TS_RECHO,
+  TS_PING
 } Telnet_Special;
 
 typedef enum
@@ -142,6 +149,9 @@ typedef struct {
   void (*send)(char *buf, int len);
   void (*size)(void);
   void (*special)(Telnet_Special code);
+  SOCKET (*socket)(void);
+  int (*sendok)(void);
+  int default_port;
 } Backend;
 
 GLOBAL Backend *back;
@@ -170,14 +180,20 @@ typedef struct {
   } protocol;
   int close_on_exit;
   int warn_on_close;
+  int ping_interval;
   /* SSH options */
+  char remote_cmd[512];
   int nopty;
+  int agentfwd;
   enum
   {
     CIPHER_3DES,
     CIPHER_BLOWFISH,
     CIPHER_DES
   } cipher;
+  char keyfile[FILENAME_MAX];
+  int sshprot;  /* use v1 or v2 when both available */
+  int buggymac; /* MAC bug commmercial <=v2.3.x SSH2 */
   int try_tis_auth;
   /* Telnet options */
   char termtype[32];
@@ -188,26 +204,32 @@ typedef struct {
   /* Keyboard options */
   int bksp_is_delete;
   int rxvt_homeend;
-  int linux_funkeys;
+  int funky_type;
   int app_cursor;
   int app_keypad;
   int nethack_keypad;
   int alt_f4;    /* is it special? */
   int alt_space; /* is it special? */
   int ldisc_term;
-  int blink_cur;
+  int scroll_on_key;
+  char wintitle[256]; /* initial window title */
   /* Terminal options */
   int savelines;
   int dec_om;
   int wrap_mode;
   int lfhascr;
+  int blink_cur;
+  int beep;
+  int scrollbar;
+  int locksize;
+  int bce;
+  int blinktext;
   int win_name_always;
   int width, height;
   char font[64];
   int fontisbold;
   int fontheight;
   int fontcharset;
-  VT_Mode vtmode;
   /* Colour options */
   int try_palette;
   int bold_colour;
@@ -215,9 +237,11 @@ typedef struct {
   /* Selection options */
   int mouse_is_xterm;
   short wordness[256];
-  /* russian language translation */
+  /* translations */
+  VT_Mode vtmode;
   int xlat_enablekoiwin;
   int xlat_88592w1250;
+  int xlat_88592cp852;
   int xlat_capslockcyr;
 } Config;
 
@@ -232,6 +256,25 @@ typedef struct {
 #define DEFAULT_PORT 22
 #endif
 
+/*
+ * Some global flags denoting the type of application.
+ *
+ * FLAG_VERBOSE is set when the user requests verbose details.
+ *
+ * FLAG_STDERR is set in command-line applications (which have a
+ * functioning stderr that it makes sense to write to) and not in
+ * GUI applications (which don't).
+ *
+ * FLAG_INTERACTIVE is set when a full interactive shell session is
+ * being run, _either_ because no remote command has been provided
+ * _or_ because the application is GUI and can't run non-
+ * interactively.
+ */
+#define FLAG_VERBOSE 0x0001
+#define FLAG_STDERR 0x0002
+#define FLAG_INTERACTIVE 0x0004
+GLOBAL int flags;
+
 GLOBAL Config cfg;
 GLOBAL int default_protocol;
 GLOBAL int default_port;
@@ -242,7 +285,7 @@ struct RSAKey; /* be a little careful of scope */
  * Exports from window.c.
  */
 void request_resize(int, int, int);
-void do_text(Context, int, int, char *, int, unsigned long);
+void do_text(Context, int, int, char *, int, unsigned long, int);
 void set_title(char *);
 void set_icon(char *);
 void set_sbar(int, int, int);
@@ -250,11 +293,14 @@ Context get_ctx(void);
 void free_ctx(Context);
 void palette_set(int, int, int, int);
 void palette_reset(void);
-void write_clip(void *, int);
+void write_clip(void *, int, int);
 void get_clip(void **, int *);
 void optimised_move(int, int, int);
+void connection_fatal(char *, ...);
 void fatalbox(char *, ...);
-void beep(void);
+void beep(int);
+void begin_session(void);
+void sys_cursor(int x, int y);
 #define OPTIMISE_IS_SCROLL 1
 
 /*
@@ -264,21 +310,31 @@ void noise_get_heavy(void (*func)(void *, int));
 void noise_get_light(void (*func)(void *, int));
 void noise_ultralight(DWORD data);
 void random_save_seed(void);
+void random_destroy_seed(void);
 
 /*
  * Exports from windlg.c.
  */
+int defuse_showwindow(void);
 int do_config(void);
 int do_reconfig(HWND);
-void do_defaults(char *);
+void do_defaults(char *, Config *);
 void logevent(char *);
 void showeventlog(HWND);
 void showabout(HWND);
-void verify_ssh_host_key(char *host, char *keystr);
-void get_sesslist(int allocate);
+void verify_ssh_host_key(
+    char *host, int port, char *keytype, char *keystr, char *fingerprint);
+void registry_cleanup(void);
 
 GLOBAL int nsessions;
 GLOBAL char **sessions;
+
+/*
+ * Exports from settings.c.
+ */
+void save_settings(char *section, int do_host, Config *cfg);
+void load_settings(char *section, int do_host, Config *cfg);
+void get_sesslist(int allocate);
 
 /*
  * Exports from terminal.c.
@@ -296,6 +352,8 @@ void term_deselect(void);
 void term_update(void);
 void term_invalidate(void);
 void term_blink(int set_cursor);
+void term_paste(void);
+void term_nopaste(void);
 
 /*
  * Exports from raw.c.
@@ -313,6 +371,7 @@ extern Backend telnet_backend;
  * Exports from ssh.c.
  */
 
+extern int (*ssh_get_password)(const char *prompt, char *str, int maxlen);
 extern Backend ssh_backend;
 
 /*
@@ -375,6 +434,12 @@ unsigned char xlat_latkbd2win(unsigned char c);
 int crypto_startup();
 void crypto_wrapup();
 #endif
+
+/*
+ * Exports from pageantc.c
+ */
+void agent_query(void *in, int inlen, void **out, int *outlen);
+int agent_exists(void);
 
 /*
  * A debug system.

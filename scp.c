@@ -1,21 +1,32 @@
 /*
  *  scp.c  -  Scp (Secure Copy) client for PuTTY.
- *  Joris van Rantwijk, Aug 1999, Nov 1999.
+ *  Joris van Rantwijk, Simon Tatham
  *
  *  This is mainly based on ssh-1.2.26/scp.c by Timo Rinne & Tatu Ylonen.
  *  They, in turn, used stuff from BSD rcp.
+ *
+ *  Adaptations to enable connecting a GUI by L. Gunnarsson - Sept 2000
  */
 
 #include <windows.h>
+#ifndef AUTO_WINSOCK
+#ifdef WINSOCK_TWO
+#include <winsock2.h>
+#else
 #include <winsock.h>
+#endif
+#endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+/* GUI Adaptation - Sept 2000 */
+#include <winuser.h>
+#include <winbase.h>
 
 #define PUTTY_DO_GLOBALS
 #include "putty.h"
-#include "scp.h"
+#include "storage.h"
 
 #define TIME_POSIX_TO_WIN(t, ft)                                               \
   (*(LONGLONG *)&(ft) =                                                        \
@@ -24,7 +35,18 @@
   ((t) = (unsigned long)((*(LONGLONG *)&(ft)) / (LONGLONG)10000000 -           \
                          (LONGLONG)11644473600))
 
-int verbose = 0;
+/* GUI Adaptation - Sept 2000 */
+#define WM_APP_BASE 0x8000
+#define WM_STD_OUT_CHAR (WM_APP_BASE + 400)
+#define WM_STD_ERR_CHAR (WM_APP_BASE + 401)
+#define WM_STATS_CHAR (WM_APP_BASE + 402)
+#define WM_STATS_SIZE (WM_APP_BASE + 403)
+#define WM_STATS_PERCENT (WM_APP_BASE + 404)
+#define WM_STATS_ELAPSED (WM_APP_BASE + 405)
+#define WM_RET_ERR_CNT (WM_APP_BASE + 406)
+#define WM_LS_RET_ERR_CNT (WM_APP_BASE + 407)
+
+static int verbose = 0;
 static int recursive = 0;
 static int preserve = 0;
 static int targetshouldbedirectory = 0;
@@ -33,23 +55,316 @@ static int portnumber = 0;
 static char *password = NULL;
 static int errs = 0;
 static int connection_open = 0;
+/* GUI Adaptation - Sept 2000 */
+#define NAME_STR_MAX 2048
+static char statname[NAME_STR_MAX + 1];
+static unsigned long statsize = 0;
+static int statperct = 0;
+static time_t statelapsed = 0;
+static int gui_mode = 0;
+static char *gui_hwnd = NULL;
 
 static void source(char *src);
 static void rsource(char *src);
 static void sink(char *targ);
+/* GUI Adaptation - Sept 2000 */
+static void tell_char(FILE *stream, char c);
+static void tell_str(FILE *stream, char *str);
+static void tell_user(FILE *stream, char *fmt, ...);
+static void send_char_msg(unsigned int msg_id, char c);
+static void send_str_msg(unsigned int msg_id, char *str);
+static void gui_update_stats(char *name,
+                             unsigned long size,
+                             int percentage,
+                             time_t elapsed);
+
+void begin_session(void)
+{
+}
+void logevent(char *string)
+{
+}
+
+void verify_ssh_host_key(
+    char *host, int port, char *keytype, char *keystr, char *fingerprint)
+{
+  int ret;
+
+  static const char absentmsg[] =
+      "The server's host key is not cached in the registry. You\n"
+      "have no guarantee that the server is the computer you\n"
+      "think it is.\n"
+      "The server's key fingerprint is:\n"
+      "%s\n"
+      "If you trust this host, enter \"y\" to add the key to\n"
+      "PuTTY's cache and carry on connecting.\n"
+      "If you do not trust this host, enter \"n\" to abandon the\n"
+      "connection.\n"
+      "Continue connecting? (y/n) ";
+
+  static const char wrongmsg[] =
+      "WARNING - POTENTIAL SECURITY BREACH!\n"
+      "The server's host key does not match the one PuTTY has\n"
+      "cached in the registry. This means that either the\n"
+      "server administrator has changed the host key, or you\n"
+      "have actually connected to another computer pretending\n"
+      "to be the server.\n"
+      "The new key fingerprint is:\n"
+      "%s\n"
+      "If you were expecting this change and trust the new key,\n"
+      "enter Yes to update PuTTY's cache and continue connecting.\n"
+      "If you want to carry on connecting but without updating\n"
+      "the cache, enter No.\n"
+      "If you want to abandon the connection completely, press\n"
+      "Return to cancel. Pressing Return is the ONLY guaranteed\n"
+      "safe choice.\n"
+      "Update cached key? (y/n, Return cancels connection) ";
+
+  static const char abandoned[] = "Connection abandoned.\n";
+
+  char line[32];
+
+  /*
+   * Verify the key against the registry.
+   */
+  ret = verify_host_key(host, port, keytype, keystr);
+
+  if (ret == 0) /* success - key matched OK */
+    return;
+  if (ret == 2) { /* key was different */
+    fprintf(stderr, wrongmsg, fingerprint);
+    if (fgets(line, sizeof(line), stdin) && line[0] != '\0' &&
+        line[0] != '\n') {
+      if (line[0] == 'y' || line[0] == 'Y')
+        store_host_key(host, port, keytype, keystr);
+    } else {
+      fprintf(stderr, abandoned);
+      exit(0);
+    }
+  }
+  if (ret == 1) { /* key was absent */
+    fprintf(stderr, absentmsg, fingerprint);
+    if (fgets(line, sizeof(line), stdin) && (line[0] == 'y' || line[0] == 'Y'))
+      store_host_key(host, port, keytype, keystr);
+    else {
+      fprintf(stderr, abandoned);
+      exit(0);
+    }
+  }
+}
+
+/* GUI Adaptation - Sept 2000 */
+static void send_msg(HWND h, UINT message, WPARAM wParam)
+{
+  while (!PostMessage(h, message, wParam, 0))
+    SleepEx(1000, TRUE);
+}
+
+static void tell_char(FILE *stream, char c)
+{
+  if (!gui_mode)
+    fputc(c, stream);
+  else {
+    unsigned int msg_id = WM_STD_OUT_CHAR;
+    if (stream == stderr)
+      msg_id = WM_STD_ERR_CHAR;
+    send_msg((HWND)atoi(gui_hwnd), msg_id, (WPARAM)c);
+  }
+}
+
+static void tell_str(FILE *stream, char *str)
+{
+  unsigned int i;
+
+  for (i = 0; i < strlen(str); ++i)
+    tell_char(stream, str[i]);
+}
+
+static void tell_user(FILE *stream, char *fmt, ...)
+{
+  char str[0x100]; /* Make the size big enough */
+  va_list ap;
+  va_start(ap, fmt);
+  vsprintf(str, fmt, ap);
+  va_end(ap);
+  strcat(str, "\n");
+  tell_str(stream, str);
+}
+
+static void gui_update_stats(char *name,
+                             unsigned long size,
+                             int percentage,
+                             time_t elapsed)
+{
+  unsigned int i;
+
+  if (strcmp(name, statname) != 0) {
+    for (i = 0; i < strlen(name); ++i)
+      send_msg((HWND)atoi(gui_hwnd), WM_STATS_CHAR, (WPARAM)name[i]);
+    send_msg((HWND)atoi(gui_hwnd), WM_STATS_CHAR, (WPARAM)'\n');
+    strcpy(statname, name);
+  }
+  if (statsize != size) {
+    send_msg((HWND)atoi(gui_hwnd), WM_STATS_SIZE, (WPARAM)size);
+    statsize = size;
+  }
+  if (statelapsed != elapsed) {
+    send_msg((HWND)atoi(gui_hwnd), WM_STATS_ELAPSED, (WPARAM)elapsed);
+    statelapsed = elapsed;
+  }
+  if (statperct != percentage) {
+    send_msg((HWND)atoi(gui_hwnd), WM_STATS_PERCENT, (WPARAM)percentage);
+    statperct = percentage;
+  }
+}
 
 /*
  *  Print an error message and perform a fatal exit.
  */
 void fatalbox(char *fmt, ...)
 {
+  char str[0x100]; /* Make the size big enough */
   va_list ap;
   va_start(ap, fmt);
-  fprintf(stderr, "Fatal: ");
-  vfprintf(stderr, fmt, ap);
-  fprintf(stderr, "\n");
+  strcpy(str, "Fatal:");
+  vsprintf(str + strlen(str), fmt, ap);
   va_end(ap);
+  strcat(str, "\n");
+  tell_str(stderr, str);
+
   exit(1);
+}
+void connection_fatal(char *fmt, ...)
+{
+  char str[0x100]; /* Make the size big enough */
+  va_list ap;
+  va_start(ap, fmt);
+  strcpy(str, "Fatal:");
+  vsprintf(str + strlen(str), fmt, ap);
+  va_end(ap);
+  strcat(str, "\n");
+  tell_str(stderr, str);
+
+  exit(1);
+}
+
+/*
+ * Receive a block of data from the SSH link. Block until all data
+ * is available.
+ *
+ * To do this, we repeatedly call the SSH protocol module, with our
+ * own trap in term_out() to catch the data that comes back. We do
+ * this until we have enough data.
+ */
+static unsigned char *outptr;              /* where to put the data */
+static unsigned outlen;                    /* how much data required */
+static unsigned char *pending = NULL;      /* any spare data */
+static unsigned pendlen = 0, pendsize = 0; /* length and phys. size of buffer */
+void term_out(void)
+{
+  /*
+   * Here we must deal with a block of data, in `inbuf', size
+   * `inbuf_head'.
+   */
+  unsigned char *p = inbuf;
+  unsigned len = inbuf_head;
+
+  inbuf_head = 0;
+
+  /*
+   * If this is before the real session begins, just return.
+   */
+  if (!outptr)
+    return;
+
+  if (outlen > 0) {
+    unsigned used = outlen;
+    if (used > len)
+      used = len;
+    memcpy(outptr, p, used);
+    outptr += used;
+    outlen -= used;
+    p += used;
+    len -= used;
+  }
+
+  if (len > 0) {
+    if (pendsize < pendlen + len) {
+      pendsize = pendlen + len + 4096;
+      pending = (pending ? realloc(pending, pendsize) : malloc(pendsize));
+      if (!pending)
+        fatalbox("Out of memory");
+    }
+    memcpy(pending + pendlen, p, len);
+    pendlen += len;
+  }
+}
+static int ssh_scp_recv(unsigned char *buf, int len)
+{
+  SOCKET s;
+
+  outptr = buf;
+  outlen = len;
+
+  /*
+   * See if the pending-input block contains some of what we
+   * need.
+   */
+  if (pendlen > 0) {
+    unsigned pendused = pendlen;
+    if (pendused > outlen)
+      pendused = outlen;
+    memcpy(outptr, pending, pendused);
+    memmove(pending, pending + pendused, pendlen - pendused);
+    outptr += pendused;
+    outlen -= pendused;
+    pendlen -= pendused;
+    if (pendlen == 0) {
+      pendsize = 0;
+      free(pending);
+      pending = NULL;
+    }
+    if (outlen == 0)
+      return len;
+  }
+
+  while (outlen > 0) {
+    fd_set readfds;
+    s = back->socket();
+    if (s == INVALID_SOCKET) {
+      connection_open = FALSE;
+      return 0;
+    }
+    FD_ZERO(&readfds);
+    FD_SET(s, &readfds);
+    if (select(1, &readfds, NULL, NULL, NULL) < 0)
+      return 0; /* doom */
+    back->msg(0, FD_READ);
+    term_out();
+  }
+
+  return len;
+}
+
+/*
+ * Loop through the ssh connection and authentication process.
+ */
+static void ssh_scp_init(void)
+{
+  SOCKET s;
+
+  s = back->socket();
+  if (s == INVALID_SOCKET)
+    return;
+  while (!back->sendok()) {
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(s, &readfds);
+    if (select(1, &readfds, NULL, NULL, NULL) < 0)
+      return; /* doom */
+    back->msg(0, FD_READ);
+    term_out();
+  }
 }
 
 /*
@@ -57,54 +372,71 @@ void fatalbox(char *fmt, ...)
  */
 static void bump(char *fmt, ...)
 {
+  char str[0x100]; /* Make the size big enough */
   va_list ap;
   va_start(ap, fmt);
-  fprintf(stderr, "Fatal: ");
-  vfprintf(stderr, fmt, ap);
-  fprintf(stderr, "\n");
+  strcpy(str, "Fatal:");
+  vsprintf(str + strlen(str), fmt, ap);
   va_end(ap);
+  strcat(str, "\n");
+  tell_str(stderr, str);
+
   if (connection_open) {
     char ch;
-    ssh_send_eof();
-    ssh_recv(&ch, 1);
+    back->special(TS_EOF);
+    ssh_scp_recv(&ch, 1);
   }
   exit(1);
 }
 
-void ssh_get_password(char *prompt, char *str, int maxlen)
+static int get_password(const char *prompt, char *str, int maxlen)
 {
   HANDLE hin, hout;
   DWORD savemode, i;
 
   if (password) {
-    strncpy(str, password, maxlen);
-    str[maxlen - 1] = '\0';
-    password = NULL;
-    return;
+    static int tried_once = 0;
+
+    if (tried_once) {
+      return 0;
+    } else {
+      strncpy(str, password, maxlen);
+      str[maxlen - 1] = '\0';
+      tried_once = 1;
+      return 1;
+    }
   }
 
-  hin = GetStdHandle(STD_INPUT_HANDLE);
-  hout = GetStdHandle(STD_OUTPUT_HANDLE);
-  if (hin == INVALID_HANDLE_VALUE || hout == INVALID_HANDLE_VALUE)
-    bump("Cannot get standard input/output handles");
+  /* GUI Adaptation - Sept 2000 */
+  if (gui_mode) {
+    if (maxlen > 0)
+      str[0] = '\0';
+  } else {
+    hin = GetStdHandle(STD_INPUT_HANDLE);
+    hout = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hin == INVALID_HANDLE_VALUE || hout == INVALID_HANDLE_VALUE)
+      bump("Cannot get standard input/output handles");
 
-  GetConsoleMode(hin, &savemode);
-  SetConsoleMode(hin,
-                 (savemode & (~ENABLE_ECHO_INPUT)) | ENABLE_PROCESSED_INPUT |
-                     ENABLE_LINE_INPUT);
+    GetConsoleMode(hin, &savemode);
+    SetConsoleMode(hin,
+                   (savemode & (~ENABLE_ECHO_INPUT)) | ENABLE_PROCESSED_INPUT |
+                       ENABLE_LINE_INPUT);
 
-  WriteFile(hout, prompt, strlen(prompt), &i, NULL);
-  ReadFile(hin, str, maxlen - 1, &i, NULL);
+    WriteFile(hout, prompt, strlen(prompt), &i, NULL);
+    ReadFile(hin, str, maxlen - 1, &i, NULL);
 
-  SetConsoleMode(hin, savemode);
+    SetConsoleMode(hin, savemode);
 
-  if ((int)i > maxlen)
-    i = maxlen - 1;
-  else
-    i = i - 2;
-  str[i] = '\0';
+    if ((int)i > maxlen)
+      i = maxlen - 1;
+    else
+      i = i - 2;
+    str[i] = '\0';
 
-  WriteFile(hout, "\r\n", 2, &i, NULL);
+    WriteFile(hout, "\r\n", 2, &i, NULL);
+  }
+
+  return 1;
 }
 
 /*
@@ -118,7 +450,7 @@ static void do_cmd(char *host, char *user, char *cmd)
     bump("Empty host name");
 
   /* Try to load settings for this host */
-  do_defaults(host);
+  do_defaults(host, &cfg);
   if (cfg.host[0] == '\0') {
     /* No settings for this host; use defaults */
     strncpy(cfg.host, host, sizeof(cfg.host) - 1);
@@ -140,11 +472,18 @@ static void do_cmd(char *host, char *user, char *cmd)
   if (portnumber)
     cfg.port = portnumber;
 
-  err = ssh_init(cfg.host, cfg.port, cmd, &realhost);
+  strncpy(cfg.remote_cmd, cmd, sizeof(cfg.remote_cmd));
+  cfg.remote_cmd[sizeof(cfg.remote_cmd) - 1] = '\0';
+  cfg.nopty = TRUE;
+
+  back = &ssh_backend;
+
+  err = back->init(NULL, cfg.host, cfg.port, &realhost);
   if (err != NULL)
     bump("ssh_init: %s", err);
+  ssh_scp_init();
   if (verbose && realhost != NULL)
-    fprintf(stderr, "Connected to %s\n", realhost);
+    tell_user(stderr, "Connected to %s\n", realhost);
 
   connection_open = 1;
 }
@@ -163,28 +502,34 @@ static void print_stats(char *name,
   char etastr[10];
   int pct;
 
-  if (now > start)
-    ratebs = (float)done / (now - start);
-  else
-    ratebs = (float)done;
+  /* GUI Adaptation - Sept 2000 */
+  if (gui_mode)
+    gui_update_stats(name, size, ((done * 100) / size), now - start);
+  else {
+    if (now > start)
+      ratebs = (float)done / (now - start);
+    else
+      ratebs = (float)done;
 
-  if (ratebs < 1.0)
-    eta = size - done;
-  else
-    eta = (unsigned long)((size - done) / ratebs);
-  sprintf(etastr, "%02ld:%02ld:%02ld", eta / 3600, (eta % 3600) / 60, eta % 60);
+    if (ratebs < 1.0)
+      eta = size - done;
+    else
+      eta = (unsigned long)((size - done) / ratebs);
+    sprintf(
+        etastr, "%02ld:%02ld:%02ld", eta / 3600, (eta % 3600) / 60, eta % 60);
 
-  pct = (int)(100.0 * (float)done / size);
+    pct = (int)(100.0 * (float)done / size);
 
-  printf("\r%-25.25s | %10ld kB | %5.1f kB/s | ETA: %8s | %3d%%",
-         name,
-         done / 1024,
-         ratebs / 1024.0,
-         etastr,
-         pct);
+    printf("\r%-25.25s | %10ld kB | %5.1f kB/s | ETA: %8s | %3d%%",
+           name,
+           done / 1024,
+           ratebs / 1024.0,
+           etastr,
+           pct);
 
-  if (done == size)
-    printf("\n");
+    if (done == size)
+      printf("\n");
+  }
 }
 
 /*
@@ -215,7 +560,7 @@ static int response(void)
   char ch, resp, rbuf[2048];
   int p;
 
-  if (ssh_recv(&resp, 1) <= 0)
+  if (ssh_scp_recv(&resp, 1) <= 0)
     bump("Lost connection");
 
   p = 0;
@@ -228,13 +573,13 @@ static int response(void)
   case 1: /* error */
   case 2: /* fatal error */
     do {
-      if (ssh_recv(&ch, 1) <= 0)
+      if (ssh_scp_recv(&ch, 1) <= 0)
         bump("Protocol error: Lost connection");
       rbuf[p++] = ch;
     } while (p < sizeof(rbuf) && ch != '\n');
     rbuf[p - 1] = '\0';
     if (resp == 1)
-      fprintf(stderr, "%s\n", rbuf);
+      tell_user(stderr, "%s\n", rbuf);
     else
       bump("%s", rbuf);
     errs++;
@@ -255,9 +600,8 @@ static void run_err(const char *fmt, ...)
   strcpy(str, "\01scp: ");
   vsprintf(str + strlen(str), fmt, ap);
   strcat(str, "\n");
-  ssh_send(str, strlen(str));
-  vfprintf(stderr, fmt, ap);
-  fprintf(stderr, "\n");
+  back->send(str, strlen(str));
+  tell_user(stderr, "%s", str);
   va_end(ap);
 }
 
@@ -326,7 +670,7 @@ static void source(char *src)
     TIME_WIN_TO_POSIX(actime, atime);
     TIME_WIN_TO_POSIX(wrtime, mtime);
     sprintf(buf, "T%lu 0 %lu 0\n", mtime, atime);
-    ssh_send(buf, strlen(buf));
+    back->send(buf, strlen(buf));
     if (response())
       return;
   }
@@ -334,8 +678,8 @@ static void source(char *src)
   size = GetFileSize(f, NULL);
   sprintf(buf, "C0644 %lu %s\n", size, last);
   if (verbose)
-    fprintf(stderr, "Sending file modes: %s", buf);
-  ssh_send(buf, strlen(buf));
+    tell_user(stderr, "Sending file modes: %s", buf);
+  back->send(buf, strlen(buf));
   if (response())
     return;
 
@@ -355,7 +699,7 @@ static void source(char *src)
         printf("\n");
       bump("%s: Read error", src);
     }
-    ssh_send(transbuf, k);
+    back->send(transbuf, k);
     if (statistics) {
       stat_bytes += k;
       if (time(NULL) != stat_lasttime || i + k == size) {
@@ -366,7 +710,7 @@ static void source(char *src)
   }
   CloseHandle(f);
 
-  ssh_send("", 1);
+  back->send("", 1);
   (void)response();
 }
 
@@ -394,8 +738,8 @@ static void rsource(char *src)
 
   sprintf(buf, "D0755 0 %s\n", last);
   if (verbose)
-    fprintf(stderr, "Entering directory: %s", buf);
-  ssh_send(buf, strlen(buf));
+    tell_user(stderr, "Entering directory: %s", buf);
+  back->send(buf, strlen(buf));
   if (response())
     return;
 
@@ -415,7 +759,7 @@ static void rsource(char *src)
   FindClose(dir);
 
   sprintf(buf, "E\n");
-  ssh_send(buf, strlen(buf));
+  back->send(buf, strlen(buf));
   (void)response();
 }
 
@@ -447,36 +791,36 @@ static void sink(char *targ)
   if (targetshouldbedirectory && !targisdir)
     bump("%s: Not a directory", targ);
 
-  ssh_send("", 1);
+  back->send("", 1);
   while (1) {
     settime = 0;
   gottime:
-    if (ssh_recv(&ch, 1) <= 0)
+    if (ssh_scp_recv(&ch, 1) <= 0)
       return;
     if (ch == '\n')
       bump("Protocol error: Unexpected newline");
     i = 0;
     buf[i++] = ch;
     do {
-      if (ssh_recv(&ch, 1) <= 0)
+      if (ssh_scp_recv(&ch, 1) <= 0)
         bump("Lost connection");
       buf[i++] = ch;
     } while (i < sizeof(buf) && ch != '\n');
     buf[i - 1] = '\0';
     switch (buf[0]) {
     case '\01': /* error */
-      fprintf(stderr, "%s\n", buf + 1);
+      tell_user(stderr, "%s\n", buf + 1);
       errs++;
       continue;
     case '\02': /* fatal error */
       bump("%s", buf + 1);
     case 'E':
-      ssh_send("", 1);
+      back->send("", 1);
       return;
     case 'T':
       if (sscanf(buf, "T%ld %*d %ld %*d", &mtime, &atime) == 2) {
         settime = 1;
-        ssh_send("", 1);
+        back->send("", 1);
         goto gottime;
       }
       bump("Protocol error: Illegal time format");
@@ -530,7 +874,7 @@ static void sink(char *targ)
       continue;
     }
 
-    ssh_send("", 1);
+    back->send("", 1);
 
     if (statistics) {
       stat_bytes = 0;
@@ -549,7 +893,7 @@ static void sink(char *targ)
       DWORD j, k = 4096;
       if (i + k > size)
         k = size - i;
-      if (ssh_recv(transbuf, k) == 0)
+      if (ssh_scp_recv(transbuf, k) == 0)
         bump("Lost connection");
       if (wrerror)
         continue;
@@ -584,7 +928,7 @@ static void sink(char *targ)
       run_err("%s: Write error", namebuf);
       continue;
     }
-    ssh_send("", 1);
+    back->send("", 1);
   }
 }
 
@@ -654,7 +998,7 @@ static void toremote(int argc, char *argv[])
     WIN32_FIND_DATA fdat;
     src = argv[i];
     if (colon(src) != NULL) {
-      fprintf(stderr, "%s: Remote to remote not supported\n", src);
+      tell_user(stderr, "%s: Remote to remote not supported\n", src);
       errs++;
       continue;
     }
@@ -667,7 +1011,7 @@ static void toremote(int argc, char *argv[])
       char *last;
       char namebuf[2048];
       if (strlen(src) + strlen(fdat.cFileName) >= sizeof(namebuf)) {
-        fprintf(stderr, "%s: Name too long", src);
+        tell_user(stderr, "%s: Name too long", src);
         continue;
       }
       strcpy(namebuf, src);
@@ -788,8 +1132,8 @@ static void get_dir_list(int argc, char *argv[])
   do_cmd(host, user, cmd);
   sfree(cmd);
 
-  while (ssh_recv(&c, 1) > 0)
-    fputc(c, stdout); /* thank heavens for buffered I/O */
+  while (ssh_scp_recv(&c, 1) > 0)
+    tell_char(stdout, c);
 }
 
 /*
@@ -824,6 +1168,9 @@ static void usage(void)
   printf("  -v        show verbose messages\n");
   printf("  -P port   connect to specified port\n");
   printf("  -pw passw login with specified password\n");
+  /* GUI Adaptation - Sept 2000 */
+  printf(
+      "  -gui hWnd GUI mode with the windows handle for receiving messages\n");
   exit(1);
 }
 
@@ -835,13 +1182,17 @@ int main(int argc, char *argv[])
   int i;
   int list = 0;
 
+  default_protocol = PROT_TELNET;
+
+  flags = FLAG_STDERR;
+  ssh_get_password = &get_password;
   init_winsock();
 
   for (i = 1; i < argc; i++) {
     if (argv[i][0] != '-')
       break;
     if (strcmp(argv[i], "-v") == 0)
-      verbose = 1;
+      verbose = 1, flags |= FLAG_VERBOSE;
     else if (strcmp(argv[i], "-r") == 0)
       recursive = 1;
     else if (strcmp(argv[i], "-p") == 0)
@@ -854,7 +1205,10 @@ int main(int argc, char *argv[])
       portnumber = atoi(argv[++i]);
     else if (strcmp(argv[i], "-pw") == 0 && i + 1 < argc)
       password = argv[++i];
-    else if (strcmp(argv[i], "-ls") == 0)
+    else if (strcmp(argv[i], "-gui") == 0 && i + 1 < argc) {
+      gui_hwnd = argv[++i];
+      gui_mode = 1;
+    } else if (strcmp(argv[i], "-ls") == 0)
       list = 1;
     else if (strcmp(argv[i], "--") == 0) {
       i++;
@@ -885,12 +1239,21 @@ int main(int argc, char *argv[])
 
   if (connection_open) {
     char ch;
-    ssh_send_eof();
-    ssh_recv(&ch, 1);
+    back->special(TS_EOF);
+    ssh_scp_recv(&ch, 1);
   }
   WSACleanup();
   random_save_seed();
 
+  /* GUI Adaptation - August 2000 */
+  if (gui_mode) {
+    unsigned int msg_id = WM_RET_ERR_CNT;
+    if (list)
+      msg_id = WM_LS_RET_ERR_CNT;
+    while (
+        !PostMessage((HWND)atoi(gui_hwnd), msg_id, (WPARAM)errs, 0 /*lParam*/))
+      SleepEx(1000, TRUE);
+  }
   return (errs == 0 ? 0 : 1);
 }
 
