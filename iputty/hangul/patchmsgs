@@ -1,2 +1,2 @@
 #!/bin/sh
-python hangul/gottext.py patch -s .tr -i hangul/putty.gt `cat hangul/xlatlist`
+python hangul/gottext.py patch -s "" -i hangul/putty.gt `cat hangul/xlatlist`
