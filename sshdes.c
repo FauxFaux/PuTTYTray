@@ -596,6 +596,7 @@ static void des3_sesskey(unsigned char *key)
   memset(div1, 0, sizeof(div1));
   memset(div2, 0, sizeof(div2));
   memset(div3, 0, sizeof(div3));
+  logevent("Initialised triple-DES encryption");
 }
 
 static void des3_encrypt_blk(unsigned char *blk, int len)
@@ -609,6 +610,27 @@ static void des3_decrypt_blk(unsigned char *blk, int len)
 }
 
 struct ssh_cipher ssh_3des = {des3_sesskey, des3_encrypt_blk, des3_decrypt_blk};
+
+static void des_sesskey(unsigned char *key)
+{
+  des_set_key(key, &ekey1);
+  memset(eiv1, 0, sizeof(eiv1));
+  des_set_key(key, &dkey1);
+  memset(div1, 0, sizeof(div1));
+  logevent("Initialised single-DES encryption");
+}
+
+static void des_encrypt_blk(unsigned char *blk, int len)
+{
+  des_cbc_encrypt(&ekey1, eiv1, blk, blk, len);
+}
+
+static void des_decrypt_blk(unsigned char *blk, int len)
+{
+  des_cbc_decrypt(&dkey1, div1, blk, blk, len);
+}
+
+struct ssh_cipher ssh_des = {des_sesskey, des_encrypt_blk, des_decrypt_blk};
 
 #ifdef DES_TEST
 

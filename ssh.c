@@ -13,6 +13,28 @@
 
 #include "ssh.h"
 
+#define SSH_MSG_DISCONNECT 1
+#define SSH_SMSG_PUBLIC_KEY 2
+#define SSH_CMSG_SESSION_KEY 3
+#define SSH_CMSG_USER 4
+#define SSH_CMSG_AUTH_PASSWORD 9
+#define SSH_CMSG_REQUEST_PTY 10
+#define SSH_CMSG_EXEC_SHELL 12
+#define SSH_CMSG_STDIN_DATA 16
+#define SSH_SMSG_STDOUT_DATA 17
+#define SSH_SMSG_STDERR_DATA 18
+#define SSH_SMSG_SUCCESS 14
+#define SSH_SMSG_FAILURE 15
+#define SSH_SMSG_EXITSTATUS 20
+#define SSH_MSG_IGNORE 32
+#define SSH_CMSG_EXIT_CONFIRMATION 33
+#define SSH_MSG_DEBUG 36
+#define SSH_CMSG_AUTH_TIS 39
+#define SSH_SMSG_AUTH_TIS_CHALLENGE 40
+#define SSH_CMSG_AUTH_TIS_RESPONSE 41
+
+#define SSH_AUTH_TIS 5
+
 /* Coroutine mechanics for the sillier bits of the code */
 #define crBegin1 static int crLine = 0;
 #define crBegin2                                                               \
@@ -180,8 +202,10 @@ static void ssh_gotdata(unsigned char *data, int datalen)
     pktin.type = pktin.data[pad];
     pktin.body = pktin.data + pad + 1;
 
-    if (pktin.type == 36) { /* SSH_MSG_DEBUG */
-                            /* FIXME: log it */
+    if (pktin.type == SSH_MSG_DEBUG) {
+      /* FIXME: log it */
+    } else if (pktin.type == SSH_MSG_IGNORE) {
+      /* do nothing */;
     } else
       ssh_protocol(NULL, 0, 1);
   }
@@ -239,11 +263,32 @@ static void s_wrpkt(void)
   s_write(pktout.data, biglen + 4);
 }
 
+static int ssh_versioncmp(char *a, char *b)
+{
+  char *ae, *be;
+  unsigned long av, bv;
+
+  av = strtoul(a, &ae, 10);
+  bv = strtoul(b, &be, 10);
+  if (av != bv)
+    return (av < bv ? -1 : +1);
+  if (*ae == '.')
+    ae++;
+  if (*be == '.')
+    be++;
+  av = strtoul(ae, &ae, 10);
+  bv = strtoul(be, &be, 10);
+  if (av != bv)
+    return (av < bv ? -1 : +1);
+  return 0;
+}
+
 static int do_ssh_init(void)
 {
-  char c;
+  char c, *vsp;
   char version[10];
-  char vstring[40];
+  char vstring[80];
+  char vlog[sizeof(vstring) + 20];
   int i;
 
 #ifdef FWHACK
@@ -266,12 +311,16 @@ static int do_ssh_init(void)
   if (s_read(&c, 1) != 1 || c != 'H')
     return 0;
 #endif
+  strcpy(vstring, "SSH-");
+  vsp = vstring + 4;
   if (s_read(&c, 1) != 1 || c != '-')
     return 0;
   i = 0;
   while (1) {
     if (s_read(&c, 1) != 1)
       return 0;
+    if (vsp < vstring + sizeof(vstring) - 1)
+      *vsp++ = c;
     if (i >= 0) {
       if (c == '-') {
         version[i] = '\0';
@@ -282,9 +331,17 @@ static int do_ssh_init(void)
       break;
   }
 
+  *vsp = 0;
+  sprintf(vlog, "Server version: %s", vstring);
+  vlog[strcspn(vlog, "\r\n")] = '\0';
+  logevent(vlog);
+
   sprintf(vstring,
-          "SSH-%s-7.7.7\n",
-          (strcmp(version, "1.5") <= 0 ? version : "1.5"));
+          "SSH-%s-PuTTY\n",
+          (ssh_versioncmp(version, "1.5") <= 0 ? version : "1.5"));
+  sprintf(vlog, "We claim version: %s", vstring);
+  vlog[strcspn(vlog, "\r\n")] = '\0';
+  logevent(vlog);
   s_write(vstring, strlen(vstring));
   return 1;
 }
@@ -297,10 +354,11 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
   unsigned char cookie[8];
   struct RSAKey servkey, hostkey;
   struct MD5Context md5c;
-  unsigned long supported_ciphers_mask;
+  static unsigned long supported_ciphers_mask, supported_auths_mask;
   int cipher_type;
 
   extern struct ssh_cipher ssh_3des;
+  extern struct ssh_cipher ssh_des;
   extern struct ssh_cipher ssh_blowfish;
 
   crBegin;
@@ -310,20 +368,45 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
   while (!ispkt)
     crReturnV;
 
-  if (pktin.type != 2)
+  if (pktin.type != SSH_SMSG_PUBLIC_KEY)
     fatalbox("Public key packet not received");
 
-  memcpy(cookie, pktin.body, 8);
+  logevent("Received public keys");
 
-  MD5Init(&md5c);
+  memcpy(cookie, pktin.body, 8);
 
   i = makekey(pktin.body + 8, &servkey, &keystr1);
 
   j = makekey(pktin.body + 8 + i, &hostkey, &keystr2);
 
+  /*
+   * Hash the host key and print the hash in the log box. Just as
+   * a last resort in case the registry's host key checking is
+   * compromised, we'll allow the user some ability to verify
+   * host keys by eye.
+   */
+  MD5Init(&md5c);
+  MD5Update(&md5c, keystr2, hostkey.bytes);
+  MD5Final(session_id, &md5c);
+  {
+    char logmsg[80];
+    int i;
+    logevent("Host key MD5 is:");
+    strcpy(logmsg, "      ");
+    for (i = 0; i < 16; i++)
+      sprintf(logmsg + strlen(logmsg), "%02x", session_id[i]);
+    logevent(logmsg);
+  }
+
   supported_ciphers_mask =
-      (pktin.body[12 + i + j] << 24) | (pktin.body[13 + i + j] << 16) |
-      (pktin.body[14 + i + j] << 8) | (pktin.body[15 + i + j]);
+      ((pktin.body[12 + i + j] << 24) | (pktin.body[13 + i + j] << 16) |
+       (pktin.body[14 + i + j] << 8) | (pktin.body[15 + i + j]));
+
+  supported_auths_mask =
+      ((pktin.body[16 + i + j] << 24) | (pktin.body[17 + i + j] << 16) |
+       (pktin.body[18 + i + j] << 8) | (pktin.body[19 + i + j]));
+
+  MD5Init(&md5c);
 
   MD5Update(&md5c, keystr2, hostkey.bytes);
   MD5Update(&md5c, keystr1, servkey.bytes);
@@ -356,14 +439,29 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
     rsaencrypt(rsabuf, hostkey.bytes, &servkey);
   }
 
+  logevent("Encrypted session key");
+
   cipher_type =
-      cfg.cipher == CIPHER_BLOWFISH ? SSH_CIPHER_BLOWFISH : SSH_CIPHER_3DES;
+      cfg.cipher == CIPHER_BLOWFISH
+          ? SSH_CIPHER_BLOWFISH
+          : cfg.cipher == CIPHER_DES ? SSH_CIPHER_DES : SSH_CIPHER_3DES;
   if ((supported_ciphers_mask & (1 << cipher_type)) == 0) {
     c_write("Selected cipher not supported, falling back to 3DES\r\n", 53);
     cipher_type = SSH_CIPHER_3DES;
   }
+  switch (cipher_type) {
+  case SSH_CIPHER_3DES:
+    logevent("Using 3DES encryption");
+    break;
+  case SSH_CIPHER_DES:
+    logevent("Using single-DES encryption");
+    break;
+  case SSH_CIPHER_BLOWFISH:
+    logevent("Using Blowfish encryption");
+    break;
+  }
 
-  s_wrpkt_start(3, len + 15);
+  s_wrpkt_start(SSH_CMSG_SESSION_KEY, len + 15);
   pktout.body[0] = cipher_type;
   memcpy(pktout.body + 1, cookie, 8);
   pktout.body[9] = (len * 8) >> 8;
@@ -372,18 +470,23 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
   pktout.body[len + 11] = pktout.body[len + 12] = 0; /* protocol flags */
   pktout.body[len + 13] = pktout.body[len + 14] = 0;
   s_wrpkt();
+  logevent("Trying to enable encryption...");
 
   free(rsabuf);
 
-  cipher = cipher_type == SSH_CIPHER_BLOWFISH ? &ssh_blowfish : &ssh_3des;
+  cipher = cipher_type == SSH_CIPHER_BLOWFISH
+               ? &ssh_blowfish
+               : cipher_type == SSH_CIPHER_DES ? &ssh_des : &ssh_3des;
   cipher->sesskey(session_key);
 
   do {
     crReturnV;
   } while (!ispkt);
 
-  if (pktin.type != 14)
+  if (pktin.type != SSH_SMSG_SUCCESS)
     fatalbox("Encryption not successfully enabled");
+
+  logevent("Successfully started encryption");
 
   fflush(stdout);
   {
@@ -439,7 +542,12 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
       sprintf(stuff, "Sent username \"%s\".\r\n", username);
       c_write(stuff, strlen(stuff));
     }
-    s_wrpkt_start(4, 4 + strlen(username));
+    s_wrpkt_start(SSH_CMSG_USER, 4 + strlen(username));
+    {
+      char userlog[20 + sizeof(username)];
+      sprintf(userlog, "Sent username \"%s\"", username);
+      logevent(userlog);
+    }
     pktout.body[0] = pktout.body[1] = pktout.body[2] = 0;
     pktout.body[3] = strlen(username);
     memcpy(pktout.body + 4, username, strlen(username));
@@ -450,11 +558,39 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
     crReturnV;
   } while (!ispkt);
 
-  while (pktin.type == 15) {
+  while (pktin.type == SSH_SMSG_FAILURE) {
     static char password[100];
     static int pos;
     static char c;
-    c_write("password: ", 10);
+    static int pwpkt_type;
+
+    /*
+     * Show password prompt, having first obtained it via a TIS
+     * exchange if we're doing TIS authentication.
+     */
+    pwpkt_type = SSH_CMSG_AUTH_PASSWORD;
+    if (pktin.type == SSH_SMSG_FAILURE && cfg.try_tis_auth &&
+        (supported_auths_mask & (1 << SSH_AUTH_TIS))) {
+      pwpkt_type = SSH_CMSG_AUTH_TIS_RESPONSE;
+      logevent("Requested TIS authentication");
+      s_wrpkt_start(SSH_CMSG_AUTH_TIS, 0);
+      s_wrpkt();
+      do {
+        crReturnV;
+      } while (!ispkt);
+      if (pktin.type != SSH_SMSG_AUTH_TIS_CHALLENGE) {
+        logevent("TIS authentication declined");
+        c_write("TIS authentication refused.\r\n", 29);
+      } else {
+        int challengelen = ((pktin.body[0] << 24) | (pktin.body[1] << 16) |
+                            (pktin.body[2] << 8) | (pktin.body[3]));
+        logevent("Received TIS challenge");
+        c_write(pktin.body + 4, challengelen);
+      }
+    }
+    if (pwpkt_type == SSH_CMSG_AUTH_PASSWORD)
+      c_write("password: ", 10);
+
     pos = 0;
     while (pos >= 0) {
       do {
@@ -488,25 +624,29 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
         }
     }
     c_write("\r\n", 2);
-    s_wrpkt_start(9, 4 + strlen(password));
+    s_wrpkt_start(pwpkt_type, 4 + strlen(password));
     pktout.body[0] = pktout.body[1] = pktout.body[2] = 0;
     pktout.body[3] = strlen(password);
     memcpy(pktout.body + 4, password, strlen(password));
     s_wrpkt();
+    logevent("Sent password");
     memset(password, 0, strlen(password));
     do {
       crReturnV;
     } while (!ispkt);
     if (pktin.type == 15) {
       c_write("Access denied\r\n", 15);
+      logevent("Authentication refused");
     } else if (pktin.type != 14) {
       fatalbox("Strange packet received, type %d", pktin.type);
     }
   }
 
+  logevent("Authentication successful");
+
   if (!cfg.nopty) {
     i = strlen(cfg.termtype);
-    s_wrpkt_start(10, i + 5 * 4 + 1);
+    s_wrpkt_start(SSH_CMSG_REQUEST_PTY, i + 5 * 4 + 1);
     pktout.body[0] = (i >> 24) & 0xFF;
     pktout.body[1] = (i >> 16) & 0xFF;
     pktout.body[2] = (i >> 8) & 0xFF;
@@ -527,15 +667,17 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
     do {
       crReturnV;
     } while (!ispkt);
-    if (pktin.type != 14 && pktin.type != 15) {
+    if (pktin.type != SSH_SMSG_SUCCESS && pktin.type != SSH_SMSG_FAILURE) {
       fatalbox("Protocol confusion");
-    } else if (pktin.type == 15) {
+    } else if (pktin.type == SSH_SMSG_FAILURE) {
       c_write("Server refused to allocate pty\r\n", 32);
     }
+    logevent("Allocated pty");
   }
 
-  s_wrpkt_start(12, 0);
+  s_wrpkt_start(SSH_CMSG_EXEC_SHELL, 0);
   s_wrpkt();
+  logevent("Started session");
 
   ssh_state = SSH_STATE_SESSION;
   if (size_needed)
@@ -544,28 +686,28 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
   while (1) {
     crReturnV;
     if (ispkt) {
-      if (pktin.type == 17 || pktin.type == 18) {
+      if (pktin.type == SSH_SMSG_STDOUT_DATA ||
+          pktin.type == SSH_SMSG_STDERR_DATA) {
         long len = 0;
         for (i = 0; i < 4; i++)
           len = (len << 8) + pktin.body[i];
         c_write(pktin.body + 4, len);
-      } else if (pktin.type == 1) {
-        /* SSH_MSG_DISCONNECT */
+      } else if (pktin.type == SSH_MSG_DISCONNECT) {
         ssh_state = SSH_STATE_CLOSED;
-      } else if (pktin.type == 14) {
-        /* SSH_MSG_SUCCESS: may be from EXEC_SHELL on some servers */
-      } else if (pktin.type == 15) {
-        /* SSH_MSG_FAILURE: may be from EXEC_SHELL on some servers
+        logevent("Received disconnect request");
+      } else if (pktin.type == SSH_SMSG_SUCCESS) {
+        /* may be from EXEC_SHELL on some servers */
+      } else if (pktin.type == SSH_SMSG_FAILURE) {
+        /* may be from EXEC_SHELL on some servers
          * if no pty is available or in other odd cases. Ignore */
-      } else if (pktin.type == 20) {
-        /* EXITSTATUS */
-        s_wrpkt_start(33, 0);
+      } else if (pktin.type == SSH_SMSG_EXITSTATUS) {
+        s_wrpkt_start(SSH_CMSG_EXIT_CONFIRMATION, 0);
         s_wrpkt();
       } else {
         fatalbox("Strange packet received: type %d", pktin.type);
       }
     } else {
-      s_wrpkt_start(16, 4 + inlen);
+      s_wrpkt_start(SSH_CMSG_STDIN_DATA, 4 + inlen);
       pktout.body[0] = (inlen >> 24) & 0xFF;
       pktout.body[1] = (inlen >> 16) & 0xFF;
       pktout.body[2] = (inlen >> 8) & 0xFF;
@@ -717,14 +859,22 @@ static int ssh_msg(WPARAM wParam, LPARAM lParam)
   int ret;
   char buf[256];
 
-  if (s == INVALID_SOCKET) /* how the hell did we get here?! */
-    return -5000;
+  /*
+   * Because reading less than the whole of the available pending
+   * data can generate an FD_READ event, we need to allow for the
+   * possibility that FD_READ may arrive with FD_CLOSE already in
+   * the queue; so it's possible that we can get here even with s
+   * invalid. If so, we return 1 and don't worry about it.
+   */
+  if (s == INVALID_SOCKET)
+    return 1;
 
   if (WSAGETSELECTERROR(lParam) != 0)
     return -WSAGETSELECTERROR(lParam);
 
   switch (WSAGETSELECTEVENT(lParam)) {
   case FD_READ:
+  case FD_CLOSE:
     ret = recv(s, buf, sizeof(buf), 0);
     if (ret < 0 && WSAGetLastError() == WSAEWOULDBLOCK)
       return 1;
@@ -732,14 +882,10 @@ static int ssh_msg(WPARAM wParam, LPARAM lParam)
       return -10000 - WSAGetLastError();
     if (ret == 0) {
       s = INVALID_SOCKET;
-      return 0; /* can't happen, in theory */
+      return 0;
     }
     ssh_gotdata(buf, ret);
     return 1;
-  case FD_CLOSE:
-    s = INVALID_SOCKET;
-    ssh_state = SSH_STATE_CLOSED;
-    return 0;
   }
   return 1; /* shouldn't happen, but WTF */
 }

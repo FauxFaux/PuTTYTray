@@ -630,7 +630,7 @@ void term_out(void)
     do_toplevel:
       switch (c) {
       case '\005': /* terminal type query */
-        back->send("\033[?1;2c", 7);
+        ldisc->send("\033[?1;2c", 7);
         break;
       case '\007':
         beep();
@@ -718,7 +718,8 @@ void term_out(void)
           if (insert)
             insch(1);
           check_selection(cpos, cpos + 1);
-          *cpos++ = c | curr_attr | (c <= 0x7F ? cset_attr[cset] : ATTR_ASCII);
+          *cpos++ = xlat_tty2scr((unsigned char)c) | curr_attr |
+                    (c <= 0x7F ? cset_attr[cset] : ATTR_ASCII);
           curs_x++;
           if (curs_x == cols) {
             cpos--;
@@ -829,7 +830,7 @@ void term_out(void)
         must_update = TRUE;
         break;
       case 'Z': /* terminal type query */
-        back->send("\033[?6c", 5);
+        ldisc->send("\033[?6c", 5);
         break;
       case 'c': /* restore power-on settings */
         power_on();
@@ -988,13 +989,13 @@ void term_out(void)
         must_update = TRUE;
         break;
       case 'c': /* terminal type query */
-        back->send("\033[?6c", 5);
+        ldisc->send("\033[?6c", 5);
         break;
       case 'n': /* cursor position query */
         if (esc_args[0] == 6) {
           char buf[32];
           sprintf(buf, "\033[%d;%dR", curs_y + 1, curs_x + 1);
-          back->send(buf, strlen(buf));
+          ldisc->send(buf, strlen(buf));
         }
         break;
       case 'h': /* toggle a mode to high */
@@ -1135,7 +1136,7 @@ void term_out(void)
         if (i == 0 || i == 1) {
           strcpy(buf, "\033[2;1;1;112;112;1;0x");
           buf[2] += i;
-          back->send(buf, 20);
+          ldisc->send(buf, 20);
         }
       } break;
       }
@@ -1582,10 +1583,19 @@ void term_mouse(Mouse_Button b, Mouse_Action a, int x, int y)
         while (p < data + len && !(p <= data + len - sizeof(sel_nl) &&
                                    !memcmp(p, sel_nl, sizeof(sel_nl))))
           p++;
-        back->send(q, p - q);
+
+        {
+          int i;
+          unsigned char c;
+          for (i = 0; i < p - q; i++) {
+            c = xlat_kbd2tty(q[i]);
+            ldisc->send(&c, 1);
+          }
+        }
+
         if (p <= data + len - sizeof(sel_nl) &&
             !memcmp(p, sel_nl, sizeof(sel_nl))) {
-          back->send("\r", 1);
+          ldisc->send("\r", 1);
           p += sizeof(sel_nl);
         }
         q = p;

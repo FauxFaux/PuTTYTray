@@ -8,26 +8,30 @@
 #include "putty.h"
 #include "win_res.h"
 
-#define IDM_SHOWLOG 501
-#define IDM_NEWSESS 502
-#define IDM_DUPSESS 503
-#define IDM_RECONF 504
-#define IDM_CLRSB 505
-#define IDM_RESET 506
-#define IDM_TEL_AYT 507
-#define IDM_TEL_BRK 508
-#define IDM_TEL_SYNCH 509
-#define IDM_TEL_EC 510
-#define IDM_TEL_EL 511
-#define IDM_TEL_GA 512
-#define IDM_TEL_NOP 513
-#define IDM_TEL_ABORT 514
-#define IDM_TEL_AO 515
-#define IDM_TEL_IP 516
-#define IDM_TEL_SUSP 517
-#define IDM_TEL_EOR 518
-#define IDM_TEL_EOF 519
-#define IDM_ABOUT 520
+#define IDM_SHOWLOG 0x0010
+#define IDM_NEWSESS 0x0020
+#define IDM_DUPSESS 0x0030
+#define IDM_RECONF 0x0040
+#define IDM_CLRSB 0x0050
+#define IDM_RESET 0x0060
+#define IDM_TEL_AYT 0x0070
+#define IDM_TEL_BRK 0x0080
+#define IDM_TEL_SYNCH 0x0090
+#define IDM_TEL_EC 0x00a0
+#define IDM_TEL_EL 0x00b0
+#define IDM_TEL_GA 0x00c0
+#define IDM_TEL_NOP 0x00d0
+#define IDM_TEL_ABORT 0x00e0
+#define IDM_TEL_AO 0x00f0
+#define IDM_TEL_IP 0x0100
+#define IDM_TEL_SUSP 0x0110
+#define IDM_TEL_EOR 0x0120
+#define IDM_TEL_EOF 0x0130
+#define IDM_ABOUT 0x0140
+#define IDM_SAVEDSESS 0x0150
+
+#define IDM_SAVED_MIN 0x1000
+#define IDM_SAVED_MAX 0x2000
 
 #define WM_IGNORE_SIZE (WM_USER + 2)
 #define WM_IGNORE_CLIP (WM_USER + 3)
@@ -75,6 +79,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   MSG msg;
   int guess_width, guess_height;
 
+  putty_inst = inst;
+
   winsock_ver = MAKEWORD(1, 1);
   if (WSAStartup(winsock_ver, &wsadata)) {
     MessageBox(NULL,
@@ -101,11 +107,30 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   {
     char *p;
 
+    default_protocol = DEFAULT_PROTOCOL;
+    default_port = DEFAULT_PORT;
+
     do_defaults(NULL);
 
     p = cmdline;
     while (*p && isspace(*p))
       p++;
+
+    /*
+     * Process command line options first. Yes, this can be
+     * done better, and it will be as soon as I have the
+     * energy...
+     */
+    while (*p == '-') {
+      char *q = p + strcspn(p, " \t");
+      p++;
+      if (q == p + 3 && tolower(p[0]) == 's' && tolower(p[1]) == 's' &&
+          tolower(p[2]) == 'h') {
+        default_protocol = cfg.protocol = PROT_SSH;
+        default_port = cfg.port = 22;
+      }
+      p = q + strspn(q, " \t");
+    }
 
     /*
      * An initial @ means to activate a saved session.
@@ -157,7 +182,11 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     }
   }
 
-  back = (cfg.protocol == PROT_SSH ? &ssh_backend : &telnet_backend);
+  back = (cfg.protocol == PROT_SSH
+              ? &ssh_backend
+              : cfg.protocol == PROT_TELNET ? &telnet_backend : &raw_backend);
+
+  ldisc = (cfg.ldisc_term ? &ldisc_term : &ldisc_simple);
 
   if (!prev) {
     wndclass.style = 0;
@@ -281,7 +310,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
       return 0;
     }
     window_name = icon_name = NULL;
-    sprintf(msg, "PuTTY: %s", realhost);
+    sprintf(msg, "%s - PuTTY", realhost);
     set_title(msg);
     set_icon(msg);
   }
@@ -304,7 +333,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
    */
   {
     HMENU m = GetSystemMenu(hwnd, FALSE);
-    HMENU p;
+    HMENU p, s;
+    int i;
 
     AppendMenu(m, MF_SEPARATOR, 0, 0);
     if (cfg.protocol == PROT_TELNET) {
@@ -326,11 +356,17 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
       AppendMenu(p, MF_ENABLED, IDM_TEL_EOR, "End Of Record");
       AppendMenu(p, MF_ENABLED, IDM_TEL_EOF, "End Of File");
       AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT)p, "Telnet Command");
-      AppendMenu(m, MF_ENABLED, IDM_SHOWLOG, "Show Negotiation");
       AppendMenu(m, MF_SEPARATOR, 0, 0);
     }
+    AppendMenu(m, MF_ENABLED, IDM_SHOWLOG, "Event Log");
+    AppendMenu(m, MF_SEPARATOR, 0, 0);
     AppendMenu(m, MF_ENABLED, IDM_NEWSESS, "New Session");
     AppendMenu(m, MF_ENABLED, IDM_DUPSESS, "Duplicate Session");
+    s = CreateMenu();
+    get_sesslist(TRUE);
+    for (i = 1; i < ((nsessions < 256) ? nsessions : 256); i++)
+      AppendMenu(s, MF_ENABLED, IDM_SAVED_MIN + (16 * i), sessions[i]);
+    AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT)s, "Saved Sessions");
     AppendMenu(m, MF_ENABLED, IDM_RECONF, "Change Settings");
     AppendMenu(m, MF_SEPARATOR, 0, 0);
     AppendMenu(m, MF_ENABLED, IDM_CLRSB, "Clear Scrollback");
@@ -491,8 +527,8 @@ static void init_fonts(void)
                         FIXED_PITCH | FF_DONTCARE,                             \
                         cfg.font)
   if (cfg.vtmode != VT_OEMONLY) {
-    f(FONT_NORMAL, ANSI_CHARSET, fw_dontcare, FALSE);
-    f(FONT_UNDERLINE, ANSI_CHARSET, fw_dontcare, TRUE);
+    f(FONT_NORMAL, cfg.fontcharset, fw_dontcare, FALSE);
+    f(FONT_UNDERLINE, cfg.fontcharset, fw_dontcare, TRUE);
   }
   if (cfg.vtmode == VT_OEMANSI || cfg.vtmode == VT_OEMONLY) {
     f(FONT_OEM, OEM_CHARSET, fw_dontcare, FALSE);
@@ -500,8 +536,8 @@ static void init_fonts(void)
   }
   if (bold_mode == BOLD_FONT) {
     if (cfg.vtmode != VT_OEMONLY) {
-      f(FONT_BOLD, ANSI_CHARSET, fw_bold, FALSE);
-      f(FONT_BOLDUND, ANSI_CHARSET, fw_bold, TRUE);
+      f(FONT_BOLD, cfg.fontcharset, fw_bold, FALSE);
+      f(FONT_BOLDUND, cfg.fontcharset, fw_bold, TRUE);
     }
     if (cfg.vtmode == VT_OEMANSI || cfg.vtmode == VT_OEMONLY) {
       f(FONT_OEMBOLD, OEM_CHARSET, fw_bold, FALSE);
@@ -608,18 +644,28 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
   switch (message) {
   case WM_CREATE:
     break;
+  case WM_CLOSE:
+    if (!cfg.warn_on_close ||
+        MessageBox(hwnd,
+                   "Are you sure you want to close this session?",
+                   "PuTTY Exit Confirmation",
+                   MB_ICONWARNING | MB_OKCANCEL) == IDOK)
+      DestroyWindow(hwnd);
+    return 0;
   case WM_DESTROY:
     PostQuitMessage(0);
     return 0;
   case WM_SYSCOMMAND:
-    switch (wParam) {
+    switch (wParam & ~0xF) { /* low 4 bits reserved to Windows */
     case IDM_SHOWLOG:
-      shownegot(hwnd);
+      showeventlog(hwnd);
       break;
     case IDM_NEWSESS:
-    case IDM_DUPSESS: {
+    case IDM_DUPSESS:
+    case IDM_SAVEDSESS: {
       char b[2048];
       char c[30], *cl;
+      int freecl = FALSE;
       STARTUPINFO si;
       PROCESS_INFORMATION pi;
       HANDLE filemap = NULL;
@@ -647,6 +693,13 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         sprintf(c, "putty &%08x", filemap);
         cl = c;
+      } else if (wParam == IDM_SAVEDSESS) {
+        char *session = sessions[(lParam - IDM_SAVED_MIN) / 16];
+        cl = malloc(16 + strlen(session)); /* 8, but play safe */
+        if (!cl)
+          cl = NULL; /* not a very important failure mode */
+        sprintf(cl, "putty @%s", session);
+        freecl = TRUE;
       } else
         cl = NULL;
 
@@ -663,6 +716,8 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 
       if (filemap)
         CloseHandle(filemap);
+      if (freecl)
+        free(cl);
     } break;
     case IDM_RECONF:
       if (!do_reconfig(hwnd))
@@ -678,6 +733,7 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
       und_mode = UND_FONT;
       init_fonts();
       sfree(logpal);
+      ldisc = (cfg.ldisc_term ? &ldisc_term : &ldisc_simple);
       if (pal)
         DeleteObject(pal);
       logpal = NULL;
@@ -745,6 +801,10 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     case IDM_ABOUT:
       showabout(hwnd);
       break;
+    default:
+      if (wParam >= IDM_SAVED_MIN && wParam <= IDM_SAVED_MAX) {
+        SendMessage(hwnd, WM_SYSCOMMAND, IDM_SAVEDSESS, wParam);
+      }
     }
     break;
 
@@ -872,6 +932,12 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
   case WM_IGNORE_SIZE:
     ignore_size = TRUE; /* don't panic on next WM_SIZE msg */
     break;
+  case WM_ENTERSIZEMOVE:
+    EnableSizeTip(1);
+    break;
+  case WM_EXITSIZEMOVE:
+    EnableSizeTip(0);
+    break;
   case WM_SIZING: {
     int width, height, w, h, ew, eh;
     LPRECT r = (LPRECT)lParam;
@@ -884,6 +950,7 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     h = (height + font_height / 2) / font_height;
     if (h < 1)
       h = 1;
+    UpdateSizeTip(hwnd, w, h);
     ew = width - w * font_width;
     eh = height - h * font_height;
     if (ew != 0) {
@@ -1015,7 +1082,9 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
       int len;
 
       len = TranslateKey(wParam, lParam, buf);
-      back->send(buf, len);
+      if (len == -1)
+        return DefWindowProc(hwnd, message, wParam, lParam);
+      ldisc->send(buf, len);
     }
     return 0;
   case WM_KEYUP:
@@ -1058,8 +1127,8 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
      * we're ready to cope.
      */
     {
-      char c = wParam;
-      back->send(&c, 1);
+      char c = xlat_kbd2tty((unsigned char)wParam);
+      ldisc->send(&c, 1);
     }
     return 0;
   }
@@ -1254,6 +1323,49 @@ static int TranslateKey(WPARAM wParam, LPARAM lParam, unsigned char *output)
   }
 
   /*
+   * NetHack keypad mode. This may conflict with Shift-PgUp/PgDn,
+   * so we do it first.
+   */
+  if (cfg.nethack_keypad) {
+    int shift = keystate[VK_SHIFT] & 0x80;
+    /*
+     * NB the shifted versions only work with numlock off.
+     */
+    switch ((lParam >> 16) & 0x1FF) {
+    case 0x047:
+      *p++ = shift ? 'Y' : 'y';
+      return p - output;
+    case 0x048:
+      *p++ = shift ? 'K' : 'k';
+      return p - output;
+    case 0x049:
+      *p++ = shift ? 'U' : 'u';
+      return p - output;
+    case 0x04B:
+      *p++ = shift ? 'H' : 'h';
+      return p - output;
+    case 0x04C:
+      *p++ = '.';
+      return p - output;
+    case 0x04D:
+      *p++ = shift ? 'L' : 'l';
+      return p - output;
+    case 0x04F:
+      *p++ = shift ? 'B' : 'b';
+      return p - output;
+    case 0x050:
+      *p++ = shift ? 'J' : 'j';
+      return p - output;
+    case 0x051:
+      *p++ = shift ? 'N' : 'n';
+      return p - output;
+    case 0x053:
+      *p++ = '.';
+      return p - output;
+    }
+  }
+
+  /*
    * Shift-PgUp, Shift-PgDn, and Alt-F4 all produce window
    * events: we'll deal with those now.
    */
@@ -1265,9 +1377,12 @@ static int TranslateKey(WPARAM wParam, LPARAM lParam, unsigned char *output)
     SendMessage(hwnd, WM_VSCROLL, SB_PAGEDOWN, 0);
     return 0;
   }
-  if ((lParam & 0x20000000) && wParam == VK_F4) {
-    SendMessage(hwnd, WM_DESTROY, 0, 0);
-    return 0;
+  if ((lParam & 0x20000000) && wParam == VK_F4 && cfg.alt_f4) {
+    return -1;
+  }
+  if ((lParam & 0x20000000) && wParam == VK_SPACE && cfg.alt_space) {
+    SendMessage(hwnd, WM_SYSCOMMAND, SC_KEYMENU, 0);
+    return -1;
   }
 
   /*
@@ -1293,12 +1408,12 @@ static int TranslateKey(WPARAM wParam, LPARAM lParam, unsigned char *output)
     return p - output;
   }
 
-  /*
-   * If we're in applications keypad mode, we have to process it
-   * before char-map translation, because it will pre-empt lots
-   * of stuff, even if NumLock is off.
-   */
   if (app_keypad_keys) {
+    /*
+     * If we're in applications keypad mode, we have to process it
+     * before char-map translation, because it will pre-empt lots
+     * of stuff, even if NumLock is off.
+     */
     if (ret) {
       /*
        * Hack to ensure NumLock doesn't interfere with
@@ -1383,9 +1498,19 @@ static int TranslateKey(WPARAM wParam, LPARAM lParam, unsigned char *output)
    */
   if (ret) {
     WORD chr;
-    int r = ToAscii(wParam, (lParam >> 16) & 0xFF, keystate, &chr, 0);
+    int r;
+    BOOL capsOn = keystate[VK_CAPITAL] != 0;
+
+    /* helg: clear CAPS LOCK state if caps lock switches to cyrillic */
+    if (cfg.xlat_capslockcyr)
+      keystate[VK_CAPITAL] = 0;
+
+    r = ToAscii(wParam, (lParam >> 16) & 0xFF, keystate, &chr, 0);
+
+    if (capsOn)
+      chr = xlat_latkbd2win((unsigned char)(chr & 0xFF));
     if (r == 1) {
-      *p++ = chr & 0xFF;
+      *p++ = xlat_kbd2tty((unsigned char)(chr & 0xFF));
       return p - output;
     }
   }
