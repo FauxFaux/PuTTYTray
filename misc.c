@@ -12,58 +12,66 @@
 #ifdef MALLOC_LOG
 static FILE *fp = NULL;
 
-void mlog(char *file, int line) {
-    if (!fp) {
-	fp = fopen("putty_mem.log", "w");
-	setvbuf(fp, NULL, _IONBF, BUFSIZ);
-    }
-    if (fp)
-	fprintf (fp, "%s:%d: ", file, line);
+void mlog(char *file, int line)
+{
+  if (!fp) {
+    fp = fopen("putty_mem.log", "w");
+    setvbuf(fp, NULL, _IONBF, BUFSIZ);
+  }
+  if (fp)
+    fprintf(fp, "%s:%d: ", file, line);
 }
 #endif
 
-void *safemalloc(size_t size) {
-    void *p = malloc (size);
-    if (!p) {
-	MessageBox(NULL, "Out of memory!", "PuTTY Fatal Error",
-		   MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
-	exit(1);
-    }
+void *safemalloc(size_t size)
+{
+  void *p = malloc(size);
+  if (!p) {
+    MessageBox(NULL,
+               "Out of memory!",
+               "PuTTY Fatal Error",
+               MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
+    exit(1);
+  }
 #ifdef MALLOC_LOG
-    if (fp)
-	fprintf(fp, "malloc(%d) returns %p\n", size, p);
+  if (fp)
+    fprintf(fp, "malloc(%d) returns %p\n", size, p);
 #endif
-    return p;
+  return p;
 }
 
-void *saferealloc(void *ptr, size_t size) {
-    void *p;
-    if (!ptr)
-	p = malloc (size);
-    else
-	p = realloc (ptr, size);
-    if (!p) {
-	MessageBox(NULL, "Out of memory!", "PuTTY Fatal Error",
-		   MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
-	exit(1);
-    }
+void *saferealloc(void *ptr, size_t size)
+{
+  void *p;
+  if (!ptr)
+    p = malloc(size);
+  else
+    p = realloc(ptr, size);
+  if (!p) {
+    MessageBox(NULL,
+               "Out of memory!",
+               "PuTTY Fatal Error",
+               MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
+    exit(1);
+  }
 #ifdef MALLOC_LOG
-    if (fp)
-	fprintf(fp, "realloc(%p,%d) returns %p\n", ptr, size, p);
+  if (fp)
+    fprintf(fp, "realloc(%p,%d) returns %p\n", ptr, size, p);
 #endif
-    return p;
+  return p;
 }
 
-void safefree(void *ptr) {
-    if (ptr) {
+void safefree(void *ptr)
+{
+  if (ptr) {
 #ifdef MALLOC_LOG
-	if (fp)
-	    fprintf(fp, "free(%p)\n", ptr);
+    if (fp)
+      fprintf(fp, "free(%p)\n", ptr);
 #endif
-	free (ptr);
-    }
+    free(ptr);
+  }
 #ifdef MALLOC_LOG
-    else if (fp)
-	fprintf(fp, "freeing null pointer - no action taken\n");
+  else if (fp)
+    fprintf(fp, "freeing null pointer - no action taken\n");
 #endif
 }
