@@ -8,7 +8,7 @@
  * send data without having to worry about blocking. The stuff
  * behind the abstraction takes care of selects and nonblocking
  * writes and all that sort of painful gubbins.
- * 
+ *
  * If urgent data comes in on a socket, the back end will read and
  * discard up to the urgent pointer, then read the urgent byte and
  * send _that_ to the receiver function with `urgent' set.
@@ -21,7 +21,7 @@ typedef struct Socket_tag *Socket;
 typedef struct SockAddr_tag *SockAddr;
 typedef int (*sk_receiver_t)(Socket s, int urgent, char *data, int len);
 
-void sk_init(void);		       /* called once at program startup */
+void sk_init(void); /* called once at program startup */
 
 SockAddr sk_namelookup(char *host, char **canonicalname);
 void sk_addr_free(SockAddr addr);
