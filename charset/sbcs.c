@@ -12,42 +12,46 @@
  * of the translation table.
  */
 
-void read_sbcs(charset_spec const *charset, long int input_chr,
-	       charset_state *state,
-	       void (*emit)(void *ctx, long int output), void *emitctx)
+void read_sbcs(charset_spec const *charset,
+               long int input_chr,
+               charset_state *state,
+               void (*emit)(void *ctx, long int output),
+               void *emitctx)
 {
-    const struct sbcs_data *sd = charset->data;
+  const struct sbcs_data *sd = charset->data;
 
-    UNUSEDARG(state);
+  UNUSEDARG(state);
 
-    emit(emitctx, sd->sbcs2ucs[input_chr]);
+  emit(emitctx, sd->sbcs2ucs[input_chr]);
 }
 
-void write_sbcs(charset_spec const *charset, long int input_chr,
-		charset_state *state,
-		void (*emit)(void *ctx, long int output), void *emitctx)
+void write_sbcs(charset_spec const *charset,
+                long int input_chr,
+                charset_state *state,
+                void (*emit)(void *ctx, long int output),
+                void *emitctx)
 {
-    const struct sbcs_data *sd = charset->data;
-    int i, j, k, c;
+  const struct sbcs_data *sd = charset->data;
+  int i, j, k, c;
 
-    UNUSEDARG(state);
+  UNUSEDARG(state);
 
-    /*
-     * Binary-search in the ucs2sbcs table.
-     */
-    i = -1;
-    j = sd->nvalid;
-    while (i+1 < j) {
-	k = (i+j)/2;
-	c = sd->ucs2sbcs[k];
-	if (input_chr < sd->sbcs2ucs[c])
-	    j = k;
-	else if (input_chr > sd->sbcs2ucs[c])
-	    i = k;
-	else {
-	    emit(emitctx, c);
-	    return;
-	}
+  /*
+   * Binary-search in the ucs2sbcs table.
+   */
+  i = -1;
+  j = sd->nvalid;
+  while (i + 1 < j) {
+    k = (i + j) / 2;
+    c = sd->ucs2sbcs[k];
+    if (input_chr < sd->sbcs2ucs[c])
+      j = k;
+    else if (input_chr > sd->sbcs2ucs[c])
+      i = k;
+    else {
+      emit(emitctx, c);
+      return;
     }
-    emit(emitctx, ERROR);
+  }
+  emit(emitctx, ERROR);
 }
