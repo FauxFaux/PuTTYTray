@@ -198,9 +198,8 @@ int main(void)
 }
 #endif
 
-unsigned long crc32(const void *buf, size_t len)
+unsigned long crc32_update(unsigned long crcword, const void *buf, size_t len)
 {
-  unsigned long crcword = 0L;
   const unsigned char *p = (const unsigned char *)buf;
   while (len--) {
     unsigned long newbyte = *p++;
@@ -208,4 +207,9 @@ unsigned long crc32(const void *buf, size_t len)
     crcword = (crcword >> 8) ^ crc32_table[newbyte];
   }
   return crcword;
+}
+
+unsigned long crc32(const void *buf, size_t len)
+{
+  return crc32_update(0L, buf, len);
 }

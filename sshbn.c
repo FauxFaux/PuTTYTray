@@ -6,6 +6,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "misc.h"
+
+#define BIGNUM_INTERNAL
+typedef unsigned short *Bignum;
+
 #include "ssh.h"
 
 unsigned short bnZero[1] = {0};
@@ -27,7 +32,7 @@ unsigned short bnOne[2] = {1, 1};
 
 Bignum Zero = bnZero, One = bnOne;
 
-Bignum newbn(int length)
+static Bignum newbn(int length)
 {
   Bignum b = smalloc((length + 1) * sizeof(unsigned short));
   if (!b)
@@ -35,6 +40,12 @@ Bignum newbn(int length)
   memset(b, 0, (length + 1) * sizeof(*b));
   b[0] = length;
   return b;
+}
+
+void bn_restore_invariant(Bignum b)
+{
+  while (b[0] > 1 && b[b[0]] == 0)
+    b[0]--;
 }
 
 Bignum copybn(Bignum orig)
@@ -53,6 +64,13 @@ void freebn(Bignum b)
    */
   memset(b, 0, sizeof(b[0]) * (b[0] + 1));
   sfree(b);
+}
+
+Bignum bn_power_2(int n)
+{
+  Bignum ret = newbn(n / 16 + 1);
+  bignum_set_bit(ret, n, 1);
+  return ret;
 }
 
 /*
@@ -149,7 +167,7 @@ static void internal_mod(unsigned short *a,
     r = t % m0;
 
     /* Refine our estimate of q by looking at
-     h:a[i]:a[i+1] / m0:m1 */
+       h:a[i]:a[i+1] / m0:m1 */
     t = (long)m1 * (long)q;
     if (t > ((unsigned long)r << 16) + ai1) {
       q--;
@@ -305,7 +323,7 @@ Bignum modmul(Bignum p, Bignum q, Bignum mod)
 {
   unsigned short *a, *n, *m, *o;
   int mshift;
-  int pqlen, mlen, i, j;
+  int pqlen, mlen, rlen, i, j;
   Bignum result;
 
   /* Allocate m of size mlen, copy mod to m */
@@ -361,9 +379,10 @@ Bignum modmul(Bignum p, Bignum q, Bignum mod)
   }
 
   /* Copy result to buffer */
-  result = newbn(mod[0]);
-  for (i = 0; i < mlen; i++)
-    result[result[0] - i] = a[i + 2 * pqlen - mlen];
+  rlen = (mlen < pqlen * 2 ? mlen : pqlen * 2);
+  result = newbn(rlen);
+  for (i = 0; i < rlen; i++)
+    result[result[0] - i] = a[i + 2 * pqlen - rlen];
   while (result[0] > 1 && result[result[0]] == 0)
     result[0]--;
 
@@ -388,9 +407,10 @@ Bignum modmul(Bignum p, Bignum q, Bignum mod)
  * Compute p % mod.
  * The most significant word of mod MUST be non-zero.
  * We assume that the result array is the same size as the mod array.
- * We optionally write out a quotient.
+ * We optionally write out a quotient if `quotient' is non-NULL.
+ * We can avoid writing out the result if `result' is NULL.
  */
-void bigmod(Bignum p, Bignum mod, Bignum result, Bignum quotient)
+void bigdivmod(Bignum p, Bignum mod, Bignum result, Bignum quotient)
 {
   unsigned short *n, *m;
   int mshift;
@@ -439,9 +459,11 @@ void bigmod(Bignum p, Bignum mod, Bignum result, Bignum quotient)
   }
 
   /* Copy result to buffer */
-  for (i = 1; i <= result[0]; i++) {
-    int j = plen - i;
-    result[i] = j >= 0 ? n[j] : 0;
+  if (result) {
+    for (i = 1; i <= result[0]; i++) {
+      int j = plen - i;
+      result[i] = j >= 0 ? n[j] : 0;
+    }
   }
 
   /* Free temporary arrays */
@@ -464,6 +486,29 @@ void decbn(Bignum bn)
   bn[i]--;
 }
 
+Bignum bignum_from_bytes(unsigned char *data, int nbytes)
+{
+  Bignum result;
+  int w, i;
+
+  w = (nbytes + 1) / 2; /* bytes -> words */
+
+  result = newbn(w);
+  for (i = 1; i <= w; i++)
+    result[i] = 0;
+  for (i = nbytes; i--;) {
+    unsigned char byte = *data++;
+    if (i & 1)
+      result[1 + i / 2] |= byte << 8;
+    else
+      result[1 + i / 2] |= byte;
+  }
+
+  while (result[0] > 1 && result[result[0]] == 0)
+    result[0]--;
+  return result;
+}
+
 /*
  * Read an ssh1-format bignum from a data buffer. Return the number
  * of bytes consumed.
@@ -471,44 +516,28 @@ void decbn(Bignum bn)
 int ssh1_read_bignum(unsigned char *data, Bignum *result)
 {
   unsigned char *p = data;
-  Bignum bn;
   int i;
   int w, b;
 
   w = 0;
   for (i = 0; i < 2; i++)
     w = (w << 8) + *p++;
-
-  b = (w + 7) / 8;   /* bits -> bytes */
-  w = (w + 15) / 16; /* bits -> words */
+  b = (w + 7) / 8; /* bits -> bytes */
 
   if (!result) /* just return length */
     return b + 2;
 
-  bn = newbn(w);
+  *result = bignum_from_bytes(p, b);
 
-  for (i = 1; i <= w; i++)
-    bn[i] = 0;
-  for (i = b; i--;) {
-    unsigned char byte = *p++;
-    if (i & 1)
-      bn[1 + i / 2] |= byte << 8;
-    else
-      bn[1 + i / 2] |= byte;
-  }
-
-  *result = bn;
-
-  return p - data;
+  return p + b - data;
 }
 
 /*
  * Return the bit count of a bignum, for ssh1 encoding.
  */
-int ssh1_bignum_bitcount(Bignum bn)
+int bignum_bitcount(Bignum bn)
 {
   int bitcount = bn[0] * 16 - 1;
-
   while (bitcount >= 0 && (bn[bitcount / 16 + 1] >> (bitcount % 16)) == 0)
     bitcount--;
   return bitcount + 1;
@@ -519,7 +548,15 @@ int ssh1_bignum_bitcount(Bignum bn)
  */
 int ssh1_bignum_length(Bignum bn)
 {
-  return 2 + (ssh1_bignum_bitcount(bn) + 7) / 8;
+  return 2 + (bignum_bitcount(bn) + 7) / 8;
+}
+
+/*
+ * Return the byte length of a bignum when ssh2 encoded.
+ */
+int ssh2_bignum_length(Bignum bn)
+{
+  return 4 + (bignum_bitcount(bn) + 8) / 8;
 }
 
 /*
@@ -572,7 +609,7 @@ int ssh1_write_bignum(void *data, Bignum bn)
   unsigned char *p = data;
   int len = ssh1_bignum_length(bn);
   int i;
-  int bitc = ssh1_bignum_bitcount(bn);
+  int bitc = bignum_bitcount(bn);
 
   *p++ = (bitc >> 8) & 0xFF;
   *p++ = (bitc)&0xFF;
@@ -609,7 +646,7 @@ Bignum bignum_rshift(Bignum a, int shift)
   int i, shiftw, shiftb, shiftbb, bits;
   unsigned short ai, ai1;
 
-  bits = ssh1_bignum_bitcount(a) - shift;
+  bits = bignum_bitcount(a) - shift;
   ret = newbn((bits + 15) / 16);
 
   if (ret) {
@@ -688,15 +725,41 @@ Bignum bigmul(Bignum a, Bignum b)
 }
 
 /*
- * Convert a (max 16-bit) short into a bignum.
+ * Create a bignum which is the bitmask covering another one. That
+ * is, the smallest integer which is >= N and is also one less than
+ * a power of two.
  */
-Bignum bignum_from_short(unsigned short n)
+Bignum bignum_bitmask(Bignum n)
+{
+  Bignum ret = copybn(n);
+  int i;
+  unsigned short j;
+
+  i = ret[0];
+  while (n[i] == 0 && i > 0)
+    i--;
+  if (i <= 0)
+    return ret; /* input was zero */
+  j = 1;
+  while (j < n[i])
+    j = 2 * j + 1;
+  ret[i] = j;
+  while (--i > 0)
+    ret[i] = 0xFFFF;
+  return ret;
+}
+
+/*
+ * Convert a (max 32-bit) long into a bignum.
+ */
+Bignum bignum_from_long(unsigned long n)
 {
   Bignum ret;
 
-  ret = newbn(2);
-  ret[1] = n & 0xFFFF;
-  ret[2] = (n >> 16) & 0xFFFF;
+  ret = newbn(3);
+  ret[1] = (unsigned short)(n & 0xFFFF);
+  ret[2] = (unsigned short)((n >> 16) & 0xFFFF);
+  ret[3] = 0;
   ret[0] = (ret[2] ? 2 : 1);
   return ret;
 }
@@ -738,24 +801,44 @@ unsigned short bignum_mod_short(Bignum number, unsigned short modulus)
   return (unsigned short)r;
 }
 
-static void diagbn(char *prefix, Bignum md)
+void diagbn(char *prefix, Bignum md)
 {
   int i, nibbles, morenibbles;
   static const char hex[] = "0123456789ABCDEF";
 
-  printf("%s0x", prefix ? prefix : "");
+  debug(("%s0x", prefix ? prefix : ""));
 
-  nibbles = (3 + ssh1_bignum_bitcount(md)) / 4;
+  nibbles = (3 + bignum_bitcount(md)) / 4;
   if (nibbles < 1)
     nibbles = 1;
   morenibbles = 4 * md[0] - nibbles;
   for (i = 0; i < morenibbles; i++)
-    putchar('-');
+    debug(("-"));
   for (i = nibbles; i--;)
-    putchar(hex[(bignum_byte(md, i / 2) >> (4 * (i % 2))) & 0xF]);
+    debug(("%c", hex[(bignum_byte(md, i / 2) >> (4 * (i % 2))) & 0xF]));
 
   if (prefix)
-    putchar('\n');
+    debug(("\n"));
+}
+
+/*
+ * Simple division.
+ */
+Bignum bigdiv(Bignum a, Bignum b)
+{
+  Bignum q = newbn(a[0]);
+  bigdivmod(a, b, NULL, q);
+  return q;
+}
+
+/*
+ * Simple remainder.
+ */
+Bignum bigmod(Bignum a, Bignum b)
+{
+  Bignum r = newbn(b[0]);
+  bigdivmod(a, b, r, NULL);
+  return r;
 }
 
 /*
@@ -766,12 +849,9 @@ Bignum biggcd(Bignum av, Bignum bv)
   Bignum a = copybn(av);
   Bignum b = copybn(bv);
 
-  diagbn("a = ", a);
-  diagbn("b = ", b);
   while (bignum_cmp(b, Zero) != 0) {
     Bignum t = newbn(b[0]);
-    bigmod(a, b, t, NULL);
-    diagbn("t = ", t);
+    bigdivmod(a, b, t, NULL);
     while (t[0] > 1 && t[t[0]] == 0)
       t[0]--;
     freebn(a);
@@ -797,7 +877,7 @@ Bignum modinv(Bignum number, Bignum modulus)
   while (bignum_cmp(b, One) != 0) {
     Bignum t = newbn(b[0]);
     Bignum q = newbn(a[0]);
-    bigmod(a, b, t, q);
+    bigdivmod(a, b, t, q);
     while (t[0] > 1 && t[t[0]] == 0)
       t[0]--;
     freebn(a);
@@ -865,7 +945,7 @@ char *bignum_decimal(Bignum x)
    * Therefore if we multiply the bit count by 28/93, rounding
    * up, we will have enough digits.
    */
-  i = ssh1_bignum_bitcount(x);
+  i = bignum_bitcount(x);
   ndigits = (28 * i + 92) / 93; /* multiply by 28/93 and round up */
   ndigits++;                    /* allow for trailing \0 */
   ret = smalloc(ndigits);

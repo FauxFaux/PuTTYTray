@@ -76,10 +76,11 @@ print
 "# You may also need to tell windres where to find include files:\n".
 "# RCINC = --include-dir c:\\cygwin\\include\\\n".
 "\n".
-"CFLAGS = -mno-cygwin -Wall -O2 -D_WINDOWS -DDEBUG -DWIN32S_COMPAT -D_NO_OLDNAMES -I.\n".
+"CFLAGS = -mno-cygwin -Wall -O2 -D_WINDOWS -DDEBUG -DWIN32S_COMPAT".
+  " -DNO_SECURITY -D_NO_OLDNAMES -I.\n".
 "LDFLAGS = -mno-cygwin -s\n".
 "RCFLAGS = \$(RCINC) --define WIN32=1 --define _WIN32=1 --define WINVER=0x0400 --define MINGW32_FIX=1\n".
-"LIBS = -ladvapi32 -luser32 -lgdi32 -lwsock32 -lcomctl32 -lcomdlg32\n".
+"LIBS = -ladvapi32 -luser32 -lgdi32 -lwsock32 -lcomctl32 -lcomdlg32 -lwinmm -limm32\n".
 "OBJ=o\n".
 "RES=res.o\n".
 "\n";
@@ -89,11 +90,14 @@ print
 ".SUFFIXES:\n".
 "\n".
 "%.o: %.c\n".
-"\t\$(CC) \$(FWHACK) \$(CFLAGS) -c \$<\n".
+"\t\$(CC) \$(COMPAT) \$(FWHACK) \$(XFLAGS) \$(CFLAGS) -c \$<\n".
 "\n".
 "%.res.o: %.rc\n".
 "\t\$(RC) \$(FWHACK) \$(RCFL) \$(RCFLAGS) \$< \$\@\n".
 "\n";
+print "all:";
+print map { " $_.exe" } @projects;
+print "\n\n";
 foreach $p (@projects) {
   print $p, ".exe: ", &project($p), "\n";
   my $mw = $gui{$p} ? " -mwindows" : "";
@@ -126,16 +130,19 @@ print
 "# so that the .rsp files still depend on the correct makefile.\n".
 "MAKEFILE = Makefile.bor\n".
 "\n".
+"# C compilation flags\n".
+"CFLAGS = -DWINVER=0x0401\n".
+"\n".
 "# Get include directory for resource compiler\n".
 "!if !\$d(BCB)\n".
 "BCB = \$(MAKEDIR)\\..\n".
 "!endif\n".
 "\n".
 ".c.obj:\n".
-"\tbcc32 \$(COMPAT) \$(FWHACK) \$(CFLAGS) /c \$*.c\n".
+"\tbcc32 -w-aus -w-ccc -w-par \$(COMPAT) \$(FWHACK) \$(XFLAGS) \$(CFLAGS) /c \$*.c\n".
 ".rc.res:\n".
 "\tbrcc32 \$(FWHACK) \$(RCFL) -i \$(BCB)\\include \\\n".
-"\t\t-r -DNO_WINRESRC_H -DWIN32 -D_WIN32 -DWINVER=0x0400 \$*.rc\n".
+"\t\t-r -DNO_WINRESRC_H -DWIN32 -D_WIN32 -DWINVER=0x0401 \$*.rc\n".
 "\n".
 "OBJ=obj\n".
 "RES=res\n".
@@ -175,14 +182,14 @@ print
 "FORCE:\n".
 "\tbcc32 \$(FWHACK) \$(VER) \$(CFLAGS) /c version.c\n\n".
 "clean:\n".
-"\tdel *.obj\n".
-"\tdel *.exe\n".
-"\tdel *.res\n".
-"\tdel *.pch\n".
-"\tdel *.aps\n".
-"\tdel *.il*\n".
-"\tdel *.pdb\n".
-"\tdel *.rsp\n".
-"\tdel *.tds\n".
-"\tdel *.\$\$\$\$\$\$\n";
+"\t-del *.obj\n".
+"\t-del *.exe\n".
+"\t-del *.res\n".
+"\t-del *.pch\n".
+"\t-del *.aps\n".
+"\t-del *.il*\n".
+"\t-del *.pdb\n".
+"\t-del *.rsp\n".
+"\t-del *.tds\n".
+"\t-del *.\$\$\$\$\$\$\n";
 select STDOUT; close OUT;
