@@ -1221,7 +1221,7 @@ msgstr "암호화 옵션"
 
 # wincfg.c:305
 msgid "Ensure window is always on top"
-msgstr ""
+msgstr "창 항상 맨 위에 (E)"
 
 # settings.c:216 settings.c:451
 msgid "Environment"
@@ -1505,7 +1505,7 @@ msgstr ""
 
 # config.c:913
 msgid "Line discipline options"
-msgstr ""
+msgstr "행 구분 옵션"
 
 # settings.c:309 settings.c:593
 msgid "LineCodePage"
