@@ -377,7 +377,8 @@ static void sessionsaver_handler(union control *ctrl,
         }
         /* If at this point we have a valid session, go! */
         if (*cfg2.host) {
-          *cfg = cfg2; /* structure copy */
+          *cfg = cfg2;                           /* structure copy */
+          cfg->remote_cmd_ptr = cfg->remote_cmd; /* nasty */
           dlg_end(dlg, 1);
         } else
           dlg_beep(dlg);
@@ -1271,6 +1272,18 @@ void setup_config_box(struct controlbox *b,
                 HELPCTX(features_charset),
                 dlg_stdcheckbox_handler,
                 I(offsetof(Config, no_remote_charset)));
+  ctrl_checkbox(s,
+                "Disable Arabic text shaping",
+                'l',
+                HELPCTX(features_arabicshaping),
+                dlg_stdcheckbox_handler,
+                I(offsetof(Config, arabicshaping)));
+  ctrl_checkbox(s,
+                "Disable bidirectional text display",
+                'd',
+                HELPCTX(features_bidi),
+                dlg_stdcheckbox_handler,
+                I(offsetof(Config, bidi)));
 
   /*
    * The Window panel.
@@ -1617,6 +1630,14 @@ void setup_config_box(struct controlbox *b,
                    I(offsetof(Config, termtype)),
                    I(sizeof(((Config *)0)->termtype)));
       ctrl_editbox(s,
+                   "Terminal speeds",
+                   's',
+                   50,
+                   HELPCTX(connection_termspeed),
+                   dlg_stdeditbox_handler,
+                   I(offsetof(Config, termspeed)),
+                   I(sizeof(((Config *)0)->termspeed)));
+      ctrl_editbox(s,
                    "Auto-login username",
                    'u',
                    50,
@@ -1648,6 +1669,12 @@ void setup_config_box(struct controlbox *b,
                     HELPCTX(connection_nodelay),
                     dlg_stdcheckbox_handler,
                     I(offsetof(Config, tcp_nodelay)));
+      ctrl_checkbox(s,
+                    "Enable TCP keepalives (SO_KEEPALIVE option)",
+                    'p',
+                    HELPCTX(connection_tcpkeepalive),
+                    dlg_stdcheckbox_handler,
+                    I(offsetof(Config, tcp_keepalives)));
     }
   }
 
@@ -1765,14 +1792,6 @@ void setup_config_box(struct controlbox *b,
     if (!midsession) {
       s = ctrl_getset(
           b, "Connection/Telnet", "data", "Data to send to the server");
-      ctrl_editbox(s,
-                   "Terminal-speed string",
-                   's',
-                   50,
-                   HELPCTX(telnet_termspeed),
-                   dlg_stdeditbox_handler,
-                   I(offsetof(Config, termspeed)),
-                   I(sizeof(((Config *)0)->termspeed)));
       ctrl_text(s, "Environment variables:", HELPCTX(telnet_environ));
       ctrl_columns(s, 2, 80, 20);
       ed = (struct environ_data *)ctrl_alloc(b, sizeof(struct environ_data));
@@ -1869,14 +1888,6 @@ void setup_config_box(struct controlbox *b,
 
     s = ctrl_getset(
         b, "Connection/Rlogin", "data", "Data to send to the server");
-    ctrl_editbox(s,
-                 "Terminal-speed string",
-                 's',
-                 50,
-                 HELPCTX(rlogin_termspeed),
-                 dlg_stdeditbox_handler,
-                 I(offsetof(Config, termspeed)),
-                 I(sizeof(((Config *)0)->termspeed)));
     ctrl_editbox(s,
                  "Local username:",
                  'l',

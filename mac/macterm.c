@@ -1,4 +1,4 @@
-/* $Id: macterm.c,v 1.75 2003/05/04 14:18:18 simon Exp $ */
+/* $Id: macterm.c,v 1.76 2004/06/20 17:07:37 jacob Exp $ */
 /*
  * Copyright (c) 1999 Simon Tatham
  * Copyright (c) 1999, 2002 Ben Harris
@@ -168,7 +168,8 @@ void mac_startsession(Session *s)
                          s->cfg.host,
                          s->cfg.port,
                          &s->realhost,
-                         s->cfg.tcp_nodelay);
+                         s->cfg.tcp_nodelay,
+                         s->cfg.tcp_keepalives);
   if (errmsg != NULL)
     fatalbox("%s", errmsg);
   s->back->provide_logctx(s->backhandle, s->logctx);

@@ -433,6 +433,7 @@ Socket mactcp_new(SockAddr addr,
                   int privport,
                   int oobinline,
                   int nodelay,
+                  int keepalive,
                   Plug plug)
 {
   static struct socket_function_table fn_table = {mactcp_plug,
