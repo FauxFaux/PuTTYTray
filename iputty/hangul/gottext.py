@@ -177,11 +177,11 @@ def extractcmd(args):
             else:
                 thk, k = k, None
             if not soutput:
-                print >> outf, 'msg "%s"' % thk
+                print >> outf, 'msgid "%s"' % thk
                 soutput = True
             else:
                 print >> outf, '"%s"' % thk
-        print >> outf, 'msgx ""'
+        print >> outf, 'msgstr ""'
         print >> outf
 
     print len(strs)
@@ -212,20 +212,20 @@ def patchcmd(args):
     lasttup = [[], []]
     lastmode = None
     for i in range(len(srclines)):
-        if srclines[i].startswith('msg ') or (
-                lastmode == 'msg' and srclines[i].startswith('"')):
+        if srclines[i].startswith('msgid ') or (
+                lastmode == 'msgid' and srclines[i].startswith('"')):
             try:
                 firstquote = srclines[i].find('"')
                 lasttup[0].append(srclines[i][firstquote:].strip()[1:-1])
-                lastmode = 'msg'
+                lastmode = 'msgid'
             except:
                 errx("Couldn't parse translation file on line %d" % (i + 1))
-        elif srclines[i].startswith('msgx ') or (
-                lastmode == 'msgx' and srclines[i].startswith('"')):
+        elif srclines[i].startswith('msgstr ') or (
+                lastmode == 'msgstr' and srclines[i].startswith('"')):
             try:
                 firstquote = srclines[i].find('"')
                 lasttup[1].append(srclines[i][firstquote:].strip()[1:-1])
-                lastmode = 'msgx'
+                lastmode = 'msgstr'
             except:
                 errx("Couldn't parse translation file on line %d" % (i + 1))
         elif lasttup[0] and lasttup[1]:
