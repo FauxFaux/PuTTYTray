@@ -1,94 +1,174 @@
-# Makefile for PuTTY. Use `FWHACK=/DFWHACK' to cause the firewall hack
-# to be built in. (requires rebuild of ssh.obj only)
+# Visual C++ Makefile for PuTTY.
+#
+# Use `nmake' to build.
+#
 
-# Can also build with `VER=/DSNAPSHOT=1999-01-25' or
-# `VER=/DRELEASE=0.43' to get version numbering; otherwise you'll
-# get `Unidentified build'.
-
-# COMPAT=/DWIN32S_COMPAT will produce a binary that works (minimally)
-# with Win32s
+##-- help
+#
+# Extra options you can set:
+#
+#  - FWHACK=/DFWHACK
+#      Enables a hack that tunnels through some firewall proxies.
+#
+#  - VER=/DSNAPSHOT=1999-01-25
+#      Generates executables whose About box report them as being a
+#      development snapshot.
+#
+#  - VER=/DRELEASE=0.43
+#      Generates executables whose About box report them as being a
+#      release version.
+#
+#  - COMPAT=/DWIN32S_COMPAT
+#      Generates a binary that works (minimally) with Win32s.
+#
+#  - RCFL=/DASCIICTLS
+#      Uses ASCII rather than Unicode to specify the tab control in
+#      the resource file. Probably most useful when compiling with
+#      Cygnus/mingw32, whose resource compiler may have less of a
+#      problem with it.
+#
+##--
 
 CFLAGS = /nologo /W3 /YX /O2 /Yd /D_WINDOWS /DDEBUG /ML /Fd
+# LFLAGS = /debug
+
+# Use MSVC DLL
+# CFLAGS = /nologo /W3 /YX /O2 /Yd /D_WINDOWS /DDEBUG /ML /Fd
+
+# Disable debug and incremental linking
+LFLAGS = /incremental:no
 
 .c.obj:
 	cl $(COMPAT) $(FWHACK) $(CFLAGS) /c $*.c
 
-POBJS1 = window.obj windlg.obj terminal.obj telnet.obj raw.obj
-POBJS2 = xlat.obj ldisc.obj
-OBJS1 = misc.obj noise.obj
-OBJS2 = ssh.obj sshcrc.obj sshdes.obj sshmd5.obj sshrsa.obj sshrand.obj
-OBJS3 = sshsha.obj sshblowf.obj version.obj sizetip.obj
-RESRC = win_res.res
+OBJ=obj
+RES=res
+
+##-- objects putty puttytel
+GOBJS1 = window.$(OBJ) windlg.$(OBJ) terminal.$(OBJ) telnet.$(OBJ) raw.$(OBJ)
+GOBJS2 = xlat.$(OBJ) ldisc.$(OBJ) sizetip.$(OBJ)
+##-- objects putty
+POBJS = ssh.$(OBJ) be_all.$(OBJ)
+##-- objects puttytel
+TOBJS = be_nossh.$(OBJ)
+##-- objects pscp
+SOBJS = scp.$(OBJ) windlg.$(OBJ) scpssh.$(OBJ) be_none.$(OBJ)
+##-- objects putty puttytel pscp
+MOBJS = misc.$(OBJ) version.$(OBJ)
+##-- objects putty pscp
+OBJS1 = sshcrc.$(OBJ) sshdes.$(OBJ) sshmd5.$(OBJ) sshrsa.$(OBJ) sshrand.$(OBJ)
+OBJS2 = sshsha.$(OBJ) sshblowf.$(OBJ) noise.$(OBJ)
+##-- resources putty
+PRESRC = win_res.$(RES)
+##-- resources puttytel
+TRESRC = nosshres.$(RES)
+##-- resources pscp
+SRESRC = scp.$(RES)
+##--
+
+##-- gui-apps
+# putty
+# puttytel
+##-- console-apps
+# pscp
+##--
+
 LIBS1 = advapi32.lib user32.lib gdi32.lib
 LIBS2 = wsock32.lib comctl32.lib comdlg32.lib
-SCPOBJS = scp.obj windlg.obj misc.obj noise.obj 
-SCPOBJS2 = scpssh.obj sshcrc.obj sshdes.obj sshmd5.obj
-SCPOBJS3 = sshrsa.obj sshrand.obj sshsha.obj sshblowf.obj version.obj
 
-all: putty.exe pscp.exe
+all: putty.exe puttytel.exe pscp.exe
 
-putty.exe: $(POBJS1) $(POBJS2) $(OBJS1) $(OBJS2) $(OBJS3) $(RESRC) link.rsp
-	link /debug -out:putty.exe @link.rsp
+putty.exe: $(GOBJS1) $(GOBJS2) $(POBJS) $(MOBJS) $(OBJS1) $(OBJS2) $(PRESRC) putty.rsp
+	link $(LFLAGS) -out:putty.exe @putty.rsp
 
-puttyd.exe: $(POBJS1) $(POBJS2) $(OBJS1) $(OBJS2) $(OBJS3) $(RESRC) link.rsp
-	link /debug -out:puttyd.exe @link.rsp
+puttytel.exe: $(GOBJS1) $(GOBJS2) $(TOBJS) $(MOBJS) $(TRESRC) puttytel.rsp
+	link $(LFLAGS) -out:puttytel.exe @puttytel.rsp
 
-link.rsp: makefile
-	echo /nologo /subsystem:windows > link.rsp
-	echo $(POBJS1) >> link.rsp
-	echo $(POBJS2) >> link.rsp
-	echo $(OBJS1) >> link.rsp
-	echo $(OBJS2) >> link.rsp
-	echo $(OBJS3) >> link.rsp
-	echo $(RESRC) >> link.rsp
-	echo $(LIBS1) >> link.rsp
-	echo $(LIBS2) >> link.rsp
+pscp.exe: $(SOBJS) $(MOBJS) $(OBJS1) $(OBJS2) $(OBJS3) $(SRESRC) pscp.rsp
+	link $(LFLAGS) -out:pscp.exe @pscp.rsp
 
-window.obj: window.c putty.h win_res.h
-windlg.obj: windlg.c putty.h ssh.h win_res.h
-terminal.obj: terminal.c putty.h
-sizetip.obj: sizetip.c putty.h
-telnet.obj: telnet.c putty.h
-raw.obj: raw.c putty.h
-xlat.obj: xlat.c putty.h
-ldisc.obj: ldisc.c putty.h
-misc.obj: misc.c putty.h
-noise.obj: noise.c putty.h ssh.h
-ssh.obj: ssh.c ssh.h putty.h
-sshcrc.obj: sshcrc.c ssh.h
-sshdes.obj: sshdes.c ssh.h
-sshmd5.obj: sshmd5.c ssh.h
-sshrsa.obj: sshrsa.c ssh.h
-sshsha.obj: sshsha.c ssh.h
-sshrand.obj: sshrand.c ssh.h
-sshblowf.obj: sshblowf.c ssh.h
-version.obj: versionpseudotarget
-	@echo (built version.obj)
+putty.rsp: makefile
+	echo /nologo /subsystem:windows > putty.rsp
+	echo $(GOBJS1) >> putty.rsp
+	echo $(GOBJS2) >> putty.rsp
+	echo $(POBJS) >> putty.rsp
+	echo $(MOBJS) >> putty.rsp
+	echo $(OBJS1) >> putty.rsp
+	echo $(OBJS2) >> putty.rsp
+	echo $(PRESRC) >> putty.rsp
+	echo $(LIBS1) >> putty.rsp
+	echo $(LIBS2) >> putty.rsp
+
+puttytel.rsp: makefile
+	echo /nologo /subsystem:windows > puttytel.rsp
+	echo $(GOBJS1) >> puttytel.rsp
+	echo $(GOBJS2) >> puttytel.rsp
+	echo $(TOBJS) >> puttytel.rsp
+	echo $(MOBJS) >> puttytel.rsp
+	echo $(TRESRC) >> puttytel.rsp
+	echo $(LIBS1) >> puttytel.rsp
+	echo $(LIBS2) >> puttytel.rsp
+
+pscp.rsp: makefile
+	echo /nologo /subsystem:console > pscp.rsp
+	echo $(SOBJS) >> pscp.rsp
+	echo $(MOBJS) >> pscp.rsp
+	echo $(OBJS1) >> pscp.rsp
+	echo $(OBJS2) >> pscp.rsp
+	echo $(SRESRC) >> pscp.rsp
+	echo $(LIBS1) >> pscp.rsp
+	echo $(LIBS2) >> pscp.rsp
+
+##-- dependencies
+window.$(OBJ): window.c putty.h win_res.h
+windlg.$(OBJ): windlg.c putty.h ssh.h win_res.h
+terminal.$(OBJ): terminal.c putty.h
+sizetip.$(OBJ): sizetip.c putty.h
+telnet.$(OBJ): telnet.c putty.h
+raw.$(OBJ): raw.c putty.h
+xlat.$(OBJ): xlat.c putty.h
+ldisc.$(OBJ): ldisc.c putty.h
+misc.$(OBJ): misc.c putty.h
+noise.$(OBJ): noise.c putty.h ssh.h
+ssh.$(OBJ): ssh.c ssh.h putty.h
+sshcrc.$(OBJ): sshcrc.c ssh.h
+sshdes.$(OBJ): sshdes.c ssh.h
+sshmd5.$(OBJ): sshmd5.c ssh.h
+sshrsa.$(OBJ): sshrsa.c ssh.h
+sshsha.$(OBJ): sshsha.c ssh.h
+sshrand.$(OBJ): sshrand.c ssh.h
+sshblowf.$(OBJ): sshblowf.c ssh.h
+scp.$(OBJ): scp.c putty.h scp.h
+scpssh.$(OBJ): scpssh.c putty.h ssh.h scp.h
+version.$(OBJ): version.c
+be_all.$(OBJ): be_all.c
+be_nossh.$(OBJ): be_nossh.c
+be_none.$(OBJ): be_none.c
+##--
 
 # Hack to force version.obj to be rebuilt always
+version.obj: versionpseudotarget
+	@echo (built version.obj)
 versionpseudotarget:
 	cl $(FWHACK) $(VER) $(CFLAGS) /c version.c
 
-win_res.res: win_res.rc win_res.h putty.ico
-	rc $(FWHACK) -r -DWIN32 -D_WIN32 -DWINVER=0x0400 win_res.rc
+##-- dependencies
+win_res.$(RES): win_res.rc win_res.h putty.ico
+##--
+win_res.$(RES):
+	rc $(FWHACK) $(RCFL) -r -DWIN32 -D_WIN32 -DWINVER=0x0400 win_res.rc
 
-pscp.exe: $(SCPOBJS) $(SCPOBJS2) $(SCPOBJS3) scp.res scp.rsp
-	link /debug -out:pscp.exe @scp.rsp
+##-- dependencies
+nosshres.$(RES): nosshres.rc win_res.rc win_res.h putty.ico
+##--
+nosshres.$(RES):
+	rc $(FWHACK) $(RCFL) -r -DWIN32 -D_WIN32 -DWINVER=0x0400 nosshres.rc
 
-scp.rsp: makefile
-	echo /nologo /subsystem:console > scp.rsp
-	echo $(SCPOBJS) >> scp.rsp
-	echo $(SCPOBJS2) >> scp.rsp
-	echo $(SCPOBJS3) >> scp.rsp
-	echo scp.res >> scp.rsp
-	echo $(LIBS1) >> scp.rsp
-	echo $(LIBS2) >> scp.rsp
-
-scp.obj: scp.c putty.h scp.h
-scpssh.obj: scpssh.c putty.h ssh.h scp.h
-
-scp.res: scp.rc scp.ico
-	rc -r -DWIN32 -D_WIN32 -DWINVER=0x0400 scp.rc
+##-- dependencies
+scp.$(RES): scp.rc scp.ico
+##--
+scp.$(RES):
+	rc $(FWHACK) $(RCFL) -r -DWIN32 -D_WIN32 -DWINVER=0x0400 scp.rc
 
 clean:
 	del *.obj

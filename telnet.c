@@ -177,10 +177,7 @@ static struct Opt *opts[] = {&o_naws,
                              &o_they_sga,
                              NULL};
 
-#if 0
 static int in_synch;
-#endif
-
 static int sb_opt, sb_len;
 static char *sb_buf = NULL;
 static int sb_size = 0;
@@ -221,6 +218,12 @@ static void c_write(char *buf, int len)
     if (new_head != inbuf_reap) {
       inbuf[inbuf_head] = *buf++;
       inbuf_head = new_head;
+    } else {
+      term_out();
+      if (inbuf_head == inbuf_reap)
+        len++;
+      else
+        break;
     }
   }
 }
@@ -270,6 +273,8 @@ static void activate_option(struct Opt *o)
      */
     deactivate_option(o->option == TELOPT_NEW_ENVIRON ? &o_oenv : &o_nenv);
   }
+  if (o->option == TELOPT_ECHO && cfg.ldisc_term)
+    ldisc = &ldisc_simple;
 }
 
 static void refused_option(struct Opt *o)
@@ -279,6 +284,8 @@ static void refused_option(struct Opt *o)
     send_opt(WILL, TELOPT_OLD_ENVIRON);
     o_oenv.state = REQUESTED;
   }
+  if (o->option == TELOPT_ECHO && cfg.ldisc_term)
+    ldisc = &ldisc_term;
 }
 
 static void proc_rec_opt(int cmd, int option)
@@ -483,10 +490,21 @@ static void do_telnet_read(char *buf, int len)
         telnet_state = SEENIAC;
       else {
         b[0] = c;
-#if 0
-		if (!in_synch)
+        if (!in_synch)
+          c_write(b, 1);
+
+#if 1
+        /* I can't get the F***ing winsock to insert the urgent IAC
+         * into the right position! Even with SO_OOBINLINE it gives
+         * it to recv too soon. And of course the DM byte (that
+         * arrives in the same packet!) appears several K later!!
+         *
+         * Oh well, we do get the DM in the right place so I'll
+         * just stop hiding on the next 0xf2 and hope for the best.
+         */
+        else if (c == DM)
+          in_synch = 0;
 #endif
-        c_write(b, 1);
         if (c == CR)
           telnet_state = SEENCR;
         else
@@ -504,7 +522,10 @@ static void do_telnet_read(char *buf, int len)
         telnet_state = SEENWONT;
       else if (c == SB)
         telnet_state = SEENSB;
-      else {
+      else if (c == DM) {
+        in_synch = 0;
+        telnet_state = TOPLEVEL;
+      } else {
         /* ignore everything else; print it if it's IAC */
         if (c == IAC) {
           b[0] = c;
@@ -619,12 +640,10 @@ static char *telnet_init(HWND hwnd, char *host, int port, char **realhost)
       return "socket(): unknown error";
     }
 
-#if 0
-    {
-	BOOL b = TRUE;
-	setsockopt (s, SOL_SOCKET, SO_OOBINLINE, (void *)&b, sizeof(b));
-    }
-#endif
+  {
+    BOOL b = TRUE;
+    setsockopt(s, SOL_SOCKET, SO_OOBINLINE, (void *)&b, sizeof(b));
+  }
 
   /*
    * Bind to local address.
@@ -672,7 +691,13 @@ static char *telnet_init(HWND hwnd, char *host, int port, char **realhost)
   /*
    * Initialise option states.
    */
-  {
+  if (cfg.ldisc_term) {
+    struct Opt **o;
+
+    for (o = opts; *o; o++)
+      if ((*o)->state == REQUESTED)
+        (*o)->state = INACTIVE;
+  } else {
     struct Opt **o;
 
     for (o = opts; *o; o++)
@@ -680,13 +705,10 @@ static char *telnet_init(HWND hwnd, char *host, int port, char **realhost)
         send_opt((*o)->send, (*o)->option);
   }
 
-#if 0
-    /*
-     * Set up SYNCH state.
-     */
-    in_synch = FALSE;
-#endif
-
+  /*
+   * Set up SYNCH state.
+   */
+  in_synch = FALSE;
   return NULL;
 }
 
@@ -714,40 +736,27 @@ static int telnet_msg(WPARAM wParam, LPARAM lParam)
 
   switch (WSAGETSELECTEVENT(lParam)) {
   case FD_READ:
-  case FD_CLOSE:
-    ret = recv(s, buf, sizeof(buf), 0);
-    if (ret < 0 && WSAGetLastError() == WSAEWOULDBLOCK)
-      return 1;
-    if (ret < 0) /* any _other_ error */
-      return -10000 - WSAGetLastError();
-    if (ret == 0) {
-      s = INVALID_SOCKET;
-      return 0;
-    }
-#if 0
-	if (in_synch) {
-	    BOOL i;
-	    if (ioctlsocket (s, SIOCATMARK, &i) < 0) {
-		return -20000-WSAGetLastError();
-	    }
-	    if (i)
-		in_synch = FALSE;
-	}
-#endif
-    do_telnet_read(buf, ret);
-    return 1;
-  case FD_OOB:
+  case FD_CLOSE: {
+    int clear_of_oob = 1;
+    if (ioctlsocket(s, SIOCATMARK, &clear_of_oob) < 0)
+      return -20000 - WSAGetLastError();
+
+    in_synch = !clear_of_oob;
+
     do {
       ret = recv(s, buf, sizeof(buf), 0);
-    } while (ret > 0);
-    telnet_state = TOPLEVEL;
-    do {
-      ret = recv(s, buf, 1, MSG_OOB);
-      if (ret > 0)
-        do_telnet_read(buf, ret);
-    } while (ret > 0);
-    if (ret < 0 && WSAGetLastError() != WSAEWOULDBLOCK)
-      return -30000 - WSAGetLastError();
+      if (ret < 0 && WSAGetLastError() == WSAEWOULDBLOCK)
+        return 1;
+      if (ret < 0) /* any _other_ error */
+        return -10000 - WSAGetLastError();
+      if (ret == 0) {
+        s = INVALID_SOCKET;
+        return 0;
+      }
+
+      do_telnet_read(buf, ret);
+    } while (in_synch);
+  }
     return 1;
   case FD_WRITE:
     if (outbuf_head != outbuf_reap)
@@ -765,6 +774,7 @@ static void telnet_send(char *buf, int len)
   char *p;
   static unsigned char iac[2] = {IAC, IAC};
   static unsigned char cr[2] = {CR, NUL};
+  static unsigned char nl[2] = {CR, LF};
 
   if (s == INVALID_SOCKET)
     return;
@@ -778,7 +788,7 @@ static void telnet_send(char *buf, int len)
     s_write(q, p - q);
 
     while (p < buf + len && !iswritable((unsigned char)*p)) {
-      s_write((unsigned char)*p == IAC ? iac : cr, 2);
+      s_write((unsigned char)*p == IAC ? iac : nl, 2);
       p++;
     }
   }
@@ -873,8 +883,20 @@ static void telnet_special(Telnet_Special code)
     break;
   case TS_SYNCH:
     outbuf_head = outbuf_reap = 0;
-    b[0] = DM;
-    send(s, b, 1, MSG_OOB);
+    b[1] = DM;
+    send(s, b, 2, MSG_OOB);
+    break;
+  case TS_RECHO:
+    if (o_echo.state == INACTIVE || o_echo.state == REALLY_INACTIVE) {
+      o_echo.state = REQUESTED;
+      send_opt(o_echo.send, o_echo.option);
+    }
+    break;
+  case TS_LECHO:
+    if (o_echo.state == ACTIVE) {
+      o_echo.state = REQUESTED;
+      send_opt(o_echo.nsend, o_echo.option);
+    }
     break;
   }
 }

@@ -146,7 +146,7 @@ static void bigmod(unsigned short *a, unsigned short *m, int len)
       q--;
       t -= m1;
       r = (r + m0) & 0xffff; /* overflow? */
-      if (r >= m0 && t > ((unsigned long)r << 16) + a[i + 1])
+      if (r >= (unsigned long)m0 && t > ((unsigned long)r << 16) + a[i + 1])
         q--;
     }
 
@@ -305,12 +305,12 @@ int makekey(unsigned char *data, struct RSAKey *result, unsigned char **keystr)
 
     for (i = 1; i <= w; i++)
       bn[j][i] = 0;
-    for (i = 0; i < b; i++) {
+    for (i = b; i--;) {
       unsigned char byte = *p++;
-      if ((b - i) & 1)
-        bn[j][w - i / 2] |= byte;
+      if (i & 1)
+        bn[j][1 + i / 2] |= byte << 8;
       else
-        bn[j][w - i / 2] |= byte << 8;
+        bn[j][1 + i / 2] |= byte;
     }
 
     debug(bn[j]);
@@ -349,12 +349,12 @@ void rsaencrypt(unsigned char *data, int length, struct RSAKey *key)
   p = data;
   for (i = 1; i <= w; i++)
     b1[i] = 0;
-  for (i = 0; i < key->bytes; i++) {
+  for (i = key->bytes; i--;) {
     unsigned char byte = *p++;
-    if ((key->bytes - i) & 1)
-      b1[w - i / 2] |= byte;
+    if (i & 1)
+      b1[1 + i / 2] |= byte << 8;
     else
-      b1[w - i / 2] |= byte << 8;
+      b1[1 + i / 2] |= byte;
   }
 
   debug(b1);
@@ -364,12 +364,12 @@ void rsaencrypt(unsigned char *data, int length, struct RSAKey *key)
   debug(b2);
 
   p = data;
-  for (i = 0; i < key->bytes; i++) {
+  for (i = key->bytes; i--;) {
     unsigned char b;
     if (i & 1)
-      b = b2[w - i / 2] & 0xFF;
+      b = b2[1 + i / 2] >> 8;
     else
-      b = b2[w - i / 2] >> 8;
+      b = b2[1 + i / 2] & 0xFF;
     *p++ = b;
   }
 

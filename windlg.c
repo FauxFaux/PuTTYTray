@@ -123,11 +123,13 @@ static void save_settings(char *section, int do_host)
   if (do_host) {
     wpps(sesskey, "HostName", cfg.host);
     wppi(sesskey, "PortNumber", cfg.port);
-    wpps(sesskey,
-         "Protocol",
-         cfg.protocol == PROT_SSH
-             ? "ssh"
-             : cfg.protocol == PROT_TELNET ? "telnet" : "raw");
+    p = "raw";
+    for (i = 0; backends[i].name != NULL; i++)
+      if (backends[i].protocol == cfg.protocol) {
+        p = backends[i].name;
+        break;
+      }
+    wpps(sesskey, "Protocol", p);
   }
   wppi(sesskey, "CloseOnExit", !!cfg.close_on_exit);
   wppi(sesskey, "WarnOnClose", !!cfg.warn_on_close);
@@ -170,6 +172,7 @@ static void save_settings(char *section, int do_host)
   wppi(sesskey, "AltF4", cfg.alt_f4);
   wppi(sesskey, "AltSpace", cfg.alt_space);
   wppi(sesskey, "LdiscTerm", cfg.ldisc_term);
+  wppi(sesskey, "BlinkCur", cfg.blink_cur);
   wppi(sesskey, "ScrollbackLines", cfg.savelines);
   wppi(sesskey, "DECOriginMode", cfg.dec_om);
   wppi(sesskey, "AutoWrapMode", cfg.wrap_mode);
@@ -251,15 +254,14 @@ static void load_settings(char *section, int do_host)
 
   gpps(sesskey, "HostName", "", cfg.host, sizeof(cfg.host));
   gppi(sesskey, "PortNumber", default_port, &cfg.port);
+
   gpps(sesskey, "Protocol", "default", prot, 10);
-  if (!strcmp(prot, "ssh"))
-    cfg.protocol = PROT_SSH;
-  else if (!strcmp(prot, "telnet"))
-    cfg.protocol = PROT_TELNET;
-  else if (!strcmp(prot, "raw"))
-    cfg.protocol = PROT_RAW;
-  else
-    cfg.protocol = default_protocol;
+  cfg.protocol = default_protocol;
+  for (i = 0; backends[i].name != NULL; i++)
+    if (!strcmp(prot, backends[i].name)) {
+      cfg.protocol = backends[i].protocol;
+      break;
+    }
 
   gppi(sesskey, "CloseOnExit", 1, &cfg.close_on_exit);
   gppi(sesskey, "WarnOnClose", 1, &cfg.warn_on_close);
@@ -281,7 +283,7 @@ static void load_settings(char *section, int do_host)
           c = '\t';
         if (c == '\\')
           c = *p++;
-        *p++ = c;
+        *q++ = c;
       }
       if (*p == ',')
         p++;
@@ -312,6 +314,7 @@ static void load_settings(char *section, int do_host)
   gppi(sesskey, "AltF4", 1, &cfg.alt_f4);
   gppi(sesskey, "AltSpace", 0, &cfg.alt_space);
   gppi(sesskey, "LdiscTerm", 0, &cfg.ldisc_term);
+  gppi(sesskey, "BlinkCur", 0, &cfg.blink_cur);
   gppi(sesskey, "ScrollbackLines", 200, &cfg.savelines);
   gppi(sesskey, "DECOriginMode", 0, &cfg.dec_om);
   gppi(sesskey, "AutoWrapMode", 1, &cfg.wrap_mode);
@@ -323,7 +326,7 @@ static void load_settings(char *section, int do_host)
   gppi(sesskey, "FontIsBold", 0, &cfg.fontisbold);
   gppi(sesskey, "FontCharSet", ANSI_CHARSET, &cfg.fontcharset);
   gppi(sesskey, "FontHeight", 10, &cfg.fontheight);
-  gppi(sesskey, "FontVTMode", VT_POORMAN, &cfg.vtmode);
+  gppi(sesskey, "FontVTMode", VT_OEMANSI, (int *)&cfg.vtmode);
   gppi(sesskey, "TryPalette", 0, &cfg.try_palette);
   gppi(sesskey, "BoldAsColour", 1, &cfg.bold_colour);
   for (i = 0; i < 22; i++) {
@@ -334,13 +337,14 @@ static void load_settings(char *section, int do_host)
         "85,85,255",   "187,0,187",   "255,85,255", "0,187,187",  "85,255,255",
         "187,187,187", "255,255,255"};
     char buf[20], buf2[30];
+    int c0, c1, c2;
     sprintf(buf, "Colour%d", i);
     gpps(sesskey, buf, defaults[i], buf2, sizeof(buf2));
-    sscanf(buf2,
-           "%d,%d,%d",
-           &cfg.colours[i][0],
-           &cfg.colours[i][1],
-           &cfg.colours[i][2]);
+    if (sscanf(buf2, "%d,%d,%d", &c0, &c1, &c2) == 3) {
+      cfg.colours[i][0] = c0;
+      cfg.colours[i][1] = c1;
+      cfg.colours[i][2] = c2;
+    }
   }
   gppi(sesskey, "MouseIsXterm", 0, &cfg.mouse_is_xterm);
   for (i = 0; i < 256; i += 32) {
@@ -672,6 +676,7 @@ static int CALLBACK KeyboardProc(HWND hwnd,
     CheckDlgButton(hwnd, IDC1_ALTF4, cfg.alt_f4);
     CheckDlgButton(hwnd, IDC1_ALTSPACE, cfg.alt_space);
     CheckDlgButton(hwnd, IDC1_LDISCTERM, cfg.ldisc_term);
+    CheckDlgButton(hwnd, IDC1_BLINKCUR, cfg.blink_cur);
     break;
   case WM_COMMAND:
     if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
@@ -712,6 +717,10 @@ static int CALLBACK KeyboardProc(HWND hwnd,
       case IDC1_LDISCTERM:
         if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
           cfg.ldisc_term = IsDlgButtonChecked(hwnd, IDC1_LDISCTERM);
+        break;
+      case IDC1_BLINKCUR:
+        if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
+          cfg.blink_cur = IsDlgButtonChecked(hwnd, IDC1_BLINKCUR);
         break;
       }
   }
@@ -1156,7 +1165,7 @@ static int CALLBACK ColourProc(HWND hwnd,
           i = (i < 3 ? i * 2 : i == 3 ? 5 : i * 2 - 2);
         cc.lStructSize = sizeof(cc);
         cc.hwndOwner = hwnd;
-        cc.hInstance = hinst;
+        cc.hInstance = (HWND)hinst;
         cc.lpCustColors = custom;
         cc.rgbResult =
             RGB(cfg.colours[i][0], cfg.colours[i][1], cfg.colours[i][2]);
@@ -1482,20 +1491,13 @@ void showabout(HWND hwnd)
   }
 }
 
-void verify_ssh_host_key(char *host, struct RSAKey *key)
+void verify_ssh_host_key(char *host, char *keystr)
 {
-  char *keystr, *otherstr, *mungedhost;
+  char *otherstr, *mungedhost;
   int len;
   HKEY rkey;
 
-  /*
-   * Format the key into a string.
-   */
-  len = rsastr_len(key);
-  keystr = malloc(len);
-  if (!keystr)
-    fatalbox("Out of memory");
-  rsastr_fmt(keystr, key);
+  len = 1 + strlen(keystr);
 
   /*
    * Now read a saved key in from the registry and see what it

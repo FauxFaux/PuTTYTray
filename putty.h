@@ -28,6 +28,7 @@ GLOBAL HINSTANCE putty_inst;
 #define ATTR_BOLD 0x00000100UL
 #define ATTR_UNDER 0x00000200UL
 #define ATTR_REVERSE 0x00000400UL
+#define ATTR_BLINK 0x00000800UL
 #define ATTR_FGMASK 0x0000F000UL
 #define ATTR_BGMASK 0x000F0000UL
 #define ATTR_FGSHIFT 12
@@ -65,7 +66,30 @@ GLOBAL int has_focus;
 
 GLOBAL int app_cursor_keys, app_keypad_keys;
 
-#define WM_NETEVENT (WM_USER + 1)
+GLOBAL int seen_key_event;
+GLOBAL int seen_disp_event;
+
+GLOBAL int session_closed;
+
+typedef enum
+{
+  US_NONE = 0,
+  US_KEY = 1,
+  US_DISP = 2,
+  US_BOTH = 3
+} Unscroll_Trigger;
+
+GLOBAL Unscroll_Trigger unscroll_event;
+
+GLOBAL char *logfile;
+
+/*
+ * I've just looked in the windows standard headr files for WM_USER, there
+ * are hundreds of flags defined using the form WM_USER+123 so I've
+ * renumbered this NETEVENT value and the two in window.c
+ */
+#define WM_XUSER (WM_USER + 0x2000)
+#define WM_NETEVENT (WM_XUSER + 5)
 
 typedef enum
 {
@@ -81,7 +105,9 @@ typedef enum
   TS_IP,
   TS_SUSP,
   TS_EOR,
-  TS_EOF
+  TS_EOF,
+  TS_LECHO,
+  TS_RECHO
 } Telnet_Special;
 
 typedef enum
@@ -119,6 +145,12 @@ typedef struct {
 } Backend;
 
 GLOBAL Backend *back;
+
+extern struct backend_list {
+  int protocol;
+  char *name;
+  Backend *backend;
+} backends[];
 
 typedef struct {
   void (*send)(char *buf, int len);
@@ -163,6 +195,7 @@ typedef struct {
   int alt_f4;    /* is it special? */
   int alt_space; /* is it special? */
   int ldisc_term;
+  int blink_cur;
   /* Terminal options */
   int savelines;
   int dec_om;
@@ -208,7 +241,7 @@ struct RSAKey; /* be a little careful of scope */
 /*
  * Exports from window.c.
  */
-void request_resize(int, int);
+void request_resize(int, int, int);
 void do_text(Context, int, int, char *, int, unsigned long);
 void set_title(char *);
 void set_icon(char *);
@@ -241,7 +274,7 @@ void do_defaults(char *);
 void logevent(char *);
 void showeventlog(HWND);
 void showabout(HWND);
-void verify_ssh_host_key(char *host, struct RSAKey *key);
+void verify_ssh_host_key(char *host, char *keystr);
 void get_sesslist(int allocate);
 
 GLOBAL int nsessions;
@@ -262,6 +295,7 @@ void term_mouse(Mouse_Button, Mouse_Action, int, int);
 void term_deselect(void);
 void term_update(void);
 void term_invalidate(void);
+void term_blink(int set_cursor);
 
 /*
  * Exports from raw.c.
@@ -333,6 +367,14 @@ void EnableSizeTip(int bEnable);
 unsigned char xlat_kbd2tty(unsigned char c);
 unsigned char xlat_tty2scr(unsigned char c);
 unsigned char xlat_latkbd2win(unsigned char c);
+
+/*
+ * Exports from mscrypto.c
+ */
+#ifdef MSCRYPTOAPI
+int crypto_startup();
+void crypto_wrapup();
+#endif
 
 /*
  * A debug system.

@@ -126,6 +126,12 @@ static void c_write(char *buf, int len)
     if (new_head != inbuf_reap) {
       inbuf[inbuf_head] = *buf++;
       inbuf_head = new_head;
+    } else {
+      term_out();
+      if (inbuf_head == inbuf_reap)
+        len++;
+      else
+        break;
     }
   }
 }
@@ -150,6 +156,7 @@ static void ssh_gotdata(unsigned char *data, int datalen)
   static long len, biglen, to_read;
   static unsigned char *p;
   static int i, pad;
+  static unsigned long realcrc, gotcrc;
 
   crBegin;
   while (1) {
@@ -175,8 +182,15 @@ static void ssh_gotdata(unsigned char *data, int datalen)
     pktin.length = len;
     if (pktin.maxlen < biglen) {
       pktin.maxlen = biglen;
+#ifdef MSCRYPTOAPI
+      /* Allocate enough buffer space for extra block
+       * for MS CryptEncrypt() */
+      pktin.data = (pktin.data == NULL ? malloc(biglen + 8)
+                                       : realloc(pktin.data, biglen + 8));
+#else
       pktin.data =
           (pktin.data == NULL ? malloc(biglen) : realloc(pktin.data, biglen));
+#endif
       if (!pktin.data)
         fatalbox("Out of memory");
     }
@@ -202,6 +216,15 @@ static void ssh_gotdata(unsigned char *data, int datalen)
     pktin.type = pktin.data[pad];
     pktin.body = pktin.data + pad + 1;
 
+    realcrc = crc32(pktin.data, biglen - 4);
+    gotcrc = (pktin.data[biglen - 4] << 24);
+    gotcrc |= (pktin.data[biglen - 3] << 16);
+    gotcrc |= (pktin.data[biglen - 2] << 8);
+    gotcrc |= (pktin.data[biglen - 1] << 0);
+    if (gotcrc != realcrc) {
+      fatalbox("Incorrect CRC received on packet");
+    }
+
     if (pktin.type == SSH_MSG_DEBUG) {
       /* FIXME: log it */
     } else if (pktin.type == SSH_MSG_IGNORE) {
@@ -223,8 +246,15 @@ static void s_wrpkt_start(int type, int len)
   pktout.length = len - 5;
   if (pktout.maxlen < biglen) {
     pktout.maxlen = biglen;
+#ifdef MSCRYPTOAPI
+    /* Allocate enough buffer space for extra block
+     * for MS CryptEncrypt() */
+    pktout.data = (pktout.data == NULL ? malloc(biglen + 8)
+                                       : realloc(pktout.data, biglen + 8));
+#else
     pktout.data = (pktout.data == NULL ? malloc(biglen + 4)
                                        : realloc(pktout.data, biglen + 4));
+#endif
     if (!pktout.data)
       fatalbox("Out of memory");
   }
@@ -423,7 +453,21 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
   if (!rsabuf)
     fatalbox("Out of memory");
 
-  verify_ssh_host_key(savedhost, &hostkey);
+  /*
+   * Verify the host key.
+   */
+  {
+    /*
+     * First format the key into a string.
+     */
+    int len = rsastr_len(&hostkey);
+    char *keystr = malloc(len);
+    if (!keystr)
+      fatalbox("Out of memory");
+    rsastr_fmt(keystr, &hostkey);
+    verify_ssh_host_key(savedhost, keystr);
+    free(keystr);
+  }
 
   for (i = 0; i < 32; i++) {
     rsabuf[i] = session_key[i];
@@ -526,7 +570,8 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
             exit(0);
             break;
           default:
-            if (c >= ' ' && c <= '~' && pos < 40) {
+            if (((c >= ' ' && c <= '~') || ((unsigned char)c >= 160)) &&
+                pos < 40) {
               username[pos++] = c;
               c_write(&c, 1);
             }
@@ -618,7 +663,7 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
           exit(0);
           break;
         default:
-          if (c >= ' ' && c <= '~' && pos < 40)
+          if (((c >= ' ' && c <= '~') || ((unsigned char)c >= 160)) && pos < 40)
             password[pos++] = c;
           break;
         }
@@ -691,7 +736,11 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
         long len = 0;
         for (i = 0; i < 4; i++)
           len = (len << 8) + pktin.body[i];
-        c_write(pktin.body + 4, len);
+        if (len + 4 != pktin.length) {
+          logevent("Received data packet with bogus string length"
+                   ", ignoring");
+        } else
+          c_write(pktin.body + 4, len);
       } else if (pktin.type == SSH_MSG_DISCONNECT) {
         ssh_state = SSH_STATE_CLOSED;
         logevent("Received disconnect request");
@@ -737,6 +786,11 @@ static char *ssh_init(HWND hwnd, char *host, int port, char **realhost)
 #ifdef FWHACK
   char *FWhost;
   int FWport;
+#endif
+
+#ifdef MSCRYPTOAPI
+  if (crypto_startup() == 0)
+    return "Microsoft high encryption pack not installed!";
 #endif
 
   savedhost = malloc(1 + strlen(host));
