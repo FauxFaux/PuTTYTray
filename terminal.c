@@ -1015,12 +1015,14 @@ void term_out(void)
         }
         break;
       case 'r': /* set scroll margins */
-        if (esc_nargs <= 2) {
+        if (!esc_query && esc_nargs <= 2) {
           int top, bot;
           top = def(esc_args[0], 1) - 1;
           if (top < 0)
             top = 0;
-          bot = (esc_nargs == 1 ? rows : def(esc_args[1], rows)) - 1;
+          bot = (esc_nargs <= 1 || esc_args[1] == 0 ? rows
+                                                    : def(esc_args[1], rows)) -
+                1;
           if (bot >= rows)
             bot = rows - 1;
           if (top <= bot) {

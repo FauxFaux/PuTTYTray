@@ -130,6 +130,11 @@ typedef struct {
   int close_on_exit;
   /* SSH options */
   int nopty;
+  enum
+  {
+    CIPHER_3DES,
+    CIPHER_BLOWFISH
+  } cipher;
   /* Telnet options */
   char termtype[32];
   char termspeed[32];
@@ -258,6 +263,11 @@ void mlog(char *, int);
 void *safemalloc(size_t);
 void *saferealloc(void *, size_t);
 void safefree(void *);
+
+/*
+ * Exports from version.c.
+ */
+extern char ver[];
 
 /*
  * A debug system.

@@ -5,8 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "putty.h"
 #include "ssh.h"
+#include "putty.h"
 #include "win_res.h"
 
 #define NPANELS 7
@@ -101,16 +101,12 @@ static void gppi(HKEY key, LPCTSTR name, int def, int *i)
     *i = val;
 }
 
-typedef struct {
-  void *posn;
-  void *temp;
-  char dataspace[2048];
-} DTemplate;
-
 static HINSTANCE hinst;
 
 static char **sessions;
 static int nsessions;
+
+static int readytogo;
 
 static void save_settings(char *section, int do_host)
 {
@@ -123,7 +119,6 @@ static void save_settings(char *section, int do_host)
 
   if (RegCreateKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS ||
       RegCreateKey(subkey1, p, &sesskey) != ERROR_SUCCESS) {
-    free(p);
     sesskey = NULL;
   }
 
@@ -160,6 +155,7 @@ static void save_settings(char *section, int do_host)
   }
   wpps(sesskey, "UserName", cfg.username);
   wppi(sesskey, "NoPTY", cfg.nopty);
+  wpps(sesskey, "Cipher", cfg.cipher == CIPHER_BLOWFISH ? "blowfish" : "3des");
   wppi(sesskey, "RFCEnviron", cfg.rfc_environ);
   wppi(sesskey, "BackspaceIsDelete", cfg.bksp_is_delete);
   wppi(sesskey, "RXVTHomeEnd", cfg.rxvt_homeend);
@@ -229,10 +225,13 @@ static void load_settings(char *section, int do_host)
   p = malloc(3 * strlen(section) + 1);
   mungestr(section, p);
 
-  if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS ||
-      RegOpenKey(subkey1, p, &sesskey) != ERROR_SUCCESS) {
-    free(p);
+  if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS) {
     sesskey = NULL;
+  } else {
+    if (RegOpenKey(subkey1, p, &sesskey) != ERROR_SUCCESS) {
+      sesskey = NULL;
+    }
+    RegCloseKey(subkey1);
   }
 
   free(p);
@@ -280,6 +279,14 @@ static void load_settings(char *section, int do_host)
   }
   gpps(sesskey, "UserName", "", cfg.username, sizeof(cfg.username));
   gppi(sesskey, "NoPTY", 0, &cfg.nopty);
+  {
+    char cipher[10];
+    gpps(sesskey, "Cipher", "3des", cipher, 10);
+    if (!strcmp(cipher, "blowfish"))
+      cfg.cipher = CIPHER_BLOWFISH;
+    else
+      cfg.cipher = CIPHER_3DES;
+  }
   gppi(sesskey, "RFCEnviron", 0, &cfg.rfc_environ);
   gppi(sesskey, "BackspaceIsDelete", 1, &cfg.bksp_is_delete);
   gppi(sesskey, "RXVTHomeEnd", 0, &cfg.rxvt_homeend);
@@ -379,10 +386,35 @@ static int CALLBACK LogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
   return 0;
 }
 
+static int CALLBACK LicenceProc(HWND hwnd,
+                                UINT msg,
+                                WPARAM wParam,
+                                LPARAM lParam)
+{
+  switch (msg) {
+  case WM_INITDIALOG:
+    return 1;
+  case WM_COMMAND:
+    switch (LOWORD(wParam)) {
+    case IDOK:
+      abtbox = NULL;
+      DestroyWindow(hwnd);
+      return 0;
+    }
+    return 0;
+  case WM_CLOSE:
+    abtbox = NULL;
+    DestroyWindow(hwnd);
+    return 0;
+  }
+  return 0;
+}
+
 static int CALLBACK AboutProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
   switch (msg) {
   case WM_INITDIALOG:
+    SetDlgItemText(hwnd, IDA_VERSION, ver);
     return 1;
     /*      case WM_CTLCOLORDLG: */
     /*	return (int) GetStockObject (LTGRAY_BRUSH); */
@@ -397,7 +429,7 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       return 0;
     case IDA_LICENCE:
       EnableWindow(hwnd, 0);
-      DialogBox(hinst, MAKEINTRESOURCE(IDD_LICENCEBOX), NULL, AboutProc);
+      DialogBox(hinst, MAKEINTRESOURCE(IDD_LICENCEBOX), NULL, LicenceProc);
       EnableWindow(hwnd, 1);
       return 0;
     }
@@ -448,6 +480,15 @@ static int CALLBACK ConnectionProc(HWND hwnd,
                      IDC0_PROTSSH,
                      cfg.protocol == PROT_SSH ? IDC0_PROTSSH : IDC0_PROTTELNET);
     CheckDlgButton(hwnd, IDC0_CLOSEEXIT, cfg.close_on_exit);
+    break;
+  case WM_LBUTTONUP:
+    /*
+     * Button release should trigger WM_OK if there was a
+     * previous double click on the session list.
+     */
+    ReleaseCapture();
+    if (readytogo)
+      SendMessage(GetParent(hwnd), WM_COMMAND, IDOK, 0);
     break;
   case WM_COMMAND:
     switch (LOWORD(wParam)) {
@@ -535,8 +576,10 @@ static int CALLBACK ConnectionProc(HWND hwnd,
          * Unless it's Default Settings or some other
          * host-less set of saved settings.
          */
-        if (*cfg.host)
-          SendMessage(GetParent(hwnd), WM_COMMAND, IDOK, 0);
+        if (*cfg.host) {
+          readytogo = TRUE;
+          SetCapture(hwnd);
+        }
       }
       break;
     case IDC0_SESSDEL:
@@ -862,6 +905,11 @@ static int CALLBACK SshProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     SetDlgItemText(hwnd, IDC3_TTEDIT, cfg.termtype);
     SetDlgItemText(hwnd, IDC3_LOGEDIT, cfg.username);
     CheckDlgButton(hwnd, IDC3_NOPTY, cfg.nopty);
+    CheckRadioButton(hwnd,
+                     IDC3_CIPHER3DES,
+                     IDC3_CIPHERBLOWF,
+                     cfg.cipher == CIPHER_BLOWFISH ? IDC3_CIPHERBLOWF
+                                                   : IDC3_CIPHER3DES);
     break;
   case WM_COMMAND:
     switch (LOWORD(wParam)) {
@@ -878,6 +926,15 @@ static int CALLBACK SshProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case IDC3_NOPTY:
       if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED)
         cfg.nopty = IsDlgButtonChecked(hwnd, IDC3_NOPTY);
+      break;
+    case IDC3_CIPHER3DES:
+    case IDC3_CIPHERBLOWF:
+      if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED) {
+        if (IsDlgButtonChecked(hwnd, IDC3_CIPHER3DES))
+          cfg.cipher = CIPHER_3DES;
+        else if (IsDlgButtonChecked(hwnd, IDC3_CIPHERBLOWF))
+          cfg.cipher = CIPHER_BLOWFISH;
+      }
       break;
     }
     break;
@@ -1049,7 +1106,6 @@ static int CALLBACK ColourProc(HWND hwnd,
   return GeneralPanelProc(hwnd, msg, wParam, lParam);
 }
 
-static DTemplate negot, main, reconf, panels[NPANELS];
 static DLGPROC panelproc[NPANELS] = {ConnectionProc,
                                      KeyboardProc,
                                      TerminalProc,
