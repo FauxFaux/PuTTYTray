@@ -171,6 +171,9 @@ static int compose_state = 0;
 
 static UINT wm_mousewheel = WM_MOUSEWHEEL;
 
+static int iic = 0;
+static unsigned char iic_buf[2];
+
 /* Dummy routine, only required in plink. */
 void ldisc_update(void *frontend, int echo, int edit)
 {
@@ -2504,14 +2507,27 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	set_input_locale((HKL)lParam);
 	sys_cursor_update();
 	break;
-      case WM_IME_NOTIFY:
-	if(wParam == IMN_SETOPENSTATUS) {
+      case WM_IME_STARTCOMPOSITION:
+        {
 	    HIMC hImc = ImmGetContext(hwnd);
-	    ImmSetCompositionFont(hImc, &lfont);
+	    COMPOSITIONFORM cf;
+	    RECT rectWorkArea;
+	    SystemParametersInfo(SPI_GETWORKAREA,
+				   0,
+				   (void*)&rectWorkArea,
+				   0);
+
+	    cf.dwStyle = CFS_POINT;
+	    cf.ptCurrentPos.x = 0; // drive out of screen
+	    cf.ptCurrentPos.y = rectWorkArea.bottom+50;
+	    ImmSetCompositionWindow(hImc, &cf);
 	    ImmReleaseContext(hwnd, hImc);
 	    return 0;
 	}
 	break;
+      case WM_IME_ENDCOMPOSITION:
+        iic = 0;
+        break;
       case WM_IME_COMPOSITION:
 	{
 	    HIMC hIMC;
@@ -2519,10 +2535,25 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    char *buff;
 
 	    if(osVersion.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS || 
-	        osVersion.dwPlatformId == VER_PLATFORM_WIN32s) break; /* no Unicode */
+	        osVersion.dwPlatformId == VER_PLATFORM_WIN32s) {
+	        break; /* no Unicode */
+	    }
 
-	    if ((lParam & GCS_RESULTSTR) == 0) /* Composition unfinished. */
+	    if ((lParam & GCS_RESULTSTR) == 0) {/* Composition unfinished. */
+		RECT invrect;
+		
+		iic_buf[0] = wParam >> 8;
+		iic_buf[1] = wParam;
+		iic = 2;
+		invrect.left = caret_x;
+		invrect.top  = caret_y;
+		invrect.right = caret_x + 8;  /* this really works (do_paints paints by character. ;) */
+		invrect.bottom = caret_y + 8;
+		InvalidateRect(hwnd, &invrect, TRUE);
 		break; /* fall back to DefWindowProc */
+	    }
+
+	    iic = 0;
 
 	    hIMC = ImmGetContext(hwnd);
 	    n = ImmGetCompositionStringW(hIMC, GCS_RESULTSTR, NULL, 0);
@@ -2673,8 +2704,10 @@ void sys_cursor(void *frontend, int x, int y)
 
 static void sys_cursor_update(void)
 {
+#if 0
     COMPOSITIONFORM cf;
     HIMC hIMC;
+#endif
 
     if (!term->has_focus) return;
 
@@ -2689,6 +2722,7 @@ static void sys_cursor_update(void)
     if(osVersion.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS &&
 	    osVersion.dwMinorVersion == 0) return; /* 95 */
 
+#if 0
     /* we should have the IMM functions */
     hIMC = ImmGetContext(hwnd);
     cf.dwStyle = CFS_POINT;
@@ -2697,6 +2731,7 @@ static void sys_cursor_update(void)
     ImmSetCompositionWindow(hIMC, &cf);
 
     ImmReleaseContext(hwnd, hIMC);
+#endif
 }
 
 /*
@@ -2863,7 +2898,7 @@ void do_text(Context ctx, int x, int y, char *text, int len,
 	for(nlen = mptr = 0; mptr<len; mptr++) {
 	    uni_buf[nlen] = 0xFFFD;
 	    if (IsDBCSLeadByteEx(ucsdata.font_codepage, (BYTE) text[mptr])) {
-		IpDx[nlen] += char_width;
+		if (font_dualwidth) IpDx[nlen] += char_width;
 	        MultiByteToWideChar(ucsdata.font_codepage, MB_USEGLYPHCHARS,
 				   text+mptr, 2, uni_buf+nlen, 1);
 		mptr++;
@@ -2962,7 +2997,17 @@ void do_cursor(Context ctx, int x, int y, char *text, int len,
 
     if ((attr & TATTR_ACTCURS) && (ctype == 0 || term->big_cursor)) {
 	if (((attr & CSET_MASK) | (unsigned char) *text) != UCSWIDE) {
+	    int xx, yy;
 	    do_text(ctx, x, y, text, len, attr, lattr);
+	    fnt_width = char_width = font_width * (1 + (lattr != LATTR_NORM));
+	    if (attr & ATTR_WIDE) char_width *= 2;
+	    xx = x * fnt_width;
+	    yy = y * font_height;
+	    xx += offset_width;
+	    yy += offset_height;
+	    if (iic) {
+		ExtTextOut(hdc, xx, yy, ETO_CLIPPED | ETO_OPAQUE, 0, iic_buf, 2, 0);
+	    }
 	    return;
 	}
 	ctype = 2;
@@ -3023,6 +3068,9 @@ void do_cursor(Context ctx, int x, int y, char *text, int len,
 		starty += dy;
 	    }
 	}
+    }
+    if (iic) {
+	ExtTextOut(hdc, x, y, ETO_CLIPPED | ETO_OPAQUE, 0, iic_buf, 2, 0);
     }
 }
 
@@ -3795,6 +3843,9 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 	}
 
 	r = ToAsciiEx(wParam, scan, keystate, keys, 0, kbd_layout);
+        /* Workaround for Hangul Windows 98 */
+        if (r == 0 && keys[0] == '\0')
+            r = ToAscii(wParam, scan, keystate, keys, 0);
 #ifdef SHOW_TOASCII_RESULT
 	if (r == 1 && !key_down) {
 	    if (alt_sum) {

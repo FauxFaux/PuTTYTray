@@ -590,7 +590,7 @@ void load_open_settings(void *sesskey, int do_host, Config *cfg)
      * The empty default for LineCodePage will be converted later
      * into a plausible default for the locale.
      */
-    gpps(sesskey, "LineCodePage", "", cfg->line_codepage,
+    gpps(sesskey, "LineCodePage", "CP949", cfg->line_codepage,
 	 sizeof(cfg->line_codepage));
     gpps(sesskey, "Printer", "", cfg->printer, sizeof(cfg->printer));
     gppi (sesskey, "CapsLockCyr", 0, &cfg->xlat_capslockcyr);

@@ -12,6 +12,8 @@
  * the xterm one has the four scanlines that have no unicode 2.0
  * equivalents mapped to their unicode 3.0 locations.
  */
+static char **uni_tbl = NULL;
+
 static const WCHAR unitab_xterm_std[32] = {
     0x2666, 0x2592, 0x2409, 0x240c, 0x240d, 0x240a, 0x00b0, 0x00b1,
     0x2424, 0x240b, 0x2518, 0x2510, 0x250c, 0x2514, 0x253c, 0x23ba,
@@ -402,6 +404,9 @@ static const struct cp_list_item cp_list[] = {
     {"CP437", 437},
     {"CP819", 28591},
     {"CP878", 20866},
+    {"CP932", 932},
+    {"CP949", 949},
+    {"CP950", 950},
 
     {"Use font encoding", -1},
 
@@ -1082,7 +1087,7 @@ int decode_codepage(char *cp_name)
 	    if (GetCPInfo(codepage, &cpinfo) == 0) {
 		codepage = -2;
 	    } else if (cpinfo.MaxCharSize > 1)
-		codepage = -3;
+		/*codepage = -3*/;
 	}
     }
     if (codepage == -1 && *cp_name)

@@ -3309,7 +3309,7 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
     unsigned long rv, cursor;
     pos scrpos;
     char ch[1024];
-    long cursor_background = ERASE_CHAR;
+    long cursor_background = ERASE_CHAR, cursor_background2 = ERASE_CHAR;
     unsigned long ticks;
 #ifdef OPTIMISE_SCROLL
     struct scrollregion *sr;
@@ -3468,6 +3468,9 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	    if (i == our_curs_y && j == our_curs_x) {
 		cursor_background = tattr | tchar;
 		term->dispcurs = term->disptext + idx;
+	    } else if (cursor_background != ERASE_CHAR &&
+			i == our_curs_y && j == term->curs.x+1) {
+		cursor_background2 = tattr | tchar;
 	    }
 
 	    if ((term->disptext[idx] ^ tattr) & ATTR_WIDE)
@@ -3531,7 +3534,11 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	if (i == our_curs_y && (term->curstype != cursor || updated_line)) {
 	    ch[0] = (char) (cursor_background & CHAR_MASK);
 	    attr = (cursor_background & ATTR_MASK) | cursor;
-	    do_cursor(ctx, our_curs_x, i, ch, 1, attr, lattr);
+	    if ((unsigned char)*ch >= 0x81 && cursor_background2 != ERASE_CHAR) {
+	        ch[1] = (char) (cursor_background2 & CHAR_MASK);
+		do_cursor(ctx, our_curs_x, i, ch, 2, attr, lattr);
+	    } else
+	        do_cursor(ctx, our_curs_x, i, ch, 1, attr, lattr);	    
 	    term->curstype = cursor;
 	}
     }
