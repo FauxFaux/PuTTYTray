@@ -6,14 +6,22 @@
 ; $Id$
 ;
 
+;Icons and graphics
+!define MUI_ICON "contrib\yi-box_install.ico"
+!define MUI_UNICON "contrib\yi-box_uninstall.ico"
+!define MUI_CHECKBITMAP "contrib\yi-box_check.bmp"
+
+;Predefined constants
+!define MUI_COMPONENTSPAGE_SMALLDESC
+
 !include "MUI.nsh"
 
 ;--------------------------------
 ;Version and Basic Scheme
 
-!define MUI_PRODUCT "한글 PuTTY"
-!define MUI_PRODUCT_NEUTRAL "HangulPuTTY"
-!define MUI_VERSION "0.53b.h3"
+!define PRODUCT_NAME "한글 PuTTY"
+!define PRODUCT_NEUTRAL "HangulPuTTY"
+!define VERSION_NAME "0.55.h1"
 
 !define REGISTRY_ROOT HKCU
 !define REGISTRY_PATH "Software\SimonTatham\PuTTY"
@@ -28,22 +36,23 @@ XPStyle on
 ;Configuration
 
   ;General
-  OutFile "HangulPuTTY-${MUI_VERSION}.exe"
+  Name "${PRODUCT_NAME} ${VERSION_NAME}"
+  OutFile "HangulPuTTY-${VERSION_NAME}.exe"
 
   ;Folder selection page
-  InstallDir "C:\Program Files\HangulPuTTY ${MUI_VERSION}"
+  InstallDir "C:\Program Files\HangulPuTTY ${VERSION_NAME}"
   
   ;Remember install folder
   InstallDirRegKey "${REGISTRY_ROOT}" "${REGISTRY_PATH}\InstallPath" ""
 
   ;Show its version
-  BrandingText "${MUI_PRODUCT} ${MUI_VERSION}"
+  BrandingText "${PRODUCT_NAME} ${VERSION_NAME}"
 
 ;--------------------------------
 ;Modern UI Configuration
 
   !insertmacro MUI_PAGE_WELCOME
-  !insertmacro MUI_PAGE_LICENSE
+  !insertmacro MUI_PAGE_LICENSE "License.txt"
   !insertmacro MUI_PAGE_DIRECTORY
   !insertmacro MUI_PAGE_INSTFILES
   !insertmacro MUI_PAGE_FINISH
@@ -53,12 +62,7 @@ XPStyle on
 
   !define MUI_ABORTWARNING
 
-  ;Icons and graphics
-  !define MUI_ICON "contrib\yi-box_install.ico"
-  !define MUI_UNICON "contrib\yi-box_uninstall.ico"
-  !define MUI_CHECKBITMAP "contrib\yi-box_check.bmp"
 
-  
 ;--------------------------------
 ;Languages
 
@@ -84,18 +88,18 @@ Section ""
   File "${PUTTYBASE}\puttytel.exe"
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
-  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MUI_PRODUCT_NEUTRAL}-${MUI_VERSION}" "DisplayName" "${MUI_PRODUCT_NEUTRAL} ${MUI_VERSION}"
-  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MUI_PRODUCT_NEUTRAL}-${MUI_VERSION}" "UninstallString" "$INSTDIR\Uninstall.exe"
-  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MUI_PRODUCT_NEUTRAL}-${MUI_VERSION}" "InstallLocation" "$INSTDIR"
-  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MUI_PRODUCT_NEUTRAL}-${MUI_VERSION}" "DisplayIcon" "$INSTDIR\putty.exe,-0"
-  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MUI_PRODUCT_NEUTRAL}-${MUI_VERSION}" "DisplayVersion" "${MUI_VERSION}"
-  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MUI_PRODUCT_NEUTRAL}-${MUI_VERSION}" "Publisher" "Hye-Shik Chang"
-  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MUI_PRODUCT_NEUTRAL}-${MUI_VERSION}" "HelpLink" "http://openlook.org/wiki/HangulPuTTY"
-  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MUI_PRODUCT_NEUTRAL}-${MUI_VERSION}" "URLInfoAbout" "http://www.chiark.greenend.org.uk/~sgtatham/putty/"
+  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NEUTRAL}-${VERSION_NAME}" "DisplayName" "${PRODUCT_NEUTRAL} ${VERSION_NAME}"
+  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NEUTRAL}-${VERSION_NAME}" "UninstallString" "$INSTDIR\Uninstall.exe"
+  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NEUTRAL}-${VERSION_NAME}" "InstallLocation" "$INSTDIR"
+  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NEUTRAL}-${VERSION_NAME}" "DisplayIcon" "$INSTDIR\putty.exe,-0"
+  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NEUTRAL}-${VERSION_NAME}" "DisplayVersion" "${VERSION_NAME}"
+  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NEUTRAL}-${VERSION_NAME}" "Publisher" "Hye-Shik Chang"
+  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NEUTRAL}-${VERSION_NAME}" "HelpLink" "http://openlook.org/wiki/HangulPuTTY"
+  WriteRegStr ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NEUTRAL}-${VERSION_NAME}" "URLInfoAbout" "http://www.chiark.greenend.org.uk/~sgtatham/putty/"
 
   CreateDirectory "${SMPATH}"
   SetOutPath "$INSTDIR"
-  CreateShortCut "${SMPATH}\PuTTY.lnk" "$INSTDIR\putty.exe" "" "$INSTDIR\putty.exe" 0
+  CreateShortCut "${SMPATH}\PuTTY (SSH 클라이언트).lnk" "$INSTDIR\putty.exe" "" "$INSTDIR\putty.exe" 0
   CreateShortCut "${SMPATH}\Pageant (SSH 세션관리자).lnk" "$INSTDIR\pageant.exe" "" "$INSTDIR\pageant.exe" 0
   CreateShortCut "${SMPATH}\PuTTYgen (SSH 키 생성/관리자).lnk" "$INSTDIR\puttygen.exe" "" "$INSTDIR\puttygen.exe" 0
   CreateShortCut "${SMPATH}\PuTTYtel (텔넷 클라이언트).lnk" "$INSTDIR\puttytel.exe" "" "$INSTDIR\puttytel.exe" 0
@@ -107,8 +111,8 @@ SectionEnd
 ;--------------------------------
 ;Descriptions
 
-!insertmacro MUI_FUNCTIONS_DESCRIPTION_BEGIN
-!insertmacro MUI_FUNCTIONS_DESCRIPTION_END
+!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
+!insertmacro MUI_FUNCTION_DESCRIPTION_END
  
 
 ;Uninstaller Section
@@ -132,12 +136,9 @@ Section "Uninstall"
 
   ;----------------------------------------
   ;Uninstall Information
-  DeleteRegKey ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MUI_PRODUCT_NEUTRAL}-${MUI_VERSION}"
+  DeleteRegKey ${REGISTRY_ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NEUTRAL}-${VERSION_NAME}"
 
   DeleteRegKey ${REGISTRY_ROOT} "${REGISTRY_PATH}\InstallPath\InstallGroup"
   DeleteRegKey ${REGISTRY_ROOT} "${REGISTRY_PATH}\InstallPath"
-
-  ;Display the Finish header
-  !insertmacro MUI_UNFINISHHEADER
 
 SectionEnd
