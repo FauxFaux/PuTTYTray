@@ -78,7 +78,7 @@ void noise_get_heavy(void (*func)(void *, int))
                      0,
                      NULL);
 
-  if (seedf) {
+  if (seedf != INVALID_HANDLE_VALUE) {
     while (1) {
       char buf[1024];
       DWORD len;
@@ -107,7 +107,7 @@ void random_save_seed(void)
                      FILE_ATTRIBUTE_NORMAL,
                      NULL);
 
-  if (seedf) {
+  if (seedf != INVALID_HANDLE_VALUE) {
     int len;
     DWORD lenwritten;
     void *data;

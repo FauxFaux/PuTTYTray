@@ -69,7 +69,8 @@ static char *savedhost;
 static enum {
   SSH_STATE_BEFORE_SIZE,
   SSH_STATE_INTERMED,
-  SSH_STATE_SESSION
+  SSH_STATE_SESSION,
+  SSH_STATE_CLOSED
 } ssh_state = SSH_STATE_BEFORE_SIZE;
 
 static int size_needed = FALSE;
@@ -201,8 +202,8 @@ static void s_wrpkt_start(int type, int len)
   pktout.length = len - 5;
   if (pktout.maxlen < biglen) {
     pktout.maxlen = biglen;
-    pktout.data =
-        (pktout.data == NULL ? malloc(biglen) : realloc(pktout.data, biglen));
+    pktout.data = (pktout.data == NULL ? malloc(biglen + 4)
+                                       : realloc(pktout.data, biglen + 4));
     if (!pktout.data)
       fatalbox("Out of memory");
   }
@@ -299,8 +300,11 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
   unsigned char cookie[8];
   struct RSAKey servkey, hostkey;
   struct MD5Context md5c;
+  unsigned long supported_ciphers_mask;
+  int cipher_type;
 
   extern struct ssh_cipher ssh_3des;
+  extern struct ssh_cipher ssh_blowfish;
 
   crBegin;
 
@@ -319,6 +323,10 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
   i = makekey(pktin.body + 8, &servkey, &keystr1);
 
   j = makekey(pktin.body + 8 + i, &hostkey, &keystr2);
+
+  supported_ciphers_mask =
+      (pktin.body[12 + i + j] << 24) | (pktin.body[13 + i + j] << 16) |
+      (pktin.body[14 + i + j] << 8) | (pktin.body[15 + i + j]);
 
   MD5Update(&md5c, keystr2, hostkey.bytes);
   MD5Update(&md5c, keystr1, servkey.bytes);
@@ -351,8 +359,15 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
     rsaencrypt(rsabuf, hostkey.bytes, &servkey);
   }
 
+  cipher_type =
+      cfg.cipher == CIPHER_BLOWFISH ? SSH_CIPHER_BLOWFISH : SSH_CIPHER_3DES;
+  if ((supported_ciphers_mask & (1 << cipher_type)) == 0) {
+    c_write("Selected cipher not supported, falling back to 3DES\r\n", 53);
+    cipher_type = SSH_CIPHER_3DES;
+  }
+
   s_wrpkt_start(3, len + 15);
-  pktout.body[0] = 3; /* SSH_CIPHER_3DES */
+  pktout.body[0] = cipher_type;
   memcpy(pktout.body + 1, cookie, 8);
   pktout.body[9] = (len * 8) >> 8;
   pktout.body[10] = (len * 8) & 0xFF;
@@ -363,7 +378,7 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
 
   free(rsabuf);
 
-  cipher = &ssh_3des;
+  cipher = cipher_type == SSH_CIPHER_BLOWFISH ? &ssh_blowfish : &ssh_3des;
   cipher->sesskey(session_key);
 
   do {
@@ -538,7 +553,8 @@ static void ssh_protocol(unsigned char *in, int inlen, int ispkt)
           len = (len << 8) + pktin.body[i];
         c_write(pktin.body + 4, len);
       } else if (pktin.type == 1) {
-        /* SSH_MSG_DISCONNECT: do nothing */
+        /* SSH_MSG_DISCONNECT */
+        ssh_state = SSH_STATE_CLOSED;
       } else if (pktin.type == 14) {
         /* SSH_MSG_SUCCESS: may be from EXEC_SHELL on some servers */
       } else if (pktin.type == 15) {
@@ -725,6 +741,7 @@ static int ssh_msg(WPARAM wParam, LPARAM lParam)
     return 1;
   case FD_CLOSE:
     s = INVALID_SOCKET;
+    ssh_state = SSH_STATE_CLOSED;
     return 0;
   }
   return 1; /* shouldn't happen, but WTF */
@@ -748,6 +765,7 @@ static void ssh_size(void)
 {
   switch (ssh_state) {
   case SSH_STATE_BEFORE_SIZE:
+  case SSH_STATE_CLOSED:
     break; /* do nothing */
   case SSH_STATE_INTERMED:
     size_needed = TRUE; /* buffer for later */

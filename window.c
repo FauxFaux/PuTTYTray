@@ -166,7 +166,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     wndclass.cbWndExtra = 0;
     wndclass.hInstance = inst;
     wndclass.hIcon = LoadIcon(inst, MAKEINTRESOURCE(IDI_MAINICON));
-    wndclass.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wndclass.hCursor = LoadCursor(NULL, IDC_IBEAM);
     wndclass.hbrBackground = GetStockObject(BLACK_BRUSH);
     wndclass.lpszMenuName = NULL;
     wndclass.lpszClassName = appname;
@@ -776,8 +776,8 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                MA_RELEASE,
                TO_CHR_X(X_POS(lParam)),
                TO_CHR_Y(Y_POS(lParam)));
-    return 0;
     ReleaseCapture();
+    return 0;
   case WM_RBUTTONDOWN:
     SetCapture(hwnd);
     click(cfg.mouse_is_xterm ? MB_EXTEND : MB_PASTE,
@@ -913,7 +913,10 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     if (wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED)
       SetWindowText(hwnd, window_name);
     if (!ignore_size) {
-      int width, height, w, h, ew, eh;
+      int width, height, w, h;
+#if 0 /* we have fixed this using WM_SIZING now */
+            int ew, eh;
+#endif
 
       width = LOWORD(lParam);
       height = HIWORD(lParam);
@@ -1015,6 +1018,37 @@ static int WINAPI WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
       back->send(buf, len);
     }
     return 0;
+  case WM_KEYUP:
+  case WM_SYSKEYUP:
+    /*
+     * We handle KEYUP ourselves in order to distinghish left
+     * and right Alt or Control keys, which Windows won't do
+     * right if left to itself. See also the special processing
+     * at the top of TranslateKey.
+     */
+    {
+      BYTE keystate[256];
+      int ret = GetKeyboardState(keystate);
+      if (ret && wParam == VK_MENU) {
+        if (lParam & 0x1000000)
+          keystate[VK_RMENU] = 0;
+        else
+          keystate[VK_LMENU] = 0;
+        SetKeyboardState(keystate);
+      }
+      if (ret && wParam == VK_CONTROL) {
+        if (lParam & 0x1000000)
+          keystate[VK_RCONTROL] = 0;
+        else
+          keystate[VK_LCONTROL] = 0;
+        SetKeyboardState(keystate);
+      }
+    }
+    /*
+     * We don't return here, in order to allow Windows to do
+     * its own KEYUP processing as well.
+     */
+    break;
   case WM_CHAR:
   case WM_SYSCHAR:
     /*
@@ -1150,18 +1184,24 @@ void do_text(Context ctx, int x, int y, char *text, int len, unsigned long attr)
     TextOut(hdc, x - 1, y, text, len);
   }
   if (und_mode == UND_LINE && (attr & ATTR_UNDER)) {
-    SelectObject(hdc, CreatePen(PS_SOLID, 0, fg));
+    HPEN oldpen;
+    oldpen = SelectObject(hdc, CreatePen(PS_SOLID, 0, fg));
     MoveToEx(hdc, x, y + descent, NULL);
     LineTo(hdc, x + len * font_width, y + descent);
+    oldpen = SelectObject(hdc, oldpen);
+    DeleteObject(oldpen);
   }
   if (attr & ATTR_PASCURS) {
     POINT pts[5];
+    HPEN oldpen;
     pts[0].x = pts[1].x = pts[4].x = x;
     pts[2].x = pts[3].x = x + font_width - 1;
     pts[0].y = pts[3].y = pts[4].y = y;
     pts[1].y = pts[2].y = y + font_height - 1;
-    SelectObject(hdc, CreatePen(PS_SOLID, 0, colours[23]));
+    oldpen = SelectObject(hdc, CreatePen(PS_SOLID, 0, colours[23]));
     Polyline(hdc, pts, 5);
+    oldpen = SelectObject(hdc, oldpen);
+    DeleteObject(oldpen);
   }
 }
 
@@ -1174,18 +1214,44 @@ static int TranslateKey(WPARAM wParam, LPARAM lParam, unsigned char *output)
   unsigned char *p = output;
   BYTE keystate[256];
   int ret, code;
-
-  /*
-   * Prepend ESC if ALT was pressed at the time.
-   */
-  if (lParam & 0x20000000)
-    *p++ = 0x1B;
+  int cancel_alt = FALSE;
 
   /*
    * Get hold of the keyboard state, because we'll need it a few
    * times shortly.
    */
   ret = GetKeyboardState(keystate);
+
+  /*
+   * Windows does not always want to distinguish left and right
+   * Alt or Control keys. Thus we keep track of them ourselves.
+   * See also the WM_KEYUP handler.
+   */
+  if (wParam == VK_MENU) {
+    if (lParam & 0x1000000)
+      keystate[VK_RMENU] = 0x80;
+    else
+      keystate[VK_LMENU] = 0x80;
+    SetKeyboardState(keystate);
+    return 0;
+  }
+  if (wParam == VK_CONTROL) {
+    if (lParam & 0x1000000)
+      keystate[VK_RCONTROL] = 0x80;
+    else
+      keystate[VK_LCONTROL] = 0x80;
+    SetKeyboardState(keystate);
+    return 0;
+  }
+
+  /*
+   * Prepend ESC, and cancel ALT, if ALT was pressed at the time
+   * and it wasn't AltGr.
+   */
+  if (lParam & 0x20000000 && (keystate[VK_LMENU] & 0x80)) {
+    *p++ = 0x1B;
+    cancel_alt = TRUE;
+  }
 
   /*
    * Shift-PgUp, Shift-PgDn, and Alt-F4 all produce window
@@ -1301,13 +1367,16 @@ static int TranslateKey(WPARAM wParam, LPARAM lParam, unsigned char *output)
   }
 
   /*
-   * Before doing Windows charmap translation, remove ALT from
-   * the keymap, since its sole effect should be to prepend ESC,
-   * which we've already done. Note that removal of ALT has to
-   * happen _after_ the above call to SetKeyboardState, or dire
-   * things will befall.
+   * Before doing Windows charmap translation, remove LeftALT
+   * from the keymap, since its sole effect should be to prepend
+   * ESC, which we've already done. Note that removal of LeftALT
+   * has to happen _after_ the above call to SetKeyboardState, or
+   * dire things will befall.
    */
-  keystate[VK_MENU] = keystate[VK_LMENU] = keystate[VK_RMENU] = 0;
+  if (cancel_alt) {
+    keystate[VK_MENU] = keystate[VK_RMENU];
+    keystate[VK_LMENU] = 0;
+  }
 
   /*
    * Attempt the Windows char-map translation.
@@ -1485,7 +1554,8 @@ void set_sbar(int total, int start, int page)
   si.nMax = total - 1;
   si.nPage = page;
   si.nPos = start;
-  SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
+  if (hwnd)
+    SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
 }
 
 Context get_ctx()
