@@ -1,3 +1,7 @@
+/*
+ * windlg.c - dialogs for PuTTY(tel), including the configuration dialog.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -41,8 +45,6 @@ static char **events = NULL;
 static int nevents = 0, negsize = 0;
 
 extern Config cfg; /* defined in window.c */
-
-struct sesslist sesslist; /* exported to window.c */
 
 #define PRINTER_DISABLED_STRING "None (printing disabled)"
 
@@ -234,7 +236,7 @@ static int SaneDialogBox(HINSTANCE hinst,
   wc.style = CS_DBLCLKS | CS_SAVEBITS | CS_BYTEALIGNWINDOW;
   wc.lpfnWndProc = DefDlgProc;
   wc.cbClsExtra = 0;
-  wc.cbWndExtra = DLGWINDOWEXTRA + 8;
+  wc.cbWndExtra = DLGWINDOWEXTRA + 2 * sizeof(LONG_PTR);
   wc.hInstance = hinst;
   wc.hIcon = NULL;
   wc.hCursor = LoadCursor(NULL, IDC_ARROW);
@@ -245,11 +247,11 @@ static int SaneDialogBox(HINSTANCE hinst,
 
   hwnd = CreateDialog(hinst, tmpl, hwndparent, lpDialogFunc);
 
-  SetWindowLong(hwnd, BOXFLAGS, 0);  /* flags */
-  SetWindowLong(hwnd, BOXRESULT, 0); /* result from SaneEndDialog */
+  SetWindowLongPtr(hwnd, BOXFLAGS, 0);  /* flags */
+  SetWindowLongPtr(hwnd, BOXRESULT, 0); /* result from SaneEndDialog */
 
   while ((gm = GetMessage(&msg, NULL, 0, 0)) > 0) {
-    flags = GetWindowLong(hwnd, BOXFLAGS);
+    flags = GetWindowLongPtr(hwnd, BOXFLAGS);
     if (!(flags & DF_END) && !IsDialogMessage(hwnd, &msg))
       DispatchMessage(&msg);
     if (flags & DF_END)
@@ -259,15 +261,15 @@ static int SaneDialogBox(HINSTANCE hinst,
   if (gm == 0)
     PostQuitMessage(msg.wParam); /* We got a WM_QUIT, pass it on */
 
-  ret = GetWindowLong(hwnd, BOXRESULT);
+  ret = GetWindowLongPtr(hwnd, BOXRESULT);
   DestroyWindow(hwnd);
   return ret;
 }
 
 static void SaneEndDialog(HWND hwnd, int ret)
 {
-  SetWindowLong(hwnd, BOXRESULT, ret);
-  SetWindowLong(hwnd, BOXFLAGS, DF_END);
+  SetWindowLongPtr(hwnd, BOXRESULT, ret);
+  SetWindowLongPtr(hwnd, BOXFLAGS, DF_END);
 }
 
 /*
@@ -316,7 +318,9 @@ static HTREEITEM treeview_insert(struct treeview_faff *faff,
   ins.INSITEM.lParam = (LPARAM)path;
   newitem = TreeView_InsertItem(faff->treeview, &ins);
   if (level > 0)
-    TreeView_Expand(faff->treeview, faff->lastat[level - 1], TVE_EXPAND);
+    TreeView_Expand(faff->treeview,
+                    faff->lastat[level - 1],
+                    (level > 1 ? TVE_COLLAPSE : TVE_EXPAND));
   faff->lastat[level] = newitem;
   for (i = level + 1; i < 4; i++)
     faff->lastat[i] = NULL;
@@ -375,17 +379,16 @@ static int CALLBACK GenericMainDlgProc(HWND hwnd,
     dp.hwnd = hwnd;
     create_controls(hwnd, ""); /* Open and Cancel buttons etc */
     SetWindowText(hwnd, dp.wintitle);
-    SetWindowLong(hwnd, GWL_USERDATA, 0);
-    if (help_path)
-      SetWindowLong(hwnd,
-                    GWL_EXSTYLE,
-                    GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_CONTEXTHELP);
+    SetWindowLongPtr(hwnd, GWLP_USERDATA, 0);
+    if (has_help())
+      SetWindowLongPtr(hwnd,
+                       GWL_EXSTYLE,
+                       GetWindowLongPtr(hwnd, GWL_EXSTYLE) | WS_EX_CONTEXTHELP);
     else {
       HWND item = GetDlgItem(hwnd, IDC_HELPBTN);
       if (item)
         DestroyWindow(item);
     }
-    requested_help = FALSE;
     SendMessage(hwnd,
                 WM_SETICON,
                 (WPARAM)ICON_BIG,
@@ -528,7 +531,7 @@ static int CALLBACK GenericMainDlgProc(HWND hwnd,
       }
     }
 
-    SetWindowLong(hwnd, GWL_USERDATA, 1);
+    SetWindowLongPtr(hwnd, GWLP_USERDATA, 1);
     return 0;
   case WM_LBUTTONUP:
     /*
@@ -588,7 +591,7 @@ static int CALLBACK GenericMainDlgProc(HWND hwnd,
     /*
      * Only process WM_COMMAND once the dialog is fully formed.
      */
-    if (GetWindowLong(hwnd, GWL_USERDATA) == 1) {
+    if (GetWindowLongPtr(hwnd, GWLP_USERDATA) == 1) {
       ret = winctrl_handle_command(&dp, msg, wParam, lParam);
       if (dp.ended && GetCapture() != hwnd)
         SaneEndDialog(hwnd, dp.endresult ? 1 : 0);
@@ -596,18 +599,11 @@ static int CALLBACK GenericMainDlgProc(HWND hwnd,
       ret = 0;
     return ret;
   case WM_HELP:
-    if (help_path) {
-      if (winctrl_context_help(&dp, hwnd, ((LPHELPINFO)lParam)->iCtrlId))
-        requested_help = TRUE;
-      else
-        MessageBeep(0);
-    }
+    if (!winctrl_context_help(&dp, hwnd, ((LPHELPINFO)lParam)->iCtrlId))
+      MessageBeep(0);
     break;
   case WM_CLOSE:
-    if (requested_help) {
-      WinHelp(hwnd, help_path, HELP_QUIT, 0);
-      requested_help = FALSE;
-    }
+    quit_help(hwnd);
     SaneEndDialog(hwnd, 0);
     return 0;
 
@@ -630,11 +626,7 @@ void modal_about_box(HWND hwnd)
 
 void show_help(HWND hwnd)
 {
-  if (help_path) {
-    WinHelp(
-        hwnd, help_path, help_has_contents ? HELP_FINDER : HELP_CONTENTS, 0);
-    requested_help = TRUE;
-  }
+  launch_help(hwnd, NULL);
 }
 
 void defuse_showwindow(void)
@@ -659,8 +651,8 @@ int do_config(void)
   int ret;
 
   ctrlbox = ctrl_new_box();
-  setup_config_box(ctrlbox, &sesslist, FALSE, 0, 0);
-  win_setup_config_box(ctrlbox, &dp.hwnd, (help_path != NULL), FALSE);
+  setup_config_box(ctrlbox, FALSE, 0, 0);
+  win_setup_config_box(ctrlbox, &dp.hwnd, has_help(), FALSE, 0);
   dp_init(&dp);
   winctrl_init(&ctrls_base);
   winctrl_init(&ctrls_panel);
@@ -671,10 +663,8 @@ int do_config(void)
   dp.data = &cfg;
   dp.shortcuts['g'] = TRUE; /* the treeview: `Cate&gory' */
 
-  get_sesslist(&sesslist, TRUE);
   ret = SaneDialogBox(
       hinst, MAKEINTRESOURCE(IDD_MAINBOX), NULL, GenericMainDlgProc);
-  get_sesslist(&sesslist, FALSE);
 
   ctrl_free_box(ctrlbox);
   winctrl_cleanup(&ctrls_panel);
@@ -692,8 +682,8 @@ int do_reconfig(HWND hwnd, int protcfginfo)
   backup_cfg = cfg; /* structure copy */
 
   ctrlbox = ctrl_new_box();
-  setup_config_box(ctrlbox, &sesslist, TRUE, cfg.protocol, protcfginfo);
-  win_setup_config_box(ctrlbox, &dp.hwnd, (help_path != NULL), TRUE);
+  setup_config_box(ctrlbox, TRUE, cfg.protocol, protcfginfo);
+  win_setup_config_box(ctrlbox, &dp.hwnd, has_help(), TRUE, cfg.protocol);
   dp_init(&dp);
   winctrl_init(&ctrls_base);
   winctrl_init(&ctrls_panel);
@@ -871,6 +861,7 @@ int askalg(void *frontend,
   title = dupprintf(mbtitle, appname);
   mbret = MessageBox(
       NULL, message, title, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
+  socket_reselect_all();
   sfree(message);
   sfree(title);
   if (mbret == IDYES)
@@ -904,6 +895,8 @@ int askappend(void *frontend,
 
   mbret = MessageBox(
       NULL, message, mbtitle, MB_ICONQUESTION | MB_YESNOCANCEL | MB_DEFBUTTON3);
+
+  socket_reselect_all();
 
   sfree(message);
   sfree(mbtitle);
@@ -945,6 +938,8 @@ void old_keyfile_warning(void)
   title = dupprintf(mbtitle, appname);
 
   MessageBox(NULL, msg, title, MB_OK);
+
+  socket_reselect_all();
 
   sfree(msg);
   sfree(title);

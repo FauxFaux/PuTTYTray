@@ -893,6 +893,13 @@ int from_backend(void *frontend, int is_stderr, const char *data, int len)
     return [win fromBackend:data len:len isStderr:is_stderr];
 }
 
+int get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
+{
+    SessionWindow *win = (SessionWindow *)p->frontend;
+    Terminal *term = [win term];
+    return term_get_userpass_input(term, p, in, inlen);
+}
+
 void frontend_keypress(void *handle)
 {
     /* FIXME */
@@ -913,6 +920,13 @@ void ldisc_update(void *frontend, int echo, int edit)
      */
 }
 
+char *get_ttymode(void *frontend, const char *mode)
+{
+    SessionWindow *win = (SessionWindow *)ctx;
+    Terminal *term = [win term];
+    return term_get_ttymode(term, mode);
+}
+
 void update_specials_menu(void *frontend)
 {
     //SessionWindow *win = (SessionWindow *)frontend;
@@ -925,7 +939,7 @@ void update_specials_menu(void *frontend)
  * may want to perform additional actions on any kind of bell (for
  * example, taskbar flashing in Windows).
  */
-void beep(void *frontend, int mode)
+void do_beep(void *frontend, int mode)
 {
     //SessionWindow *win = (SessionWindow *)frontend;
     if (mode != BELL_VISUAL)
@@ -979,10 +993,11 @@ void palette_reset(void *frontend)
     for (i = 0; i < NEXTCOLOURS; i++) {
 	if (i < 216) {
 	    int r = i / 36, g = (i / 6) % 6, b = i % 6;
-	    [win setColour:i+16 r:r/5.0 g:g/5.0 b:b/5.0];
+	    r = r ? r*40+55 : 0; g = g ? b*40+55 : 0; b = b ? b*40+55 : 0;
+	    [win setColour:i+16 r:r/255.0 g:g/255.0 b:b/255.0];
 	} else {
 	    int shade = i - 216;
-	    float fshade = (shade + 1) / (float)(NEXTCOLOURS - 216 + 1);
+	    float fshade = (shade * 10 + 8) / 255.0;
 	    [win setColour:i+16 r:fshade g:fshade b:fshade];
 	}
     }
@@ -1161,7 +1176,7 @@ void get_clip(void *frontend, wchar_t ** p, int *len)
     /* FIXME */
 }
 
-void write_clip(void *frontend, wchar_t * data, int len, int must_deselect)
+void write_clip(void *frontend, wchar_t *data, int *attr, int len, int must_deselect)
 {
     //SessionWindow *win = (SessionWindow *)frontend;
     /* FIXME */

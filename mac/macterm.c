@@ -629,7 +629,8 @@ static void text_click(Session *s, EventRecord *event)
   lastwhen = TickCount();
 }
 
-void write_clip(void *cookie, wchar_t *data, int len, int must_deselect)
+void write_clip(
+    void *cookie, wchar_t *data, int *attr, int len, int must_deselect)
 {
 #if !TARGET_API_MAC_CARBON
   Session *s = cookie;
@@ -1670,7 +1671,7 @@ void sys_cursor(void *frontend, int x, int y)
  * may want to perform additional actions on any kind of bell (for
  * example, taskbar flashing in Windows).
  */
-void beep(void *frontend, int mode)
+void do_beep(void *frontend, int mode)
 {
   if (mode != BELL_VISUAL)
     SysBeep(30);
@@ -2027,6 +2028,12 @@ void ldisc_update(void *frontend, int echo, int edit)
 {
 }
 
+char *get_ttymode(void *frontend, const char *mode)
+{
+  Session *s = frontend;
+  return term_get_ttymode(s->term, mode);
+}
+
 /*
  * Mac PuTTY doesn't support printing yet.
  */
@@ -2074,6 +2081,12 @@ int from_backend(void *frontend, int is_stderr, const char *data, int len)
   Session *s = frontend;
 
   return term_data(s->term, is_stderr, data, len);
+}
+
+int get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
+{
+  Session *s = p->frontend;
+  return term_get_userpass_input(s->term, p, in, inlen);
 }
 
 /*

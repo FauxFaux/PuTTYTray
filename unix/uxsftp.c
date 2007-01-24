@@ -13,9 +13,13 @@
 #include <errno.h>
 #include <assert.h>
 #include <glob.h>
+#ifndef HAVE_NO_SYS_SELECT_H
+#include <sys/select.h>
+#endif
 
 #include "putty.h"
 #include "psftp.h"
+#include "int64.h"
 
 /*
  * In PSFTP our selects are synchronous, so these functions are
@@ -72,26 +76,18 @@ Filename platform_default_filename(const char *name)
   return ret;
 }
 
-/*
- * Stubs for the GUI feedback mechanism in Windows PSCP.
- */
-void gui_update_stats(char *name,
-                      unsigned long size,
-                      int percentage,
-                      unsigned long elapsed,
-                      unsigned long done,
-                      unsigned long eta,
-                      unsigned long ratebs)
+char *get_ttymode(void *frontend, const char *mode)
 {
+  return NULL;
 }
-void gui_send_errcount(int list, int errs)
+
+int get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
 {
-}
-void gui_send_char(int is_stderr, int c)
-{
-}
-void gui_enable(char *arg)
-{
+  int ret;
+  ret = cmdline_get_passwd_input(p, in, inlen);
+  if (ret == -1)
+    ret = console_get_userpass_input(p, in, inlen);
+  return ret;
 }
 
 /*
@@ -138,7 +134,7 @@ struct RFile {
 };
 
 RFile *open_existing_file(char *name,
-                          unsigned long *size,
+                          uint64 *size,
                           unsigned long *mtime,
                           unsigned long *atime)
 {
@@ -160,7 +156,7 @@ RFile *open_existing_file(char *name,
     }
 
     if (size)
-      *size = statbuf.st_size;
+      *size = uint64_make((statbuf.st_size >> 16) >> 16, statbuf.st_size);
 
     if (mtime)
       *mtime = statbuf.st_mtime;
@@ -204,6 +200,31 @@ WFile *open_new_file(char *name)
   return ret;
 }
 
+WFile *open_existing_wfile(char *name, uint64 *size)
+{
+  int fd;
+  WFile *ret;
+
+  fd = open(name, O_APPEND | O_WRONLY);
+  if (fd < 0)
+    return NULL;
+
+  ret = snew(WFile);
+  ret->fd = fd;
+
+  if (size) {
+    struct stat statbuf;
+    if (fstat(fd, &statbuf) < 0) {
+      fprintf(stderr, "%s: stat: %s\n", name, strerror(errno));
+      memset(&statbuf, 0, sizeof(statbuf));
+    }
+
+    *size = uint64_make((statbuf.st_size >> 16) >> 16, statbuf.st_size);
+  }
+
+  return ret;
+}
+
 int write_to_file(WFile *f, void *buffer, int length)
 {
   char *p = (char *)buffer;
@@ -243,6 +264,44 @@ void close_wfile(WFile *f)
   close(f->fd);
   sfree(f->name);
   sfree(f);
+}
+
+/* Seek offset bytes through file, from whence, where whence is
+   FROM_START, FROM_CURRENT, or FROM_END */
+int seek_file(WFile *f, uint64 offset, int whence)
+{
+  off_t fileofft;
+  int lseek_whence;
+
+  fileofft = (((off_t)offset.hi << 16) << 16) + offset.lo;
+
+  switch (whence) {
+  case FROM_START:
+    lseek_whence = SEEK_SET;
+    break;
+  case FROM_CURRENT:
+    lseek_whence = SEEK_CUR;
+    break;
+  case FROM_END:
+    lseek_whence = SEEK_END;
+    break;
+  default:
+    return -1;
+  }
+
+  return lseek(f->fd, fileofft, lseek_whence) >= 0 ? 0 : -1;
+}
+
+uint64 get_file_posn(WFile *f)
+{
+  off_t fileofft;
+  uint64 ret;
+
+  fileofft = lseek(f->fd, (off_t)0, SEEK_CUR);
+
+  ret = uint64_make((fileofft >> 16) >> 16, fileofft);
+
+  return ret;
 }
 
 int file_type(char *name)

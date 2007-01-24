@@ -22,6 +22,11 @@
 #include "network.h"
 #include "tree234.h"
 
+/* Solaris needs <sys/sockio.h> for SIOCATMARK. */
+#ifndef SIOCATMARK
+#include <sys/sockio.h>
+#endif
+
 #ifndef X11_UNIX_PATH
 #define X11_UNIX_PATH "/tmp/.X11-unix/X"
 #endif
@@ -236,7 +241,7 @@ SockAddr sk_nonamelookup(const char *host)
 static int sk_nextaddr(SockAddr addr)
 {
 #ifndef NO_IPV6
-  if (addr->ai->ai_next) {
+  if (addr->ai && addr->ai->ai_next) {
     addr->ai = addr->ai->ai_next;
     addr->family = addr->ai->ai_family;
     return TRUE;
@@ -475,6 +480,8 @@ static int try_connect(Actual_Socket sock)
     goto ret;
   }
 
+  cloexec(s);
+
   if (sock->oobinline) {
     int b = TRUE;
     setsockopt(s, SOL_SOCKET, SO_OOBINLINE, (void *)&b, sizeof(b));
@@ -586,6 +593,7 @@ static int try_connect(Actual_Socket sock)
 
   default:
     assert(0 && "unknown address family");
+    exit(1); /* XXX: GCC doesn't understand assert() on some systems. */
   }
 
   fl = fcntl(s, F_GETFL);
@@ -700,10 +708,13 @@ Socket sk_newlistener(
    * Translate address_family from platform-independent constants
    * into local reality.
    */
-  address_family =
-      (address_family == ADDRTYPE_IPV4
-           ? AF_INET
-           : address_family == ADDRTYPE_IPV6 ? AF_INET6 : AF_UNSPEC);
+  address_family = (address_family == ADDRTYPE_IPV4
+                        ? AF_INET
+                        :
+#ifndef NO_IPV6
+                        address_family == ADDRTYPE_IPV6 ? AF_INET6 :
+#endif
+                                                        AF_UNSPEC);
 
 #ifndef NO_IPV6
   /* Let's default to IPv6.
@@ -721,16 +732,20 @@ Socket sk_newlistener(
    */
   s = socket(address_family, SOCK_STREAM, 0);
 
+#ifndef NO_IPV6
   /* If the host doesn't support IPv6 try fallback to IPv4. */
   if (s < 0 && address_family == AF_INET6) {
     address_family = AF_INET;
     s = socket(address_family, SOCK_STREAM, 0);
   }
+#endif
 
   if (s < 0) {
     ret->error = strerror(errno);
     return (Socket)ret;
   }
+
+  cloexec(s);
 
   ret->oobinline = 0;
 
@@ -831,15 +846,6 @@ static void sk_tcp_close(Socket sock)
     sk_addr_free(s->addr);
   sfree(s);
 }
-
-#define PUT_32BIT_MSB_FIRST(cp, value)                                         \
-  ((cp)[0] = (char)((value) >> 24),                                            \
-   (cp)[1] = (char)((value) >> 16),                                            \
-   (cp)[2] = (char)((value) >> 8),                                             \
-   (cp)[3] = (char)(value))
-
-#define PUT_16BIT_MSB_FIRST(cp, value)                                         \
-  ((cp)[0] = (char)((value) >> 8), (cp)[1] = (char)(value))
 
 void *sk_getxdmdata(void *sock, int *lenp)
 {
@@ -1301,9 +1307,10 @@ SockAddr platform_get_x11_unix_address(int displaynum, char **canonicalname)
   else
     *canonicalname = dupstr(ret->hostname);
 #ifndef NO_IPV6
-  ret->ais = NULL;
+  ret->ai = ret->ais = NULL;
 #else
   ret->addresses = NULL;
+  ret->curraddr = ret->naddresses = 0;
 #endif
   return ret;
 }

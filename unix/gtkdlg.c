@@ -22,7 +22,6 @@
 #include <X11/Xutil.h>
 
 #include "gtkcols.h"
-#include "gtkpanel.h"
 
 #ifdef TESTMODE
 #define PUTTY_DO_GLOBALS /* actually _define_ globals */
@@ -56,6 +55,7 @@ struct uctrl {
   GtkWidget *menu;    /* for optionmenu (==droplist) */
   GtkWidget *optmenu; /* also for optionmenu */
   GtkWidget *text;    /* for text */
+  GtkWidget *label;   /* for dlg_label_change */
   GtkAdjustment *adj; /* for the scrollbar in a list box */
   guint textsig;
 };
@@ -95,6 +95,7 @@ static gboolean widget_focus(GtkWidget *widget,
                              gpointer data);
 static void shortcut_add(
     struct Shortcuts *scs, GtkWidget *labelw, int chr, int action, void *ptr);
+static void shortcut_highlight(GtkWidget *label, int chr);
 static int listitem_single_key(GtkWidget *item,
                                GdkEventKey *event,
                                gpointer data);
@@ -565,7 +566,35 @@ void dlg_listbox_select(union control *ctrl, void *dlg, int index)
   if (uc->optmenu) {
     gtk_option_menu_set_history(GTK_OPTION_MENU(uc->optmenu), index);
   } else {
+    int nitems;
+    GList *items;
+    gdouble newtop, newbot;
+
     gtk_list_select_item(GTK_LIST(uc->list), index);
+
+    /*
+     * Scroll the list box if necessary to ensure the newly
+     * selected item is visible.
+     */
+    items = gtk_container_children(GTK_CONTAINER(uc->list));
+    nitems = g_list_length(items);
+    if (nitems > 0) {
+      int modified = FALSE;
+      g_list_free(items);
+      newtop =
+          uc->adj->lower + (uc->adj->upper - uc->adj->lower) * index / nitems;
+      newbot = uc->adj->lower +
+               (uc->adj->upper - uc->adj->lower) * (index + 1) / nitems;
+      if (uc->adj->value > newtop) {
+        modified = TRUE;
+        uc->adj->value = newtop;
+      } else if (uc->adj->value < newbot - uc->adj->page_size) {
+        modified = TRUE;
+        uc->adj->value = newbot - uc->adj->page_size;
+      }
+      if (modified)
+        gtk_adjustment_value_changed(uc->adj);
+    }
   }
 }
 
@@ -578,6 +607,46 @@ void dlg_text_set(union control *ctrl, void *dlg, char const *text)
   assert(uc->text != NULL);
 
   gtk_label_set_text(GTK_LABEL(uc->text), text);
+}
+
+void dlg_label_change(union control *ctrl, void *dlg, char const *text)
+{
+  struct dlgparam *dp = (struct dlgparam *)dlg;
+  struct uctrl *uc = dlg_find_byctrl(dp, ctrl);
+
+  switch (uc->ctrl->generic.type) {
+  case CTRL_BUTTON:
+    gtk_label_set_text(GTK_LABEL(uc->toplevel), text);
+    shortcut_highlight(uc->toplevel, ctrl->button.shortcut);
+    break;
+  case CTRL_CHECKBOX:
+    gtk_label_set_text(GTK_LABEL(uc->toplevel), text);
+    shortcut_highlight(uc->toplevel, ctrl->checkbox.shortcut);
+    break;
+  case CTRL_RADIO:
+    gtk_label_set_text(GTK_LABEL(uc->label), text);
+    shortcut_highlight(uc->label, ctrl->radio.shortcut);
+    break;
+  case CTRL_EDITBOX:
+    gtk_label_set_text(GTK_LABEL(uc->label), text);
+    shortcut_highlight(uc->label, ctrl->editbox.shortcut);
+    break;
+  case CTRL_FILESELECT:
+    gtk_label_set_text(GTK_LABEL(uc->label), text);
+    shortcut_highlight(uc->label, ctrl->fileselect.shortcut);
+    break;
+  case CTRL_FONTSELECT:
+    gtk_label_set_text(GTK_LABEL(uc->label), text);
+    shortcut_highlight(uc->label, ctrl->fontselect.shortcut);
+    break;
+  case CTRL_LISTBOX:
+    gtk_label_set_text(GTK_LABEL(uc->label), text);
+    shortcut_highlight(uc->label, ctrl->listbox.shortcut);
+    break;
+  default:
+    assert(!"This shouldn't happen");
+    break;
+  }
 }
 
 void dlg_filesel_set(union control *ctrl, void *dlg, Filename fn)
@@ -1336,6 +1405,7 @@ GtkWidget *layout_ctrls(struct dlgparam *dp,
     uc->buttons = NULL;
     uc->entry = uc->list = uc->menu = NULL;
     uc->button = uc->optmenu = uc->text = NULL;
+    uc->label = NULL;
 
     switch (ctrl->generic.type) {
     case CTRL_BUTTON:
@@ -1380,6 +1450,7 @@ GtkWidget *layout_ctrls(struct dlgparam *dp,
           columns_force_left_align(COLUMNS(w), label);
           gtk_widget_show(label);
           shortcut_add(scs, label, ctrl->radio.shortcut, SHORTCUT_UCTRL, uc);
+          uc->label = label;
         }
         percentages = g_new(gint, ctrl->radio.ncolumns);
         for (i = 0; i < ctrl->radio.ncolumns; i++) {
@@ -1493,6 +1564,7 @@ GtkWidget *layout_ctrls(struct dlgparam *dp,
         gtk_widget_show(w);
 
         w = container;
+        uc->label = label;
       }
       gtk_signal_connect(GTK_OBJECT(uc->entry),
                          "focus_out_event",
@@ -1522,6 +1594,7 @@ GtkWidget *layout_ctrls(struct dlgparam *dp,
                           : ctrl->fontselect.shortcut),
                      SHORTCUT_UCTRL,
                      uc);
+        uc->label = ww;
       }
 
       uc->entry = ww = gtk_entry_new();
@@ -1671,6 +1744,7 @@ GtkWidget *layout_ctrls(struct dlgparam *dp,
         gtk_widget_show(w);
         shortcut_add(scs, label, ctrl->listbox.shortcut, SHORTCUT_UCTRL, uc);
         w = container;
+        uc->label = label;
       }
       break;
     case CTRL_TEXT:
@@ -1726,7 +1800,7 @@ GtkWidget *layout_ctrls(struct dlgparam *dp,
 
 struct selparam {
   struct dlgparam *dp;
-  Panels *panels;
+  GtkNotebook *panels;
   GtkWidget *panel, *treeitem;
   struct Shortcuts shortcuts;
 };
@@ -1734,8 +1808,12 @@ struct selparam {
 static void treeitem_sel(GtkItem *item, gpointer data)
 {
   struct selparam *sp = (struct selparam *)data;
+  gint page_num;
 
-  panels_switch_to(sp->panels, sp->panel);
+  page_num = gtk_notebook_page_num(sp->panels, sp->panel);
+  gtk_notebook_set_page(sp->panels, page_num);
+
+  dlg_refresh(NULL, sp->dp);
 
   sp->dp->shortcuts = &sp->shortcuts;
   sp->dp->currtreeitem = sp->treeitem;
@@ -1951,13 +2029,31 @@ int tree_key_press(GtkWidget *widget, GdkEventKey *event, gpointer data)
   return FALSE;
 }
 
-void shortcut_add(
-    struct Shortcuts *scs, GtkWidget *labelw, int chr, int action, void *ptr)
+static void shortcut_highlight(GtkWidget *labelw, int chr)
 {
   GtkLabel *label = GTK_LABEL(labelw);
   gchar *currstr, *pattern;
   int i;
 
+  gtk_label_get(label, &currstr);
+  for (i = 0; currstr[i]; i++)
+    if (tolower((unsigned char)currstr[i]) == chr) {
+      GtkRequisition req;
+
+      pattern = dupprintf("%*s_", i, "");
+
+      gtk_widget_size_request(GTK_WIDGET(label), &req);
+      gtk_label_set_pattern(label, pattern);
+      gtk_widget_set_usize(GTK_WIDGET(label), -1, req.height);
+
+      sfree(pattern);
+      break;
+    }
+}
+
+void shortcut_add(
+    struct Shortcuts *scs, GtkWidget *labelw, int chr, int action, void *ptr)
+{
   if (chr == NO_SHORTCUT)
     return;
 
@@ -1975,20 +2071,7 @@ void shortcut_add(
     scs->sc[chr].uc = (struct uctrl *)ptr;
   }
 
-  gtk_label_get(label, &currstr);
-  for (i = 0; currstr[i]; i++)
-    if (tolower((unsigned char)currstr[i]) == chr) {
-      GtkRequisition req;
-
-      pattern = dupprintf("%*s_", i, "");
-
-      gtk_widget_size_request(GTK_WIDGET(label), &req);
-      gtk_label_set_pattern(label, pattern);
-      gtk_widget_set_usize(GTK_WIDGET(label), -1, req.height);
-
-      sfree(pattern);
-      break;
-    }
+  shortcut_highlight(labelw, chr);
 }
 
 int get_listitemheight(void)
@@ -2013,15 +2096,12 @@ int do_config_box(const char *title,
   GtkTreeItem *treeitemlevels[8];
   GtkTree *treelevels[8];
   struct dlgparam dp;
-  struct sesslist sl;
   struct Shortcuts scs;
 
   struct selparam *selparams = NULL;
   int nselparams = 0, selparamsize = 0;
 
   dlg_init(&dp);
-
-  get_sesslist(&sl, TRUE);
 
   listitemheight = get_listitemheight();
 
@@ -2032,8 +2112,8 @@ int do_config_box(const char *title,
   window = gtk_dialog_new();
 
   ctrlbox = ctrl_new_box();
-  setup_config_box(ctrlbox, &sl, midsession, cfg->protocol, protcfginfo);
-  unix_setup_config_box(ctrlbox, midsession);
+  setup_config_box(ctrlbox, midsession, cfg->protocol, protcfginfo);
+  unix_setup_config_box(ctrlbox, midsession, cfg->protocol);
   gtk_setup_config_box(ctrlbox, midsession, window);
 
   gtk_window_set_title(GTK_WINDOW(window), title);
@@ -2058,15 +2138,13 @@ int do_config_box(const char *title,
   shortcut_add(&scs, label, 'g', SHORTCUT_TREE, tree);
   gtk_tree_set_view_mode(GTK_TREE(tree), GTK_TREE_VIEW_ITEM);
   gtk_tree_set_selection_mode(GTK_TREE(tree), GTK_SELECTION_BROWSE);
-  gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(treescroll), tree);
-  gtk_scrolled_window_set_policy(
-      GTK_SCROLLED_WINDOW(treescroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
   gtk_signal_connect(
       GTK_OBJECT(tree), "focus", GTK_SIGNAL_FUNC(tree_focus), &dp);
-  gtk_widget_show(tree);
   gtk_widget_show(treescroll);
   gtk_box_pack_start(GTK_BOX(vbox), treescroll, TRUE, TRUE, 0);
-  panels = panels_new();
+  panels = gtk_notebook_new();
+  gtk_notebook_set_show_tabs(GTK_NOTEBOOK(panels), FALSE);
+  gtk_notebook_set_show_border(GTK_NOTEBOOK(panels), FALSE);
   gtk_box_pack_start(GTK_BOX(hbox), panels, TRUE, TRUE, 0);
   gtk_widget_show(panels);
 
@@ -2113,7 +2191,10 @@ int do_config_box(const char *title,
             treelevels[j - 1] = GTK_TREE(gtk_tree_new());
             gtk_tree_item_set_subtree(treeitemlevels[j - 1],
                                       GTK_WIDGET(treelevels[j - 1]));
-            gtk_tree_item_expand(treeitemlevels[j - 1]);
+            if (j < 2)
+              gtk_tree_item_expand(treeitemlevels[j - 1]);
+            else
+              gtk_tree_item_collapse(treeitemlevels[j - 1]);
           }
           gtk_tree_append(treelevels[j - 1], treeitem);
         } else {
@@ -2139,9 +2220,13 @@ int do_config_box(const char *title,
         first = (panelvbox == NULL);
 
         panelvbox = gtk_vbox_new(FALSE, 4);
-        gtk_container_add(GTK_CONTAINER(panels), panelvbox);
+        gtk_widget_show(panelvbox);
+        gtk_notebook_append_page(GTK_NOTEBOOK(panels), panelvbox, NULL);
         if (first) {
-          panels_switch_to(PANELS(panels), panelvbox);
+          gint page_num;
+
+          page_num = gtk_notebook_page_num(GTK_NOTEBOOK(panels), panelvbox);
+          gtk_notebook_set_page(GTK_NOTEBOOK(panels), page_num);
           gtk_tree_select_child(GTK_TREE(tree), treeitem);
         }
 
@@ -2150,7 +2235,7 @@ int do_config_box(const char *title,
           selparams = sresize(selparams, selparamsize, struct selparam);
         }
         selparams[nselparams].dp = &dp;
-        selparams[nselparams].panels = PANELS(panels);
+        selparams[nselparams].panels = GTK_NOTEBOOK(panels);
         selparams[nselparams].panel = panelvbox;
         selparams[nselparams].shortcuts = scs; /* structure copy */
         selparams[nselparams].treeitem = treeitem;
@@ -2183,6 +2268,20 @@ int do_config_box(const char *title,
   dp.lastfocus = NULL;
   dp.retval = 0;
   dp.window = window;
+
+  {
+    /* in gtkwin.c */
+    extern void set_window_icon(
+        GtkWidget * window, const char *const *const *icon, int n_icon);
+    extern const char *const *const cfg_icon[];
+    extern const int n_cfg_icon;
+    set_window_icon(window, cfg_icon, n_cfg_icon);
+  }
+
+  gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(treescroll), tree);
+  gtk_scrolled_window_set_policy(
+      GTK_SCROLLED_WINDOW(treescroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+  gtk_widget_show(tree);
 
   gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
   gtk_widget_show(window);
@@ -2219,7 +2318,6 @@ int do_config_box(const char *title,
 
   gtk_main();
 
-  get_sesslist(&sl, FALSE);
   dlg_cleanup(&dp);
   sfree(selparams);
 
@@ -2523,12 +2621,12 @@ static void licence_clicked(GtkButton *button, gpointer data)
   char *title;
 
   char *licence =
-      "Copyright 1997-2005 Simon Tatham.\n\n"
+      "Copyright 1997-2007 Simon Tatham.\n\n"
 
       "Portions copyright Robert de Bath, Joris van Rantwijk, Delian "
       "Delchev, Andreas Schultz, Jeroen Massar, Wez Furlong, Nicolas "
-      "Barry, Justin Bradford, Ben Harris, Malcolm Smith, Markus Kuhn, "
-      "and CORE SDI S.A.\n\n"
+      "Barry, Justin Bradford, Ben Harris, Malcolm Smith, Ahmad Khalifa, "
+      "Markus Kuhn, and CORE SDI S.A.\n\n"
 
       "Permission is hereby granted, free of charge, to any person "
       "obtaining a copy of this software and associated documentation "
@@ -2612,7 +2710,7 @@ void about_box(void *window)
   gtk_box_pack_start(GTK_BOX(GTK_DIALOG(aboutbox)->vbox), w, FALSE, FALSE, 5);
   gtk_widget_show(w);
 
-  w = gtk_label_new("Copyright 1997-2005 Simon Tatham. All rights reserved");
+  w = gtk_label_new("Copyright 1997-2007 Simon Tatham. All rights reserved");
   gtk_box_pack_start(GTK_BOX(GTK_DIALOG(aboutbox)->vbox), w, FALSE, FALSE, 5);
   gtk_widget_show(w);
 
@@ -2720,7 +2818,8 @@ void eventlog_selection_get(GtkWidget *widget,
 {
   struct eventlog_stuff *es = (struct eventlog_stuff *)data;
 
-  gtk_selection_data_set(seldata, seldata->target, 8, es->seldata, es->sellen);
+  gtk_selection_data_set(
+      seldata, seldata->target, 8, (unsigned char *)es->seldata, es->sellen);
 }
 
 gint eventlog_selection_clear(GtkWidget *widget,

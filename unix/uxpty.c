@@ -2,8 +2,6 @@
  * Pseudo-tty backend for pterm.
  */
 
-#define _XOPEN_SOURCE 600
-#define _XOPEN_SOURCE_EXTENDED
 #define _GNU_SOURCE
 
 #include <stdio.h>
@@ -11,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <assert.h>
 #include <fcntl.h>
 #include <termios.h>
 #include <grp.h>
@@ -26,6 +25,10 @@
 #include "putty.h"
 #include "tree234.h"
 
+#ifndef OMIT_UTMP
+#include <utmpx.h>
+#endif
+
 #ifndef FALSE
 #define FALSE 0
 #endif
@@ -33,12 +36,15 @@
 #define TRUE 1
 #endif
 
-#ifndef UTMP_FILE
-#define UTMP_FILE "/var/run/utmp"
+/* updwtmpx() needs the name of the wtmp file.  Try to find it. */
+#ifndef WTMPX_FILE
+#ifdef _PATH_WTMPX
+#define WTMPX_FILE _PATH_WTMPX
+#else
+#define WTMPX_FILE "/var/log/wtmpx"
 #endif
-#ifndef WTMP_FILE
-#define WTMP_FILE "/var/log/wtmp"
 #endif
+
 #ifndef LASTLOG_FILE
 #ifdef _PATH_LASTLOG
 #define LASTLOG_FILE _PATH_LASTLOG
@@ -78,6 +84,7 @@ struct pty_tag {
   int term_width, term_height;
   int child_dead, finished;
   int exit_code;
+  bufchain output_data;
 };
 
 /*
@@ -162,7 +169,7 @@ static Pty single_pty = NULL;
 #ifndef OMIT_UTMP
 static int pty_utmp_helper_pid, pty_utmp_helper_pipe;
 static int pty_stamped_utmp;
-static struct utmp utmp_entry;
+static struct utmpx utmp_entry;
 #endif
 
 /*
@@ -173,6 +180,7 @@ static struct utmp utmp_entry;
 char **pty_argv;
 
 static void pty_close(Pty pty);
+static void pty_try_write(Pty pty);
 
 #ifndef OMIT_UTMP
 static void setup_utmp(char *ttyname, char *location)
@@ -182,8 +190,7 @@ static void setup_utmp(char *ttyname, char *location)
   FILE *lastlog;
 #endif
   struct passwd *pw;
-  FILE *wtmp;
-  time_t uttime;
+  struct timeval tv;
 
   pw = getpwuid(getuid());
   memset(&utmp_entry, 0, sizeof(utmp_entry));
@@ -193,22 +200,20 @@ static void setup_utmp(char *ttyname, char *location)
   strncpy(utmp_entry.ut_id, ttyname + 8, lenof(utmp_entry.ut_id));
   strncpy(utmp_entry.ut_user, pw->pw_name, lenof(utmp_entry.ut_user));
   strncpy(utmp_entry.ut_host, location, lenof(utmp_entry.ut_host));
-  /* Apparently there are some architectures where (struct utmp).ut_time
-   * is not essentially time_t (e.g. Linux amd64). Hence the temporary. */
-  time(&uttime);
-  utmp_entry.ut_time = uttime; /* may truncate */
+  /*
+   * Apparently there are some architectures where (struct
+   * utmpx).ut_tv is not essentially struct timeval (e.g. Linux
+   * amd64). Hence the temporary.
+   */
+  gettimeofday(&tv, NULL);
+  utmp_entry.ut_tv.tv_sec = tv.tv_sec;
+  utmp_entry.ut_tv.tv_usec = tv.tv_usec;
 
-#if defined HAVE_PUTUTLINE
-  utmpname(UTMP_FILE);
-  setutent();
-  pututline(&utmp_entry);
-  endutent();
-#endif
+  setutxent();
+  pututxline(&utmp_entry);
+  endutxent();
 
-  if ((wtmp = fopen(WTMP_FILE, "a")) != NULL) {
-    fwrite(&utmp_entry, 1, sizeof(utmp_entry), wtmp);
-    fclose(wtmp);
-  }
+  updwtmpx(WTMPX_FILE, &utmp_entry);
 
 #ifdef HAVE_LASTLOG
   memset(&lastlog_entry, 0, sizeof(lastlog_entry));
@@ -227,31 +232,26 @@ static void setup_utmp(char *ttyname, char *location)
 
 static void cleanup_utmp(void)
 {
-  FILE *wtmp;
-  time_t uttime;
+  struct timeval tv;
 
   if (!pty_stamped_utmp)
     return;
 
   utmp_entry.ut_type = DEAD_PROCESS;
   memset(utmp_entry.ut_user, 0, lenof(utmp_entry.ut_user));
-  time(&uttime);
-  utmp_entry.ut_time = uttime;
+  gettimeofday(&tv, NULL);
+  utmp_entry.ut_tv.tv_sec = tv.tv_sec;
+  utmp_entry.ut_tv.tv_usec = tv.tv_usec;
 
-  if ((wtmp = fopen(WTMP_FILE, "a")) != NULL) {
-    fwrite(&utmp_entry, 1, sizeof(utmp_entry), wtmp);
-    fclose(wtmp);
-  }
+  updwtmpx(WTMPX_FILE, &utmp_entry);
 
   memset(utmp_entry.ut_line, 0, lenof(utmp_entry.ut_line));
-  utmp_entry.ut_time = 0;
+  utmp_entry.ut_tv.tv_sec = 0;
+  utmp_entry.ut_tv.tv_usec = 0;
 
-#if defined HAVE_PUTUTLINE
-  utmpname(UTMP_FILE);
-  setutent();
-  pututline(&utmp_entry);
-  endutent();
-#endif
+  setutxent();
+  pututxline(&utmp_entry);
+  endutxent();
 
   pty_stamped_utmp = 0; /* ensure we never double-cleanup */
 }
@@ -274,8 +274,10 @@ static void fatal_sig_handler(int signum)
 
 static int pty_open_slave(Pty pty)
 {
-  if (pty->slave_fd < 0)
+  if (pty->slave_fd < 0) {
     pty->slave_fd = open(pty->name, O_RDWR);
+    cloexec(pty->slave_fd);
+  }
 
   return pty->slave_fd;
 }
@@ -304,6 +306,8 @@ static void pty_open_master(Pty pty)
            */
           strcpy(pty->name, master_name);
           pty->name[5] = 't'; /* /dev/ptyXX -> /dev/ttyXX */
+
+          cloexec(pty->master_fd);
 
           if (pty_open_slave(pty) >= 0 && access(pty->name, R_OK | W_OK) == 0)
             goto got_one;
@@ -343,9 +347,19 @@ got_one:
     exit(1);
   }
 
+  cloexec(pty->master_fd);
+
   pty->name[FILENAME_MAX - 1] = '\0';
   strncpy(pty->name, ptsname(pty->master_fd), FILENAME_MAX - 1);
 #endif
+
+  {
+    /*
+     * Set the pty master into non-blocking mode.
+     */
+    int i = 1;
+    ioctl(pty->master_fd, FIONBIO, &i);
+  }
 
   if (!ptys_by_fd)
     ptys_by_fd = newtree234(pty_compare_by_fd);
@@ -375,6 +389,7 @@ void pty_pre_init(void)
 #endif
 
   pty = single_pty = snew(struct pty_tag);
+  bufchain_init(&pty->output_data);
 
   /* set the child signal handler straight away; it needs to be set
    * before we ever fork. */
@@ -396,6 +411,8 @@ void pty_pre_init(void)
     perror("pterm: pipe");
     exit(1);
   }
+  cloexec(pipefd[0]);
+  cloexec(pipefd[1]);
   pid = fork();
   if (pid < 0) {
     perror("pterm: fork");
@@ -554,6 +571,11 @@ int pty_real_select_result(Pty pty, int event, int status)
       } else if (ret > 0) {
         from_backend(pty->frontend, 0, buf, ret);
       }
+    } else if (event == 2) {
+      /*
+       * Attempt to send data down the pty.
+       */
+      pty_try_write(pty);
     }
   }
 
@@ -634,7 +656,12 @@ int pty_select_result(int fd, int event)
 
 static void pty_uxsel_setup(Pty pty)
 {
-  uxsel_set(pty->master_fd, 1, pty_select_result);
+  int rwx;
+
+  rwx = 1; /* always want to read from pty */
+  if (bufchain_size(&pty->output_data))
+    rwx |= 2; /* might also want to write to it */
+  uxsel_set(pty->master_fd, rwx, pty_select_result);
 
   /*
    * In principle this only needs calling once for all pty
@@ -737,7 +764,6 @@ static const char *pty_init(void *frontend,
   }
 
   if (pid == 0) {
-    int i;
     /*
      * We are the child.
      */
@@ -753,26 +779,30 @@ static const char *pty_init(void *frontend,
     dup2(slavefd, 0);
     dup2(slavefd, 1);
     dup2(slavefd, 2);
+    close(slavefd);
     setsid();
+#ifdef TIOCSCTTY
     ioctl(slavefd, TIOCSCTTY, 1);
+#endif
     pgrp = getpid();
     tcsetpgrp(slavefd, pgrp);
     setpgid(pgrp, pgrp);
     close(open(pty->name, O_WRONLY, 0));
     setpgid(pgrp, pgrp);
-    /* Close everything _else_, for tidiness. */
-    for (i = 3; i < 1024; i++)
-      close(i);
     {
-      char term_env_var[10 + sizeof(cfg->termtype)];
-      sprintf(term_env_var, "TERM=%s", cfg->termtype);
+      char *term_env_var = dupprintf("TERM=%s", cfg->termtype);
       putenv(term_env_var);
+      /* We mustn't free term_env_var, as putenv links it into the
+       * environment in place.
+       */
     }
 #ifndef NOT_X_WINDOWS /* for Mac OS X native compilation */
     {
-      char windowid_env_var[40];
-      sprintf(windowid_env_var, "WINDOWID=%ld", windowid);
+      char *windowid_env_var = dupprintf("WINDOWID=%ld", windowid);
       putenv(windowid_env_var);
+      /* We mustn't free windowid_env_var, as putenv links it into the
+       * environment in place.
+       */
     }
 #endif
     {
@@ -842,13 +872,19 @@ static const char *pty_init(void *frontend,
     add234(ptys_by_pid, pty);
   }
 
-  if (pty_signal_pipe[0] < 0 && pipe(pty_signal_pipe) < 0) {
-    perror("pipe");
-    exit(1);
+  if (pty_signal_pipe[0] < 0) {
+    if (pipe(pty_signal_pipe) < 0) {
+      perror("pipe");
+      exit(1);
+    }
+    cloexec(pty_signal_pipe[0]);
+    cloexec(pty_signal_pipe[1]);
   }
   pty_uxsel_setup(pty);
 
   *backend_handle = pty;
+
+  *realhost = dupprintf("\0");
 
   return NULL;
 }
@@ -878,6 +914,33 @@ static void pty_free(void *handle)
   sfree(pty);
 }
 
+static void pty_try_write(Pty pty)
+{
+  void *data;
+  int len, ret;
+
+  assert(pty->master_fd >= 0);
+
+  while (bufchain_size(&pty->output_data) > 0) {
+    bufchain_prefix(&pty->output_data, &data, &len);
+    ret = write(pty->master_fd, data, len);
+
+    if (ret < 0 && (errno == EWOULDBLOCK)) {
+      /*
+       * We've sent all we can for the moment.
+       */
+      break;
+    }
+    if (ret < 0) {
+      perror("write pty master");
+      exit(1);
+    }
+    bufchain_consume(&pty->output_data, ret);
+  }
+
+  pty_uxsel_setup(pty);
+}
+
 /*
  * Called to send data down the pty.
  */
@@ -888,16 +951,10 @@ static int pty_send(void *handle, char *buf, int len)
   if (pty->master_fd < 0)
     return 0; /* ignore all writes if fd closed */
 
-  while (len > 0) {
-    int ret = write(pty->master_fd, buf, len);
-    if (ret < 0) {
-      perror("write pty master");
-      exit(1);
-    }
-    buf += ret;
-    len -= ret;
-  }
-  return 0;
+  bufchain_add(&pty->output_data, buf, len);
+  pty_try_write(pty);
+
+  return bufchain_size(&pty->output_data);
 }
 
 static void pty_close(Pty pty)
@@ -970,10 +1027,10 @@ static const struct telnet_special *pty_get_specials(void *handle)
   return NULL;
 }
 
-static Socket pty_socket(void *handle)
+static int pty_connected(void *handle)
 {
   /* Pty pty = (Pty)handle; */
-  return NULL; /* shouldn't ever be needed */
+  return TRUE;
 }
 
 static int pty_sendok(void *handle)
@@ -1029,7 +1086,7 @@ Backend pty_backend = {pty_init,
                        pty_size,
                        pty_special,
                        pty_get_specials,
-                       pty_socket,
+                       pty_connected,
                        pty_exitcode,
                        pty_sendok,
                        pty_ldisc,

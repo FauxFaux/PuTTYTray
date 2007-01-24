@@ -6,126 +6,20 @@
 
 #include "putty.h"
 #include "psftp.h"
+#include "int64.h"
 
-/* ----------------------------------------------------------------------
- * Interface to GUI driver program.
- */
-
-/* This is just a base value from which the main message numbers are
- * derived. */
-#define WM_APP_BASE 0x8000
-
-/* These two pass a single character value in wParam. They represent
- * the visible output from PSCP. */
-#define WM_STD_OUT_CHAR (WM_APP_BASE + 400)
-#define WM_STD_ERR_CHAR (WM_APP_BASE + 401)
-
-/* These pass a transfer status update. WM_STATS_CHAR passes a single
- * character in wParam, and is called repeatedly to pass the name of
- * the file, terminated with "\n". WM_STATS_SIZE passes the size of
- * the file being transferred in wParam. WM_STATS_ELAPSED is called
- * to pass the elapsed time (in seconds) in wParam, and
- * WM_STATS_PERCENT passes the percentage of the transfer which is
- * complete, also in wParam. */
-#define WM_STATS_CHAR (WM_APP_BASE + 402)
-#define WM_STATS_SIZE (WM_APP_BASE + 403)
-#define WM_STATS_PERCENT (WM_APP_BASE + 404)
-#define WM_STATS_ELAPSED (WM_APP_BASE + 405)
-
-/* These are used at the end of a run to pass an error code in
- * wParam: zero means success, nonzero means failure. WM_RET_ERR_CNT
- * is used after a copy, and WM_LS_RET_ERR_CNT is used after a file
- * list operation. */
-#define WM_RET_ERR_CNT (WM_APP_BASE + 406)
-#define WM_LS_RET_ERR_CNT (WM_APP_BASE + 407)
-
-/* More transfer status update messages. WM_STATS_DONE passes the
- * number of bytes sent so far in wParam. WM_STATS_ETA passes the
- * estimated time to completion (in seconds). WM_STATS_RATEBS passes
- * the average transfer rate (in bytes per second). */
-#define WM_STATS_DONE (WM_APP_BASE + 408)
-#define WM_STATS_ETA (WM_APP_BASE + 409)
-#define WM_STATS_RATEBS (WM_APP_BASE + 410)
-
-#define NAME_STR_MAX 2048
-static char statname[NAME_STR_MAX + 1];
-static unsigned long statsize = 0;
-static unsigned long statdone = 0;
-static unsigned long stateta = 0;
-static unsigned long statratebs = 0;
-static int statperct = 0;
-static unsigned long statelapsed = 0;
-
-static HWND gui_hwnd = NULL;
-
-static void send_msg(HWND h, UINT message, WPARAM wParam)
+char *get_ttymode(void *frontend, const char *mode)
 {
-  while (!PostMessage(h, message, wParam, 0))
-    SleepEx(1000, TRUE);
+  return NULL;
 }
 
-void gui_send_char(int is_stderr, int c)
+int get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
 {
-  unsigned int msg_id = WM_STD_OUT_CHAR;
-  if (is_stderr)
-    msg_id = WM_STD_ERR_CHAR;
-  send_msg(gui_hwnd, msg_id, (WPARAM)c);
-}
-
-void gui_send_errcount(int list, int errs)
-{
-  unsigned int msg_id = WM_RET_ERR_CNT;
-  if (list)
-    msg_id = WM_LS_RET_ERR_CNT;
-  while (!PostMessage(gui_hwnd, msg_id, (WPARAM)errs, 0))
-    SleepEx(1000, TRUE);
-}
-
-void gui_update_stats(char *name,
-                      unsigned long size,
-                      int percentage,
-                      unsigned long elapsed,
-                      unsigned long done,
-                      unsigned long eta,
-                      unsigned long ratebs)
-{
-  unsigned int i;
-
-  if (strcmp(name, statname) != 0) {
-    for (i = 0; i < strlen(name); ++i)
-      send_msg(gui_hwnd, WM_STATS_CHAR, (WPARAM)name[i]);
-    send_msg(gui_hwnd, WM_STATS_CHAR, (WPARAM)'\n');
-    strcpy(statname, name);
-  }
-  if (statsize != size) {
-    send_msg(gui_hwnd, WM_STATS_SIZE, (WPARAM)size);
-    statsize = size;
-  }
-  if (statdone != done) {
-    send_msg(gui_hwnd, WM_STATS_DONE, (WPARAM)done);
-    statdone = done;
-  }
-  if (stateta != eta) {
-    send_msg(gui_hwnd, WM_STATS_ETA, (WPARAM)eta);
-    stateta = eta;
-  }
-  if (statratebs != ratebs) {
-    send_msg(gui_hwnd, WM_STATS_RATEBS, (WPARAM)ratebs);
-    statratebs = ratebs;
-  }
-  if (statelapsed != elapsed) {
-    send_msg(gui_hwnd, WM_STATS_ELAPSED, (WPARAM)elapsed);
-    statelapsed = elapsed;
-  }
-  if (statperct != percentage) {
-    send_msg(gui_hwnd, WM_STATS_PERCENT, (WPARAM)percentage);
-    statperct = percentage;
-  }
-}
-
-void gui_enable(char *arg)
-{
-  gui_hwnd = (HWND)atoi(arg);
+  int ret;
+  ret = cmdline_get_passwd_input(p, in, inlen);
+  if (ret == -1)
+    ret = console_get_userpass_input(p, in, inlen);
+  return ret;
 }
 
 /* ----------------------------------------------------------------------
@@ -185,7 +79,7 @@ struct RFile {
 };
 
 RFile *open_existing_file(char *name,
-                          unsigned long *size,
+                          uint64 *size,
                           unsigned long *mtime,
                           unsigned long *atime)
 {
@@ -201,7 +95,7 @@ RFile *open_existing_file(char *name,
   ret->h = h;
 
   if (size)
-    *size = GetFileSize(h, NULL);
+    size->lo = GetFileSize(h, &(size->hi));
 
   if (mtime || atime) {
     FILETIME actime, wrtime;
@@ -251,6 +145,25 @@ WFile *open_new_file(char *name)
   return ret;
 }
 
+WFile *open_existing_wfile(char *name, uint64 *size)
+{
+  HANDLE h;
+  WFile *ret;
+
+  h = CreateFile(
+      name, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, 0);
+  if (h == INVALID_HANDLE_VALUE)
+    return NULL;
+
+  ret = snew(WFile);
+  ret->h = h;
+
+  if (size)
+    size->lo = GetFileSize(h, &(size->hi));
+
+  return ret;
+}
+
 int write_to_file(WFile *f, void *buffer, int length)
 {
   int ret, written;
@@ -273,6 +186,44 @@ void close_wfile(WFile *f)
 {
   CloseHandle(f->h);
   sfree(f);
+}
+
+/* Seek offset bytes through file, from whence, where whence is
+   FROM_START, FROM_CURRENT, or FROM_END */
+int seek_file(WFile *f, uint64 offset, int whence)
+{
+  DWORD movemethod;
+
+  switch (whence) {
+  case FROM_START:
+    movemethod = FILE_BEGIN;
+    break;
+  case FROM_CURRENT:
+    movemethod = FILE_CURRENT;
+    break;
+  case FROM_END:
+    movemethod = FILE_END;
+    break;
+  default:
+    return -1;
+  }
+
+  SetFilePointer(f->h, offset.lo, &(offset.hi), movemethod);
+
+  if (GetLastError() != NO_ERROR)
+    return -1;
+  else
+    return 0;
+}
+
+uint64 get_file_posn(WFile *f)
+{
+  uint64 ret;
+
+  ret.hi = 0L;
+  ret.lo = SetFilePointer(f->h, 0L, &(ret.hi), FILE_CURRENT);
+
+  return ret;
 }
 
 int file_type(char *name)
@@ -492,7 +443,7 @@ char *dir_file_cat(char *dir, char *file)
  * Be told what socket we're supposed to be using.
  */
 static SOCKET sftp_ssh_socket = INVALID_SOCKET;
-static HANDLE netevent = NULL;
+static HANDLE netevent = INVALID_HANDLE_VALUE;
 char *do_select(SOCKET skt, int startup)
 {
   int events;
@@ -524,19 +475,12 @@ extern int select_result(WPARAM, LPARAM);
 
 int do_eventsel_loop(HANDLE other_event)
 {
-  int n;
+  int n, nhandles, nallhandles, netindex, otherindex;
   long next, ticks;
-  HANDLE handles[2];
+  HANDLE *handles;
   SOCKET *sklist;
   int skcount;
   long now = GETTICKCOUNT();
-
-  if (!netevent) {
-    return -1; /* doom */
-  }
-
-  handles[0] = netevent;
-  handles[1] = other_event;
 
   if (run_timers(now, &next)) {
     ticks = next - GETTICKCOUNT();
@@ -546,10 +490,24 @@ int do_eventsel_loop(HANDLE other_event)
     ticks = INFINITE;
   }
 
-  n = MsgWaitForMultipleObjects(
-      other_event ? 2 : 1, handles, FALSE, ticks, QS_POSTMESSAGE);
+  handles = handle_get_events(&nhandles);
+  handles = sresize(handles, nhandles + 2, HANDLE);
+  nallhandles = nhandles;
 
-  if (n == WAIT_OBJECT_0 + 0) {
+  if (netevent != INVALID_HANDLE_VALUE)
+    handles[netindex = nallhandles++] = netevent;
+  else
+    netindex = -1;
+  if (other_event != INVALID_HANDLE_VALUE)
+    handles[otherindex = nallhandles++] = other_event;
+  else
+    otherindex = -1;
+
+  n = WaitForMultipleObjects(nallhandles, handles, FALSE, ticks);
+
+  if ((unsigned)(n - WAIT_OBJECT_0) < (unsigned)nhandles) {
+    handle_got_event(handles[n - WAIT_OBJECT_0]);
+  } else if (netindex >= 0 && n == WAIT_OBJECT_0 + netindex) {
     WSANETWORKEVENTS things;
     SOCKET socket;
     extern SOCKET first_socket(int *), next_socket(int *);
@@ -612,13 +570,15 @@ int do_eventsel_loop(HANDLE other_event)
     sfree(sklist);
   }
 
+  sfree(handles);
+
   if (n == WAIT_TIMEOUT) {
     now = next;
   } else {
     now = GETTICKCOUNT();
   }
 
-  if (other_event && n == WAIT_OBJECT_0 + 1)
+  if (otherindex >= 0 && n == WAIT_OBJECT_0 + otherindex)
     return 1;
 
   return 0;
@@ -635,13 +595,13 @@ int do_eventsel_loop(HANDLE other_event)
  */
 int ssh_sftp_loop_iteration(void)
 {
-  if (sftp_ssh_socket == INVALID_SOCKET)
-    return -1; /* doom */
-
   if (p_WSAEventSelect == NULL) {
     fd_set readfds;
     int ret;
     long now = GETTICKCOUNT();
+
+    if (sftp_ssh_socket == INVALID_SOCKET)
+      return -1; /* doom */
 
     if (socket_writable(sftp_ssh_socket))
       select_result((WPARAM)sftp_ssh_socket, (LPARAM)FD_WRITE);
@@ -678,7 +638,7 @@ int ssh_sftp_loop_iteration(void)
 
     return 0;
   } else {
-    return do_eventsel_loop(NULL);
+    return do_eventsel_loop(INVALID_HANDLE_VALUE);
   }
 }
 

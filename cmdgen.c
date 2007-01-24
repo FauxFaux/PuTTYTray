@@ -25,9 +25,10 @@
  *    order to avoid depleting the test system's /dev/random
  *    unnecessarily.
  *
- *  - Calls to console_get_line() are replaced with the diagnostic
- *    function below, so that I can run tests in an automated
- *    manner and provide their interactive passphrase inputs.
+ *  - Calls to console_get_userpass_input() are replaced with the
+ *    diagnostic function below, so that I can run tests in an
+ *    automated manner and provide their interactive passphrase
+ *    inputs.
  *
  *  - main() is renamed to cmdgen_main(); at the bottom of the file
  *    I define another main() which calls the former repeatedly to
@@ -40,19 +41,23 @@ char *get_random_data(int len)
   memset(buf, 'x', len);
   return buf;
 }
-#define console_get_line console_get_line_diagnostic
+#define console_get_userpass_input console_get_userpass_input_diagnostic
 int nprompts, promptsgot;
 const char *prompts[3];
-int console_get_line(const char *prompt, char *str, int maxlen, int is_pw)
+int console_get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
 {
-  if (promptsgot < nprompts) {
-    assert(strlen(prompts[promptsgot]) < maxlen);
-    strcpy(str, prompts[promptsgot++]);
-    return TRUE;
-  } else {
-    promptsgot++; /* track number of requests anyway */
-    return FALSE;
+  size_t i;
+  int ret = 1;
+  for (i = 0; i < p->n_prompts; i++) {
+    if (promptsgot < nprompts) {
+      assert(strlen(prompts[promptsgot]) < p->prompts[i]->result_len);
+      strcpy(p->prompts[i]->result, prompts[promptsgot++]);
+    } else {
+      promptsgot++; /* track number of requests anyway */
+      ret = 0;
+    }
   }
+  return ret;
 }
 #define main cmdgen_main
 #endif
@@ -119,13 +124,15 @@ void showversion(void)
   sfree(verstr);
 }
 
-void usage(void)
+void usage(int standalone)
 {
   fprintf(stderr,
           "Usage: puttygen ( keyfile | -t type [ -b bits ] )\n"
-          "                [ -C comment ] [ -P ]\n"
+          "                [ -C comment ] [ -P ] [ -q ]\n"
           "                [ -o output-keyfile ] [ -O type | -l | -L"
           " | -p ]\n");
+  if (standalone)
+    fprintf(stderr, "Use \"puttygen --help\" for more detail.\n");
 }
 
 void help(void)
@@ -135,12 +142,13 @@ void help(void)
    * start with that, plus a version heading.
    */
   showversion();
-  usage();
+  usage(FALSE);
   fprintf(stderr,
           "  -t    specify key type when generating (rsa, dsa, rsa1)\n"
           "  -b    specify number of bits when generating key\n"
           "  -C    change or specify key comment\n"
           "  -P    change key passphrase\n"
+          "  -q    quiet: do not display progress bar\n"
           "  -O    specify output type:\n"
           "           private             output PuTTY private key format\n"
           "           private-openssh     export OpenSSH private key\n"
@@ -225,7 +233,7 @@ static int move(char *from, char *to)
   return TRUE;
 }
 
-static char *blobfp(char *alg, int bits, char *blob, int bloblen)
+static char *blobfp(char *alg, int bits, unsigned char *blob, int bloblen)
 {
   char buffer[128];
   unsigned char digest[16];
@@ -275,7 +283,8 @@ int main(int argc, char **argv)
   int sshver = 0;
   struct ssh2_userkey *ssh2key = NULL;
   struct RSAKey *ssh1key = NULL;
-  char *ssh2blob = NULL, *ssh2alg = NULL;
+  unsigned char *ssh2blob = NULL;
+  char *ssh2alg = NULL;
   const struct ssh_signkey *ssh2algf = NULL;
   int ssh2bloblen;
   char *passphrase = NULL;
@@ -291,7 +300,7 @@ int main(int argc, char **argv)
    * return success.
    */
   if (argc <= 1) {
-    usage();
+    usage(TRUE);
     return 0;
   }
 
@@ -344,7 +353,7 @@ int main(int argc, char **argv)
              */
             else {
               errs = TRUE;
-              fprintf(stderr, "puttygen: no such option `--%s'\n", opt);
+              fprintf(stderr, "puttygen: no such option `-%s'\n", opt);
             }
           }
           p = NULL;
@@ -484,7 +493,7 @@ int main(int argc, char **argv)
    * ones, print the usage message and return failure.
    */
   if (!infile && keytype == NOKEYGEN) {
-    usage();
+    usage(TRUE);
     return 1;
   }
 
@@ -496,8 +505,19 @@ int main(int argc, char **argv)
    * Bomb out if we've been asked to both load and generate a
    * key.
    */
-  if (keytype != NOKEYGEN && intype) {
+  if (keytype != NOKEYGEN && infile) {
     fprintf(stderr, "puttygen: cannot both load and generate a key\n");
+    return 1;
+  }
+
+  /*
+   * We must save the private part when generating a new key.
+   */
+  if (keytype != NOKEYGEN &&
+      (outtype != PRIVATE && outtype != OPENSSH && outtype != SSHCOM)) {
+    fprintf(stderr,
+            "puttygen: this would generate a new key but "
+            "discard the private part\n");
     return 1;
   }
 
@@ -689,11 +709,20 @@ int main(int argc, char **argv)
      * If so, ask for a passphrase.
      */
     if (encrypted && load_encrypted) {
-      passphrase = snewn(512, char);
-      if (!console_get_line(
-              "Enter passphrase to load key: ", passphrase, 512, TRUE)) {
+      prompts_t *p = new_prompts(NULL);
+      int ret;
+      p->to_server = FALSE;
+      p->name = dupstr("SSH key passphrase");
+      add_prompt(p, dupstr("Enter passphrase to load key: "), FALSE, 512);
+      ret = console_get_userpass_input(p, NULL, 0);
+      assert(ret >= 0);
+      if (!ret) {
+        free_prompts(p);
         perror("puttygen: unable to read passphrase");
         return 1;
+      } else {
+        passphrase = dupstr(p->prompts[0]->result);
+        free_prompts(p);
       }
     } else {
       passphrase = NULL;
@@ -706,11 +735,12 @@ int main(int argc, char **argv)
       ssh1key = snew(struct RSAKey);
       if (!load_encrypted) {
         void *vblob;
-        char *blob;
+        unsigned char *blob;
         int n, l, bloblen;
 
-        ret = rsakey_pubblob(&infilename, &vblob, &bloblen, &error);
-        blob = (char *)vblob;
+        ret =
+            rsakey_pubblob(&infilename, &vblob, &bloblen, &origcomment, &error);
+        blob = (unsigned char *)vblob;
 
         n = 4; /* skip modulus bits */
 
@@ -725,7 +755,7 @@ int main(int argc, char **argv)
           } else
             n += l;
         }
-        ssh1key->comment = NULL;
+        ssh1key->comment = dupstr(origcomment);
         ssh1key->private_exponent = NULL;
       } else {
         ret = loadrsakey(&infilename, ssh1key, passphrase, &error);
@@ -738,8 +768,8 @@ int main(int argc, char **argv)
 
     case SSH_KEYTYPE_SSH2:
       if (!load_encrypted) {
-        ssh2blob =
-            ssh2_userkey_loadpub(&infilename, &ssh2alg, &ssh2bloblen, &error);
+        ssh2blob = ssh2_userkey_loadpub(
+            &infilename, &ssh2alg, &ssh2bloblen, NULL, &error);
         ssh2algf = find_pubkey_alg(ssh2alg);
         if (ssh2algf)
           bits = ssh2algf->pubkey_bits(ssh2blob, ssh2bloblen);
@@ -800,31 +830,35 @@ int main(int argc, char **argv)
    * we have just generated a key.
    */
   if (change_passphrase || keytype != NOKEYGEN) {
-    char *passphrase2;
+    prompts_t *p = new_prompts(NULL);
+    int ret;
 
-    if (passphrase) {
-      memset(passphrase, 0, strlen(passphrase));
-      sfree(passphrase);
-    }
-
-    passphrase = snewn(512, char);
-    passphrase2 = snewn(512, char);
-    if (!console_get_line(
-            "Enter passphrase to save key: ", passphrase, 512, TRUE) ||
-        !console_get_line(
-            "Re-enter passphrase to verify: ", passphrase2, 512, TRUE)) {
+    p->to_server = FALSE;
+    p->name = dupstr("New SSH key passphrase");
+    add_prompt(p, dupstr("Enter passphrase to save key: "), FALSE, 512);
+    add_prompt(p, dupstr("Re-enter passphrase to verify: "), FALSE, 512);
+    ret = console_get_userpass_input(p, NULL, 0);
+    assert(ret >= 0);
+    if (!ret) {
+      free_prompts(p);
       perror("puttygen: unable to read new passphrase");
       return 1;
-    }
-    if (strcmp(passphrase, passphrase2)) {
-      fprintf(stderr, "puttygen: passphrases do not match\n");
-      return 1;
-    }
-    memset(passphrase2, 0, strlen(passphrase2));
-    sfree(passphrase2);
-    if (!*passphrase) {
-      sfree(passphrase);
-      passphrase = NULL;
+    } else {
+      if (strcmp(p->prompts[0]->result, p->prompts[1]->result)) {
+        free_prompts(p);
+        fprintf(stderr, "puttygen: passphrases do not match\n");
+        return 1;
+      }
+      if (passphrase) {
+        memset(passphrase, 0, strlen(passphrase));
+        sfree(passphrase);
+      }
+      passphrase = dupstr(p->prompts[0]->result);
+      free_prompts(p);
+      if (!*passphrase) {
+        sfree(passphrase);
+        passphrase = NULL;
+      }
     }
   }
 
@@ -875,7 +909,7 @@ int main(int argc, char **argv)
       assert(ssh1key);
 
       if (outfile)
-        fp = f_open(outfilename, "w");
+        fp = f_open(outfilename, "w", FALSE);
       else
         fp = stdout;
       dec1 = bignum_decimal(ssh1key->exponent);
@@ -937,7 +971,7 @@ int main(int argc, char **argv)
         *p++ = '\0';
 
       if (outfile)
-        fp = f_open(outfilename, "w");
+        fp = f_open(outfilename, "w", FALSE);
       else
         fp = stdout;
       fprintf(fp, "%s\n", buffer);
@@ -966,7 +1000,7 @@ int main(int argc, char **argv)
     }
 
     if (outfile)
-      fp = f_open(outfilename, "w");
+      fp = f_open(outfilename, "w", FALSE);
     else
       fp = stdout;
     fprintf(fp, "%s\n", fingerprint);

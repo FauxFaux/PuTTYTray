@@ -17,7 +17,7 @@
 #define ICON_BIG 1
 #endif
 
-#define WM_DONEKEY (WM_XUSER + 1)
+#define WM_DONEKEY (WM_APP + 1)
 
 #define DEFAULT_KEYSIZE 1024
 
@@ -825,17 +825,16 @@ static int CALLBACK MainDlgProc(HWND hwnd,
 
   switch (msg) {
   case WM_INITDIALOG:
-    if (help_path)
-      SetWindowLong(hwnd,
-                    GWL_EXSTYLE,
-                    GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_CONTEXTHELP);
+    if (has_help())
+      SetWindowLongPtr(hwnd,
+                       GWL_EXSTYLE,
+                       GetWindowLongPtr(hwnd, GWL_EXSTYLE) | WS_EX_CONTEXTHELP);
     else {
       /*
        * If we add a Help button, this is where we destroy it
        * if the help file isn't present.
        */
     }
-    requested_help = FALSE;
     SendMessage(hwnd,
                 WM_SETICON,
                 (WPARAM)ICON_BIG,
@@ -846,7 +845,7 @@ static int CALLBACK MainDlgProc(HWND hwnd,
     state->collecting_entropy = FALSE;
     state->entropy = NULL;
     state->key_exists = FALSE;
-    SetWindowLong(hwnd, GWL_USERDATA, (LONG)state);
+    SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)state);
     {
       HMENU menu, menu1;
 
@@ -880,7 +879,7 @@ static int CALLBACK MainDlgProc(HWND hwnd,
 
       menu1 = CreateMenu();
       AppendMenu(menu1, MF_ENABLED, IDC_ABOUT, "&About");
-      if (help_path)
+      if (has_help())
         AppendMenu(menu1, MF_ENABLED, IDC_GIVEHELP, "&Help");
       AppendMenu(menu, MF_POPUP | MF_ENABLED, (UINT)menu1, "&Help");
 
@@ -998,7 +997,7 @@ static int CALLBACK MainDlgProc(HWND hwnd,
 
     return 1;
   case WM_MOUSEMOVE:
-    state = (struct MainDlgState *)GetWindowLong(hwnd, GWL_USERDATA);
+    state = (struct MainDlgState *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     if (state->collecting_entropy && state->entropy &&
         state->entropy_got < state->entropy_required) {
       state->entropy[state->entropy_got++] = lParam;
@@ -1047,7 +1046,7 @@ static int CALLBACK MainDlgProc(HWND hwnd,
     case IDC_KEYSSH1:
     case IDC_KEYSSH2RSA:
     case IDC_KEYSSH2DSA: {
-      state = (struct MainDlgState *)GetWindowLong(hwnd, GWL_USERDATA);
+      state = (struct MainDlgState *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
       if (!IsDlgButtonChecked(hwnd, LOWORD(wParam)))
         CheckRadioButton(hwnd, IDC_KEYSSH1, IDC_KEYSSH2DSA, LOWORD(wParam));
       CheckMenuRadioItem(state->keymenu,
@@ -1061,7 +1060,7 @@ static int CALLBACK MainDlgProc(HWND hwnd,
       break;
     case IDC_COMMENTEDIT:
       if (HIWORD(wParam) == EN_CHANGE) {
-        state = (struct MainDlgState *)GetWindowLong(hwnd, GWL_USERDATA);
+        state = (struct MainDlgState *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
         if (state->key_exists) {
           HWND editctl = GetDlgItem(hwnd, IDC_COMMENTEDIT);
           int len = GetWindowTextLength(editctl);
@@ -1085,19 +1084,13 @@ static int CALLBACK MainDlgProc(HWND hwnd,
       return 0;
     case IDC_GIVEHELP:
       if (HIWORD(wParam) == BN_CLICKED || HIWORD(wParam) == BN_DOUBLECLICKED) {
-        if (help_path) {
-          WinHelp(hwnd,
-                  help_path,
-                  HELP_COMMAND,
-                  (DWORD) "JI(`',`puttygen.general')");
-          requested_help = TRUE;
-        }
+        launch_help(hwnd, WINHELP_CTX_puttygen_general);
       }
       return 0;
     case IDC_GENERATE:
       if (HIWORD(wParam) != BN_CLICKED && HIWORD(wParam) != BN_DOUBLECLICKED)
         break;
-      state = (struct MainDlgState *)GetWindowLong(hwnd, GWL_USERDATA);
+      state = (struct MainDlgState *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
       if (!state->generation_thread_exists) {
         BOOL ok;
         state->keysize = GetDlgItemInt(hwnd, IDC_BITS, &ok, FALSE);
@@ -1154,7 +1147,7 @@ static int CALLBACK MainDlgProc(HWND hwnd,
     case IDC_EXPORT_SSHCOM:
       if (HIWORD(wParam) != BN_CLICKED)
         break;
-      state = (struct MainDlgState *)GetWindowLong(hwnd, GWL_USERDATA);
+      state = (struct MainDlgState *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
       if (state->key_exists) {
         char filename[FILENAME_MAX];
         char passphrase[PASSPHRASE_MAXLEN];
@@ -1252,7 +1245,7 @@ static int CALLBACK MainDlgProc(HWND hwnd,
     case IDC_SAVEPUB:
       if (HIWORD(wParam) != BN_CLICKED)
         break;
-      state = (struct MainDlgState *)GetWindowLong(hwnd, GWL_USERDATA);
+      state = (struct MainDlgState *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
       if (state->key_exists) {
         char filename[FILENAME_MAX];
         if (prompt_keyfile(hwnd, "Save public key as:", filename, 1, 0)) {
@@ -1286,7 +1279,7 @@ static int CALLBACK MainDlgProc(HWND hwnd,
     case IDC_IMPORT:
       if (HIWORD(wParam) != BN_CLICKED)
         break;
-      state = (struct MainDlgState *)GetWindowLong(hwnd, GWL_USERDATA);
+      state = (struct MainDlgState *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
       if (!state->generation_thread_exists) {
         char filename[FILENAME_MAX];
         if (prompt_keyfile(hwnd,
@@ -1303,7 +1296,7 @@ static int CALLBACK MainDlgProc(HWND hwnd,
     }
     return 0;
   case WM_DONEKEY:
-    state = (struct MainDlgState *)GetWindowLong(hwnd, GWL_USERDATA);
+    state = (struct MainDlgState *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     state->generation_thread_exists = FALSE;
     state->key_exists = TRUE;
     SendDlgItemMessage(
@@ -1385,79 +1378,71 @@ static int CALLBACK MainDlgProc(HWND hwnd,
      */
     ui_set_state(hwnd, state, 2);
     break;
-  case WM_HELP:
-    if (help_path) {
-      int id = ((LPHELPINFO)lParam)->iCtrlId;
-      char *topic = NULL;
-      switch (id) {
-      case IDC_GENERATING:
-      case IDC_PROGRESS:
-      case IDC_GENSTATIC:
-      case IDC_GENERATE:
-        topic = "puttygen.generate";
-        break;
-      case IDC_PKSTATIC:
-      case IDC_KEYDISPLAY:
-        topic = "puttygen.pastekey";
-        break;
-      case IDC_FPSTATIC:
-      case IDC_FINGERPRINT:
-        topic = "puttygen.fingerprint";
-        break;
-      case IDC_COMMENTSTATIC:
-      case IDC_COMMENTEDIT:
-        topic = "puttygen.comment";
-        break;
-      case IDC_PASSPHRASE1STATIC:
-      case IDC_PASSPHRASE1EDIT:
-      case IDC_PASSPHRASE2STATIC:
-      case IDC_PASSPHRASE2EDIT:
-        topic = "puttygen.passphrase";
-        break;
-      case IDC_LOADSTATIC:
-      case IDC_LOAD:
-        topic = "puttygen.load";
-        break;
-      case IDC_SAVESTATIC:
-      case IDC_SAVE:
-        topic = "puttygen.savepriv";
-        break;
-      case IDC_SAVEPUB:
-        topic = "puttygen.savepub";
-        break;
-      case IDC_TYPESTATIC:
-      case IDC_KEYSSH1:
-      case IDC_KEYSSH2RSA:
-      case IDC_KEYSSH2DSA:
-        topic = "puttygen.keytype";
-        break;
-      case IDC_BITSSTATIC:
-      case IDC_BITS:
-        topic = "puttygen.bits";
-        break;
-      case IDC_IMPORT:
-      case IDC_EXPORT_OPENSSH:
-      case IDC_EXPORT_SSHCOM:
-        topic = "puttygen.conversions";
-        break;
-      }
-      if (topic) {
-        char *cmd = dupprintf("JI(`',`%s')", topic);
-        WinHelp(hwnd, help_path, HELP_COMMAND, (DWORD)cmd);
-        sfree(cmd);
-        requested_help = TRUE;
-      } else {
-        MessageBeep(0);
-      }
+  case WM_HELP: {
+    int id = ((LPHELPINFO)lParam)->iCtrlId;
+    char *topic = NULL;
+    switch (id) {
+    case IDC_GENERATING:
+    case IDC_PROGRESS:
+    case IDC_GENSTATIC:
+    case IDC_GENERATE:
+      topic = WINHELP_CTX_puttygen_generate;
+      break;
+    case IDC_PKSTATIC:
+    case IDC_KEYDISPLAY:
+      topic = WINHELP_CTX_puttygen_pastekey;
+      break;
+    case IDC_FPSTATIC:
+    case IDC_FINGERPRINT:
+      topic = WINHELP_CTX_puttygen_fingerprint;
+      break;
+    case IDC_COMMENTSTATIC:
+    case IDC_COMMENTEDIT:
+      topic = WINHELP_CTX_puttygen_comment;
+      break;
+    case IDC_PASSPHRASE1STATIC:
+    case IDC_PASSPHRASE1EDIT:
+    case IDC_PASSPHRASE2STATIC:
+    case IDC_PASSPHRASE2EDIT:
+      topic = WINHELP_CTX_puttygen_passphrase;
+      break;
+    case IDC_LOADSTATIC:
+    case IDC_LOAD:
+      topic = WINHELP_CTX_puttygen_load;
+      break;
+    case IDC_SAVESTATIC:
+    case IDC_SAVE:
+      topic = WINHELP_CTX_puttygen_savepriv;
+      break;
+    case IDC_SAVEPUB:
+      topic = WINHELP_CTX_puttygen_savepub;
+      break;
+    case IDC_TYPESTATIC:
+    case IDC_KEYSSH1:
+    case IDC_KEYSSH2RSA:
+    case IDC_KEYSSH2DSA:
+      topic = WINHELP_CTX_puttygen_keytype;
+      break;
+    case IDC_BITSSTATIC:
+    case IDC_BITS:
+      topic = WINHELP_CTX_puttygen_bits;
+      break;
+    case IDC_IMPORT:
+    case IDC_EXPORT_OPENSSH:
+    case IDC_EXPORT_SSHCOM:
+      topic = WINHELP_CTX_puttygen_conversions;
+      break;
     }
-    break;
+    if (topic) {
+      launch_help(hwnd, topic);
+    } else {
+      MessageBeep(0);
+    }
+  } break;
   case WM_CLOSE:
-    state = (struct MainDlgState *)GetWindowLong(hwnd, GWL_USERDATA);
+    state = (struct MainDlgState *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     sfree(state);
-    if (requested_help) {
-      WinHelp(hwnd, help_path, HELP_QUIT, 0);
-      requested_help = FALSE;
-    }
+    quit_help(hwnd);
     EndDialog(hwnd, 1);
     return 0;
   }
@@ -1466,6 +1451,7 @@ static int CALLBACK MainDlgProc(HWND hwnd,
 
 void cleanup_exit(int code)
 {
+  shutdown_help();
   exit(code);
 }
 
@@ -1473,6 +1459,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
   int argc;
   char **argv;
+  int ret;
 
   InitCommonControls();
   hinst = inst;
@@ -1481,24 +1468,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   /*
    * See if we can find our Help file.
    */
-  {
-    char b[2048], *p, *q, *r;
-    FILE *fp;
-    GetModuleFileName(NULL, b, sizeof(b) - 1);
-    r = b;
-    p = strrchr(b, '\\');
-    if (p && p >= r)
-      r = p + 1;
-    q = strrchr(b, ':');
-    if (q && q >= r)
-      r = q + 1;
-    strcpy(r, PUTTY_HELP_FILE);
-    if ((fp = fopen(b, "r")) != NULL) {
-      help_path = dupstr(b);
-      fclose(fp);
-    } else
-      help_path = NULL;
-  }
+  init_help();
 
   split_into_argv(cmdline, &argc, &argv, NULL);
 
@@ -1516,5 +1486,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   }
 
   random_ref();
-  return DialogBox(hinst, MAKEINTRESOURCE(201), NULL, MainDlgProc) != IDOK;
+  ret = DialogBox(hinst, MAKEINTRESOURCE(201), NULL, MainDlgProc) != IDOK;
+
+  cleanup_exit(ret);
+  return ret; /* just in case optimiser complains */
 }

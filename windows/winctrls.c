@@ -174,48 +174,33 @@ void endbox(struct ctlpos *cp)
 }
 
 /*
- * Some edit boxes. Each one has a static above it. The percentages
- * of the horizontal space are provided.
+ * A static line, followed by a full-width edit box.
  */
-void multiedit(struct ctlpos *cp, int password, ...)
+void editboxfw(
+    struct ctlpos *cp, int password, char *text, int staticid, int editid)
 {
   RECT r;
-  va_list ap;
-  int percent, xpos;
 
-  percent = xpos = 0;
-  va_start(ap, password);
-  while (1) {
-    char *text;
-    int staticid, editid, pcwidth;
-    text = va_arg(ap, char *);
-    if (!text)
-      break;
-    staticid = va_arg(ap, int);
-    editid = va_arg(ap, int);
-    pcwidth = va_arg(ap, int);
+  r.left = GAPBETWEEN;
+  r.right = cp->width;
 
-    r.left = xpos + GAPBETWEEN;
-    percent += pcwidth;
-    xpos = (cp->width + GAPBETWEEN) * percent / 100;
-    r.right = xpos - r.left;
-
+  if (text) {
     r.top = cp->ypos;
     r.bottom = STATICHEIGHT;
     doctl(cp, r, "STATIC", WS_CHILD | WS_VISIBLE, 0, text, staticid);
-    r.top = cp->ypos + 8 + GAPWITHIN;
-    r.bottom = EDITHEIGHT;
-    doctl(cp,
-          r,
-          "EDIT",
-          WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL |
-              (password ? ES_PASSWORD : 0),
-          WS_EX_CLIENTEDGE,
-          "",
-          editid);
+    cp->ypos += STATICHEIGHT + GAPWITHIN;
   }
-  va_end(ap);
-  cp->ypos += STATICHEIGHT + GAPWITHIN + EDITHEIGHT + GAPBETWEEN;
+  r.top = cp->ypos;
+  r.bottom = EDITHEIGHT;
+  doctl(cp,
+        r,
+        "EDIT",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL |
+            (password ? ES_PASSWORD : 0),
+        WS_EX_CLIENTEDGE,
+        "",
+        editid);
+  cp->ypos += EDITHEIGHT + GAPBETWEEN;
 }
 
 /*
@@ -228,10 +213,13 @@ void combobox(struct ctlpos *cp, char *text, int staticid, int listid)
   r.left = GAPBETWEEN;
   r.right = cp->width;
 
+  if (text) {
+    r.top = cp->ypos;
+    r.bottom = STATICHEIGHT;
+    doctl(cp, r, "STATIC", WS_CHILD | WS_VISIBLE, 0, text, staticid);
+    cp->ypos += STATICHEIGHT + GAPWITHIN;
+  }
   r.top = cp->ypos;
-  r.bottom = STATICHEIGHT;
-  doctl(cp, r, "STATIC", WS_CHILD | WS_VISIBLE, 0, text, staticid);
-  r.top = cp->ypos + 8 + GAPWITHIN;
   r.bottom = COMBOHEIGHT * 10;
   doctl(cp,
         r,
@@ -241,8 +229,7 @@ void combobox(struct ctlpos *cp, char *text, int staticid, int listid)
         WS_EX_CLIENTEDGE,
         "",
         listid);
-
-  cp->ypos += STATICHEIGHT + GAPWITHIN + COMBOHEIGHT + GAPBETWEEN;
+  cp->ypos += COMBOHEIGHT + GAPBETWEEN;
 }
 
 struct radio {
@@ -744,7 +731,8 @@ void staticddl(
   doctl(cp,
         r,
         "COMBOBOX",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST | CBS_HASSTRINGS,
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST |
+            CBS_HASSTRINGS,
         WS_EX_CLIENTEDGE,
         "",
         lid);
@@ -795,12 +783,14 @@ void staticddlbig(struct ctlpos *cp, char *stext, int sid, int lid)
 {
   RECT r;
 
-  r.left = GAPBETWEEN;
-  r.top = cp->ypos;
-  r.right = cp->width;
-  r.bottom = STATICHEIGHT;
-  doctl(cp, r, "STATIC", WS_CHILD | WS_VISIBLE, 0, stext, sid);
-  cp->ypos += STATICHEIGHT;
+  if (stext) {
+    r.left = GAPBETWEEN;
+    r.top = cp->ypos;
+    r.right = cp->width;
+    r.bottom = STATICHEIGHT;
+    doctl(cp, r, "STATIC", WS_CHILD | WS_VISIBLE, 0, stext, sid);
+    cp->ypos += STATICHEIGHT;
+  }
 
   r.left = GAPBETWEEN;
   r.top = cp->ypos;
@@ -809,7 +799,8 @@ void staticddlbig(struct ctlpos *cp, char *stext, int sid, int lid)
   doctl(cp,
         r,
         "COMBOBOX",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST | CBS_HASSTRINGS,
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST |
+            CBS_HASSTRINGS,
         WS_EX_CLIENTEDGE,
         "",
         lid);
@@ -823,12 +814,14 @@ void bigeditctrl(struct ctlpos *cp, char *stext, int sid, int eid, int lines)
 {
   RECT r;
 
-  r.left = GAPBETWEEN;
-  r.top = cp->ypos;
-  r.right = cp->width;
-  r.bottom = STATICHEIGHT;
-  cp->ypos += r.bottom + GAPWITHIN;
-  doctl(cp, r, "STATIC", WS_CHILD | WS_VISIBLE, 0, stext, sid);
+  if (stext) {
+    r.left = GAPBETWEEN;
+    r.top = cp->ypos;
+    r.right = cp->width;
+    r.bottom = STATICHEIGHT;
+    cp->ypos += r.bottom + GAPWITHIN;
+    doctl(cp, r, "STATIC", WS_CHILD | WS_VISIBLE, 0, stext, sid);
+  }
 
   r.left = GAPBETWEEN;
   r.top = cp->ypos;
@@ -1164,13 +1157,17 @@ int handle_prefslist(struct prefslist *hdl,
       int dest = 0; /* initialise to placate gcc */
       switch (dlm->uNotification) {
       case DL_BEGINDRAG:
+        /* Add a dummy item to make pl_itemfrompt() work
+         * better.
+         * FIXME: this causes scrollbar glitches if the count of
+         *        listbox contains >= its height. */
         hdl->dummyitem =
             SendDlgItemMessage(hwnd, hdl->listid, LB_ADDSTRING, 0, (LPARAM) "");
 
         hdl->srcitem = LBItemFromPt(dlm->hWnd, dlm->ptCursor, TRUE);
         hdl->dragging = 0;
         /* XXX hack Q183115 */
-        SetWindowLong(hwnd, DWL_MSGRESULT, TRUE);
+        SetWindowLongPtr(hwnd, DWLP_MSGRESULT, TRUE);
         ret |= 1;
         break;
       case DL_CANCELDRAG:
@@ -1187,9 +1184,9 @@ int handle_prefslist(struct prefslist *hdl,
           dest = hdl->dummyitem;
         DrawInsert(hwnd, dlm->hWnd, dest);
         if (dest >= 0)
-          SetWindowLong(hwnd, DWL_MSGRESULT, DL_MOVECURSOR);
+          SetWindowLongPtr(hwnd, DWLP_MSGRESULT, DL_MOVECURSOR);
         else
-          SetWindowLong(hwnd, DWL_MSGRESULT, DL_STOPCURSOR);
+          SetWindowLongPtr(hwnd, DWLP_MSGRESULT, DL_STOPCURSOR);
         ret |= 1;
         break;
       case DL_DROPPED:
@@ -1290,10 +1287,11 @@ void progressbar(struct ctlpos *cp, int id)
  * Return value is a malloc'ed copy of the processed version of the
  * string.
  */
-static char *shortcut_escape(char *text, char shortcut)
+static char *shortcut_escape(const char *text, char shortcut)
 {
   char *ret;
-  char *p, *q;
+  char const *p;
+  char *q;
 
   if (!text)
     return NULL; /* sfree won't choke on this */
@@ -1630,13 +1628,8 @@ void winctrl_layout(struct dlgparam *dp,
         if (ctrl->editbox.has_list)
           combobox(&pos, escaped, base_id, base_id + 1);
         else
-          multiedit(&pos,
-                    ctrl->editbox.password,
-                    escaped,
-                    base_id,
-                    base_id + 1,
-                    100,
-                    NULL);
+          editboxfw(
+              &pos, ctrl->editbox.password, escaped, base_id, base_id + 1);
       } else {
         if (ctrl->editbox.has_list) {
           staticcombo(
@@ -2134,13 +2127,12 @@ int winctrl_handle_command(struct dlgparam *dp,
 
 /*
  * This function can be called to produce context help on a
- * control. Returns TRUE if it has actually launched WinHelp.
+ * control. Returns TRUE if it has actually launched some help.
  */
 int winctrl_context_help(struct dlgparam *dp, HWND hwnd, int id)
 {
   int i;
   struct winctrl *c;
-  char *cmd;
 
   /*
    * Look up the control ID in our data.
@@ -2161,9 +2153,7 @@ int winctrl_context_help(struct dlgparam *dp, HWND hwnd, int id)
   if (!c->ctrl || !c->ctrl->generic.helpctx.p)
     return 0; /* no help available for this ctrl */
 
-  cmd = dupprintf("JI(`',`%s')", c->ctrl->generic.helpctx.p);
-  WinHelp(hwnd, help_path, HELP_COMMAND, (DWORD)cmd);
-  sfree(cmd);
+  launch_help(hwnd, c->ctrl->generic.helpctx.p);
   return 1;
 }
 
@@ -2364,6 +2354,53 @@ void dlg_text_set(union control *ctrl, void *dlg, char const *text)
   struct winctrl *c = dlg_findbyctrl(dp, ctrl);
   assert(c && c->ctrl->generic.type == CTRL_TEXT);
   SetDlgItemText(dp->hwnd, c->base_id, text);
+}
+
+void dlg_label_change(union control *ctrl, void *dlg, char const *text)
+{
+  struct dlgparam *dp = (struct dlgparam *)dlg;
+  struct winctrl *c = dlg_findbyctrl(dp, ctrl);
+  char *escaped = NULL;
+  int id = -1;
+
+  assert(c);
+  switch (c->ctrl->generic.type) {
+  case CTRL_EDITBOX:
+    escaped = shortcut_escape(text, c->ctrl->editbox.shortcut);
+    id = c->base_id;
+    break;
+  case CTRL_RADIO:
+    escaped = shortcut_escape(text, c->ctrl->radio.shortcut);
+    id = c->base_id;
+    break;
+  case CTRL_CHECKBOX:
+    escaped = shortcut_escape(text, ctrl->checkbox.shortcut);
+    id = c->base_id;
+    break;
+  case CTRL_BUTTON:
+    escaped = shortcut_escape(text, ctrl->button.shortcut);
+    id = c->base_id;
+    break;
+  case CTRL_LISTBOX:
+    escaped = shortcut_escape(text, ctrl->listbox.shortcut);
+    id = c->base_id;
+    break;
+  case CTRL_FILESELECT:
+    escaped = shortcut_escape(text, ctrl->fileselect.shortcut);
+    id = c->base_id;
+    break;
+  case CTRL_FONTSELECT:
+    escaped = shortcut_escape(text, ctrl->fontselect.shortcut);
+    id = c->base_id;
+    break;
+  default:
+    assert(!"Can't happen");
+    break;
+  }
+  if (escaped) {
+    SetDlgItemText(dp->hwnd, id, escaped);
+    sfree(escaped);
+  }
 }
 
 void dlg_filesel_set(union control *ctrl, void *dlg, Filename fn)
