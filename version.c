@@ -34,4 +34,7 @@ char sshver[] = "PuTTY-Local: " __DATE__ " " __TIME__;
  * SSH local version string MUST be under 40 characters. Here's a
  * compile time assertion to verify this.
  */
-enum { vorpal_sword = 1 / (sizeof(sshver) <= 40) };
+enum
+{
+  vorpal_sword = 1 / (sizeof(sshver) <= 40)
+};

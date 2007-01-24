@@ -2,25 +2,25 @@
 #define PUTTY_UNIX_H
 
 #ifdef HAVE_CONFIG_H
-# include "uxconfig.h" /* Space to hide it from mkfiles.pl */
+#include "uxconfig.h" /* Space to hide it from mkfiles.pl */
 #endif
 
-#include <stdio.h>		       /* for FILENAME_MAX */
+#include <stdio.h> /* for FILENAME_MAX */
 #include "charset.h"
 
 struct Filename {
-    char path[FILENAME_MAX];
+  char path[FILENAME_MAX];
 };
 FILE *f_open(struct Filename, char const *, int);
 
 struct FontSpec {
-    char name[256];
+  char name[256];
 };
 
-typedef void *Context;                 /* FIXME: probably needs changing */
+typedef void *Context; /* FIXME: probably needs changing */
 
 typedef int OSSocket;
-#define OSSOCKET_DEFINED	       /* stop network.h using its default */
+#define OSSOCKET_DEFINED /* stop network.h using its default */
 
 extern Backend pty_backend;
 
@@ -34,7 +34,7 @@ extern Backend pty_backend;
  * Under GTK, there is no context help available.
  */
 #define HELPCTX(x) P(NULL)
-#define FILTER_KEY_FILES NULL          /* FIXME */
+#define FILTER_KEY_FILES NULL /* FIXME */
 
 /*
  * Under X, selection data must not be NUL-terminated.
@@ -44,13 +44,16 @@ extern Backend pty_backend;
 /*
  * Under X, copying to the clipboard terminates lines with just LF.
  */
-#define SEL_NL { 10 }
+#define SEL_NL                                                                 \
+  {                                                                            \
+    10                                                                         \
+  }
 
 /* Simple wraparound timer function */
-unsigned long getticks(void);	       /* based on gettimeofday(2) */
+unsigned long getticks(void); /* based on gettimeofday(2) */
 #define GETTICKCOUNT getticks
-#define TICKSPERSEC    1000	       /* we choose to use milliseconds */
-#define CURSORBLINK     450	       /* no standard way to set this */
+#define TICKSPERSEC 1000 /* we choose to use milliseconds */
+#define CURSORBLINK 450  /* no standard way to set this */
 /* getticks() works using gettimeofday(), so it's vulnerable to system clock
  * changes causing chaos. Therefore, we provide a compensation mechanism. */
 #define TIMING_SYNC
@@ -62,15 +65,17 @@ extern long tickcount_offset;
 
 /* Things pty.c needs from pterm.c */
 char *get_x_display(void *frontend);
-int font_dimension(void *frontend, int which);/* 0 for width, 1 for height */
+int font_dimension(void *frontend, int which); /* 0 for width, 1 for height */
 long get_windowid(void *frontend);
 
 /* Things gtkdlg.c needs from pterm.c */
-void *get_window(void *frontend);      /* void * to avoid depending on gtk.h */
+void *get_window(void *frontend); /* void * to avoid depending on gtk.h */
 
 /* Things pterm.c needs from gtkdlg.c */
-int do_config_box(const char *title, Config *cfg,
-		  int midsession, int protcfginfo);
+int do_config_box(const char *title,
+                  Config *cfg,
+                  int midsession,
+                  int protcfginfo);
 void fatal_message_box(void *window, char *msg);
 void about_box(void *window);
 void *eventlogstuff_new(void);
@@ -100,7 +105,7 @@ int select_result(int fd, int event);
 int first_fd(int *state, int *rwx);
 int next_fd(int *state, int *rwx);
 /* The following are expected to be provided _to_ uxsel.c by the frontend */
-int uxsel_input_add(int fd, int rwx);  /* returns an id */
+int uxsel_input_add(int fd, int rwx); /* returns an id */
 void uxsel_input_remove(int id);
 
 /* uxcfg.c */
@@ -119,7 +124,7 @@ void gtk_setup_config_box(struct controlbox *b, int midsession, void *window);
  * from the command line or config files is assumed to be encoded).
  */
 #define DEFAULT_CODEPAGE 0xFFFF
-#define CP_UTF8 CS_UTF8		       /* from libcharset */
+#define CP_UTF8 CS_UTF8 /* from libcharset */
 
 #define strnicmp strncasecmp
 #define stricmp strcasecmp
@@ -135,8 +140,11 @@ int cloexec(int);
  * Exports from unicode.c.
  */
 struct unicode_data;
-int init_ucs(struct unicode_data *ucsdata, char *line_codepage,
-	     int utf8_override, int font_charset, int vtmode);
+int init_ucs(struct unicode_data *ucsdata,
+             char *line_codepage,
+             int utf8_override,
+             int font_charset,
+             int vtmode);
 
 /*
  * Spare function exported directly from uxnet.c.
@@ -147,10 +155,12 @@ void *sk_getxdmdata(void *sock, int *lenp);
  * General helpful Unix stuff: more helpful version of the FD_SET
  * macro, which also handles maxfd.
  */
-#define FD_SET_MAX(fd, max, set) do { \
-    FD_SET(fd, &set); \
-    if (max < fd + 1) max = fd + 1; \
-} while (0)
+#define FD_SET_MAX(fd, max, set)                                               \
+  do {                                                                         \
+    FD_SET(fd, &set);                                                          \
+    if (max < fd + 1)                                                          \
+      max = fd + 1;                                                            \
+  } while (0)
 
 /*
  * Exports from winser.c.
