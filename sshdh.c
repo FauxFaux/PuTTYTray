@@ -1,3 +1,7 @@
+/*
+ * Diffie-Hellman implementation for PuTTY.
+ */
+
 #include "ssh.h"
 
 /*
@@ -44,14 +48,53 @@ static const unsigned char P14[] = {
  */
 static const unsigned char G[] = {2};
 
-const struct ssh_kex ssh_diffiehellman_group1 = {
-    "diffie-hellman-group1-sha1", "group1", P1, G, lenof(P1), lenof(G)};
+static const struct ssh_kex ssh_diffiehellman_group1_sha1 = {
+    "diffie-hellman-group1-sha1",
+    "group1",
+    P1,
+    G,
+    lenof(P1),
+    lenof(G),
+    &ssh_sha1};
 
-const struct ssh_kex ssh_diffiehellman_group14 = {
-    "diffie-hellman-group14-sha1", "group14", P14, G, lenof(P14), lenof(G)};
+static const struct ssh_kex *const group1_list[] = {
+    &ssh_diffiehellman_group1_sha1};
 
-const struct ssh_kex ssh_diffiehellman_gex = {
-    "diffie-hellman-group-exchange-sha1", NULL, NULL, NULL, 0, 0};
+const struct ssh_kexes ssh_diffiehellman_group1 = {
+    sizeof(group1_list) / sizeof(*group1_list), group1_list};
+
+static const struct ssh_kex ssh_diffiehellman_group14_sha1 = {
+    "diffie-hellman-group14-sha1",
+    "group14",
+    P14,
+    G,
+    lenof(P14),
+    lenof(G),
+    &ssh_sha1};
+
+static const struct ssh_kex *const group14_list[] = {
+    &ssh_diffiehellman_group14_sha1};
+
+const struct ssh_kexes ssh_diffiehellman_group14 = {
+    sizeof(group14_list) / sizeof(*group14_list), group14_list};
+
+static const struct ssh_kex ssh_diffiehellman_gex_sha256 = {
+    "diffie-hellman-group-exchange-sha256",
+    NULL,
+    NULL,
+    NULL,
+    0,
+    0,
+    &ssh_sha256};
+
+static const struct ssh_kex ssh_diffiehellman_gex_sha1 = {
+    "diffie-hellman-group-exchange-sha1", NULL, NULL, NULL, 0, 0, &ssh_sha1};
+
+static const struct ssh_kex *const gex_list[] = {&ssh_diffiehellman_gex_sha256,
+                                                 &ssh_diffiehellman_gex_sha1};
+
+const struct ssh_kexes ssh_diffiehellman_gex = {
+    sizeof(gex_list) / sizeof(*gex_list), gex_list};
 
 /*
  * Variables.

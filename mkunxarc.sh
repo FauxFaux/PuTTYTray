@@ -28,6 +28,7 @@ esac
 
 perl mkfiles.pl
 (cd doc && make -s ${docver:+"$docver"})
+sh mkauto.sh 2>/dev/null
 
 relver=`cat LATEST.VER`
 arcname="putty$arcsuffix"

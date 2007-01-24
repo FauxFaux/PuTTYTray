@@ -1,3 +1,7 @@
+/*
+ * Terminal emulator.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -64,6 +68,8 @@
 
 #define has_compat(x) (((CL_##x) & term->compatibility_level) != 0)
 
+char *EMPTY_WINDOW_TITLE = "";
+
 const char sco2ansicolour[] = {0, 4, 2, 6, 1, 5, 3, 7};
 
 #define sel_nl_sz (sizeof(sel_nl) / sizeof(wchar_t))
@@ -98,10 +104,12 @@ static termline *lineptr(Terminal *, int, int, int);
 static void unlineptr(termline *);
 static void do_paint(Terminal *, Context, int);
 static void erase_lots(Terminal *, int, int, int);
+static int find_last_nonempty_line(Terminal *, tree234 *);
 static void swap_screen(Terminal *, int, int, int);
 static void update_sbar(Terminal *);
 static void deselect(Terminal *);
 static void term_print_finish(Terminal *);
+static void scroll(Terminal *, int, int, int, int);
 #ifdef OPTIMISE_SCROLL
 static void scroll_display(Terminal *, int, int, int);
 #endif /* OPTIMISE_SCROLL */
@@ -1197,12 +1205,15 @@ static void term_schedule_vbell(Terminal *term,
 
 /*
  * Set up power-on settings for the terminal.
+ * If 'clear' is false, don't actually clear the primary screen, and
+ * position the cursor below the last non-blank line (scrolling if
+ * necessary).
  */
-static void power_on(Terminal *term)
+static void power_on(Terminal *term, int clear)
 {
-  term->curs.x = term->curs.y = 0;
   term->alt_x = term->alt_y = 0;
   term->savecurs.x = term->savecurs.y = 0;
+  term->alt_savecurs.x = term->alt_savecurs.y = 0;
   term->alt_t = term->marg_t = 0;
   if (term->rows != -1)
     term->alt_b = term->marg_b = term->rows - 1;
@@ -1215,18 +1226,22 @@ static void power_on(Terminal *term)
   }
   term->alt_om = term->dec_om = term->cfg.dec_om;
   term->alt_ins = term->insert = FALSE;
-  term->alt_wnext = term->wrapnext = term->save_wnext = FALSE;
+  term->alt_wnext = term->wrapnext = term->save_wnext = term->alt_save_wnext =
+      FALSE;
   term->alt_wrap = term->wrap = term->cfg.wrap_mode;
-  term->alt_cset = term->cset = term->save_cset = 0;
-  term->alt_utf = term->utf = term->save_utf = 0;
+  term->alt_cset = term->cset = term->save_cset = term->alt_save_cset = 0;
+  term->alt_utf = term->utf = term->save_utf = term->alt_save_utf = 0;
   term->utf_state = 0;
-  term->alt_sco_acs = term->sco_acs = term->save_sco_acs = 0;
-  term->cset_attr[0] = term->cset_attr[1] = term->save_csattr = CSET_ASCII;
+  term->alt_sco_acs = term->sco_acs = term->save_sco_acs =
+      term->alt_save_sco_acs = 0;
+  term->cset_attr[0] = term->cset_attr[1] = term->save_csattr =
+      term->alt_save_csattr = CSET_ASCII;
   term->rvideo = 0;
   term->in_vbell = FALSE;
   term->cursor_on = 1;
   term->big_cursor = 0;
-  term->default_attr = term->save_attr = term->curr_attr = ATTR_DEFAULT;
+  term->default_attr = term->save_attr = term->alt_save_attr = term->curr_attr =
+      ATTR_DEFAULT;
   term->term_editing = term->term_echoing = FALSE;
   term->app_cursor_keys = term->cfg.app_cursor;
   term->app_keypad_keys = term->cfg.app_keypad;
@@ -1244,8 +1259,17 @@ static void power_on(Terminal *term)
     swap_screen(term, 1, FALSE, FALSE);
     erase_lots(term, FALSE, TRUE, TRUE);
     swap_screen(term, 0, FALSE, FALSE);
-    erase_lots(term, FALSE, TRUE, TRUE);
+    if (clear)
+      erase_lots(term, FALSE, TRUE, TRUE);
+    term->curs.y = find_last_nonempty_line(term, term->screen) + 1;
+    if (term->curs.y == term->rows) {
+      term->curs.y--;
+      scroll(term, 0, term->rows - 1, 1, TRUE);
+    }
+  } else {
+    term->curs.y = 0;
   }
+  term->curs.x = 0;
   term_schedule_tblink(term);
   term_schedule_cblink(term);
 }
@@ -1310,9 +1334,9 @@ void term_seen_key_event(Terminal *term)
 /*
  * Same as power_on(), but an external function.
  */
-void term_pwron(Terminal *term)
+void term_pwron(Terminal *term, int clear)
 {
-  power_on(term);
+  power_on(term, clear);
   if (term->ldisc) /* cause ldisc to notice changes */
     ldisc_send(term->ldisc, NULL, 0, 0);
   term->disptop = 0;
@@ -1410,7 +1434,7 @@ void term_reconfig(Terminal *term, Config *cfg)
  */
 void term_clrsb(Terminal *term)
 {
-  termline *line;
+  unsigned char *line;
   term->disptop = 0;
   while ((line = delpos234(term->scrollback, 0)) != NULL) {
     sfree(line); /* this is compressed data, not a termline */
@@ -1467,7 +1491,7 @@ Terminal *term_init(Config *mycfg, struct unicode_data *ucsdata, void *frontend)
   term->tabs = NULL;
   deselect(term);
   term->rows = term->cols = -1;
-  power_on(term);
+  power_on(term, TRUE);
   term->beephead = term->beeptail = NULL;
 #ifdef OPTIMISE_SCROLL
   term->scrollhead = term->scrolltail = NULL;
@@ -1559,6 +1583,13 @@ void term_size(Terminal *term, int newrows, int newcols, int newsavelines)
   if (newrows == term->rows && newcols == term->cols &&
       newsavelines == term->savelines)
     return; /* nothing to do */
+
+  /* Behave sensibly if we're given zero (or negative) rows/cols */
+
+  if (newrows < 1)
+    newrows = 1;
+  if (newcols < 1)
+    newcols = 1;
 
   deselect(term);
   swap_screen(term, 0, FALSE, FALSE);
@@ -1718,7 +1749,7 @@ void term_provide_resize_fn(Terminal *term,
 {
   term->resize_fn = resize_fn;
   term->resize_ctx = resize_ctx;
-  if (term->cols > 0 && term->rows > 0)
+  if (resize_fn && term->cols > 0 && term->rows > 0)
     resize_fn(resize_ctx, term->cols, term->rows);
 }
 
@@ -1751,6 +1782,7 @@ static int find_last_nonempty_line(Terminal *term, tree234 *screen)
 static void swap_screen(Terminal *term, int which, int reset, int keep_cur_pos)
 {
   int t;
+  pos tp;
   tree234 *ttr;
 
   if (!which)
@@ -1807,6 +1839,35 @@ static void swap_screen(Terminal *term, int which, int reset, int keep_cur_pos)
     if (!reset)
       term->sco_acs = term->alt_sco_acs;
     term->alt_sco_acs = t;
+
+    tp = term->savecurs;
+    if (!reset && !keep_cur_pos)
+      term->savecurs = term->alt_savecurs;
+    term->alt_savecurs = tp;
+    t = term->save_cset;
+    if (!reset && !keep_cur_pos)
+      term->save_cset = term->alt_save_cset;
+    term->alt_save_cset = t;
+    t = term->save_csattr;
+    if (!reset && !keep_cur_pos)
+      term->save_csattr = term->alt_save_csattr;
+    term->alt_save_csattr = t;
+    t = term->save_attr;
+    if (!reset && !keep_cur_pos)
+      term->save_attr = term->alt_save_attr;
+    term->alt_save_attr = t;
+    t = term->save_utf;
+    if (!reset && !keep_cur_pos)
+      term->save_utf = term->alt_save_utf;
+    term->alt_save_utf = t;
+    t = term->save_wnext;
+    if (!reset && !keep_cur_pos)
+      term->save_wnext = term->alt_save_wnext;
+    term->alt_save_wnext = t;
+    t = term->save_sco_acs;
+    if (!reset && !keep_cur_pos)
+      term->save_sco_acs = term->alt_save_sco_acs;
+    term->alt_save_sco_acs = t;
   }
 
   if (reset && term->screen) {
@@ -2481,7 +2542,7 @@ static void term_out(Terminal *term)
   unget = -1;
 
   chars = NULL; /* placate compiler warnings */
-  while (nchars > 0 || bufchain_size(&term->inbuf) > 0) {
+  while (nchars > 0 || unget != -1 || bufchain_size(&term->inbuf) > 0) {
     if (unget == -1) {
       if (nchars == 0) {
         void *ret;
@@ -2713,21 +2774,16 @@ static void term_out(Terminal *term)
          */
         compatibility(ANSIMIN);
         if (term->ldisc) {
-          char abuf[256], *s, *d;
-          int state = 0;
-          for (s = term->cfg.answerback, d = abuf; *s; s++) {
-            if (state) {
-              if (*s >= 'a' && *s <= 'z')
-                *d++ = (*s - ('a' - 1));
-              else if ((*s >= '@' && *s <= '_') || *s == '?' || (*s & 0x80))
-                *d++ = ('@' ^ *s);
-              else if (*s == '~')
-                *d++ = '^';
-              state = 0;
-            } else if (*s == '^') {
-              state = 1;
-            } else
-              *d++ = *s;
+          char abuf[lenof(term->cfg.answerback)], *s, *d;
+          for (s = term->cfg.answerback, d = abuf; *s;) {
+            char *n;
+            char c = ctrlparse(s, &n);
+            if (n) {
+              *d++ = c;
+              s = n;
+            } else {
+              *d++ = *s++;
+            }
           }
           lpage_send(term->ldisc, DEFAULT_CODEPAGE, abuf, d - abuf, 0);
         }
@@ -2788,7 +2844,7 @@ static void term_out(Terminal *term)
          * Perform an actual beep if we're not overloaded.
          */
         if (!term->cfg.bellovl || !term->beep_overloaded) {
-          beep(term->frontend, term->cfg.beep);
+          do_beep(term->frontend, term->cfg.beep);
 
           if (term->cfg.beep == BELL_VISUAL) {
             term_schedule_vbell(term, FALSE, 0);
@@ -3103,7 +3159,7 @@ static void term_out(Terminal *term)
           break;
         case 'c': /* RIS: restore power-on settings */
           compatibility(VT100);
-          power_on(term);
+          power_on(term, TRUE);
           if (term->ldisc) /* cause ldisc to notice changes */
             ldisc_send(term->ldisc, NULL, 0, 0);
           if (term->reset_132) {
@@ -3327,10 +3383,17 @@ static void term_out(Terminal *term)
             break;
           case 'J': /* ED: erase screen or parts of it */
           {
-            unsigned int i = def(term->esc_args[0], 0) + 1;
-            if (i > 3)
-              i = 0;
-            erase_lots(term, FALSE, !!(i & 2), !!(i & 1));
+            unsigned int i = def(term->esc_args[0], 0);
+            if (i == 3) {
+              /* Erase Saved Lines (xterm)
+               * This follows Thomas Dickey's xterm. */
+              term_clrsb(term);
+            } else {
+              i++;
+              if (i > 3)
+                i = 0;
+              erase_lots(term, FALSE, !!(i & 2), !!(i & 1));
+            }
           }
             term->disptop = 0;
             seen_disp_event(term);
@@ -3758,8 +3821,12 @@ static void term_out(Terminal *term)
                  */
                 break;
               case 20:
-                if (term->ldisc && !term->cfg.no_remote_qtitle) {
-                  p = get_window_title(term->frontend, TRUE);
+                if (term->ldisc &&
+                    term->cfg.remote_qtitle_action != TITLE_NONE) {
+                  if (term->cfg.remote_qtitle_action == TITLE_REAL)
+                    p = get_window_title(term->frontend, TRUE);
+                  else
+                    p = EMPTY_WINDOW_TITLE;
                   len = strlen(p);
                   ldisc_send(term->ldisc, "\033]L", 3, 0);
                   ldisc_send(term->ldisc, p, len, 0);
@@ -3767,8 +3834,12 @@ static void term_out(Terminal *term)
                 }
                 break;
               case 21:
-                if (term->ldisc && !term->cfg.no_remote_qtitle) {
-                  p = get_window_title(term->frontend, FALSE);
+                if (term->ldisc &&
+                    term->cfg.remote_qtitle_action != TITLE_NONE) {
+                  if (term->cfg.remote_qtitle_action == TITLE_REAL)
+                    p = get_window_title(term->frontend, FALSE);
+                  else
+                    p = EMPTY_WINDOW_TITLE;
                   len = strlen(p);
                   ldisc_send(term->ldisc, "\033]l", 3, 0);
                   ldisc_send(term->ldisc, p, len, 0);
@@ -3932,6 +4003,7 @@ static void term_out(Terminal *term)
               term->curr_attr |= colour;
               term->default_attr &= ~ATTR_FGMASK;
               term->default_attr |= colour;
+              set_erase_char(term);
             }
             break;
           case ANSI('G', '='): /* set normal background */
@@ -3944,6 +4016,7 @@ static void term_out(Terminal *term)
               term->curr_attr |= colour;
               term->default_attr &= ~ATTR_BGMASK;
               term->default_attr |= colour;
+              set_erase_char(term);
             }
             break;
           case ANSI('L', '='):
@@ -4103,7 +4176,7 @@ static void term_out(Terminal *term)
           term->osc_string[term->osc_strlen++] = (char)c;
         break;
       case SEEN_OSC_P: {
-        int max = (term->osc_strlen == 0 ? 21 : 16);
+        int max = (term->osc_strlen == 0 ? 21 : 15);
         int val;
         if ((int)c >= '0' && (int)c <= '9')
           val = c - '0';
@@ -4828,10 +4901,12 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
           (term->disptext[i]->chars[j].attr & ~DATTR_MASK) != newline[j].attr) {
         int k;
 
-        for (k = laststart; k < j; k++)
-          term->disptext[i]->chars[k].attr |= ATTR_INVALID;
+        if (!dirtyrect) {
+          for (k = laststart; k < j; k++)
+            term->disptext[i]->chars[k].attr |= ATTR_INVALID;
 
-        dirtyrect = TRUE;
+          dirtyrect = TRUE;
+        }
       }
 
       if (dirtyrect)
@@ -5062,17 +5137,43 @@ void term_scroll(Terminal *term, int rel, int where)
   term_update(term);
 }
 
+/*
+ * Helper routine for clipme(): growing buffer.
+ */
+typedef struct {
+  int buflen;       /* amount of allocated space in textbuf/attrbuf */
+  int bufpos;       /* amount of actual data */
+  wchar_t *textbuf; /* buffer for copied text */
+  wchar_t *textptr; /* = textbuf + bufpos (current insertion point) */
+  int *attrbuf;     /* buffer for copied attributes */
+  int *attrptr;     /* = attrbuf + bufpos */
+} clip_workbuf;
+
+static void clip_addchar(clip_workbuf *b, wchar_t chr, int attr)
+{
+  if (b->bufpos >= b->buflen) {
+    b->buflen += 128;
+    b->textbuf = sresize(b->textbuf, b->buflen, wchar_t);
+    b->textptr = b->textbuf + b->bufpos;
+    b->attrbuf = sresize(b->attrbuf, b->buflen, int);
+    b->attrptr = b->attrbuf + b->bufpos;
+  }
+  *b->textptr++ = chr;
+  *b->attrptr++ = attr;
+  b->bufpos++;
+}
+
 static void clipme(Terminal *term, pos top, pos bottom, int rect, int desel)
 {
-  wchar_t *workbuf;
-  wchar_t *wbptr; /* where next char goes within workbuf */
+  clip_workbuf buf;
   int old_top_x;
-  int wblen = 0; /* workbuf len */
-  int buflen;    /* amount of memory allocated to workbuf */
+  int attr;
 
-  buflen = 5120; /* Default size */
-  workbuf = snewn(buflen, wchar_t);
-  wbptr = workbuf;   /* start filling here */
+  buf.buflen = 5120;
+  buf.bufpos = 0;
+  buf.textptr = buf.textbuf = snewn(buf.buflen, wchar_t);
+  buf.attrptr = buf.attrbuf = snewn(buf.buflen, int);
+
   old_top_x = top.x; /* needed for rect==1 */
 
   while (poslt(top, bottom)) {
@@ -5095,7 +5196,7 @@ static void clipme(Terminal *term, pos top, pos bottom, int rect, int desel)
      * newline at the end)...
      */
     if (!(ldata->lattr & LATTR_WRAPPED)) {
-      while (IS_SPACE_CHR(ldata->chars[nlpos.x - 1].chr) &&
+      while (nlpos.x && IS_SPACE_CHR(ldata->chars[nlpos.x - 1].chr) &&
              !ldata->chars[nlpos.x - 1].cc_next && poslt(top, nlpos))
         decpos(nlpos);
       if (poslt(nlpos, bottom))
@@ -5134,6 +5235,7 @@ static void clipme(Terminal *term, pos top, pos bottom, int rect, int desel)
 
       while (1) {
         int uc = ldata->chars[x].chr;
+        attr = ldata->chars[x].attr;
 
         switch (uc & CSET_MASK) {
         case CSET_LINEDRW:
@@ -5185,16 +5287,8 @@ static void clipme(Terminal *term, pos top, pos bottom, int rect, int desel)
         }
 #endif
 
-      for (p = cbuf; *p; p++) {
-        /* Enough overhead for trailing NL and nul */
-        if (wblen >= buflen - 16) {
-          buflen += 100;
-          workbuf = sresize(workbuf, buflen, wchar_t);
-          wbptr = workbuf + wblen;
-        }
-        wblen++;
-        *wbptr++ = *p;
-      }
+      for (p = cbuf; *p; p++)
+        clip_addchar(&buf, *p, attr);
 
       if (ldata->chars[x].cc_next)
         x += ldata->chars[x].cc_next;
@@ -5205,10 +5299,8 @@ static void clipme(Terminal *term, pos top, pos bottom, int rect, int desel)
   }
   if (nl) {
     int i;
-    for (i = 0; i < sel_nl_sz; i++) {
-      wblen++;
-      *wbptr++ = sel_nl[i];
-    }
+    for (i = 0; i < sel_nl_sz; i++)
+      clip_addchar(&buf, sel_nl[i], 0);
   }
   top.y++;
   top.x = rect ? old_top_x : 0;
@@ -5216,12 +5308,12 @@ static void clipme(Terminal *term, pos top, pos bottom, int rect, int desel)
   unlineptr(ldata);
 }
 #if SELECTION_NUL_TERMINATED
-wblen++;
-*wbptr++ = 0;
+clip_addchar(&buf, 0, 0);
 #endif
-write_clip(term->frontend, workbuf, wblen, desel); /* transfer to clipbd */
-if (buflen > 0) /* indicates we allocated this buffer */
-  sfree(workbuf);
+/* Finally, transfer all that to the clipboard. */
+write_clip(term->frontend, buf.textbuf, buf.attrbuf, buf.bufpos, desel);
+sfree(buf.textbuf);
+sfree(buf.attrbuf);
 }
 
 void term_copyall(Terminal *term)
@@ -5533,7 +5625,16 @@ void term_mouse(Terminal *term,
   selpoint.x = x;
   unlineptr(ldata);
 
-  if (raw_mouse) {
+  /*
+   * If we're in the middle of a selection operation, we ignore raw
+   * mouse mode until it's done (we must have been not in raw mouse
+   * mode when it started).
+   * This makes use of Shift for selection reliable, and avoids the
+   * host seeing mouse releases for which they never saw corresponding
+   * presses.
+   */
+  if (raw_mouse && (term->selstate != ABOUT_TO) &&
+      (term->selstate != DRAGGING)) {
     int encstate = 0, r, c;
     char abuf[16];
 
@@ -6444,6 +6545,24 @@ int term_data(Terminal *term, int is_stderr, const char *data, int len)
   return 0;
 }
 
+/*
+ * Write untrusted data to the terminal.
+ * The only control character that should be honoured is \n (which
+ * will behave as a CRLF).
+ */
+int term_data_untrusted(Terminal *term, const char *data, int len)
+{
+  int i;
+  /* FIXME: more sophisticated checking? */
+  for (i = 0; i < len; i++) {
+    if (data[i] == '\n')
+      term_data(term, 1, "\r\n", 2);
+    else if (data[i] & 0x60)
+      term_data(term, 1, data + i, 1);
+  }
+  return 0; /* assumes that term_data() always returns 0 */
+}
+
 void term_provide_logctx(Terminal *term, void *logctx)
 {
   term->logctx = logctx;
@@ -6453,4 +6572,146 @@ void term_set_focus(Terminal *term, int has_focus)
 {
   term->has_focus = has_focus;
   term_schedule_cblink(term);
+}
+
+/*
+ * Provide "auto" settings for remote tty modes, suitable for an
+ * application with a terminal window.
+ */
+char *term_get_ttymode(Terminal *term, const char *mode)
+{
+  char *val = NULL;
+  if (strcmp(mode, "ERASE") == 0) {
+    val = term->cfg.bksp_is_delete ? "^?" : "^H";
+  }
+  /* FIXME: perhaps we should set ONLCR based on cfg.lfhascr as well? */
+  return dupstr(val);
+}
+
+struct term_userpass_state {
+  size_t curr_prompt;
+  int done_prompt; /* printed out prompt yet? */
+  size_t pos;      /* cursor position */
+};
+
+/*
+ * Process some terminal data in the course of username/password
+ * input.
+ */
+int term_get_userpass_input(Terminal *term,
+                            prompts_t *p,
+                            unsigned char *in,
+                            int inlen)
+{
+  struct term_userpass_state *s = (struct term_userpass_state *)p->data;
+  if (!s) {
+    /*
+     * First call. Set some stuff up.
+     */
+    p->data = s = snew(struct term_userpass_state);
+    s->curr_prompt = 0;
+    s->done_prompt = 0;
+    /* We only print the `name' caption if we have to... */
+    if (p->name_reqd && p->name) {
+      size_t l = strlen(p->name);
+      term_data_untrusted(term, p->name, l);
+      if (p->name[l - 1] != '\n')
+        term_data_untrusted(term, "\n", 1);
+    }
+    /* ...but we always print any `instruction'. */
+    if (p->instruction) {
+      size_t l = strlen(p->instruction);
+      term_data_untrusted(term, p->instruction, l);
+      if (p->instruction[l - 1] != '\n')
+        term_data_untrusted(term, "\n", 1);
+    }
+    /*
+     * Zero all the results, in case we abort half-way through.
+     */
+    {
+      int i;
+      for (i = 0; i < (int)p->n_prompts; i++)
+        memset(p->prompts[i]->result, 0, p->prompts[i]->result_len);
+    }
+  }
+
+  while (s->curr_prompt < p->n_prompts) {
+
+    prompt_t *pr = p->prompts[s->curr_prompt];
+    int finished_prompt = 0;
+
+    if (!s->done_prompt) {
+      term_data_untrusted(term, pr->prompt, strlen(pr->prompt));
+      s->done_prompt = 1;
+      s->pos = 0;
+    }
+
+    /* Breaking out here ensures that the prompt is printed even
+     * if we're now waiting for user data. */
+    if (!in || !inlen)
+      break;
+
+    /* FIXME: should we be using local-line-editing code instead? */
+    while (!finished_prompt && inlen) {
+      char c = *in++;
+      inlen--;
+      switch (c) {
+      case 10:
+      case 13:
+        term_data(term, 0, "\r\n", 2);
+        pr->result[s->pos] = '\0';
+        pr->result[pr->result_len - 1] = '\0';
+        /* go to next prompt, if any */
+        s->curr_prompt++;
+        s->done_prompt = 0;
+        finished_prompt = 1; /* break out */
+        break;
+      case 8:
+      case 127:
+        if (s->pos > 0) {
+          if (pr->echo)
+            term_data(term, 0, "\b \b", 3);
+          s->pos--;
+        }
+        break;
+      case 21:
+      case 27:
+        while (s->pos > 0) {
+          if (pr->echo)
+            term_data(term, 0, "\b \b", 3);
+          s->pos--;
+        }
+        break;
+      case 3:
+      case 4:
+        /* Immediate abort. */
+        term_data(term, 0, "\r\n", 2);
+        sfree(s);
+        p->data = NULL;
+        return 0; /* user abort */
+      default:
+        /*
+         * This simplistic check for printability is disabled
+         * when we're doing password input, because some people
+         * have control characters in their passwords.
+         */
+        if ((!pr->echo || (c >= ' ' && c <= '~') ||
+             ((unsigned char)c >= 160)) &&
+            s->pos < pr->result_len - 1) {
+          pr->result[s->pos++] = c;
+          if (pr->echo)
+            term_data(term, 0, &c, 1);
+        }
+        break;
+      }
+    }
+  }
+
+  if (s->curr_prompt < p->n_prompts) {
+    return -1; /* more data required */
+  } else {
+    sfree(s);
+    p->data = NULL;
+    return +1; /* all done */
+  }
 }

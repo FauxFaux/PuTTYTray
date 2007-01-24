@@ -79,8 +79,9 @@ struct terminal_tag {
   tree234 *screen;     /* lines on primary screen */
   tree234 *alt_screen; /* lines on alternate screen */
   int disptop;         /* distance scrolled back (0 or -ve) */
-  int tempsblines;     /* number of lines in temporary
-                          scrollback */
+  int tempsblines;     /* number of lines of .scrollback that
+                          can be retrieved onto the terminal
+                          ("temporary scrollback") */
 
   termline **disptext;      /* buffer of text on real screen */
   int dispcursx, dispcursy; /* location of cursor on real screen */
@@ -133,6 +134,13 @@ struct terminal_tag {
   int print_state;                 /* state of print-end-sequence scan */
   bufchain printer_buf;            /* buffered data for printer */
   printer_job *print_job;
+
+  /* ESC 7 saved state for the alternate screen */
+  pos alt_savecurs;
+  int alt_save_attr;
+  int alt_save_cset, alt_save_csattr;
+  int alt_save_utf, alt_save_wnext;
+  int alt_save_sco_acs;
 
   int rows, cols, savelines;
   int has_focus;

@@ -13,20 +13,6 @@
 #include "tree234.h"
 #include "sftp.h"
 
-#define GET_32BIT(cp)                                                          \
-  (((unsigned long)(unsigned char)(cp)[0] << 24) |                             \
-   ((unsigned long)(unsigned char)(cp)[1] << 16) |                             \
-   ((unsigned long)(unsigned char)(cp)[2] << 8) |                              \
-   ((unsigned long)(unsigned char)(cp)[3]))
-
-#define PUT_32BIT(cp, value)                                                   \
-  {                                                                            \
-    (cp)[0] = (unsigned char)((value) >> 24);                                  \
-    (cp)[1] = (unsigned char)((value) >> 16);                                  \
-    (cp)[2] = (unsigned char)((value) >> 8);                                   \
-    (cp)[3] = (unsigned char)(value);                                          \
-  }
-
 struct sftp_packet {
   char *data;
   unsigned length, maxlen;
@@ -44,7 +30,7 @@ static void fxp_internal_error(char *msg);
  */
 static void sftp_pkt_ensure(struct sftp_packet *pkt, int length)
 {
-  if (pkt->maxlen < length) {
+  if ((int)pkt->maxlen < length) {
     pkt->maxlen = length + 256;
     pkt->data = sresize(pkt->data, pkt->maxlen, char);
   }
@@ -164,7 +150,7 @@ static int sftp_pkt_getstring(struct sftp_packet *pkt, char **p, int *length)
     return 0;
   *length = GET_32BIT(pkt->data + pkt->savedpos);
   pkt->savedpos += 4;
-  if (pkt->length - pkt->savedpos < *length || *length < 0) {
+  if ((int)(pkt->length - pkt->savedpos) < *length || *length < 0) {
     *length = 0;
     return 0;
   }
@@ -1010,7 +996,7 @@ struct fxp_names *fxp_readdir_recv(struct sftp_packet *pktin,
     ret = snew(struct fxp_names);
     ret->nnames = i;
     ret->names = snewn(ret->nnames, struct fxp_name);
-    for (i = 0; i < ret->nnames; i++) {
+    for (i = 0; i < (unsigned long)ret->nnames; i++) {
       char *str1, *str2;
       int len1, len2;
       if (!sftp_pkt_getstring(pktin, &str1, &len1) ||
@@ -1147,7 +1133,7 @@ static struct fxp_xfer *xfer_init(struct fxp_handle *fh, uint64 offset)
   xfer->offset = offset;
   xfer->head = xfer->tail = NULL;
   xfer->req_totalsize = 0;
-  xfer->req_maxsize = 16384;
+  xfer->req_maxsize = 1048576;
   xfer->err = 0;
   xfer->filesize = uint64_make(ULONG_MAX, ULONG_MAX);
   xfer->furthestdata = uint64_make(0, 0);
@@ -1186,7 +1172,7 @@ void xfer_download_queue(struct fxp_xfer *xfer)
     xfer->tail = rr;
     rr->next = NULL;
 
-    rr->len = 4096;
+    rr->len = 32768;
     rr->buffer = snewn(rr->len, char);
     sftp_register(req = fxp_read_send(xfer->fh, rr->offset, rr->len));
     fxp_set_userdata(req, rr);

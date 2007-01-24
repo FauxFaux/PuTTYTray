@@ -927,6 +927,7 @@ STARTOVER:
      * It didn't. Therefore, w is a witness for the
      * compositeness of p.
      */
+    freebn(wqp);
     freebn(p);
     freebn(pm1);
     freebn(q);

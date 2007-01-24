@@ -13,20 +13,6 @@
 #include "ssh.h"
 #include "misc.h"
 
-#define PUT_32BIT(cp, value)                                                   \
-  do {                                                                         \
-    (cp)[3] = (value);                                                         \
-    (cp)[2] = (value) >> 8;                                                    \
-    (cp)[1] = (value) >> 16;                                                   \
-    (cp)[0] = (value) >> 24;                                                   \
-  } while (0)
-
-#define GET_32BIT(cp)                                                          \
-  (((unsigned long)(unsigned char)(cp)[0] << 24) |                             \
-   ((unsigned long)(unsigned char)(cp)[1] << 16) |                             \
-   ((unsigned long)(unsigned char)(cp)[2] << 8) |                              \
-   ((unsigned long)(unsigned char)(cp)[3]))
-
 #define rsa_signature "SSH PRIVATE KEY FILE FORMAT 1.1\n"
 
 #define BASE64_TOINT(x)                                                        \
@@ -90,11 +76,6 @@ static int loadrsakey_main(FILE *fp,
   if (i < 0)
     goto end; /* overran */
 
-  if (pub_only) {
-    ret = 1;
-    goto end;
-  }
-
   /* Next, the comment field. */
   j = GET_32BIT(buf + i);
   i += 4;
@@ -107,9 +88,17 @@ static int loadrsakey_main(FILE *fp,
   }
   i += j;
   if (commentptr)
-    *commentptr = comment;
+    *commentptr = dupstr(comment);
   if (key)
     key->comment = comment;
+  else
+    sfree(comment);
+
+  if (pub_only) {
+    ret = 1;
+    goto end;
+  }
+
   if (!key) {
     ret = ciphertype != 0;
     *error = NULL;
@@ -184,7 +173,7 @@ int loadrsakey(const Filename *filename,
   int ret = 0;
   const char *error = NULL;
 
-  fp = f_open(*filename, "rb");
+  fp = f_open(*filename, "rb", FALSE);
   if (!fp) {
     error = "can't open file";
     goto end;
@@ -225,7 +214,7 @@ int rsakey_encrypted(const Filename *filename, char **comment)
   FILE *fp;
   char buf[64];
 
-  fp = f_open(*filename, "rb");
+  fp = f_open(*filename, "rb", FALSE);
   if (!fp)
     return 0; /* doesn't even exist */
 
@@ -252,6 +241,7 @@ int rsakey_encrypted(const Filename *filename, char **comment)
 int rsakey_pubblob(const Filename *filename,
                    void **blob,
                    int *bloblen,
+                   char **commentptr,
                    const char **errorstr)
 {
   FILE *fp;
@@ -265,7 +255,7 @@ int rsakey_pubblob(const Filename *filename,
   *bloblen = 0;
   ret = 0;
 
-  fp = f_open(*filename, "rb");
+  fp = f_open(*filename, "rb", FALSE);
   if (!fp) {
     error = "can't open file";
     goto end;
@@ -277,7 +267,7 @@ int rsakey_pubblob(const Filename *filename,
    */
   if (fgets(buf, sizeof(buf), fp) && !strcmp(buf, rsa_signature)) {
     memset(&key, 0, sizeof(key));
-    if (loadrsakey_main(fp, &key, TRUE, NULL, NULL, &error)) {
+    if (loadrsakey_main(fp, &key, TRUE, commentptr, NULL, &error)) {
       *blob = rsa_public_blob(&key, bloblen);
       freersakey(&key);
       ret = 1;
@@ -388,7 +378,7 @@ int saversakey(const Filename *filename, struct RSAKey *key, char *passphrase)
   /*
    * Done. Write the result to the file.
    */
-  fp = f_open(*filename, "wb");
+  fp = f_open(*filename, "wb", TRUE);
   if (fp) {
     int ret = (fwrite(buf, 1, p - buf, fp) == (size_t)(p - buf));
     if (fclose(fp))
@@ -657,7 +647,7 @@ struct ssh2_userkey *ssh2_load_userkey(const Filename *filename,
   encryption = comment = mac = NULL;
   public_blob = private_blob = NULL;
 
-  fp = f_open(*filename, "rb");
+  fp = f_open(*filename, "rb", FALSE);
   if (!fp) {
     error = "can't open file";
     goto error;
@@ -891,10 +881,11 @@ error:
   return ret;
 }
 
-char *ssh2_userkey_loadpub(const Filename *filename,
-                           char **algorithm,
-                           int *pub_blob_len,
-                           const char **errorstr)
+unsigned char *ssh2_userkey_loadpub(const Filename *filename,
+                                    char **algorithm,
+                                    int *pub_blob_len,
+                                    char **commentptr,
+                                    const char **errorstr)
 {
   FILE *fp;
   char header[40], *b;
@@ -903,10 +894,11 @@ char *ssh2_userkey_loadpub(const Filename *filename,
   int public_blob_len;
   int i;
   const char *error = NULL;
+  char *comment;
 
   public_blob = NULL;
 
-  fp = f_open(*filename, "rb");
+  fp = f_open(*filename, "rb", FALSE);
   if (!fp) {
     error = "can't open file";
     goto error;
@@ -940,9 +932,13 @@ char *ssh2_userkey_loadpub(const Filename *filename,
   /* Read the Comment header line. */
   if (!read_header(fp, header) || 0 != strcmp(header, "Comment"))
     goto error;
-  if ((b = read_body(fp)) == NULL)
+  if ((comment = read_body(fp)) == NULL)
     goto error;
-  sfree(b); /* we don't care */
+
+  if (commentptr)
+    *commentptr = comment;
+  else
+    sfree(comment);
 
   /* Read the Public-Lines header line and the public blob. */
   if (!read_header(fp, header) || 0 != strcmp(header, "Public-Lines"))
@@ -959,7 +955,7 @@ char *ssh2_userkey_loadpub(const Filename *filename,
     *pub_blob_len = public_blob_len;
   if (algorithm)
     *algorithm = alg->name;
-  return (char *)public_blob;
+  return public_blob;
 
   /*
    * Error processing.
@@ -983,7 +979,7 @@ int ssh2_userkey_encrypted(const Filename *filename, char **commentptr)
   if (commentptr)
     *commentptr = NULL;
 
-  fp = f_open(*filename, "rb");
+  fp = f_open(*filename, "rb", FALSE);
   if (!fp)
     return 0;
   if (!read_header(fp, header) ||
@@ -1165,7 +1161,7 @@ int ssh2_save_userkey(const Filename *filename,
     memset(&s, 0, sizeof(s));
   }
 
-  fp = f_open(*filename, "w");
+  fp = f_open(*filename, "w", TRUE);
   if (!fp)
     return 0;
   fprintf(fp, "PuTTY-User-Key-File-2: %s\n", key->alg->name);
@@ -1201,7 +1197,7 @@ int key_type(const Filename *filename)
   const char openssh_sig[] = "-----BEGIN ";
   int i;
 
-  fp = f_open(*filename, "r");
+  fp = f_open(*filename, "r", FALSE);
   if (!fp)
     return SSH_KEYTYPE_UNOPENABLE;
   i = fread(buf, 1, sizeof(buf), fp);

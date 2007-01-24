@@ -8,17 +8,12 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <fcntl.h>
 
 #include "putty.h"
 #include "misc.h"
 #include "tree234.h"
 #include "puttymem.h"
-
-#define GET_32BIT(cp)                                                          \
-  (((unsigned long)(unsigned char)(cp)[0] << 24) |                             \
-   ((unsigned long)(unsigned char)(cp)[1] << 16) |                             \
-   ((unsigned long)(unsigned char)(cp)[2] << 8) |                              \
-   ((unsigned long)(unsigned char)(cp)[3]))
 
 int agent_exists(void)
 {
@@ -131,6 +126,8 @@ int agent_query(void *in,
     perror("socket(PF_UNIX)");
     exit(1);
   }
+
+  cloexec(sock);
 
   addr.sun_family = AF_UNIX;
   strncpy(addr.sun_path, name, sizeof(addr.sun_path));

@@ -82,7 +82,6 @@ struct alert_queue {
 @interface ConfigWindow : NSWindow {
   NSOutlineView *treeview;
   struct controlbox *ctrlbox;
-  struct sesslist sl;
   void *dv;
   Config cfg;
 }
