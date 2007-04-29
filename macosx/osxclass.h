@@ -66,11 +66,13 @@ struct alert_queue {
           attr:(unsigned long)attr
          lattr:(int)lattr;
 - (int)fromBackend:(const char *)data len:(int)len isStderr:(int)is_stderr;
+- (int)fromBackendUntrusted:(const char *)data len:(int)len;
 - (void)startAlert:(NSAlert *)alert
       withCallback:(void (*)(void *, int))callback
             andCtx:(void *)ctx;
 - (void)endSession:(int)clean;
 - (void)notifyRemoteExit;
+- (Terminal *)term;
 @end
 
 /*

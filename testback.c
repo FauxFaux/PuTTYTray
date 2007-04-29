@@ -46,7 +46,7 @@ static int null_sendbuffer(void *);
 static void null_size(void *, int, int);
 static void null_special(void *, Telnet_Special);
 static const struct telnet_special *null_get_specials(void *handle);
-static Socket null_socket(void *);
+static int null_connected(void *);
 static int null_exitcode(void *);
 static int null_sendok(void *);
 static int null_ldisc(void *, int);
@@ -63,7 +63,7 @@ Backend null_backend = {null_init,
                         null_size,
                         null_special,
                         null_get_specials,
-                        null_socket,
+                        null_connected,
                         null_exitcode,
                         null_sendok,
                         null_ldisc,
@@ -81,7 +81,7 @@ Backend loop_backend = {loop_init,
                         null_size,
                         null_special,
                         null_get_specials,
-                        null_socket,
+                        null_connected,
                         null_exitcode,
                         null_sendok,
                         null_ldisc,
@@ -171,10 +171,10 @@ static const struct telnet_special *null_get_specials(void *handle)
   return NULL;
 }
 
-static Socket null_socket(void *handle)
+static int null_connected(void *handle)
 {
 
-  return NULL;
+  return 0;
 }
 
 static int null_exitcode(void *handle)

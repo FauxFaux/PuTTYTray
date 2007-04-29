@@ -39,23 +39,36 @@
 
 /* We keep this around even for snapshots, for monotonicity of version
  * numbering. It needs to be kept up to date. NB _comma_-separated. */
-#define BASE_VERSION 0,59
+#define BASE_VERSION 0,60
 
 #if defined SNAPSHOT
 
 /* Make SVN_REV mandatory for snapshots, to avoid issuing binary
  * version numbers that look like full releases. */
-#if (!defined SVN_REV) || (SVN_REV == 0)
+#ifndef SVN_REV
 #error SVN_REV not defined/nonzero for snapshot build
 #endif
 
 #define VERSION_TEXT "Development snapshot " STR(SNAPSHOT) ":r" STR(SVN_REV)
+#ifdef MODIFIED
+#define BINARY_VERSION 0,0,0,0
+#else
 #define BINARY_VERSION BASE_VERSION,SVN_REV,0
+#endif
 
 #elif defined RELEASE
 
 #define VERSION_TEXT "Release " STR(RELEASE)
 #define BINARY_VERSION BASE_VERSION,0,0
+
+#elif defined SVN_REV
+
+#define VERSION_TEXT "Custom build r" STR(SVN_REV)
+#ifdef MODIFIED
+#define BINARY_VERSION 0,0,0,0
+#else
+#define BINARY_VERSION BASE_VERSION,SVN_REV,0
+#endif
 
 #else
 
