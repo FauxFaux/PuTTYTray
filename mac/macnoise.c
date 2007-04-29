@@ -17,54 +17,55 @@
  * free space and a process snapshot.
  */
 
-static void noise_get_processes(void (*func) (void *, int))
+static void noise_get_processes(void (*func)(void *, int))
 {
-    ProcessSerialNumber psn = {0, kNoProcess};
-    ProcessInfoRec info;
+  ProcessSerialNumber psn = {0, kNoProcess};
+  ProcessInfoRec info;
 
-    for (;;) {
-	GetNextProcess(&psn);
-	if (psn.highLongOfPSN == 0 && psn.lowLongOfPSN == kNoProcess) return;
-	info.processInfoLength = sizeof(info);
-	info.processName = NULL;
-	info.processAppSpec = NULL;
-	GetProcessInformation(&psn, &info);
-	func(&info, sizeof(info));
-    }
+  for (;;) {
+    GetNextProcess(&psn);
+    if (psn.highLongOfPSN == 0 && psn.lowLongOfPSN == kNoProcess)
+      return;
+    info.processInfoLength = sizeof(info);
+    info.processName = NULL;
+    info.processAppSpec = NULL;
+    GetProcessInformation(&psn, &info);
+    func(&info, sizeof(info));
+  }
 }
 
-void noise_get_heavy(void (*func) (void *, int))
+void noise_get_heavy(void (*func)(void *, int))
 {
 
-    noise_get_light(func);
-    noise_get_processes(func);
-    read_random_seed(func);
-    /* Update the seed immediately, in case another instance uses it. */
-    random_save_seed();
+  noise_get_light(func);
+  noise_get_processes(func);
+  read_random_seed(func);
+  /* Update the seed immediately, in case another instance uses it. */
+  random_save_seed();
 }
 
 void random_save_seed(void)
 {
-    int len;
-    void *data;
+  int len;
+  void *data;
 
-    if (random_active) {
-	random_get_savedata(&data, &len);
-	write_random_seed(data, len);
-	sfree(data);
-    }
+  if (random_active) {
+    random_get_savedata(&data, &len);
+    write_random_seed(data, len);
+    sfree(data);
+  }
 }
 
 /*
  * This function is called every time the random pool needs
  * stirring, and will acquire the system time.
  */
-void noise_get_light(void (*func) (void *, int))
+void noise_get_light(void (*func)(void *, int))
 {
-    UnsignedWide utc;
+  UnsignedWide utc;
 
-    Microseconds(&utc);
-    func(&utc, sizeof(utc));
+  Microseconds(&utc);
+  func(&utc, sizeof(utc));
 }
 
 /*
@@ -73,7 +74,7 @@ void noise_get_light(void (*func) (void *, int))
  */
 void noise_regular(void)
 {
-    /* XXX */
+  /* XXX */
 }
 
 /*
@@ -83,11 +84,11 @@ void noise_regular(void)
  */
 void noise_ultralight(unsigned long data)
 {
-    UnsignedWide utc;
+  UnsignedWide utc;
 
-    Microseconds(&utc);
-    random_add_noise(&utc, sizeof(utc));
-    random_add_noise(&data, sizeof(data));
+  Microseconds(&utc);
+  random_add_noise(&utc, sizeof(utc));
+  random_add_noise(&data, sizeof(data));
 }
 
 /*
