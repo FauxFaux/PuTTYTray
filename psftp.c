@@ -323,21 +323,23 @@ int sftp_get_file(char *fname, char *outfname, int recurse, int restart)
        * If none of them exists, of course, we start at 0.
        */
       i = 0;
-      while (i < nnames) {
-        char *nextoutfname;
-        int ret;
-        if (outfname)
-          nextoutfname = dir_file_cat(outfname, ournames[i]->filename);
-        else
-          nextoutfname = dupstr(ournames[i]->filename);
-        ret = (file_type(nextoutfname) == FILE_TYPE_NONEXISTENT);
-        sfree(nextoutfname);
-        if (ret)
-          break;
-        i++;
+      if (restart) {
+        while (i < nnames) {
+          char *nextoutfname;
+          int ret;
+          if (outfname)
+            nextoutfname = dir_file_cat(outfname, ournames[i]->filename);
+          else
+            nextoutfname = dupstr(ournames[i]->filename);
+          ret = (file_type(nextoutfname) == FILE_TYPE_NONEXISTENT);
+          sfree(nextoutfname);
+          if (ret)
+            break;
+          i++;
+        }
+        if (i > 0)
+          i--;
       }
-      if (i > 0)
-        i--;
 
       /*
        * Now we're ready to recurse. Starting at ournames[i]
@@ -460,6 +462,7 @@ int sftp_get_file(char *fname, char *outfname, int recurse, int restart)
           printf("error while writing local file\n");
           ret = 0;
           xfer_set_error(xfer);
+          break;
         }
         wpos += wlen;
       }
@@ -565,20 +568,22 @@ int sftp_put_file(char *fname, char *outfname, int recurse, int restart)
      * If none of them exists, of course, we start at 0.
      */
     i = 0;
-    while (i < nnames) {
-      char *nextoutfname;
-      nextoutfname = dupcat(outfname, "/", ournames[i], NULL);
-      sftp_register(req = fxp_stat_send(nextoutfname));
-      rreq = sftp_find_request(pktin = sftp_recv());
-      assert(rreq == req);
-      result = fxp_stat_recv(pktin, rreq, &attrs);
-      sfree(nextoutfname);
-      if (!result)
-        break;
-      i++;
+    if (restart) {
+      while (i < nnames) {
+        char *nextoutfname;
+        nextoutfname = dupcat(outfname, "/", ournames[i], NULL);
+        sftp_register(req = fxp_stat_send(nextoutfname));
+        rreq = sftp_find_request(pktin = sftp_recv());
+        assert(rreq == req);
+        result = fxp_stat_recv(pktin, rreq, &attrs);
+        sfree(nextoutfname);
+        if (!result)
+          break;
+        i++;
+      }
+      if (i > 0)
+        i--;
     }
-    if (i > 0)
-      i--;
 
     /*
      * Now we're ready to recurse. Starting at ournames[i]

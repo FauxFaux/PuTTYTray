@@ -58,6 +58,7 @@ struct uctrl {
   GtkWidget *label;   /* for dlg_label_change */
   GtkAdjustment *adj; /* for the scrollbar in a list box */
   guint textsig;
+  int nclicks;
 };
 
 struct dlgparam {
@@ -102,9 +103,12 @@ static int listitem_single_key(GtkWidget *item,
 static int listitem_multi_key(GtkWidget *item,
                               GdkEventKey *event,
                               gpointer data);
-static int listitem_button(GtkWidget *item,
-                           GdkEventButton *event,
-                           gpointer data);
+static int listitem_button_press(GtkWidget *item,
+                                 GdkEventButton *event,
+                                 gpointer data);
+static int listitem_button_release(GtkWidget *item,
+                                   GdkEventButton *event,
+                                   gpointer data);
 static void menuitem_activate(GtkMenuItem *item, gpointer data);
 static void coloursel_ok(GtkButton *button, gpointer data);
 static void coloursel_cancel(GtkButton *button, gpointer data);
@@ -456,7 +460,11 @@ void dlg_listbox_addwithid(union control *ctrl,
                        dp);
     gtk_signal_connect(GTK_OBJECT(listitem),
                        "button_press_event",
-                       GTK_SIGNAL_FUNC(listitem_button),
+                       GTK_SIGNAL_FUNC(listitem_button_press),
+                       dp);
+    gtk_signal_connect(GTK_OBJECT(listitem),
+                       "button_release_event",
+                       GTK_SIGNAL_FUNC(listitem_button_release),
                        dp);
     gtk_object_set_data(GTK_OBJECT(listitem), "user-data", GINT_TO_POINTER(id));
   } else {
@@ -1107,13 +1115,34 @@ static int listitem_multi_key(GtkWidget *item,
   return listitem_key(item, event, data, TRUE);
 }
 
-static int listitem_button(GtkWidget *item,
-                           GdkEventButton *event,
-                           gpointer data)
+static int listitem_button_press(GtkWidget *item,
+                                 GdkEventButton *event,
+                                 gpointer data)
 {
   struct dlgparam *dp = (struct dlgparam *)data;
-  if (event->type == GDK_2BUTTON_PRESS || event->type == GDK_3BUTTON_PRESS) {
-    struct uctrl *uc = dlg_find_bywidget(dp, GTK_WIDGET(item));
+  struct uctrl *uc = dlg_find_bywidget(dp, GTK_WIDGET(item));
+  switch (event->type) {
+  default:
+  case GDK_BUTTON_PRESS:
+    uc->nclicks = 1;
+    break;
+  case GDK_2BUTTON_PRESS:
+    uc->nclicks = 2;
+    break;
+  case GDK_3BUTTON_PRESS:
+    uc->nclicks = 3;
+    break;
+  }
+  return FALSE;
+}
+
+static int listitem_button_release(GtkWidget *item,
+                                   GdkEventButton *event,
+                                   gpointer data)
+{
+  struct dlgparam *dp = (struct dlgparam *)data;
+  struct uctrl *uc = dlg_find_bywidget(dp, GTK_WIDGET(item));
+  if (uc->nclicks > 1) {
     uc->ctrl->generic.handler(uc->ctrl, dp, dp->data, EVENT_ACTION);
     return TRUE;
   }
@@ -1406,6 +1435,7 @@ GtkWidget *layout_ctrls(struct dlgparam *dp,
     uc->entry = uc->list = uc->menu = NULL;
     uc->button = uc->optmenu = uc->text = NULL;
     uc->label = NULL;
+    uc->nclicks = 0;
 
     switch (ctrl->generic.type) {
     case CTRL_BUTTON:

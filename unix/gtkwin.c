@@ -703,12 +703,11 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
       end = 2;
     }
 
-    /* Control-Break is the same as Control-C */
+    /* Control-Break sends a Break special to the backend */
     if (event->keyval == GDK_Break && (event->state & GDK_CONTROL_MASK)) {
-      output[1] = '\003';
-      use_ucsoutput = FALSE;
-      end = 2;
-      special = TRUE;
+      if (inst->back)
+        inst->back->special(inst->backhandle, TS_BRK);
+      return TRUE;
     }
 
     /* We handle Return ourselves, because it needs to be flagged as
@@ -1614,7 +1613,7 @@ void palette_reset(void *frontend)
       int r = i / 36, g = (i / 6) % 6, b = i % 6;
       inst->cols[i + 16].red = r ? r * 0x2828 + 0x3737 : 0;
       inst->cols[i + 16].green = g ? g * 0x2828 + 0x3737 : 0;
-      inst->cols[i + 16].blue = b ? b + 0x2828 + 0x3737 : 0;
+      inst->cols[i + 16].blue = b ? b * 0x2828 + 0x3737 : 0;
     } else {
       int shade = i - 216;
       shade = shade * 0x0a0a + 0x0808;
@@ -2121,7 +2120,7 @@ void sys_cursor(void *frontend, int x, int y)
  */
 void do_beep(void *frontend, int mode)
 {
-  if (mode != BELL_VISUAL)
+  if (mode == BELL_DEFAULT)
     gdk_beep();
 }
 
@@ -2747,6 +2746,7 @@ static void help(FILE *fp)
 int do_cmdline(int argc,
                char **argv,
                int do_everything,
+               int *allow_launch,
                struct gui_data *inst,
                Config *cfg)
 {
@@ -2958,8 +2958,8 @@ int do_cmdline(int argc,
       pgp_fingerprints();
       exit(1);
 
-    } else if (p[0] != '-' &&
-               (!do_everything || process_nonoption_arg(p, cfg))) {
+    } else if (p[0] != '-' && (!do_everything ||
+                               process_nonoption_arg(p, cfg, allow_launch))) {
       /* do nothing */
 
     } else {
@@ -3690,6 +3690,7 @@ void set_window_icon(GtkWidget *window,
                      int n_icon)
 {
   GdkPixmap *iconpm;
+  GdkBitmap *iconmask;
 #if GTK_CHECK_VERSION(2, 0, 0)
   GList *iconlist;
   int n;
@@ -3700,8 +3701,8 @@ void set_window_icon(GtkWidget *window,
 
   gtk_widget_realize(window);
   iconpm = gdk_pixmap_create_from_xpm_d(
-      window->window, NULL, NULL, (gchar **)icon[0]);
-  gdk_window_set_icon(window->window, NULL, iconpm, NULL);
+      window->window, &iconmask, NULL, (gchar **)icon[0]);
+  gdk_window_set_icon(window->window, NULL, iconpm, iconmask);
 
 #if GTK_CHECK_VERSION(2, 0, 0)
   iconlist = NULL;
@@ -3865,15 +3866,22 @@ int pt_main(int argc, char **argv)
     /* Splatter this argument so it doesn't clutter a ps listing */
     memset(argv[1], 0, strlen(argv[1]));
   } else {
-    if (do_cmdline(argc, argv, 0, inst, &inst->cfg))
+    /* By default, we bring up the config dialog, rather than launching
+     * a session. This gets set to TRUE if something happens to change
+     * that (e.g., a hostname is specified on the command-line). */
+    int allow_launch = FALSE;
+    if (do_cmdline(argc, argv, 0, &allow_launch, inst, &inst->cfg))
       exit(1); /* pre-defaults pass to get -class */
     do_defaults(NULL, &inst->cfg);
-    if (do_cmdline(argc, argv, 1, inst, &inst->cfg))
+    if (do_cmdline(argc, argv, 1, &allow_launch, inst, &inst->cfg))
       exit(1); /* post-defaults, do everything */
 
     cmdline_run_saved(&inst->cfg);
 
-    if (!cfg_launchable(&inst->cfg) && !cfgbox(&inst->cfg))
+    if (loaded_session)
+      allow_launch = TRUE;
+
+    if ((!allow_launch || !cfg_launchable(&inst->cfg)) && !cfgbox(&inst->cfg))
       exit(0); /* config box hit Cancel */
   }
 
