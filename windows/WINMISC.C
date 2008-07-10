@@ -9,8 +9,9 @@
 /*
  * HACK: PuttyTray / Session Icon
  * Otherwise it will not know IDI_MAINICON
- */ 
+ */
 #include "win_res.h"
+#include <shellapi.h>
 //--------------------------
 
 OSVERSIONINFO osVersion;

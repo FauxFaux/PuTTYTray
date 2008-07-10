@@ -3,6 +3,7 @@
  * Hyperlink stuff: CORE FILE! Don't forget to COPY IT TO THE NEXT VERSION
  */
 #include <windows.h>
+#include <shellapi.h>
 #include <vector>
 #include <sstream>
 #include "urlhack.h"

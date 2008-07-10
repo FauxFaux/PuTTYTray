@@ -3,6 +3,7 @@
  * Added this file
  */ 
 #include <windows.h>
+#include <shellapi.h>
 typedef WINSHELLAPI BOOL(WINAPI * fnPickIconDlg) (HWND hWndParent, LPTSTR pszFilename, LPDWORD pdwBufferSize, LPDWORD pdwIndex);
 
 BOOL SelectIconA(HWND hWndParent, LPSTR lpszFilename, DWORD dwBufferSize, DWORD * pdwIndex) {
