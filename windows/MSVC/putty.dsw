@@ -1,0 +1,35 @@
+Microsoft Developer Studio Workspace File, Format Version 6.00
+# WARNING: DO NOT EDIT OR DELETE THIS WORKSPACE FILE!
+
+###############################################################################
+
+Project: "pageant"=".\pageant\pageant.dsp" - Package Owner=<4>
+Project: "plink"=".\plink\plink.dsp" - Package Owner=<4>
+Project: "pscp"=".\pscp\pscp.dsp" - Package Owner=<4>
+Project: "psftp"=".\psftp\psftp.dsp" - Package Owner=<4>
+Project: "putty"=".\putty\putty.dsp" - Package Owner=<4>
+Project: "puttygen"=".\puttygen\puttygen.dsp" - Package Owner=<4>
+Project: "puttytel"=".\puttytel\puttytel.dsp" - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Global:
+
+Package=<5>
+{{{
+}}}
+
+Package=<3>
+{{{
+}}}
+
+###############################################################################
+

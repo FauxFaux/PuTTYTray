@@ -1,0 +1,79 @@
+.TH "plink" "1" "2004\(hy03\(hy24" "PuTTY\ tool\ suite" "PuTTY\ tool\ suite"
+.SH "NAME"
+.PP
+\fBplink\fP \(hy PuTTY link, command line network connection tool
+.SH "SYNOPSIS"
+.PP
+.nf
+\fBplink\fP\ [\fIoptions\fP]\ [\fIuser\fP\fB@\fP]\fIhost\fP\ [\fIcommand\fP]
+.fi
+.SH "DESCRIPTION"
+.PP
+\fBplink\fP is a network connection tool supporting several protocols.
+.SH "OPTIONS"
+.PP
+The command-line options supported by \fBplink\fP are:
+.IP "\fB-V\fP"
+Show version information and exit.
+.IP "\fB-pgpfp\fP"
+Display the fingerprints of the PuTTY PGP Master Keys and exit, to aid in verifying new files released by the PuTTY team.
+.IP "\fB-v\fP"
+Show verbose messages.
+.IP "\fB-load\fP \fIsession\fP"
+Load settings from saved session.
+.IP "\fB-ssh\fP"
+Force use of SSH protocol (default).
+.IP "\fB-telnet\fP"
+Force use of Telnet protocol.
+.IP "\fB-rlogin\fP"
+Force use of rlogin protocol.
+.IP "\fB-raw\fP"
+Force raw mode.
+.IP "\fB-P\fP \fIport\fP"
+Connect to port \fIport\fP.
+.IP "\fB-l\fP \fIuser\fP"
+Set remote username to \fIuser\fP.
+.IP "\fB-m\fP \fIpath\fP"
+Read remote command(s) from local file \fIpath\fP.
+.IP "\fB-batch\fP"
+Disable interactive prompts.
+.IP "\fB-pw\fP \fIpassword\fP"
+Set remote password to \fIpassword\fP. \fICAUTION:\fP this will likely make the password visible to other users of the local machine (via commands such as `\fBw\fP').
+.IP "\fB\(hyL\fP \fB[\fP\fIsrcaddr\fP\fB:]\fP\fIsrcport\fP\fB:\fP\fIdesthost\fP\fB:\fP\fIdestport\fP"
+Set up a local port forwarding: listen on \fIsrcport\fP (or \fIsrcaddr\fP:\fIsrcport\fP if specified), and forward any connections over the SSH connection to the destination address \fIdesthost\fP:\fIdestport\fP. Only works in SSH.
+.IP "\fB\(hyR\fP \fB[\fP\fIsrcaddr\fP\fB:]\fP\fIsrcport\fP\fB:\fP\fIdesthost\fP\fB:\fP\fIdestport\fP"
+Set up a remote port forwarding: ask the SSH server to listen on \fIsrcport\fP (or \fIsrcaddr\fP:\fIsrcport\fP if specified), and to forward any connections back over the SSH connection where the client will pass them on to the destination address \fIdesthost\fP:\fIdestport\fP. Only works in SSH.
+.IP "\fB\(hyD\fP [\fIsrcaddr\fP:]\fIsrcport\fP"
+Set up dynamic port forwarding. The client listens on \fIsrcport\fP (or \fIsrcaddr\fP:\fIsrcport\fP if specified), and implements a SOCKS server. So you can point SOCKS-aware applications at this port and they will automatically use the SSH connection to tunnel all their connections. Only works in SSH.
+.IP "\fB-X\fP"
+Enable X11 forwarding.
+.IP "\fB-x\fP"
+Disable X11 forwarding (default).
+.IP "\fB-A\fP"
+Enable agent forwarding.
+.IP "\fB-a\fP"
+Disable agent forwarding (default).
+.IP "\fB-t\fP"
+Enable pty allocation (default if a command is NOT specified).
+.IP "\fB-T\fP"
+Disable pty allocation (default if a command is specified).
+.IP "\fB-1\fP"
+Force use of SSH protocol version 1.
+.IP "\fB-2\fP"
+Force use of SSH protocol version 2.
+.IP "\fB-C\fP"
+Enable SSH compression.
+.IP "\fB-i\fP \fIpath\fP"
+Private key file for authentication.
+.IP "\fB-s\fP"
+Remote command is SSH subsystem (SSH-2 only).
+.IP "\fB-N\fP"
+Don't start a remote command or shell at all (SSH-2 only).
+.SH "MORE INFORMATION"
+.PP
+For more information on plink, it's probably best to go and look at the manual on the PuTTY web page:
+.PP
+\fBhttp://www.chiark.greenend.org.uk/~sgtatham/putty/\fP
+.SH "BUGS"
+.PP
+This man page isn't terribly complete. See the above web link for better documentation.

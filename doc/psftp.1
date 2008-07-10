@@ -1,0 +1,56 @@
+.TH "psftp" "1" "2004\(hy03\(hy24" "PuTTY\ tool\ suite" "PuTTY\ tool\ suite"
+.SH "NAME"
+.PP
+\fBpsftp\fP \(hy interactive SFTP (secure file transfer protocol) client
+.SH "SYNOPSIS"
+.PP
+.nf
+\fBpsftp\fP\ [\fIoptions\fP]\ [\fIuser\fP\fB@\fP]\fIhost\fP
+.fi
+.SH "DESCRIPTION"
+.PP
+\fBpsftp\fP is an interactive text-based client for the SSH-based SFTP (secure file transfer) protocol.
+.SH "OPTIONS"
+.PP
+The command-line options supported by \fBpsftp\fP are:
+.IP "\fB-V\fP"
+Show version information and exit.
+.IP "\fB-pgpfp\fP"
+Display the fingerprints of the PuTTY PGP Master Keys and exit, to aid in verifying new files released by the PuTTY team.
+.IP "\fB-b\fP \fIbatchfile\fP"
+Use specified batchfile.
+.IP "\fB-bc\fP"
+Output batchfile commands.
+.IP "\fB-be\fP"
+Don't stop batchfile processing on errors.
+.IP "\fB-v\fP"
+Show verbose messages.
+.IP "\fB-load\fP \fIsession\fP"
+Load settings from saved session.
+.IP "\fB-P\fP \fIport\fP"
+Connect to port \fIport\fP.
+.IP "\fB-l\fP \fIuser\fP"
+Set remote username to \fIuser\fP.
+.IP "\fB-batch\fP"
+Disable interactive prompts.
+.IP "\fB-pw\fP \fIpassword\fP"
+Set remote password to \fIpassword\fP. \fICAUTION:\fP this will likely make the password visible to other users of the local machine (via commands such as `\fBw\fP').
+.IP "\fB-1\fP"
+Force use of SSH protocol version 1.
+.IP "\fB-2\fP"
+Force use of SSH protocol version 2.
+.IP "\fB-C\fP"
+Enable SSH compression.
+.IP "\fB-i\fP \fIpath\fP"
+Private key file for authentication.
+.SH "COMMANDS"
+.PP
+For a list of commands available inside \fBpsftp\fP, type \fBhelp\fP at the \fBpsftp>\fP prompt.
+.SH "MORE INFORMATION"
+.PP
+For more information on \fBpsftp\fP it's probably best to go and look at the manual on the PuTTY web page:
+.PP
+\fBhttp://www.chiark.greenend.org.uk/~sgtatham/putty/\fP
+.SH "BUGS"
+.PP
+This man page isn't terribly complete. See the above web link for better documentation.

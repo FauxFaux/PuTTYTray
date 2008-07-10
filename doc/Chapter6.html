@@ -1,0 +1,531 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=US-ASCII">
+<title>Using PSFTP to transfer files securely</title>
+<link rel="previous" href="Chapter5.html">
+<link rel="ToC" href="index.html">
+<link rel="index" href="IndexPage.html">
+<link rel="next" href="Chapter7.html">
+</head>
+<body>
+<p><a href="Chapter5.html">Previous</a> | <a href="index.html">Contents</a> | <a href="IndexPage.html">Index</a> | <a href="Chapter7.html">Next</a></p>
+
+<ul>
+<li><a href="#psftp">Chapter 6: Using PSFTP to transfer files securely</a>
+<ul>
+<li><a href="#psftp-starting">6.1 Starting PSFTP</a>
+<ul>
+<li><a href="#psftp-option-b">6.1.1 <code>-b</code>: specify a file containing batch commands</a></li>
+<li><a href="#psftp-option-bc">6.1.2 <code>-bc</code>: display batch commands as they are run</a></li>
+<li><a href="#psftp-option-be">6.1.3 <code>-be</code>: continue batch processing on errors</a></li>
+<li><a href="#psftp-usage-options-batch">6.1.4 <code>-batch</code>: avoid interactive prompts</a></li>
+</ul></li>
+<li><a href="#psftp-commands">6.2 Running PSFTP</a>
+<ul>
+<li><a href="#psftp-quoting">6.2.1 General quoting rules for PSFTP commands</a></li>
+<li><a href="#psftp-wildcards">6.2.2 Wildcards in PSFTP</a></li>
+<li><a href="#psftp-cmd-open">6.2.3 The <code>open</code> command: start a session</a></li>
+<li><a href="#psftp-cmd-quit">6.2.4 The <code>quit</code> command: end your session</a></li>
+<li><a href="#psftp-cmd-close">6.2.5 The <code>close</code> command: close your connection</a></li>
+<li><a href="#psftp-cmd-help">6.2.6 The <code>help</code> command: get quick online help</a></li>
+<li><a href="#psftp-cmd-cd">6.2.7 The <code>cd</code> and <code>pwd</code> commands: changing the remote working directory</a></li>
+<li><a href="#psftp-cmd-lcd">6.2.8 The <code>lcd</code> and <code>lpwd</code> commands: changing the local working directory</a></li>
+<li><a href="#psftp-cmd-get">6.2.9 The <code>get</code> command: fetch a file from the server</a></li>
+<li><a href="#psftp-cmd-put">6.2.10 The <code>put</code> command: send a file to the server</a></li>
+<li><a href="#psftp-cmd-mgetput">6.2.11 The <code>mget</code> and <code>mput</code> commands: fetch or send multiple files</a></li>
+<li><a href="#psftp-cmd-regetput">6.2.12 The <code>reget</code> and <code>reput</code> commands: resuming file transfers</a></li>
+<li><a href="#psftp-cmd-dir">6.2.13 The <code>dir</code> command: list remote files</a></li>
+<li><a href="#psftp-cmd-chmod">6.2.14 The <code>chmod</code> command: change permissions on remote files</a></li>
+<li><a href="#psftp-cmd-del">6.2.15 The <code>del</code> command: delete remote files</a></li>
+<li><a href="#psftp-cmd-mkdir">6.2.16 The <code>mkdir</code> command: create remote directories</a></li>
+<li><a href="#psftp-cmd-rmdir">6.2.17 The <code>rmdir</code> command: remove remote directories</a></li>
+<li><a href="#psftp-cmd-mv">6.2.18 The <code>mv</code> command: move and rename remote files</a></li>
+<li><a href="#psftp-cmd-pling">6.2.19 The <code>!</code> command: run a local Windows command</a></li>
+</ul></li>
+<li><a href="#psftp-pubkey">6.3 Using public key authentication with PSFTP</a></li>
+</ul></li>
+</ul>
+<h1><a name="psftp"></a><a name="C6"></a>Chapter 6: Using <a name="i0"></a>PSFTP to transfer files securely</h1>
+<p>
+<a name="i1"></a>PSFTP, the PuTTY SFTP client, is a tool for <a name="i2"></a>transferring files securely between computers using an SSH connection.
+</p>
+<p>
+PSFTP differs from PSCP in the following ways:
+</p>
+<ul><li>
+PSCP should work on virtually every SSH server. PSFTP uses the new <a name="i3"></a>SFTP protocol, which is a feature of SSH-2 only. (PSCP will also use this protocol if it can, but there is an SSH-1 equivalent it can fall back to if it cannot.)
+</li>
+<li>
+PSFTP allows you to run an interactive file transfer session, much like the Windows <a name="i4"></a><code>ftp</code> program. You can list the contents of directories, browse around the file system, issue multiple <code>get</code> and <code>put</code> commands, and eventually log out. By contrast, PSCP is designed to do a single file transfer operation and immediately terminate.
+</li>
+</ul>
+<h2><a name="psftp-starting"></a><a name="S6.1"></a>6.1 Starting PSFTP</h2>
+<p>
+The usual way to start PSFTP is from a command prompt, much like PSCP. To do this, it will need either to be on your <a name="i5"></a><code>PATH</code> or in your current directory. To add the directory containing PSFTP to your <code>PATH</code> environment variable, type into the console window:
+</p>
+<pre><code>set PATH=C:\path\to\putty\directory;%PATH%
+</code></pre>
+<p>
+Unlike PSCP, however, PSFTP has no complex command-line syntax; you just specify a host name and perhaps a user name:
+</p>
+<pre><code>psftp server.example.com
+</code></pre>
+<p>
+or perhaps
+</p>
+<pre><code>psftp fred@server.example.com
+</code></pre>
+<p>
+Alternatively, if you just type <code>psftp</code> on its own (or double-click the PSFTP icon in the Windows GUI), you will see the PSFTP prompt, and a message telling you PSFTP has not connected to any server:
+</p>
+<pre><code>C:\&gt;psftp
+psftp: no hostname specified; use "open host.name" to connect
+psftp&gt;
+</code></pre>
+<p>
+At this point you can type <code>open server.example.com</code> or <code>open fred@server.example.com</code> to start a session.
+</p>
+<p>
+PSFTP accepts all the general command line options supported by the PuTTY tools, except the ones which make no sense in a file transfer utility. See <a href="Chapter3.html#using-general-opts">section 3.8.3</a> for a description of these options. (The ones not supported by PSFTP are clearly marked.)
+</p>
+<p>
+PSFTP also supports some of its own options. The following sections describe PSFTP's specific command-line options.
+</p>
+<h3><a name="psftp-option-b"></a><a name="S6.1.1"></a>6.1.1 <a name="i6"></a><code>-b</code>: specify a file containing batch commands</h3>
+<p>
+In normal operation, PSFTP is an interactive program which displays a command line and accepts commands from the keyboard.
+</p>
+<p>
+If you need to do automated tasks with PSFTP, you would probably prefer to <a name="i7"></a>specify a set of commands in advance and have them executed automatically. The <code>-b</code> option allows you to do this. You use it with a file name containing batch commands. For example, you might create a file called <code>myscript.scr</code> containing lines like this:
+</p>
+<pre><code>cd /home/ftp/users/jeff
+del jam-old.tar.gz
+ren jam.tar.gz jam-old.tar.gz
+put jam.tar.gz
+chmod a+r jam.tar.gz
+</code></pre>
+<p>
+and then you could run the script by typing
+</p>
+<pre><code>psftp user@hostname -b myscript.scr
+</code></pre>
+<p>
+When you run a batch script in this way, PSFTP will abort the script if any command fails to complete successfully. To change this behaviour, you can add the <code>-be</code> option (<a href="#psftp-option-be">section 6.1.3</a>).
+</p>
+<p>
+PSFTP will terminate after it finishes executing the batch script.
+</p>
+<h3><a name="psftp-option-bc"></a><a name="S6.1.2"></a>6.1.2 <a name="i8"></a><code>-bc</code>: display batch commands as they are run</h3>
+<p>
+The <code>-bc</code> option alters what PSFTP displays while processing a batch script specified with <code>-b</code>. With the <code>-bc</code> option, PSFTP will display prompts and commands just as if the commands had been typed at the keyboard. So instead of seeing this:
+</p>
+<pre><code>C:\&gt;psftp fred@hostname -b batchfile
+Sent username "fred"
+Remote working directory is /home/fred
+Listing directory /home/fred/lib
+drwxrwsr-x    4 fred     fred         1024 Sep  6 10:42 .
+drwxr-sr-x   25 fred     fred         2048 Dec 14 09:36 ..
+drwxrwsr-x    3 fred     fred         1024 Apr 17  2000 jed
+lrwxrwxrwx    1 fred     fred           24 Apr 17  2000 timber
+drwxrwsr-x    2 fred     fred         1024 Mar 13  2000 trn
+</code></pre>
+<p>
+you might see this:
+</p>
+<pre><code>C:\&gt;psftp fred@hostname -bc -b batchfile
+Sent username "fred"
+Remote working directory is /home/fred
+psftp&gt; dir lib
+Listing directory /home/fred/lib
+drwxrwsr-x    4 fred     fred         1024 Sep  6 10:42 .
+drwxr-sr-x   25 fred     fred         2048 Dec 14 09:36 ..
+drwxrwsr-x    3 fred     fred         1024 Apr 17  2000 jed
+lrwxrwxrwx    1 fred     fred           24 Apr 17  2000 timber
+drwxrwsr-x    2 fred     fred         1024 Mar 13  2000 trn
+psftp&gt; quit
+</code></pre>
+<h3><a name="psftp-option-be"></a><a name="S6.1.3"></a>6.1.3 <a name="i9"></a><code>-be</code>: continue batch processing on errors</h3>
+<p>
+When running a batch file, this additional option causes PSFTP to continue processing even if a command fails to complete successfully.
+</p>
+<p>
+You might want this to happen if you wanted to delete a file and didn't care if it was already not present, for example.
+</p>
+<h3><a name="psftp-usage-options-batch"></a><a name="S6.1.4"></a>6.1.4 <a name="i10"></a><code>-batch</code>: avoid interactive prompts</h3>
+<p>
+If you use the <code>-batch</code> option, PSFTP will never give an interactive prompt while establishing the connection. If the server's host key is invalid, for example (see <a href="Chapter2.html#gs-hostkey">section 2.2</a>), then the connection will simply be abandoned instead of asking you what to do next.
+</p>
+<p>
+This may help PSFTP's behaviour when it is used in automated scripts: using <code>-batch</code>, if something goes wrong at connection time, the batch job will fail rather than hang.
+</p>
+<h2><a name="psftp-commands"></a><a name="S6.2"></a>6.2 Running PSFTP</h2>
+<p>
+Once you have started your PSFTP session, you will see a <code>psftp&gt;</code> prompt. You can now type commands to perform file-transfer functions. This section lists all the available commands.
+</p>
+<h3><a name="psftp-quoting"></a><a name="S6.2.1"></a>6.2.1 <a name="i11"></a>General quoting rules for PSFTP commands</h3>
+<p>
+Most PSFTP commands are considered by the PSFTP command interpreter as a sequence of words, separated by spaces. For example, the command <code>ren oldfilename newfilename</code> splits up into three words: <code>ren</code> (the command name), <code>oldfilename</code> (the name of the file to be renamed), and <code>newfilename</code> (the new name to give the file).
+</p>
+<p>
+Sometimes you will need to specify <a name="i12"></a>file names that <em>contain</em> spaces. In order to do this, you can surround the file name with double quotes. This works equally well for local file names and remote file names:
+</p>
+<pre><code>psftp&gt; get "spacey file name.txt" "save it under this name.txt"
+</code></pre>
+<p>
+The double quotes themselves will not appear as part of the file names; they are removed by PSFTP and their only effect is to stop the spaces inside them from acting as word separators.
+</p>
+<p>
+If you need to <em>use</em> a double quote (on some types of remote system, such as Unix, you are allowed to use double quotes in file names), you can do this by doubling it. This works both inside and outside double quotes. For example, this command
+</p>
+<pre><code>psftp&gt; ren ""this"" "a file with ""quotes"" in it"
+</code></pre>
+<p>
+will take a file whose current name is <code>"this"</code> (with a double quote character at the beginning and the end) and rename it to a file whose name is <code>a file with "quotes" in it</code>.
+</p>
+<p>
+(The one exception to the PSFTP quoting rules is the <code>!</code> command, which passes its command line straight to Windows without splitting it up into words at all. See <a href="#psftp-cmd-pling">section 6.2.19</a>.)
+</p>
+<h3><a name="psftp-wildcards"></a><a name="S6.2.2"></a>6.2.2 Wildcards in PSFTP</h3>
+<p>
+Several commands in PSFTP support &#8216;<a name="i13"></a>wildcards&#8217; to select multiple files.
+</p>
+<p>
+For <em>local</em> file specifications (such as the first argument to <code>put</code>), wildcard rules for the local operating system are used. For instance, PSFTP running on Windows might require the use of <code>*.*</code> where PSFTP on Unix would need <code>*</code>.
+</p>
+<p>
+For <em>remote</em> file specifications (such as the first argument to <code>get</code>), PSFTP uses a standard wildcard syntax (similar to <a name="i14"></a>POSIX wildcards):
+</p>
+<ul><li>
+<code>*</code> matches any sequence of characters (including a zero-length sequence).
+</li>
+<li>
+<code>?</code> matches exactly one character.
+</li>
+<li>
+<code>[abc]</code> matches exactly one character which can be <code>a</code>, <code>b</code>, or <code>c</code>.
+<p>
+<code>[a-z]</code> matches any character in the range <code>a</code> to <code>z</code>.
+</p>
+<p>
+<code>[^abc]</code> matches a single character that is <em>not</em> <code>a</code>, <code>b</code>, or <code>c</code>.
+</p>
+<p>
+Special cases: <code>[-a]</code> matches a literal hyphen (<code>-</code>) or <code>a</code>; <code>[^-a]</code> matches all other characters. <code>[a^]</code> matches a literal caret (<code>^</code>) or <code>a</code>.
+</p>
+
+</li>
+<li>
+<code>\</code> (backslash) before any of the above characters (or itself) removes that character's special meaning.
+</li>
+</ul>
+<p>
+A leading period (<code>.</code>) on a filename is not treated specially, unlike in some Unix contexts; <code>get *</code> will fetch all files, whether or not they start with a leading period.
+</p>
+<h3><a name="psftp-cmd-open"></a><a name="S6.2.3"></a>6.2.3 The <code>open</code> command: start a session</h3>
+<p>
+If you started PSFTP by double-clicking in the GUI, or just by typing <code>psftp</code> at the command line, you will need to open a connection to an SFTP server before you can issue any other commands (except <code>help</code> and <code>quit</code>).
+</p>
+<p>
+To create a connection, type <code>open host.name</code>, or if you need to specify a user name as well you can type <code>open user@host.name</code>.
+</p>
+<p>
+Once you have issued this command, you will not be able to issue it again, <em>even</em> if the command fails (for example, if you mistype the host name or the connection times out). So if the connection is not opened successfully, PSFTP will terminate immediately.
+</p>
+<h3><a name="psftp-cmd-quit"></a><a name="S6.2.4"></a>6.2.4 The <code>quit</code> command: end your session</h3>
+<p>
+When you have finished your session, type the command <code>quit</code> to close the connection, terminate PSFTP and return to the command line (or just close the PSFTP console window if you started it from the GUI).
+</p>
+<p>
+You can also use the <code>bye</code> and <code>exit</code> commands, which have exactly the same effect.
+</p>
+<h3><a name="psftp-cmd-close"></a><a name="S6.2.5"></a>6.2.5 The <code>close</code> command: close your connection</h3>
+<p>
+If you just want to close the network connection but keep PSFTP running, you can use the <code>close</code> command. You can then use the <code>open</code> command to open a new connection.
+</p>
+<h3><a name="psftp-cmd-help"></a><a name="S6.2.6"></a>6.2.6 The <code>help</code> command: get quick online help</h3>
+<p>
+If you type <code>help</code>, PSFTP will give a short list of the available commands.
+</p>
+<p>
+If you type <code>help</code> with a command name - for example, <code>help get</code> - then PSFTP will give a short piece of help on that particular command.
+</p>
+<h3><a name="psftp-cmd-cd"></a><a name="S6.2.7"></a>6.2.7 The <code>cd</code> and <code>pwd</code> commands: changing the remote <a name="i15"></a>working directory</h3>
+<p>
+PSFTP maintains a notion of your &#8216;working directory&#8217; on the server. This is the default directory that other commands will operate on. For example, if you type <code>get filename.dat</code> then PSFTP will look for <code>filename.dat</code> in your remote working directory on the server.
+</p>
+<p>
+To change your remote working directory, use the <code>cd</code> command. If you don't provide an argument, <code>cd</code> will return you to your home directory on the server (more precisely, the remote directory you were in at the start of the connection).
+</p>
+<p>
+To display your current remote working directory, type <code>pwd</code>.
+</p>
+<h3><a name="psftp-cmd-lcd"></a><a name="S6.2.8"></a>6.2.8 The <code>lcd</code> and <code>lpwd</code> commands: changing the local <a name="i16"></a>working directory</h3>
+<p>
+As well as having a working directory on the remote server, PSFTP also has a working directory on your local machine (just like any other Windows process). This is the default local directory that other commands will operate on. For example, if you type <code>get filename.dat</code> then PSFTP will save the resulting file as <code>filename.dat</code> in your local working directory.
+</p>
+<p>
+To change your local working directory, use the <code>lcd</code> command. To display your current local working directory, type <code>lpwd</code>.
+</p>
+<h3><a name="psftp-cmd-get"></a><a name="S6.2.9"></a>6.2.9 The <code>get</code> command: fetch a file from the server</h3>
+<p>
+To <a name="i17"></a>download a file from the server and store it on your local PC, you use the <code>get</code> command.
+</p>
+<p>
+In its simplest form, you just use this with a file name:
+</p>
+<pre><code>get myfile.dat
+</code></pre>
+<p>
+If you want to store the file locally under a different name, specify the local file name after the remote one:
+</p>
+<pre><code>get myfile.dat newname.dat
+</code></pre>
+<p>
+This will fetch the file on the server called <code>myfile.dat</code>, but will save it to your local machine under the name <code>newname.dat</code>.
+</p>
+<p>
+To fetch an entire directory <a name="i18"></a>recursively, you can use the <code>-r</code> option:
+</p>
+<pre><code>get -r mydir
+get -r mydir newname
+</code></pre>
+<p>
+(If you want to fetch a file whose name starts with a hyphen, you may have to use the <code>--</code> special argument, which stops <code>get</code> from interpreting anything as a switch after it. For example, &#8216;<code>get -- -silly-name-</code>&#8217;.)
+</p>
+<h3><a name="psftp-cmd-put"></a><a name="S6.2.10"></a>6.2.10 The <code>put</code> command: send a file to the server</h3>
+<p>
+To <a name="i19"></a>upload a file to the server from your local PC, you use the <code>put</code> command.
+</p>
+<p>
+In its simplest form, you just use this with a file name:
+</p>
+<pre><code>put myfile.dat
+</code></pre>
+<p>
+If you want to store the file remotely under a different name, specify the remote file name after the local one:
+</p>
+<pre><code>put myfile.dat newname.dat
+</code></pre>
+<p>
+This will send the local file called <code>myfile.dat</code>, but will store it on the server under the name <code>newname.dat</code>.
+</p>
+<p>
+To send an entire directory <a name="i20"></a>recursively, you can use the <code>-r</code> option:
+</p>
+<pre><code>put -r mydir
+put -r mydir newname
+</code></pre>
+<p>
+(If you want to send a file whose name starts with a hyphen, you may have to use the <code>--</code> special argument, which stops <code>put</code> from interpreting anything as a switch after it. For example, &#8216;<code>put -- -silly-name-</code>&#8217;.)
+</p>
+<h3><a name="psftp-cmd-mgetput"></a><a name="S6.2.11"></a>6.2.11 The <code>mget</code> and <code>mput</code> commands: fetch or send multiple files</h3>
+<p>
+<code>mget</code> works almost exactly like <code>get</code>, except that it allows you to specify more than one file to fetch at once. You can do this in two ways:
+</p>
+<ul><li>
+by giving two or more explicit file names (&#8216;<code>mget file1.txt file2.txt</code>&#8217;)
+</li>
+<li>
+by using a wildcard (&#8216;<code>mget *.txt</code>&#8217;).
+</li>
+</ul>
+<p>
+Every argument to <code>mget</code> is treated as the name of a file to fetch (unlike <code>get</code>, which will interpret at most one argument like that, and a second argument will be treated as an alternative name under which to store the retrieved file), or a <a name="i21"></a>wildcard expression matching more than one file.
+</p>
+<p>
+The <code>-r</code> and <code>--</code> options from <code>get</code> are also available with <code>mget</code>.
+</p>
+<p>
+<code>mput</code> is similar to <code>put</code>, with the same differences.
+</p>
+<h3><a name="psftp-cmd-regetput"></a><a name="S6.2.12"></a>6.2.12 The <code>reget</code> and <code>reput</code> commands: <a name="i22"></a>resuming file transfers</h3>
+<p>
+If a file transfer fails half way through, and you end up with half the file stored on your disk, you can resume the file transfer using the <code>reget</code> and <code>reput</code> commands. These work exactly like the <code>get</code> and <code>put</code> commands, but they check for the presence of the half-written destination file and start transferring from where the last attempt left off.
+</p>
+<p>
+The syntax of <code>reget</code> and <code>reput</code> is exactly the same as the syntax of <code>get</code> and <code>put</code>:
+</p>
+<pre><code>reget myfile.dat
+reget myfile.dat newname.dat
+reget -r mydir
+</code></pre>
+<p>
+These commands are intended mainly for resuming interrupted transfers. They assume that the remote file or directory structure has not changed in any way; if there have been changes, you may end up with corrupted files. In particular, the <code>-r</code> option will not pick up changes to files or directories already transferred in full.
+</p>
+<h3><a name="psftp-cmd-dir"></a><a name="S6.2.13"></a>6.2.13 The <code>dir</code> command: <a name="i23"></a>list remote files</h3>
+<p>
+To list the files in your remote working directory, just type <code>dir</code>.
+</p>
+<p>
+You can also list the contents of a different directory by typing <code>dir</code> followed by the directory name:
+</p>
+<pre><code>dir /home/fred
+dir sources
+</code></pre>
+<p>
+And you can list a subset of the contents of a directory by providing a wildcard:
+</p>
+<pre><code>dir /home/fred/*.txt
+dir sources/*.c
+</code></pre>
+<p>
+The <code>ls</code> command works exactly the same way as <code>dir</code>.
+</p>
+<h3><a name="psftp-cmd-chmod"></a><a name="S6.2.14"></a>6.2.14 The <code>chmod</code> command: change permissions on remote files</h3>
+<p>
+<a name="i24"></a>PSFTP allows you to modify the file permissions on files and directories on the server. You do this using the <code>chmod</code> command, which works very much like the Unix <code>chmod</code> command.
+</p>
+<p>
+The basic syntax is <code>chmod modes file</code>, where <code>modes</code> represents a modification to the file permissions, and <code>file</code> is the filename to modify. You can specify multiple files or wildcards. For example:
+</p>
+<pre><code>chmod go-rwx,u+w privatefile
+chmod a+r public*
+chmod 640 groupfile1 groupfile2
+</code></pre>
+<p>
+The <code>modes</code> parameter can be a set of octal digits in the Unix style. (If you don't know what this means, you probably don't want to be using it!) Alternatively, it can be a list of permission modifications, separated by commas. Each modification consists of:
+</p>
+<ul><li>
+The people affected by the modification. This can be <code>u</code> (the owning user), <code>g</code> (members of the owning group), or <code>o</code> (everybody else - &#8216;others&#8217;), or some combination of those. It can also be <code>a</code> (&#8216;all&#8217;) to affect everybody at once.
+</li>
+<li>
+A <code>+</code> or <code>-</code> sign, indicating whether permissions are to be added or removed.
+</li>
+<li>
+The actual permissions being added or removed. These can be <a name="i25"></a><code>r</code> (permission to read the file), <a name="i26"></a><code>w</code> (permission to write to the file), and <a name="i27"></a><code>x</code> (permission to execute the file, or in the case of a directory, permission to access files within the directory).
+</li>
+</ul>
+<p>
+So the above examples would do:
+</p>
+<ul><li>
+The first example: <code>go-rwx</code> removes read, write and execute permissions for members of the owning group and everybody else (so the only permissions left are the ones for the file owner). <code>u+w</code> adds write permission for the file owner.
+</li>
+<li>
+The second example: <code>a+r</code> adds read permission for everybody to all files and directories starting with &#8216;public&#8217;.
+</li>
+</ul>
+<p>
+In addition to all this, there are a few extra special cases for <a name="i28"></a>Unix systems. On non-Unix systems these are unlikely to be useful:
+</p>
+<ul><li>
+You can specify <code>u+s</code> and <code>u-s</code> to add or remove the Unix <a name="i29"></a>set-user-ID bit. This is typically only useful for special purposes; refer to your Unix documentation if you're not sure about it.
+</li>
+<li>
+You can specify <code>g+s</code> and <code>g-s</code> to add or remove the Unix <a name="i30"></a>set-group-ID bit. On a file, this works similarly to the set-user-ID bit (see your Unix documentation again); on a directory it ensures that files created in the directory are accessible by members of the group that owns the directory.
+</li>
+<li>
+You can specify <code>+t</code> and <code>-t</code> to add or remove the Unix &#8216;<a name="i31"></a>sticky bit&#8217;. When applied to a directory, this means that the owner of a file in that directory can delete the file (whereas normally only the owner of the <em>directory</em> would be allowed to).
+</li>
+</ul>
+<h3><a name="psftp-cmd-del"></a><a name="S6.2.15"></a>6.2.15 The <code>del</code> command: delete remote files</h3>
+<p>
+To <a name="i32"></a>delete a file on the server, type <code>del</code> and then the filename or filenames:
+</p>
+<pre><code>del oldfile.dat
+del file1.txt file2.txt
+del *.o
+</code></pre>
+<p>
+Files will be deleted without further prompting, even if multiple files are specified.
+</p>
+<p>
+<code>del</code> will only delete files. You cannot use it to delete directories; use <code>rmdir</code> for that.
+</p>
+<p>
+The <code>rm</code> command works exactly the same way as <code>del</code>.
+</p>
+<h3><a name="psftp-cmd-mkdir"></a><a name="S6.2.16"></a>6.2.16 The <code>mkdir</code> command: create remote directories</h3>
+<p>
+To <a name="i33"></a>create a directory on the server, type <code>mkdir</code> and then the directory name:
+</p>
+<pre><code>mkdir newstuff
+</code></pre>
+<p>
+You can specify multiple directories to create at once:
+</p>
+<pre><code>mkdir dir1 dir2 dir3
+</code></pre>
+<h3><a name="psftp-cmd-rmdir"></a><a name="S6.2.17"></a>6.2.17 The <code>rmdir</code> command: remove remote directories</h3>
+<p>
+To <a name="i34"></a>remove a directory on the server, type <code>rmdir</code> and then the directory name or names:
+</p>
+<pre><code>rmdir oldstuff
+rmdir *.old ancient
+</code></pre>
+<p>
+Directories will be deleted without further prompting, even if multiple directories are specified.
+</p>
+<p>
+Most SFTP servers will probably refuse to remove a directory if the directory has anything in it, so you will need to delete the contents first.
+</p>
+<h3><a name="psftp-cmd-mv"></a><a name="S6.2.18"></a>6.2.18 The <code>mv</code> command: move and <a name="i35"></a>rename remote files</h3>
+<p>
+To rename a single file on the server, type <code>mv</code>, then the current file name, and then the new file name:
+</p>
+<pre><code>mv oldfile newname
+</code></pre>
+<p>
+You can also move the file into a different directory and change the name:
+</p>
+<pre><code>mv oldfile dir/newname
+</code></pre>
+<p>
+To move one or more files into an existing subdirectory, specify the files (using wildcards if desired), and then the destination directory:
+</p>
+<pre><code>mv file dir
+mv file1 dir1/file2 dir2
+mv *.c *.h ..
+</code></pre>
+<p>
+The <code>rename</code> and <code>ren</code> commands work exactly the same way as <code>mv</code>.
+</p>
+<h3><a name="psftp-cmd-pling"></a><a name="S6.2.19"></a>6.2.19 The <code>!</code> command: run a <a name="i36"></a>local Windows command</h3>
+<p>
+You can run local Windows commands using the <code>!</code> command. This is the only PSFTP command that is not subject to the command quoting rules given in <a href="#psftp-quoting">section 6.2.1</a>. If any command line begins with the <code>!</code> character, then the rest of the line will be passed straight to Windows without further translation.
+</p>
+<p>
+For example, if you want to move an existing copy of a file out of the way before downloading an updated version, you might type:
+</p>
+<pre><code>psftp&gt; !ren myfile.dat myfile.bak
+psftp&gt; get myfile.dat
+</code></pre>
+<p>
+using the Windows <code>ren</code> command to rename files on your local PC.
+</p>
+<h2><a name="psftp-pubkey"></a><a name="S6.3"></a>6.3 Using <a name="i37"></a>public key authentication with PSFTP</h2>
+<p>
+Like PuTTY, PSFTP can authenticate using a public key instead of a password. There are three ways you can do this.
+</p>
+<p>
+Firstly, PSFTP can use PuTTY saved sessions in place of hostnames. So you might do this:
+</p>
+<ul><li>
+Run PuTTY, and create a PuTTY saved session (see <a href="Chapter4.html#config-saving">section 4.1.2</a>) which specifies your private key file (see <a href="Chapter4.html#config-ssh-privkey">section 4.20.7</a>). You will probably also want to specify a username to log in as (see <a href="Chapter4.html#config-username">section 4.14.1</a>).
+</li>
+<li>
+In PSFTP, you can now use the name of the session instead of a hostname: type <code>psftp sessionname</code>, where <code>sessionname</code> is replaced by the name of your saved session.
+</li>
+</ul>
+<p>
+Secondly, you can supply the name of a private key file on the command line, with the <code>-i</code> option. See <a href="Chapter3.html#using-cmdline-identity">section 3.8.3.18</a> for more information.
+</p>
+<p>
+Thirdly, PSFTP will attempt to authenticate using Pageant if Pageant is running (see <a href="Chapter9.html#pageant">chapter 9</a>). So you would do this:
+</p>
+<ul><li>
+Ensure Pageant is running, and has your private key stored in it.
+</li>
+<li>
+Specify a user and host name to PSFTP as normal. PSFTP will automatically detect Pageant and try to use the keys within it.
+</li>
+</ul>
+<p>
+For more general information on public-key authentication, see <a href="Chapter8.html#pubkey">chapter 8</a>.
+</p>
+
+<hr><p>If you want to provide feedback on this manual or on the PuTTY tools themselves, see the <a href="http://www.chiark.greenend.org.uk/~sgtatham/putty/feedback.html">Feedback page</a>.</p><address>
+[PuTTY release 0.60]</address></body>
+</html>

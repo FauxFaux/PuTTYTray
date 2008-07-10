@@ -1,0 +1,215 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=US-ASCII">
+<title>PuTTY hacking guide</title>
+<link rel="previous" href="AppendixC.html">
+<link rel="ToC" href="index.html">
+<link rel="index" href="IndexPage.html">
+<link rel="next" href="AppendixE.html">
+</head>
+<body>
+<p><a href="AppendixC.html">Previous</a> | <a href="index.html">Contents</a> | <a href="IndexPage.html">Index</a> | <a href="AppendixE.html">Next</a></p>
+
+<ul>
+<li><a href="#udp">Appendix D: PuTTY hacking guide</a>
+<ul>
+<li><a href="#udp-portability">D.1 Cross-OS portability</a></li>
+<li><a href="#udp-multi-backend">D.2 Multiple backends treated equally</a></li>
+<li><a href="#udp-globals">D.3 Multiple sessions per process on some platforms</a></li>
+<li><a href="#udp-pure-c">D.4 C, not C++</a></li>
+<li><a href="#udp-security">D.5 Security-conscious coding</a></li>
+<li><a href="#udp-multi-compiler">D.6 Independence of specific compiler</a></li>
+<li><a href="#udp-small">D.7 Small code size</a></li>
+<li><a href="#udp-single-threaded">D.8 Single-threaded code</a></li>
+<li><a href="#udp-keystrokes">D.9 Keystrokes sent to the server wherever possible</a></li>
+<li><a href="#udp-640x480">D.10 640&#215;480 friendliness in configuration panels</a></li>
+<li><a href="#udp-makefiles-auto">D.11 Automatically generated <code>Makefile</code>s</a></li>
+<li><a href="#udp-ssh-coroutines">D.12 Coroutines in <code>ssh.c</code></a></li>
+<li><a href="#udp-compile-once">D.13 Single compilation of each source file</a></li>
+<li><a href="#udp-perfection">D.14 Do as we say, not as we do</a></li>
+</ul></li>
+</ul>
+<h1><a name="udp"></a><a name="AD"></a>Appendix D: PuTTY hacking guide</h1>
+<p>
+This appendix lists a selection of the design principles applying to the PuTTY source code. If you are planning to send code contributions, you should read this first.
+</p>
+<h2><a name="udp-portability"></a><a name="SD.1"></a>D.1 Cross-OS portability</h2>
+<p>
+Despite Windows being its main area of fame, PuTTY is no longer a Windows-only application suite. It has a working Unix port; a Mac port is in progress; more ports may or may not happen at a later date.
+</p>
+<p>
+Therefore, embedding Windows-specific code in core modules such as <code>ssh.c</code> is not acceptable. We went to great lengths to <em>remove</em> all the Windows-specific stuff from our core modules, and to shift it out into Windows-specific modules. Adding large amounts of Windows-specific stuff in parts of the code that should be portable is almost guaranteed to make us reject a contribution.
+</p>
+<p>
+The PuTTY source base is divided into platform-specific modules and platform-generic modules. The Unix-specific modules are all in the <code>unix</code> subdirectory; the Mac-specific modules are in the <code>mac</code> subdirectory; the Windows-specific modules are in the <code>windows</code> subdirectory.
+</p>
+<p>
+All the modules in the main source directory - notably <em>all</em> of the code for the various back ends - are platform-generic. We want to keep them that way.
+</p>
+<p>
+This also means you should stick to what you are guaranteed by ANSI/ISO C (that is, the original C89/C90 standard, not C99). Try not to make assumptions about the precise size of basic types such as <code>int</code> and <code>long int</code>; don't use pointer casts to do endianness-dependent operations, and so on.
+</p>
+<p>
+(There are one or two aspects of ANSI C portability which we <em>don't</em> care about. In particular, we expect PuTTY to be compiled on 32-bit architectures <em>or bigger</em>; so it's safe to assume that <code>int</code> is at least 32 bits wide, not just the 16 you are guaranteed by ANSI C. Similarly, we assume that the execution character encoding is a superset of the printable characters of ASCII, though we don't assume the numeric values of control characters, particularly <code>'\n'</code> and <code>'\r'</code>.)
+</p>
+<h2><a name="udp-multi-backend"></a><a name="SD.2"></a>D.2 Multiple backends treated equally</h2>
+<p>
+PuTTY is not an SSH client with some other stuff tacked on the side. PuTTY is a generic, multiple-backend, remote VT-terminal client which happens to support one backend which is larger, more popular and more useful than the rest. Any extra feature which can possibly be general across all backends should be so: localising features unnecessarily into the SSH back end is a design error. (For example, we had several code submissions for proxy support which worked by hacking <code>ssh.c</code>. Clearly this is completely wrong: the <code>network.h</code> abstraction is the place to put it, so that it will apply to all back ends equally, and indeed we eventually put it there after another contributor sent a better patch.)
+</p>
+<p>
+The rest of PuTTY should try to avoid knowing anything about specific back ends if at all possible. To support a feature which is only available in one network protocol, for example, the back end interface should be extended in a general manner such that <em>any</em> back end which is able to provide that feature can do so. If it so happens that only one back end actually does, that's just the way it is, but it shouldn't be relied upon by any code.
+</p>
+<h2><a name="udp-globals"></a><a name="SD.3"></a>D.3 Multiple sessions per process on some platforms</h2>
+<p>
+Some ports of PuTTY - notably the in-progress Mac port - are constrained by the operating system to run as a single process potentially managing multiple sessions.
+</p>
+<p>
+Therefore, the platform-independent parts of PuTTY never use global variables to store per-session data. The global variables that do exist are tolerated because they are not specific to a particular login session: <code>flags</code> defines properties that are expected to apply equally to <em>all</em> the sessions run by a single PuTTY process, the random number state in <code>sshrand.c</code> and the timer list in <code>timing.c</code> serve all sessions equally, and so on. But most data is specific to a particular network session, and is therefore stored in dynamically allocated data structures, and pointers to these structures are passed around between functions.
+</p>
+<p>
+Platform-specific code can reverse this decision if it likes. The Windows code, for historical reasons, stores most of its data as global variables. That's OK, because <em>on Windows</em> we know there is only one session per PuTTY process, so it's safe to do that. But changes to the platform-independent code should avoid introducing global variables, unless they are genuinely cross-session.
+</p>
+<h2><a name="udp-pure-c"></a><a name="SD.4"></a>D.4 C, not C++</h2>
+<p>
+PuTTY is written entirely in C, not in C++.
+</p>
+<p>
+We have made <em>some</em> effort to make it easy to compile our code using a C++ compiler: notably, our <code>snew</code>, <code>snewn</code> and <code>sresize</code> macros explicitly cast the return values of <code>malloc</code> and <code>realloc</code> to the target type. (This has type checking advantages even in C: it means you never accidentally allocate the wrong size piece of memory for the pointer type you're assigning it to. C++ friendliness is really a side benefit.)
+</p>
+<p>
+We want PuTTY to continue being pure C, at least in the platform-independent parts and the currently existing ports. Patches which switch the Makefiles to compile it as C++ and start using classes will not be accepted. Also, in particular, we disapprove of <code>//</code> comments, at least for the moment. (Perhaps once C99 becomes genuinely widespread we might be more lenient.)
+</p>
+<p>
+The one exception: a port to a new platform may use languages other than C if they are necessary to code on that platform. If your favourite PDA has a GUI with a C++ API, then there's no way you can do a port of PuTTY without using C++, so go ahead and use it. But keep the C++ restricted to that platform's subdirectory; if your changes force the Unix or Windows ports to be compiled as C++, they will be unacceptable to us.
+</p>
+<h2><a name="udp-security"></a><a name="SD.5"></a>D.5 Security-conscious coding</h2>
+<p>
+PuTTY is a network application and a security application. Assume your code will end up being fed deliberately malicious data by attackers, and try to code in a way that makes it unlikely to be a security risk.
+</p>
+<p>
+In particular, try not to use fixed-size buffers for variable-size data such as strings received from the network (or even the user). We provide functions such as <code>dupcat</code> and <code>dupprintf</code>, which dynamically allocate buffers of the right size for the string they construct. Use these wherever possible.
+</p>
+<h2><a name="udp-multi-compiler"></a><a name="SD.6"></a>D.6 Independence of specific compiler</h2>
+<p>
+Windows PuTTY can currently be compiled with any of four Windows compilers: MS Visual C, Borland's freely downloadable C compiler, the Cygwin / <code>mingw32</code> GNU tools, and <code>lcc-win32</code>.
+</p>
+<p>
+This is a really useful property of PuTTY, because it means people who want to contribute to the coding don't depend on having a specific compiler; so they don't have to fork out money for MSVC if they don't already have it, but on the other hand if they <em>do</em> have it they also don't have to spend effort installing <code>gcc</code> alongside it. They can use whichever compiler they happen to have available, or install whichever is cheapest and easiest if they don't have one.
+</p>
+<p>
+Therefore, we don't want PuTTY to start depending on which compiler you're using. Using GNU extensions to the C language, for example, would ruin this useful property (not that anyone's ever tried it!); and more realistically, depending on an MS-specific library function supplied by the MSVC C library (<code>_snprintf</code>, for example) is a mistake, because that function won't be available under the other compilers. Any function supplied in an official Windows DLL as part of the Windows API is fine, and anything defined in the C library standard is also fine, because those should be available irrespective of compilation environment. But things in between, available as non-standard library and language extensions in only one compiler, are disallowed.
+</p>
+<p>
+(<code>_snprintf</code> in particular should be unnecessary, since we provide <code>dupprintf</code>; see <a href="#udp-security">section D.5</a>.)
+</p>
+<p>
+Compiler independence should apply on all platforms, of course, not just on Windows.
+</p>
+<h2><a name="udp-small"></a><a name="SD.7"></a>D.7 Small code size</h2>
+<p>
+PuTTY is tiny, compared to many other Windows applications. And it's easy to install: it depends on no DLLs, no other applications, no service packs or system upgrades. It's just one executable. You install that executable wherever you want to, and run it.
+</p>
+<p>
+We want to keep both these properties - the small size, and the ease of installation - if at all possible. So code contributions that depend critically on external DLLs, or that add a huge amount to the code size for a feature which is only useful to a small minority of users, are likely to be thrown out immediately.
+</p>
+<p>
+We do vaguely intend to introduce a DLL plugin interface for PuTTY, whereby seriously large extra features can be implemented in plugin modules. The important thing, though, is that those DLLs will be <em>optional</em>; if PuTTY can't find them on startup, it should run perfectly happily and just won't provide those particular features. A full installation of PuTTY might one day contain ten or twenty little DLL plugins, which would cut down a little on the ease of installation - but if you really needed ease of installation you <em>could</em> still just install the one PuTTY binary, or just the DLLs you really needed, and it would still work fine.
+</p>
+<p>
+Depending on <em>external</em> DLLs is something we'd like to avoid if at all possible (though for some purposes, such as complex SSH authentication mechanisms, it may be unavoidable). If it can't be avoided, the important thing is to follow the same principle of graceful degradation: if a DLL can't be found, then PuTTY should run happily and just not supply the feature that depended on it.
+</p>
+<h2><a name="udp-single-threaded"></a><a name="SD.8"></a>D.8 Single-threaded code</h2>
+<p>
+PuTTY and its supporting tools, or at least the vast majority of them, run in only one OS thread.
+</p>
+<p>
+This means that if you're devising some piece of internal mechanism, there's no need to use locks to make sure it doesn't get called by two threads at once. The only way code can be called re-entrantly is by recursion.
+</p>
+<p>
+That said, most of Windows PuTTY's network handling is triggered off Windows messages requested by <code>WSAAsyncSelect()</code>, so if you call <code>MessageBox()</code> deep within some network event handling code you should be aware that you might be re-entered if a network event comes in and is passed on to our window procedure by the <code>MessageBox()</code> message loop.
+</p>
+<p>
+Also, the front ends (in particular Windows Plink) can use multiple threads if they like. However, Windows Plink keeps <em>very</em> tight control of its auxiliary threads, and uses them pretty much exclusively as a form of <code>select()</code>. Pretty much all the code outside <code>windows/winplink.c</code> is <em>only</em> ever called from the one primary thread; the others just loop round blocking on file handles and send messages to the main thread when some real work needs doing. This is not considered a portability hazard because that bit of <code>windows/winplink.c</code> will need rewriting on other platforms in any case.
+</p>
+<p>
+One important consequence of this: PuTTY has only one thread in which to do everything. That &#8216;everything&#8217; may include managing more than one login session (<a href="#udp-globals">section D.3</a>), managing multiple data channels within an SSH session, responding to GUI events even when nothing is happening on the network, and responding to network requests from the server (such as repeat key exchange) even when the program is dealing with complex user interaction such as the re-configuration dialog box. This means that <em>almost none</em> of the PuTTY code can safely block.
+</p>
+<h2><a name="udp-keystrokes"></a><a name="SD.9"></a>D.9 Keystrokes sent to the server wherever possible</h2>
+<p>
+In almost all cases, PuTTY sends keystrokes to the server. Even weird keystrokes that you think should be hot keys controlling PuTTY. Even Alt-F4 or Alt-Space, for example. If a keystroke has a well-defined escape sequence that it could usefully be sending to the server, then it should do so, or at the very least it should be configurably able to do so.
+</p>
+<p>
+To unconditionally turn a key combination into a hot key to control PuTTY is almost always a design error. If a hot key is really truly required, then try to find a key combination for it which <em>isn't</em> already used in existing PuTTYs (either it sends nothing to the server, or it sends the same thing as some other combination). Even then, be prepared for the possibility that one day that key combination might end up being needed to send something to the server - so make sure that there's an alternative way to invoke whatever PuTTY feature it controls.
+</p>
+<h2><a name="udp-640x480"></a><a name="SD.10"></a>D.10 640&#215;480 friendliness in configuration panels</h2>
+<p>
+There's a reason we have lots of tiny configuration panels instead of a few huge ones, and that reason is that not everyone has a 1600&#215;1200 desktop. 640&#215;480 is still a viable resolution for running Windows (and indeed it's still the default if you start up in safe mode), so it's still a resolution we care about.
+</p>
+<p>
+Accordingly, the PuTTY configuration box, and the PuTTYgen control window, are deliberately kept just small enough to fit comfortably on a 640&#215;480 display. If you're adding controls to either of these boxes and you find yourself wanting to increase the size of the whole box, <em>don't</em>. Split it into more panels instead.
+</p>
+<h2><a name="udp-makefiles-auto"></a><a name="SD.11"></a>D.11 Automatically generated <code>Makefile</code>s</h2>
+<p>
+PuTTY is intended to compile on multiple platforms, and with multiple compilers. It would be horrifying to try to maintain a single <code>Makefile</code> which handled all possible situations, and just as painful to try to directly maintain a set of matching <code>Makefile</code>s for each different compilation environment.
+</p>
+<p>
+Therefore, we have moved the problem up by one level. In the PuTTY source archive is a file called <code>Recipe</code>, which lists which source files combine to produce which binaries; and there is also a script called <code>mkfiles.pl</code>, which reads <code>Recipe</code> and writes out the real <code>Makefile</code>s. (The script also reads all the source files and analyses their dependencies on header files, so we get an extra benefit from doing it this way, which is that we can supply correct dependency information even in environments where it's difficult to set up an automated <code>make depend</code> phase.)
+</p>
+<p>
+You should <em>never</em> edit any of the PuTTY <code>Makefile</code>s directly. They are not stored in our source repository at all. They are automatically generated by <code>mkfiles.pl</code> from the file <code>Recipe</code>.
+</p>
+<p>
+If you need to add a new object file to a particular binary, the right thing to do is to edit <code>Recipe</code> and re-run <code>mkfiles.pl</code>. This will cause the new object file to be added in every tool that requires it, on every platform where it matters, in every <code>Makefile</code> to which it is relevant, <em>and</em> to get all the dependency data right.
+</p>
+<p>
+If you send us a patch that modifies one of the <code>Makefile</code>s, you just waste our time, because we will have to convert it into a change to <code>Recipe</code>. If you send us a patch that modifies <em>all</em> of the <code>Makefile</code>s, you will have wasted a lot of <em>your</em> time as well!
+</p>
+<p>
+(There is a comment at the top of every <code>Makefile</code> in the PuTTY source archive saying this, but many people don't seem to read it, so it's worth repeating here.)
+</p>
+<h2><a name="udp-ssh-coroutines"></a><a name="SD.12"></a>D.12 Coroutines in <code>ssh.c</code></h2>
+<p>
+Large parts of the code in <code>ssh.c</code> are structured using a set of macros that implement (something close to) Donald Knuth's &#8216;coroutines&#8217; concept in C.
+</p>
+<p>
+Essentially, the purpose of these macros are to arrange that a function can call <code>crReturn()</code> to return to its caller, and the next time it is called control will resume from just after that <code>crReturn</code> statement.
+</p>
+<p>
+This means that any local (automatic) variables declared in such a function will be corrupted every time you call <code>crReturn</code>. If you need a variable to persist for longer than that, you <em>must</em> make it a field in one of the persistent state structures: either the local state structures <code>s</code> or <code>st</code> in each function, or the backend-wide structure <code>ssh</code>.
+</p>
+<p>
+See <a href="http://www.chiark.greenend.org.uk/~sgtatham/coroutines.html"><code>http://www.chiark.greenend.org.uk/~sgtatham/coroutines.html</code></a> for a more in-depth discussion of what these macros are for and how they work.
+</p>
+<h2><a name="udp-compile-once"></a><a name="SD.13"></a>D.13 Single compilation of each source file</h2>
+<p>
+The PuTTY build system for any given platform works on the following very simple model:
+</p>
+<ul><li>
+Each source file is compiled precisely once, to produce a single object file.
+</li>
+<li>
+Each binary is created by linking together some combination of those object files.
+</li>
+</ul>
+<p>
+Therefore, if you need to introduce functionality to a particular module which is only available in some of the tool binaries (for example, a cryptographic proxy authentication mechanism which needs to be left out of PuTTYtel to maintain its usability in crypto-hostile jurisdictions), the <em>wrong</em> way to do it is by adding <code>#ifdef</code>s in (say) <code>proxy.c</code>. This would require separate compilation of <code>proxy.c</code> for PuTTY and PuTTYtel, which means that the entire <code>Makefile</code>-generation architecture (see <a href="#udp-makefiles-auto">section D.11</a>) would have to be significantly redesigned. Unless you are prepared to do that redesign yourself, <em>and</em> guarantee that it will still port to any future platforms we might decide to run on, you should not attempt this!
+</p>
+<p>
+The <em>right</em> way to introduce a feature like this is to put the new code in a separate source file, and (if necessary) introduce a second new source file defining the same set of functions, but defining them as stubs which don't provide the feature. Then the module whose behaviour needs to vary (<code>proxy.c</code> in this example) can call the functions defined in these two modules, and it will either provide the new feature or not provide it according to which of your new modules it is linked with.
+</p>
+<p>
+Of course, object files are never shared <em>between</em> platforms; so it is allowable to use <code>#ifdef</code> to select between platforms. This happens in <code>puttyps.h</code> (choosing which of the platform-specific include files to use), and also in <code>misc.c</code> (the Windows-specific &#8216;Minefield&#8217; memory diagnostic system). It should be used sparingly, though, if at all.
+</p>
+<h2><a name="udp-perfection"></a><a name="SD.14"></a>D.14 Do as we say, not as we do</h2>
+<p>
+The current PuTTY code probably does not conform strictly to <em>all</em> of the principles listed above. There may be the occasional SSH-specific piece of code in what should be a backend-independent module, or the occasional dependence on a non-standard X library function under Unix.
+</p>
+<p>
+This should not be taken as a licence to go ahead and violate the rules. Where we violate them ourselves, we're not happy about it, and we would welcome patches that fix any existing problems. Please try to help us make our code better, not worse!
+</p>
+
+<hr><p>If you want to provide feedback on this manual or on the PuTTY tools themselves, see the <a href="http://www.chiark.greenend.org.uk/~sgtatham/putty/feedback.html">Feedback page</a>.</p><address>
+[PuTTY release 0.60]</address></body>
+</html>

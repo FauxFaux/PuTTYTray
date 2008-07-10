@@ -1,0 +1,212 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=US-ASCII">
+<title>Using Pageant for authentication</title>
+<link rel="previous" href="Chapter8.html">
+<link rel="ToC" href="index.html">
+<link rel="index" href="IndexPage.html">
+<link rel="next" href="Chapter10.html">
+</head>
+<body>
+<p><a href="Chapter8.html">Previous</a> | <a href="index.html">Contents</a> | <a href="IndexPage.html">Index</a> | <a href="Chapter10.html">Next</a></p>
+
+<ul>
+<li><a href="#pageant">Chapter 9: Using Pageant for authentication</a>
+<ul>
+<li><a href="#pageant-start">9.1 Getting started with Pageant</a></li>
+<li><a href="#pageant-mainwin">9.2 The Pageant main window</a>
+<ul>
+<li><a href="#pageant-mainwin-keylist">9.2.1 The key list box</a></li>
+<li><a href="#pageant-mainwin-addkey">9.2.2 The &#8216;Add Key&#8217; button</a></li>
+<li><a href="#pageant-mainwin-remkey">9.2.3 The &#8216;Remove Key&#8217; button</a></li>
+</ul></li>
+<li><a href="#pageant-cmdline">9.3 The Pageant command line</a>
+<ul>
+<li><a href="#pageant-cmdline-loadkey">9.3.1 Making Pageant automatically load keys on startup</a></li>
+<li><a href="#pageant-cmdline-command">9.3.2 Making Pageant run another program</a></li>
+</ul></li>
+<li><a href="#pageant-forward">9.4 Using agent forwarding</a></li>
+<li><a href="#pageant-security">9.5 Security considerations</a></li>
+</ul></li>
+</ul>
+<h1><a name="pageant"></a><a name="C9"></a>Chapter 9: Using <a name="i0"></a>Pageant for authentication</h1>
+<p>
+Pageant is an SSH <a name="i1"></a>authentication agent. It holds your <a name="i2"></a>private keys in memory, already decoded, so that you can use them often <a name="i3"></a>without needing to type a <a name="i4"></a>passphrase.
+</p>
+<h2><a name="pageant-start"></a><a name="S9.1"></a>9.1 Getting started with Pageant</h2>
+<p>
+Before you run Pageant, you need to have a private key in <code>*.<a name="i5"></a>PPK</code> format. See <a href="Chapter8.html#pubkey">chapter 8</a> to find out how to generate and use one.
+</p>
+<p>
+When you run Pageant, it will put an icon of a computer wearing a hat into the <a name="i6"></a>System tray. It will then sit and do nothing, until you load a private key into it.
+</p>
+<p>
+If you click the Pageant icon with the right mouse button, you will see a menu. Select &#8216;View Keys&#8217; from this menu. The Pageant main window will appear. (You can also bring this window up by double-clicking on the Pageant icon.)
+</p>
+<p>
+The Pageant window contains a list box. This shows the private keys Pageant is holding. When you start Pageant, it has no keys, so the list box will be empty. After you add one or more keys, they will show up in the list box.
+</p>
+<p>
+To add a key to Pageant, press the &#8216;Add Key&#8217; button. Pageant will bring up a file dialog, labelled &#8216;Select Private Key File&#8217;. Find your private key file in this dialog, and press &#8216;Open&#8217;.
+</p>
+<p>
+Pageant will now load the private key. If the key is protected by a passphrase, Pageant will ask you to type the passphrase. When the key has been loaded, it will appear in the list in the Pageant window.
+</p>
+<p>
+Now start PuTTY and open an SSH session to a site that accepts your key. PuTTY will notice that Pageant is running, retrieve the key automatically from Pageant, and use it to authenticate. You can now open as many PuTTY sessions as you like without having to type your passphrase again.
+</p>
+<p>
+(PuTTY can be configured not to try to use Pageant, but it will try by default. See <a href="Chapter4.html#config-ssh-tryagent">section 4.20.2</a> and <a href="Chapter3.html#using-cmdline-agentauth">section 3.8.3.9</a> for more information.)
+</p>
+<p>
+When you want to shut down Pageant, click the right button on the Pageant icon in the System tray, and select &#8216;Exit&#8217; from the menu. Closing the Pageant main window does <em>not</em> shut down Pageant.
+</p>
+<h2><a name="pageant-mainwin"></a><a name="S9.2"></a>9.2 The Pageant main window</h2>
+<p>
+The Pageant main window appears when you left-click on the Pageant system tray icon, or alternatively right-click and select &#8216;View Keys&#8217; from the menu. You can use it to keep track of what keys are currently loaded into Pageant, and to add new ones or remove the existing keys.
+</p>
+<h3><a name="pageant-mainwin-keylist"></a><a name="S9.2.1"></a>9.2.1 The key list box</h3>
+<p>
+The large list box in the Pageant main window lists the private keys that are currently loaded into Pageant. The list might look something like this:
+</p>
+<pre><code>ssh1    1024 22:c3:68:3b:09:41:36:c3:39:83:91:ae:71:b2:0f:04 k1
+ssh-rsa 1023 74:63:08:82:95:75:e1:7c:33:31:bb:cb:00:c0:89:8b k2
+</code></pre>
+<p>
+For each key, the list box will tell you:
+</p>
+<ul><li>
+The type of the key. Currently, this can be <code>ssh1</code> (an RSA key for use with the SSH-1 protocol), <code>ssh-rsa</code> (an RSA key for use with the SSH-2 protocol), or <code>ssh-dss</code> (a DSA key for use with the SSH-2 protocol).
+</li>
+<li>
+The size (in bits) of the key.
+</li>
+<li>
+The <a name="i7"></a>fingerprint for the public key. This should be the same fingerprint given by PuTTYgen, and (hopefully) also the same fingerprint shown by remote utilities such as <a name="i8"></a><code>ssh-keygen</code> when applied to your <code>authorized_keys</code> file.
+</li>
+<li>
+The comment attached to the key.
+</li>
+</ul>
+<h3><a name="pageant-mainwin-addkey"></a><a name="S9.2.2"></a>9.2.2 The &#8216;Add Key&#8217; button</h3>
+<p>
+To add a key to Pageant by reading it out of a local disk file, press the &#8216;Add Key&#8217; button in the Pageant main window, or alternatively right-click on the Pageant icon in the system tray and select &#8216;Add Key&#8217; from there.
+</p>
+<p>
+Pageant will bring up a file dialog, labelled &#8216;Select Private Key File&#8217;. Find your private key file in this dialog, and press &#8216;Open&#8217;. If you want to add more than one key at once, you can select multiple files using Shift-click (to select several adjacent files) or Ctrl-click (to select non-adjacent files).
+</p>
+<p>
+Pageant will now load the private key(s). If a key is protected by a passphrase, Pageant will ask you to type the passphrase.
+</p>
+<p>
+(This is not the only way to add a private key to Pageant. You can also add one from a remote system by using agent forwarding; see <a href="#pageant-forward">section 9.4</a> for details.)
+</p>
+<h3><a name="pageant-mainwin-remkey"></a><a name="S9.2.3"></a>9.2.3 The &#8216;Remove Key&#8217; button</h3>
+<p>
+If you need to remove a key from Pageant, select that key in the list box, and press the &#8216;Remove Key&#8217; button. Pageant will remove the key from its memory.
+</p>
+<p>
+You can apply this to keys you added using the &#8216;Add Key&#8217; button, or to keys you added remotely using agent forwarding (see <a href="#pageant-forward">section 9.4</a>); it makes no difference.
+</p>
+<h2><a name="pageant-cmdline"></a><a name="S9.3"></a>9.3 The Pageant command line</h2>
+<p>
+Pageant can be made to do things automatically when it starts up, by <a name="i9"></a>specifying instructions on its command line. If you're starting Pageant from the Windows GUI, you can arrange this by editing the properties of the <a name="i10"></a>Windows shortcut that it was started from.
+</p>
+<p>
+If Pageant is already running, invoking it again with the options below causes actions to be performed with the existing instance, not a new one.
+</p>
+<h3><a name="pageant-cmdline-loadkey"></a><a name="S9.3.1"></a>9.3.1 Making Pageant automatically load keys on startup</h3>
+<p>
+Pageant can automatically load one or more private keys when it starts up, if you provide them on the Pageant command line. Your command line might then look like:
+</p>
+<pre><code>C:\PuTTY\pageant.exe d:\main.ppk d:\secondary.ppk
+</code></pre>
+<p>
+If the keys are stored encrypted, Pageant will request the passphrases on startup.
+</p>
+<p>
+If Pageant is already running, this syntax loads keys into the existing Pageant.
+</p>
+<h3><a name="pageant-cmdline-command"></a><a name="S9.3.2"></a>9.3.2 Making Pageant run another program</h3>
+<p>
+You can arrange for Pageant to start another program once it has initialised itself and loaded any keys specified on its command line. This program (perhaps a PuTTY, or a WinCVS making use of Plink, or whatever) will then be able to use the keys Pageant has loaded.
+</p>
+<p>
+You do this by specifying the <a name="i11"></a><code>-c</code> option followed by the command, like this:
+</p>
+<pre><code>C:\PuTTY\pageant.exe d:\main.ppk -c C:\PuTTY\putty.exe
+</code></pre>
+<h2><a name="pageant-forward"></a><a name="S9.4"></a>9.4 Using <a name="i12"></a>agent forwarding</h2>
+<p>
+Agent forwarding is a mechanism that allows applications on your SSH server machine to talk to the agent on your client machine.
+</p>
+<p>
+Note that at present, agent forwarding in SSH-2 is only available when your SSH server is <a name="i13"></a>OpenSSH. The <a name="i14"></a><code>ssh.com</code> server uses a different agent protocol, which PuTTY does not yet support.
+</p>
+<p>
+To enable agent forwarding, first start Pageant. Then set up a PuTTY SSH session in which &#8216;Allow agent forwarding&#8217; is enabled (see <a href="Chapter4.html#config-ssh-agentfwd">section 4.20.5</a>). Open the session as normal. (Alternatively, you can use the <code>-A</code> command line option; see <a href="Chapter3.html#using-cmdline-agent">section 3.8.3.10</a> for details.)
+</p>
+<p>
+If this has worked, your applications on the server should now have access to a Unix domain socket which the SSH server will forward back to PuTTY, and PuTTY will forward on to the agent. To check that this has actually happened, you can try this command on Unix server machines:
+</p>
+<pre><code>unixbox:~$ echo $SSH_AUTH_SOCK
+/tmp/ssh-XXNP18Jz/agent.28794
+unixbox:~$
+</code></pre>
+<p>
+If the result line comes up blank, agent forwarding has not been enabled at all.
+</p>
+<p>
+Now if you run <code>ssh</code> on the server and use it to connect through to another server that accepts one of the keys in Pageant, you should be able to log in without a password:
+</p>
+<pre><code>unixbox:~$ ssh -v otherunixbox
+[...]
+debug: next auth method to try is publickey
+debug: userauth_pubkey_agent: trying agent key my-putty-key
+debug: ssh-userauth2 successful: method publickey
+[...]
+</code></pre>
+<p>
+If you enable agent forwarding on <em>that</em> SSH connection as well (see the manual for your server-side SSH client to find out how to do this), your authentication keys will still be available on the next machine you connect to - two SSH connections away from where they're actually stored.
+</p>
+<p>
+In addition, if you have a private key on one of the SSH servers, you can send it all the way back to Pageant using the local <a name="i15"></a><code>ssh-add</code> command:
+</p>
+<pre><code>unixbox:~$ ssh-add ~/.ssh/id_rsa
+Need passphrase for /home/fred/.ssh/id_rsa
+Enter passphrase for /home/fred/.ssh/id_rsa:
+Identity added: /home/fred/.ssh/id_rsa (/home/simon/.ssh/id_rsa)
+unixbox:~$
+</code></pre>
+<p>
+and then it's available to every machine that has agent forwarding available (not just the ones downstream of the place you added it).
+</p>
+<h2><a name="pageant-security"></a><a name="S9.5"></a>9.5 Security considerations</h2>
+<p>
+<a name="i16"></a>Using Pageant for public-key authentication gives you the convenience of being able to open multiple SSH sessions without having to type a passphrase every time, but also gives you the security benefit of never storing a decrypted private key on disk. Many people feel this is a good compromise between security and convenience.
+</p>
+<p>
+It <em>is</em> a compromise, however. Holding your decrypted private keys in Pageant is better than storing them in easy-to-find disk files, but still less secure than not storing them anywhere at all. This is for two reasons:
+</p>
+<ul><li>
+Windows unfortunately provides no way to protect pieces of memory from being written to the system <a name="i17"></a>swap file. So if Pageant is holding your private keys for a long period of time, it's possible that decrypted private key data may be written to the system swap file, and an attacker who gained access to your hard disk later on might be able to recover that data. (However, if you stored an unencrypted key in a disk file they would <em>certainly</em> be able to recover it.)
+</li>
+<li>
+Although, like most modern operating systems, Windows prevents programs from accidentally accessing one another's memory space, it does allow programs to access one another's memory space deliberately, for special purposes such as debugging. This means that if you allow a virus, trojan, or other malicious program on to your Windows system while Pageant is running, it could access the memory of the Pageant process, extract your decrypted authentication keys, and send them back to its master.
+</li>
+</ul>
+<p>
+Similarly, use of agent <em>forwarding</em> is a security improvement on other methods of one-touch authentication, but not perfect. Holding your keys in Pageant on your Windows box has a security advantage over holding them on the remote server machine itself (either in an agent or just unencrypted on disk), because if the server machine ever sees your unencrypted private key then the sysadmin or anyone who cracks the machine can steal the keys and pretend to be you for as long as they want.
+</p>
+<p>
+However, the sysadmin of the server machine can always pretend to be you <em>on that machine</em>. So if you forward your agent to a server machine, then the sysadmin of that machine can access the forwarded agent connection and request signatures from your private keys, and can therefore log in to other machines as you. They can only do this to a limited extent - when the agent forwarding disappears they lose the ability - but using Pageant doesn't actually <em>prevent</em> the sysadmin (or hackers) on the server from doing this.
+</p>
+<p>
+Therefore, if you don't trust the sysadmin of a server machine, you should <em>never</em> use agent forwarding to that machine. (Of course you also shouldn't store private keys on that machine, type passphrases into it, or log into other machines from it in any way at all; Pageant is hardly unique in this respect.)
+</p>
+
+<hr><p>If you want to provide feedback on this manual or on the PuTTY tools themselves, see the <a href="http://www.chiark.greenend.org.uk/~sgtatham/putty/feedback.html">Feedback page</a>.</p><address>
+[PuTTY release 0.60]</address></body>
+</html>

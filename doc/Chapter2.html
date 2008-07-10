@@ -1,0 +1,106 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=US-ASCII">
+<title>Getting started with PuTTY</title>
+<link rel="previous" href="Chapter1.html">
+<link rel="ToC" href="index.html">
+<link rel="index" href="IndexPage.html">
+<link rel="next" href="Chapter3.html">
+</head>
+<body>
+<p><a href="Chapter1.html">Previous</a> | <a href="index.html">Contents</a> | <a href="IndexPage.html">Index</a> | <a href="Chapter3.html">Next</a></p>
+
+<ul>
+<li><a href="#gs">Chapter 2: Getting started with PuTTY</a>
+<ul>
+<li><a href="#gs-insecure">2.1 Starting a session</a></li>
+<li><a href="#gs-hostkey">2.2 Verifying the host key (SSH only)</a></li>
+<li><a href="#gs-login">2.3 Logging in</a></li>
+<li><a href="#gs-session">2.4 After logging in</a></li>
+<li><a href="#gs-logout">2.5 Logging out</a></li>
+</ul></li>
+</ul>
+<h1><a name="gs"></a><a name="C2"></a>Chapter 2: Getting started with PuTTY</h1>
+<p>
+This chapter gives a quick guide to the simplest types of interactive login session using PuTTY.
+</p>
+<h2><a name="gs-insecure"></a><a name="S2.1"></a>2.1 <a name="i0"></a>Starting a session</h2>
+<p>
+When you start PuTTY, you will see a <a name="i1"></a>dialog box. This dialog box allows you to control everything PuTTY can do. See <a href="Chapter4.html#config">chapter 4</a> for details of all the things you can control.
+</p>
+<p>
+You don't usually need to change most of the configuration options. To start the simplest kind of session, all you need to do is to enter a few basic parameters.
+</p>
+<p>
+In the &#8216;Host Name&#8217; box, enter the Internet <a name="i2"></a>host name of the server you want to connect to. You should have been told this by the provider of your login account.
+</p>
+<p>
+Now select a login <a name="i3"></a>protocol to use, from the &#8216;Connection type&#8217; buttons. For a login session, you should select <a name="i4"></a>Telnet, <a name="i5"></a>Rlogin or <a name="i6"></a>SSH. See <a href="Chapter1.html#which-one">section 1.2</a> for a description of the differences between the three protocols, and advice on which one to use. The fourth protocol, <a name="i7"></a><em>Raw</em>, is not used for interactive login sessions; you would usually use this for debugging other Internet services (see <a href="Chapter3.html#using-rawprot">section 3.6</a>). The fifth option, <em>Serial</em>, is used for connecting to a local serial line, and works somewhat differently: see <a href="Chapter3.html#using-serial">section 3.7</a> for more information on this.
+</p>
+<p>
+When you change the selected protocol, the number in the &#8216;Port&#8217; box will change. This is normal: it happens because the various login services are usually provided on different network ports by the server machine. Most servers will use the standard port numbers, so you will not need to change the port setting. If your server provides login services on a non-standard port, your system administrator should have told you which one. (For example, many <a name="i8"></a>MUDs run Telnet service on a port other than 23.)
+</p>
+<p>
+Once you have filled in the &#8216;Host Name&#8217;, &#8216;Protocol&#8217;, and possibly &#8216;Port&#8217; settings, you are ready to connect. Press the &#8216;Open&#8217; button at the bottom of the dialog box, and PuTTY will begin trying to connect you to the server.
+</p>
+<h2><a name="gs-hostkey"></a><a name="S2.2"></a>2.2 <a name="i9"></a>Verifying the host key (SSH only)</h2>
+<p>
+If you are not using the <a name="i10"></a>SSH protocol, you can skip this section.
+</p>
+<p>
+If you are using SSH to connect to a server for the first time, you will probably see a message looking something like this:
+</p>
+<pre><code>The server's host key is not cached in the registry. You
+have no guarantee that the server is the computer you
+think it is.
+The server's rsa2 key fingerprint is:
+ssh-rsa 1024 7b:e5:6f:a7:f4:f9:81:62:5c:e3:1f:bf:8b:57:6c:5a
+If you trust this host, hit Yes to add the key to
+PuTTY's cache and carry on connecting.
+If you want to carry on connecting just once, without
+adding the key to the cache, hit No.
+If you do not trust this host, hit Cancel to abandon the
+connection.
+</code></pre>
+<p>
+This is a feature of the SSH protocol. It is designed to protect you against a network attack known as <a name="i11"></a><em>spoofing</em>: secretly redirecting your connection to a different computer, so that you send your password to the wrong machine. Using this technique, an attacker would be able to learn the password that guards your login account, and could then log in as if they were you and use the account for their own purposes.
+</p>
+<p>
+To prevent this attack, each server has a unique identifying code, called a <em>host key</em>. These keys are created in a way that prevents one server from forging another server's key. So if you connect to a server and it sends you a different host key from the one you were expecting, PuTTY can warn you that the server may have been switched and that a spoofing attack might be in progress.
+</p>
+<p>
+PuTTY records the host key for each server you connect to, in the Windows <a name="i12"></a>Registry. Every time you connect to a server, it checks that the host key presented by the server is the same host key as it was the last time you connected. If it is not, you will see a warning, and you will have the chance to abandon your connection before you type any private information (such as a password) into it.
+</p>
+<p>
+However, when you connect to a server you have not connected to before, PuTTY has no way of telling whether the host key is the right one or not. So it gives the warning shown above, and asks you whether you want to <a name="i13"></a>trust this host key or not.
+</p>
+<p>
+Whether or not to trust the host key is your choice. If you are connecting within a company network, you might feel that all the network users are on the same side and spoofing attacks are unlikely, so you might choose to trust the key without checking it. If you are connecting across a hostile network (such as the Internet), you should check with your system administrator, perhaps by telephone or in person. (Some modern servers have more than one host key. If the system administrator sends you more than one <a name="i14"></a>fingerprint, you should make sure the one PuTTY shows you is on the list, but it doesn't matter which one it is.)
+</p>
+<h2><a name="gs-login"></a><a name="S2.3"></a>2.3 <a name="i15"></a>Logging in</h2>
+<p>
+After you have connected, and perhaps verified the server's host key, you will be asked to log in, probably using a <a name="i16"></a>username and a <a name="i17"></a>password. Your system administrator should have provided you with these. Enter the username and the password, and the server should grant you access and begin your session. If you have <a name="i18"></a>mistyped your password, most servers will give you several chances to get it right.
+</p>
+<p>
+If you are using SSH, be careful not to type your username wrongly, because you will not have a chance to correct it after you press Return; many SSH servers do not permit you to make two login attempts using <a name="i19"></a>different usernames. If you type your username wrongly, you must close PuTTY and start again.
+</p>
+<p>
+If your password is refused but you are sure you have typed it correctly, check that Caps Lock is not enabled. Many login servers, particularly Unix computers, treat upper case and lower case as different when checking your password; so if Caps Lock is on, your password will probably be refused.
+</p>
+<h2><a name="gs-session"></a><a name="S2.4"></a>2.4 After logging in</h2>
+<p>
+After you log in to the server, what happens next is up to the server! Most servers will print some sort of login message and then present a <a name="i20"></a>prompt, at which you can type <a name="i21"></a>commands which the server will carry out. Some servers will offer you on-line help; others might not. If you are in doubt about what to do next, consult your system administrator.
+</p>
+<h2><a name="gs-logout"></a><a name="S2.5"></a>2.5 <a name="i22"></a>Logging out</h2>
+<p>
+When you have finished your session, you should log out by typing the server's own logout command. This might vary between servers; if in doubt, try <code>logout</code> or <code>exit</code>, or consult a manual or your system administrator. When the server processes your logout command, the PuTTY window should close itself automatically.
+</p>
+<p>
+You <em>can</em> close a PuTTY session using the <a name="i23"></a>Close button in the window border, but this might confuse the server - a bit like hanging up a telephone unexpectedly in the middle of a conversation. We recommend you do not do this unless the server has stopped responding to you and you cannot close the window any other way.
+</p>
+
+<hr><p>If you want to provide feedback on this manual or on the PuTTY tools themselves, see the <a href="http://www.chiark.greenend.org.uk/~sgtatham/putty/feedback.html">Feedback page</a>.</p><address>
+[PuTTY release 0.60]</address></body>
+</html>

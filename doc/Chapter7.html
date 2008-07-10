@@ -1,0 +1,266 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=US-ASCII">
+<title>Using the command-line connection tool Plink</title>
+<link rel="previous" href="Chapter6.html">
+<link rel="ToC" href="index.html">
+<link rel="index" href="IndexPage.html">
+<link rel="next" href="Chapter8.html">
+</head>
+<body>
+<p><a href="Chapter6.html">Previous</a> | <a href="index.html">Contents</a> | <a href="IndexPage.html">Index</a> | <a href="Chapter8.html">Next</a></p>
+
+<ul>
+<li><a href="#plink">Chapter 7: Using the command-line connection tool Plink</a>
+<ul>
+<li><a href="#plink-starting">7.1 Starting Plink</a></li>
+<li><a href="#plink-usage">7.2 Using Plink</a>
+<ul>
+<li><a href="#plink-usage-interactive">7.2.1 Using Plink for interactive logins</a></li>
+<li><a href="#plink-usage-batch">7.2.2 Using Plink for automated connections</a></li>
+<li><a href="#plink-options">7.2.3 Plink command line options</a></li>
+</ul></li>
+<li><a href="#plink-batch">7.3 Using Plink in batch files and scripts</a></li>
+<li><a href="#plink-cvs">7.4 Using Plink with CVS</a></li>
+<li><a href="#plink-wincvs">7.5 Using Plink with WinCVS</a></li>
+</ul></li>
+</ul>
+<h1><a name="plink"></a><a name="C7"></a>Chapter 7: Using the command-line connection tool <a name="i0"></a>Plink</h1>
+<p>
+<a name="i1"></a>Plink (PuTTY Link) is a command-line connection tool similar to UNIX <code>ssh</code>. It is mostly used for <a name="i2"></a>automated operations, such as making CVS access a repository on a remote server.
+</p>
+<p>
+Plink is probably not what you want if you want to run an <a name="i3"></a>interactive session in a console window.
+</p>
+<h2><a name="plink-starting"></a><a name="S7.1"></a>7.1 Starting Plink</h2>
+<p>
+Plink is a command line application. This means that you cannot just double-click on its icon to run it and instead you have to bring up a <a name="i4"></a>console window. In Windows 95, 98, and ME, this is called an &#8216;MS-DOS Prompt&#8217;, and in Windows NT, 2000, and XP, it is called a &#8216;Command Prompt&#8217;. It should be available from the Programs section of your Start Menu.
+</p>
+<p>
+In order to use Plink, the file <code>plink.exe</code> will need either to be on your <a name="i5"></a><code>PATH</code> or in your current directory. To add the directory containing Plink to your <code>PATH</code> environment variable, type into the console window:
+</p>
+<pre><code>set PATH=C:\path\to\putty\directory;%PATH%
+</code></pre>
+<p>
+This will only work for the lifetime of that particular console window. To set your <code>PATH</code> more permanently on Windows NT, 2000, and XP, use the Environment tab of the System Control Panel. On Windows 95, 98, and ME, you will need to edit your <a name="i6"></a><code>AUTOEXEC.BAT</code> to include a <code>set</code> command like the one above.
+</p>
+<h2><a name="plink-usage"></a><a name="S7.2"></a>7.2 Using Plink</h2>
+<p>
+This section describes the basics of how to use Plink for interactive logins and for automated processes.
+</p>
+<p>
+Once you've got a console window to type into, you can just type <code>plink</code> on its own to bring up a usage message. This tells you the version of Plink you're using, and gives you a brief summary of how to use Plink:
+</p>
+<pre><code>Z:\sysosd&gt;plink
+PuTTY Link: command-line connection utility
+Release 0.60
+Usage: plink [options] [user@]host [command]
+       ("host" can also be a PuTTY saved session name)
+Options:
+  -V        print version information and exit
+  -pgpfp    print PGP key fingerprints and exit
+  -v        show verbose messages
+  -load sessname  Load settings from saved session
+  -ssh -telnet -rlogin -raw
+            force use of a particular protocol
+  -P port   connect to specified port
+  -l user   connect with specified username
+  -batch    disable all interactive prompts
+The following options only apply to SSH connections:
+  -pw passw login with specified password
+  -D [listen-IP:]listen-port
+            Dynamic SOCKS-based port forwarding
+  -L [listen-IP:]listen-port:host:port
+            Forward local port to remote address
+  -R [listen-IP:]listen-port:host:port
+            Forward remote port to local address
+  -X -x     enable / disable X11 forwarding
+  -A -a     enable / disable agent forwarding
+  -t -T     enable / disable pty allocation
+  -1 -2     force use of particular protocol version
+  -4 -6     force use of IPv4 or IPv6
+  -C        enable compression
+  -i key    private key file for authentication
+  -noagent  disable use of Pageant
+  -agent    enable use of Pageant
+  -m file   read remote command(s) from file
+  -s        remote command is an SSH subsystem (SSH-2 only)
+  -N        don't start a shell/command (SSH-2 only)
+  -nc host:port
+            open tunnel in place of session (SSH-2 only)
+</code></pre>
+<p>
+Once this works, you are ready to use Plink.
+</p>
+<h3><a name="plink-usage-interactive"></a><a name="S7.2.1"></a>7.2.1 Using Plink for interactive logins</h3>
+<p>
+To make a simple interactive connection to a remote server, just type <code>plink</code> and then the host name:
+</p>
+<pre><code>Z:\sysosd&gt;plink login.example.com
+
+Debian GNU/Linux 2.2 flunky.example.com
+flunky login:
+</code></pre>
+<p>
+You should then be able to log in as normal and run a session. The output sent by the server will be written straight to your command prompt window, which will most likely not interpret terminal <a name="i7"></a>control codes in the way the server expects it to. So if you run any full-screen applications, for example, you can expect to see strange characters appearing in your window. Interactive connections like this are not the main point of Plink.
+</p>
+<p>
+In order to connect with a different protocol, you can give the command line options <code>-ssh</code>, <code>-telnet</code>, <code>-rlogin</code> or <code>-raw</code>. To make an SSH connection, for example:
+</p>
+<pre><code>Z:\sysosd&gt;plink -ssh login.example.com
+login as:
+</code></pre>
+<p>
+If you have already set up a PuTTY saved session, then instead of supplying a host name, you can give the saved session name. This allows you to use public-key authentication, specify a user name, and use most of the other features of PuTTY:
+</p>
+<pre><code>Z:\sysosd&gt;plink my-ssh-session
+Sent username "fred"
+Authenticating with public key "fred@winbox"
+Last login: Thu Dec  6 19:25:33 2001 from :0.0
+fred@flunky:~$
+</code></pre>
+<p>
+(You can also use the <code>-load</code> command-line option to load a saved session; see <a href="Chapter3.html#using-cmdline-load">section 3.8.3.1</a>. If you use <code>-load</code>, the saved session exists, and it specifies a hostname, you cannot also specify a <code>host</code> or <code>user@host</code> argument - it will be treated as part of the remote command.)
+</p>
+<h3><a name="plink-usage-batch"></a><a name="S7.2.2"></a>7.2.2 Using Plink for automated connections</h3>
+<p>
+More typically Plink is used with the SSH protocol, to enable you to talk directly to a program running on the server. To do this you have to ensure Plink is <em>using</em> the SSH protocol. You can do this in several ways:
+</p>
+<ul><li>
+Use the <code>-ssh</code> option as described in <a href="#plink-usage-interactive">section 7.2.1</a>.
+</li>
+<li>
+Set up a PuTTY saved session that describes the server you are connecting to, and that also specifies the protocol as SSH.
+</li>
+<li>
+Set the Windows environment variable <a name="i8"></a><code>PLINK_PROTOCOL</code> to the word <code>ssh</code>.
+</li>
+</ul>
+<p>
+Usually Plink is not invoked directly by a user, but run automatically by another process. Therefore you typically do not want Plink to prompt you for a user name or a password.
+</p>
+<p>
+Next, you are likely to need to avoid the various interactive prompts Plink can produce. You might be prompted to verify the host key of the server you're connecting to, to enter a user name, or to enter a password.
+</p>
+<p>
+To avoid being prompted for the server host key when using Plink for an automated connection, you should first make a <em>manual</em> connection (using either of PuTTY or Plink) to the same server, verify the host key (see <a href="Chapter2.html#gs-hostkey">section 2.2</a> for more information), and select Yes to add the host key to the Registry. After that, Plink commands connecting to that server should not give a host key prompt unless the host key changes.
+</p>
+<p>
+To avoid being prompted for a user name, you can:
+</p>
+<ul><li>
+Use the <code>-l</code> option to specify a user name on the command line. For example, <code>plink login.example.com -l fred</code>.
+</li>
+<li>
+Set up a PuTTY saved session that describes the server you are connecting to, and that also specifies the username to log in as (see <a href="Chapter4.html#config-username">section 4.14.1</a>).
+</li>
+</ul>
+<p>
+To avoid being prompted for a password, you should almost certainly set up <a name="i9"></a>public-key authentication. (See <a href="Chapter8.html#pubkey">chapter 8</a> for a general introduction to public-key authentication.) Again, you can do this in two ways:
+</p>
+<ul><li>
+Set up a PuTTY saved session that describes the server you are connecting to, and that also specifies a private key file (see <a href="Chapter4.html#config-ssh-privkey">section 4.20.7</a>). For this to work without prompting, your private key will need to have no passphrase.
+</li>
+<li>
+Store the private key in Pageant. See <a href="Chapter9.html#pageant">chapter 9</a> for further information.
+</li>
+</ul>
+<p>
+Once you have done all this, you should be able to run a remote command on the SSH server machine and have it execute automatically with no prompting:
+</p>
+<pre><code>Z:\sysosd&gt;plink login.example.com -l fred echo hello, world
+hello, world
+
+Z:\sysosd&gt;
+</code></pre>
+<p>
+Or, if you have set up a saved session with all the connection details:
+</p>
+<pre><code>Z:\sysosd&gt;plink mysession echo hello, world
+hello, world
+
+Z:\sysosd&gt;
+</code></pre>
+<p>
+Then you can set up other programs to run this Plink command and talk to it as if it were a process on the server machine.
+</p>
+<h3><a name="plink-options"></a><a name="S7.2.3"></a>7.2.3 Plink command line options</h3>
+<p>
+Plink accepts all the general command line options supported by the PuTTY tools. See <a href="Chapter3.html#using-general-opts">section 3.8.3</a> for a description of these options.
+</p>
+<p>
+Plink also supports some of its own options. The following sections describe Plink's specific command-line options.
+</p>
+<h4><a name="plink-option-batch"></a><a name="S7.2.3.1"></a>7.2.3.1 <a name="i10"></a><code>-batch</code>: disable all interactive prompts</h4>
+<p>
+If you use the <code>-batch</code> option, Plink will never give an interactive prompt while establishing the connection. If the server's host key is invalid, for example (see <a href="Chapter2.html#gs-hostkey">section 2.2</a>), then the connection will simply be abandoned instead of asking you what to do next.
+</p>
+<p>
+This may help Plink's behaviour when it is used in automated scripts: using <code>-batch</code>, if something goes wrong at connection time, the batch job will fail rather than hang.
+</p>
+<h4><a name="plink-option-s"></a><a name="S7.2.3.2"></a>7.2.3.2 <a name="i11"></a><code>-s</code>: remote command is SSH subsystem</h4>
+<p>
+If you specify the <code>-s</code> option, Plink passes the specified command as the name of an SSH &#8216;<a name="i12"></a>subsystem&#8217; rather than an ordinary command line.
+</p>
+<p>
+(This option is only meaningful with the SSH-2 protocol.)
+</p>
+<h2><a name="plink-batch"></a><a name="S7.3"></a>7.3 Using Plink in <a name="i13"></a>batch files and <a name="i14"></a>scripts</h2>
+<p>
+Once you have set up Plink to be able to log in to a remote server without any interactive prompting (see <a href="#plink-usage-batch">section 7.2.2</a>), you can use it for lots of scripting and batch purposes. For example, to start a backup on a remote machine, you might use a command like:
+</p>
+<pre><code>plink root@myserver /etc/backups/do-backup.sh
+</code></pre>
+<p>
+Or perhaps you want to fetch all system log lines relating to a particular web area:
+</p>
+<pre><code>plink mysession grep /~fred/ /var/log/httpd/access.log &gt; fredlog
+</code></pre>
+<p>
+Any non-interactive command you could usefully run on the server command line, you can run in a batch file using Plink in this way.
+</p>
+<h2><a name="plink-cvs"></a><a name="S7.4"></a>7.4 Using Plink with <a name="i15"></a>CVS</h2>
+<p>
+To use Plink with CVS, you need to set the environment variable <a name="i16"></a><code>CVS_RSH</code> to point to Plink:
+</p>
+<pre><code>set CVS_RSH=\path\to\plink.exe
+</code></pre>
+<p>
+You also need to arrange to be able to connect to a remote host without any interactive prompts, as described in <a href="#plink-usage-batch">section 7.2.2</a>.
+</p>
+<p>
+You should then be able to run CVS as follows:
+</p>
+<pre><code>cvs -d :ext:user@sessionname:/path/to/repository co module
+</code></pre>
+<p>
+If you specified a username in your saved session, you don't even need to specify the &#8216;user&#8217; part of this, and you can just say:
+</p>
+<pre><code>cvs -d :ext:sessionname:/path/to/repository co module
+</code></pre>
+<h2><a name="plink-wincvs"></a><a name="S7.5"></a>7.5 Using Plink with <a name="i17"></a>WinCVS</h2>
+<p>
+Plink can also be used with WinCVS. Firstly, arrange for Plink to be able to connect to a remote host non-interactively, as described in <a href="#plink-usage-batch">section 7.2.2</a>.
+</p>
+<p>
+Then, in WinCVS, bring up the &#8216;Preferences&#8217; dialogue box from the <em>Admin</em> menu, and switch to the &#8216;Ports&#8217; tab. Tick the box there labelled &#8216;Check for an alternate <code>rsh</code> name&#8217; and in the text entry field to the right enter the full path to <code>plink.exe</code>. Select &#8216;OK&#8217; on the &#8216;Preferences&#8217; dialogue box.
+</p>
+<p>
+Next, select &#8216;Command Line&#8217; from the WinCVS &#8216;Admin&#8217; menu, and type a CVS command as in <a href="#plink-cvs">section 7.4</a>, for example:
+</p>
+<pre><code>cvs -d :ext:user@hostname:/path/to/repository co module
+</code></pre>
+<p>
+or (if you're using a saved session):
+</p>
+<pre><code>cvs -d :ext:user@sessionname:/path/to/repository co module
+</code></pre>
+<p>
+Select the folder you want to check out to with the &#8216;Change Folder&#8217; button, and click &#8216;OK&#8217; to check out your module. Once you've got modules checked out, WinCVS will happily invoke plink from the GUI for CVS operations.
+</p>
+
+<hr><p>If you want to provide feedback on this manual or on the PuTTY tools themselves, see the <a href="http://www.chiark.greenend.org.uk/~sgtatham/putty/feedback.html">Feedback page</a>.</p><address>
+[PuTTY release 0.60]</address></body>
+</html>

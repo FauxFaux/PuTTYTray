@@ -1,0 +1,88 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=US-ASCII">
+<title>Introduction to PuTTY</title>
+<link rel="previous" href="index.html">
+<link rel="ToC" href="index.html">
+<link rel="index" href="IndexPage.html">
+<link rel="next" href="Chapter2.html">
+</head>
+<body>
+<p><a href="index.html">Previous</a> | <a href="index.html">Contents</a> | <a href="IndexPage.html">Index</a> | <a href="Chapter2.html">Next</a></p>
+
+<ul>
+<li><a href="#intro">Chapter 1: Introduction to PuTTY</a>
+<ul>
+<li><a href="#you-what">1.1 What are SSH, Telnet and Rlogin?</a></li>
+<li><a href="#which-one">1.2 How do SSH, Telnet and Rlogin differ?</a></li>
+</ul></li>
+</ul>
+<h1><a name="intro"></a><a name="C1"></a>Chapter 1: Introduction to PuTTY</h1>
+<p>
+PuTTY is a free SSH, Telnet and Rlogin client for 32-bit Windows systems.
+</p>
+<h2><a name="you-what"></a><a name="S1.1"></a>1.1 What are SSH, Telnet and Rlogin?</h2>
+<p>
+If you already know what SSH, Telnet and Rlogin are, you can safely skip on to the next section.
+</p>
+<p>
+SSH, Telnet and Rlogin are three ways of doing the same thing: logging in to a multi-user computer from another computer, over a network.
+</p>
+<p>
+Multi-user operating systems, such as Unix and VMS, usually present a <a name="i0"></a>command-line interface to the user, much like the &#8216;<a name="i1"></a>Command Prompt&#8217; or &#8216;<a name="i2"></a>MS-DOS Prompt&#8217; in Windows. The system prints a prompt, and you type commands which the system will obey.
+</p>
+<p>
+Using this type of interface, there is no need for you to be sitting at the same machine you are typing commands to. The commands, and responses, can be sent over a network, so you can sit at one computer and give commands to another one, or even to more than one.
+</p>
+<p>
+SSH, Telnet and Rlogin are <a name="i3"></a><em>network protocols</em> that allow you to do this. On the computer you sit at, you run a <a name="i4"></a><em>client</em>, which makes a network connection to the other computer (the <a name="i5"></a><em>server</em>). The network connection carries your keystrokes and commands from the client to the server, and carries the server's responses back to you.
+</p>
+<p>
+These protocols can also be used for other types of keyboard-based interactive session. In particular, there are a lot of bulletin boards, <a name="i6"></a>talker systems and <a name="i7"></a>MUDs (Multi-User Dungeons) which support access using Telnet. There are even a few that support SSH.
+</p>
+<p>
+You might want to use SSH, Telnet or Rlogin if:
+</p>
+<ul><li>
+you have an account on a Unix or VMS system which you want to be able to access from somewhere else
+</li>
+<li>
+your Internet Service Provider provides you with a login account on a <a name="i8"></a>web server. (This might also be known as a <a name="i9"></a><em>shell account</em>. A <em>shell</em> is the program that runs on the server and interprets your commands for you.)
+</li>
+<li>
+you want to use a <a name="i10"></a>bulletin board system, talker or MUD which can be accessed using Telnet.
+</li>
+</ul>
+<p>
+You probably do <em>not</em> want to use SSH, Telnet or Rlogin if:
+</p>
+<ul><li>
+you only use Windows. Windows computers have their own ways of networking between themselves, and unless you are doing something fairly unusual, you will not need to use any of these remote login protocols.
+</li>
+</ul>
+<h2><a name="which-one"></a><a name="S1.2"></a>1.2 How do SSH, Telnet and Rlogin differ?</h2>
+<p>
+This list summarises some of the <a name="i11"></a>differences between SSH, Telnet and Rlogin.
+</p>
+<ul><li>
+SSH (which stands for &#8216;<a name="i12"></a>secure shell&#8217;) is a recently designed, high-security protocol. It uses strong cryptography to protect your connection against eavesdropping, hijacking and other attacks. Telnet and Rlogin are both older protocols offering minimal security.
+</li>
+<li>
+SSH and Rlogin both allow you to <a name="i13"></a>log in to the server without having to type a password. (Rlogin's method of doing this is insecure, and can allow an attacker to access your account on the server. SSH's method is much more secure, and typically breaking the security requires the attacker to have gained access to your actual client machine.)
+</li>
+<li>
+SSH allows you to connect to the server and automatically send a command, so that the server will run that command and then disconnect. So you can use it in automated processing.
+</li>
+</ul>
+<p>
+The Internet is a hostile environment and security is everybody's responsibility. If you are connecting across the open Internet, then we recommend you use SSH. If the server you want to connect to doesn't support SSH, it might be worth trying to persuade the administrator to install it.
+</p>
+<p>
+If your client and server are both behind the same (good) firewall, it is more likely to be safe to use Telnet or Rlogin, but we still recommend you use SSH.
+</p>
+
+<hr><p>If you want to provide feedback on this manual or on the PuTTY tools themselves, see the <a href="http://www.chiark.greenend.org.uk/~sgtatham/putty/feedback.html">Feedback page</a>.</p><address>
+[PuTTY release 0.60]</address></body>
+</html>

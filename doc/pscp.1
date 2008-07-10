@@ -1,0 +1,63 @@
+.TH "pscp" "1" "2004\(hy03\(hy24" "PuTTY\ tool\ suite" "PuTTY\ tool\ suite"
+.SH "NAME"
+.PP
+\fBpscp\fP \(hy command-line SCP (secure copy) / SFTP client
+.SH "SYNOPSIS"
+.PP
+.nf
+\fBpscp\fP\ [\fIoptions\fP]\ [\fIuser\fP\fB@\fP]\fIhost\fP\fB:\fP\fIsource\fP\ \fItarget\fP
+\fBpscp\fP\ [\fIoptions\fP]\ \fIsource\fP\ [\fIsource\fP...]\ [\fIuser\fP\fB@\fP]\fIhost\fP\fB:\fP\fItarget\fP
+\fBpscp\fP\ [\fIoptions\fP]\ \fB\(hyls\fP\ [\fIuser\fP\fB@\fP]\fIhost\fP\fB:\fP\fIfilespec\fP
+.fi
+.SH "DESCRIPTION"
+.PP
+\fBpscp\fP is a command-line client for the SSH-based SCP (secure copy) and SFTP (secure file transfer protocol) protocols.
+.SH "OPTIONS"
+.PP
+The command-line options supported by \fIpscp\fP are:
+.IP "\fB-V\fP"
+Show version information and exit.
+.IP "\fB-pgpfp\fP"
+Display the fingerprints of the PuTTY PGP Master Keys and exit, to aid in verifying new files released by the PuTTY team.
+.IP "\fB-ls\fP"
+Remote directory listing.
+.IP "\fB-p\fP"
+Preserve file attributes.
+.IP "\fB-q\fP"
+Quiet, don't show statistics.
+.IP "\fB-r\fP"
+Copy directories recursively.
+.IP "\fB-unsafe\fP"
+Allow server-side wildcards (DANGEROUS).
+.IP "\fB-v\fP"
+Show verbose messages.
+.IP "\fB-load\fP \fIsession\fP"
+Load settings from saved session.
+.IP "\fB-P\fP \fIport\fP"
+Connect to port \fIport\fP.
+.IP "\fB-l\fP \fIuser\fP"
+Set remote username to \fIuser\fP.
+.IP "\fB-batch\fP"
+Disable interactive prompts.
+.IP "\fB-pw\fP \fIpassword\fP"
+Set remote password to \fIpassword\fP. \fICAUTION:\fP this will likely make the password visible to other users of the local machine (via commands such as `\fBw\fP').
+.IP "\fB-1\fP"
+Force use of SSH protocol version 1.
+.IP "\fB-2\fP"
+Force use of SSH protocol version 2.
+.IP "\fB-C\fP"
+Enable SSH compression.
+.IP "\fB-i\fP \fIpath\fP"
+Private key file for authentication.
+.IP "\fB-scp\fP"
+Force use of SCP protocol.
+.IP "\fB-sftp\fP"
+Force use of SFTP protocol.
+.SH "MORE INFORMATION"
+.PP
+For more information on \fBpscp\fP it's probably best to go and look at the manual on the PuTTY web page:
+.PP
+\fBhttp://www.chiark.greenend.org.uk/~sgtatham/putty/\fP
+.SH "BUGS"
+.PP
+This man page isn't terribly complete. See the above web link for better documentation.

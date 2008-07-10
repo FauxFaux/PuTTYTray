@@ -1,0 +1,102 @@
+.TH "putty" "1" "2004\(hy03\(hy24" "PuTTY\ tool\ suite" "PuTTY\ tool\ suite"
+.SH "NAME"
+.PP
+\fBputty\fP - GUI SSH, Telnet and Rlogin client for X
+.SH "SYNOPSIS"
+.PP
+.nf
+\fBputty\fP\ [\ \fIoptions\fP\ ]\ [\ \fIhost\fP\ ]
+.fi
+.SH "DESCRIPTION"
+.PP
+\fBputty\fP is a graphical SSH, Telnet and Rlogin client for X. It is a direct port of the Windows SSH client of the same name.
+.SH "OPTIONS"
+.PP
+The command-line options supported by \fBputty\fP are:
+.IP "\fB\(hy\(hydisplay\fP \fIdisplay\(hyname\fP"
+Specify the X display on which to open \fBputty\fP. (Note this option has a double minus sign, even though none of the others do. This is because this option is supplied automatically by GTK. Sorry.)
+.IP "\fB\(hyfn\fP \fIfont-name\fP"
+Specify the font to use for normal text displayed in the terminal.
+.IP "\fB\(hyfb\fP \fIfont-name\fP"
+Specify the font to use for bold text displayed in the terminal. If the \fBBoldAsColour\fP resource is set to 1 (the default), bold text will be displayed in different colours instead of a different font, so this option will be ignored. If \fBBoldAsColour\fP is set to 0 and you do not specify a bold font, \fBputty\fP will overprint the normal font to make it look bolder.
+.IP "\fB\(hyfw\fP \fIfont-name\fP"
+Specify the font to use for double-width characters (typically Chinese, Japanese and Korean text) displayed in the terminal.
+.IP "\fB\(hyfwb\fP \fIfont-name\fP"
+Specify the font to use for bold double-width characters (typically Chinese, Japanese and Korean text). Like \fB-fb\fP, this will be ignored unless the \fBBoldAsColour\fP resource is set to 0.
+.IP "\fB\(hygeometry\fP \fIgeometry\fP"
+Specify the size of the terminal, in rows and columns of text. See \fIX(7)\fP for more information on the syntax of geometry specifications.
+.IP "\fB\(hysl\fP \fIlines\fP"
+Specify the number of lines of scrollback to save off the top of the terminal.
+.IP "\fB\(hyfg\fP \fIcolour\fP"
+Specify the foreground colour to use for normal text.
+.IP "\fB\(hybg\fP \fIcolour\fP"
+Specify the background colour to use for normal text.
+.IP "\fB\(hybfg\fP \fIcolour\fP"
+Specify the foreground colour to use for bold text, if the \fBBoldAsColour\fP resource is set to 1 (the default).
+.IP "\fB\(hybbg\fP \fIcolour\fP"
+Specify the foreground colour to use for bold reverse-video text, if the \fBBoldAsColour\fP resource is set to 1 (the default). (This colour is best thought of as the bold version of the background colour; so it only appears when text is displayed \fIin\fP the background colour.)
+.IP "\fB\(hycfg\fP \fIcolour\fP"
+Specify the foreground colour to use for text covered by the cursor.
+.IP "\fB\(hycbg\fP \fIcolour\fP"
+Specify the background colour to use for text covered by the cursor. In other words, this is the main colour of the cursor.
+.IP "\fB\(hytitle\fP \fItitle\fP"
+Specify the initial title of the terminal window. (This can be changed under control of the server.)
+.IP "\fB\(hysb\(hy\fP or \fB+sb\fP"
+Tells \fBputty\fP not to display a scroll bar.
+.IP "\fB\(hysb\fP"
+Tells \fBputty\fP to display a scroll bar: this is the opposite of \fB\(hysb\(hy\fP. This is the default option: you will probably only need to specify it explicitly if you have changed the default using the \fBScrollBar\fP resource.
+.IP "\fB\(hylog\fP \fIfilename\fP"
+This option makes \fBputty\fP log all the terminal output to a file as well as displaying it in the terminal.
+.IP "\fB\(hycs\fP \fIcharset\fP"
+This option specifies the character set in which \fBputty\fP should assume the session is operating. This character set will be used to interpret all the data received from the session, and all input you type or paste into \fBputty\fP will be converted into this character set before being sent to the session.
+.RS
+.PP
+Any character set name which is valid in a MIME header (and supported by \fBputty\fP) should be valid here (examples are `\fBISO-8859-1\fP', `\fBwindows-1252\fP' or `\fBUTF-8\fP'). Also, any character encoding which is valid in an X logical font description should be valid (`\fBibm-cp437\fP', for example).
+.PP
+\fBputty\fP's default behaviour is to use the same character encoding as its primary font. If you supply a Unicode (\fBiso10646-1\fP) font, it will default to the UTF-8 character set.
+.PP
+Character set names are case-insensitive. 
+.RE
+.IP "\fB\(hynethack\fP"
+Tells \fBputty\fP to enable NetHack keypad mode, in which the numeric keypad generates the NetHack \fBhjklyubn\fP direction keys. This enables you to play NetHack with the numeric keypad without having to use the NetHack \fBnumber_pad\fP option (which requires you to press `\fBn\fP' before any repeat count). So you can move with the numeric keypad, and enter repeat counts with the normal number keys.
+.IP "\fB\(hyhelp\fP, \fB\(hy\(hyhelp\fP"
+Display a message summarizing the available options.
+.IP "\fB\(hypgpfp\fP"
+Display the fingerprints of the PuTTY PGP Master Keys, to aid in verifying new files released by the PuTTY team.
+.IP "\fB\(hyload\fP \fIsession\fP"
+Load a saved session by name. This allows you to run a saved session straight from the command line without having to go through the configuration box first.
+.IP "\fB\(hyssh\fP, \fB\(hytelnet\fP, \fB\(hyrlogin\fP, \fB\(hyraw\fP"
+Select the protocol \fBputty\fP will use to make the connection.
+.IP "\fB\(hyl\fP \fIusername\fP"
+Specify the username to use when logging in to the server.
+.IP "\fB\(hyL\fP \fB[\fP\fIsrcaddr\fP\fB:]\fP\fIsrcport\fP\fB:\fP\fIdesthost\fP\fB:\fP\fIdestport\fP"
+Set up a local port forwarding: listen on \fIsrcport\fP (or \fIsrcaddr\fP:\fIsrcport\fP if specified), and forward any connections over the SSH connection to the destination address \fIdesthost\fP:\fIdestport\fP. Only works in SSH.
+.IP "\fB\(hyR\fP \fB[\fP\fIsrcaddr\fP\fB:]\fP\fIsrcport\fP\fB:\fP\fIdesthost\fP\fB:\fP\fIdestport\fP"
+Set up a remote port forwarding: ask the SSH server to listen on \fIsrcport\fP (or \fIsrcaddr\fP:\fIsrcport\fP if specified), and to forward any connections back over the SSH connection where the client will pass them on to the destination address \fIdesthost\fP:\fIdestport\fP. Only works in SSH.
+.IP "\fB\(hyD\fP [\fIsrcaddr\fP:]\fIsrcport\fP"
+Set up dynamic port forwarding. The client listens on \fIsrcport\fP (or \fIsrcaddr\fP:\fIsrcport\fP if specified), and implements a SOCKS server. So you can point SOCKS-aware applications at this port and they will automatically use the SSH connection to tunnel all their connections. Only works in SSH.
+.IP "\fB\(hyP\fP \fIport\fP"
+Specify the port to connect to the server on.
+.IP "\fB\(hyA\fP, \fB\(hya\fP"
+Enable (\fB\(hyA\fP) or disable (\fB\(hya\fP) SSH agent forwarding. Currently this only works with OpenSSH and SSH-1.
+.IP "\fB\(hyX\fP, \fB\(hyx\fP"
+Enable (\fB\(hyX\fP) or disable (\fB\(hyx\fP) X11 forwarding.
+.IP "\fB\(hyT\fP, \fB\(hyt\fP"
+Enable (\fB\(hyt\fP) or disable (\fB\(hyT\fP) the allocation of a pseudo-terminal at the server end.
+.IP "\fB\(hyC\fP"
+Enable zlib-style compression on the connection.
+.IP "\fB\(hy1\fP, \fB\(hy2\fP"
+Select SSH protocol version 1 or 2.
+.IP "\fB\(hyi\fP \fIkeyfile\fP"
+Specify a private key file to use for authentication. For SSH-2 keys, this key file must be in PuTTY's format, not OpenSSH's or anyone else's.
+.SH "SAVED SESSIONS"
+.PP
+Saved sessions are stored in a \fB.putty/sessions\fP subdirectory in your home directory.
+.SH "MORE INFORMATION"
+.PP
+For more information on PuTTY, it's probably best to go and look at the manual on the web page:
+.PP
+\fBhttp://www.chiark.greenend.org.uk/~sgtatham/putty/\fP
+.SH "BUGS"
+.PP
+This man page isn't terribly complete.
