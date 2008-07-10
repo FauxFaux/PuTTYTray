@@ -108,4 +108,8 @@ Feedback section of the web site before doing so. Sending one-line
 reports saying `it doesn't work' will waste your time as much as
 ours.
 
+NOTE: This "dPuTTY" branch is maintained by Joongi Kim, so bug reports
+related to extra features included only in dPuTTY should be sent to
+him, use email to me+dev@daybreaker.info.
+
 See the file LICENCE for the licence conditions.

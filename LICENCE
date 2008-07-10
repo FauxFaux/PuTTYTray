@@ -1,9 +1,14 @@
-PuTTY is copyright 1997-2007 Simon Tatham.
+PuTTY is copyright 1997-2008 Simon Tatham.
 
 Portions copyright Robert de Bath, Joris van Rantwijk, Delian
 Delchev, Andreas Schultz, Jeroen Massar, Wez Furlong, Nicolas Barry,
 Justin Bradford, Ben Harris, Malcolm Smith, Ahmad Khalifa, Markus
 Kuhn, and CORE SDI S.A.
+
+Another portion of copyright Joongi Kim for branching dPuTTY,
+combination of PuTTY tray patch 0.60r3 and his own Korean exntension.
+For more information of PuTTY tray, refer the following site:
+http://www.xs4all.nl/~whaa/putty/
 
 Permission is hereby granted, free of charge, to any person
 obtaining a copy of this software and associated documentation files
