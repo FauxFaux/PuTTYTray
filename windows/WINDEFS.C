@@ -28,6 +28,11 @@ FontSpec platform_default_fontspec(const char *name)
 		ret.isbold = 0;
 		ret.charset = ANSI_CHARSET;
 		ret.height = 10;
+	} else if (!strcmp(name, "FontUnicode")) {
+		strcpy(ret.name, "µ¸¿òÃ¼");
+		ret.isbold = 0;
+		ret.charset = HANGEUL_CHARSET;
+		ret.height = 10;
     } else {
 		ret.name[0] = '\0';
     }

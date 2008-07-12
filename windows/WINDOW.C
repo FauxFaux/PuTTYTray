@@ -1576,10 +1576,13 @@ static void init_fonts(int pick_width, int pick_height)
 			   FIXED_PITCH | FF_DONTCARE, cfg.font.name)
 
     f(FONT_NORMAL, cfg.font.charset, fw_dontcare, FALSE);
-	fonts[FONT_UNICODE] = CreateFont (font_height, font_width, 0, 0, fw_dontcare, FALSE, FALSE, FALSE, \
-        cfg.font.charset, OUT_DEFAULT_PRECIS, \
-        CLIP_DEFAULT_PRECIS, FONT_QUALITY(cfg.font_quality), \
-        FIXED_PITCH | FF_DONTCARE, "Dotum");
+	if (cfg.use_font_unicode)
+		fonts[FONT_UNICODE] = CreateFont (font_height, font_width, 0, 0, fw_dontcare, FALSE, FALSE, FALSE, \
+			cfg.font_unicode.charset, OUT_DEFAULT_PRECIS, \
+			CLIP_DEFAULT_PRECIS, FONT_QUALITY(cfg.font_quality), \
+			FIXED_PITCH | FF_DONTCARE, cfg.font_unicode.name);
+	else
+		fonts[FONT_UNICODE] = NULL;
 
     SelectObject(hdc, fonts[FONT_NORMAL]);
     GetTextMetrics(hdc, &tm);
@@ -3844,8 +3847,10 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
 	    wbuf[i] = text[i];
 
 	/* EXTRA PATCH for non-latin font replacing... */
-    SelectObject(hdc, fonts[FONT_UNICODE]);
-    text_adjust = 1;
+	if (cfg.use_font_unicode) {
+		SelectObject(hdc, fonts[FONT_UNICODE]);
+		text_adjust = cfg.font_unicode_adj;
+	}
 
 	/* print Glyphs as they are, without Windows' Shaping*/
 	general_textout(hdc, x, y - font_height * (lattr == LATTR_BOT) + text_adjust,

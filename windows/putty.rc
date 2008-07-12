@@ -50,11 +50,11 @@ BEGIN
     CTEXT           "? 1997-2007 Simon Tatham. All rights reserved.",IDA_TEXT2,10,34,194,16
 END
 
-IDD_MAINBOX DIALOG  0, 0, 300, 252
-STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+IDD_MAINBOX DIALOGEX 0, 0, 300, 299
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "PuTTY Configuration"
 CLASS "PuTTYConfigBox"
-FONT 8, "MS Shell Dlg"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
 END
 
@@ -164,6 +164,27 @@ BEGIN
     "\r\0"
 END
 
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_MAINBOX, DIALOG
+    BEGIN
+        BOTTOMMARGIN, 298
+    END
+END
 #endif    // APSTUDIO_INVOKED
 
 #endif    // ÇÑ±¹¾î resources
@@ -176,8 +197,7 @@ END
 //
 // Generated from the TEXTINCLUDE 3 resource.
 //
-
-
+
 /////////////////////////////////////////////////////////////////////////////
 #endif    // not APSTUDIO_INVOKED
 
