@@ -2508,6 +2508,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    cfg.font.height != prev_cfg.font.height ||
 		    cfg.font.charset != prev_cfg.font.charset ||
 		    cfg.font_quality != prev_cfg.font_quality ||
+			strcmp(cfg.font_unicode.name, prev_cfg.font_unicode.name) != 0 ||
+		    strcmp(cfg.line_codepage, prev_cfg.line_codepage) != 0 ||
+		    cfg.font_unicode.isbold != prev_cfg.font_unicode.isbold ||
+		    cfg.font_unicode.height != prev_cfg.font_unicode.height ||
+		    cfg.font_unicode.charset != prev_cfg.font_unicode.charset ||
+		    cfg.font_quality != prev_cfg.font_quality ||
 		    cfg.vtmode != prev_cfg.vtmode ||
 		    cfg.bold_colour != prev_cfg.bold_colour ||
 		    cfg.resize_action == RESIZE_DISABLED ||
