@@ -1,4 +1,4 @@
-/*
+/*SA			
  * window.c - the PuTTY(tel) main program, which runs a PuTTY terminal
  * emulator and backend in a window.
  */
@@ -70,6 +70,7 @@
 
 #define IDM_SAVED_MIN 0x1000
 #define IDM_SAVED_MAX 0x5000
+#define IDM_UNICODE	  0x2000
 #define MENU_SAVED_STEP 16
 
 /* Maximum number of sessions on saved-session submenu */
@@ -853,6 +854,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	    AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT) savedsess_menu,
 		       "Sa&ved Sessions");
 	    AppendMenu(m, MF_ENABLED, IDM_RECONF, "Chan&ge Settings...");
+	    AppendMenu(m, MF_SEPARATOR, 0, 0);
+		AppendMenu(m, MF_ENABLED | (strncmp(cfg.line_codepage, "UTF-8", 6) ? 0 : MF_CHECKED), IDM_UNICODE, "&Unicode Mode");
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
 	    AppendMenu(m, MF_ENABLED, IDM_COPYALL, "C&opy All to Clipboard");
 	    AppendMenu(m, MF_ENABLED, IDM_CLRSB, "C&lear Scrollback");
@@ -2530,6 +2533,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    break;
 	  case IDM_ABOUT:
 	    showabout(hwnd);
+	    break;
+	  case IDM_UNICODE:
+	    strncpy(cfg.line_codepage, strncmp(cfg.line_codepage, "UTF-8", 6) ? "UTF-8" : "CP949", 6);
+	    reset_window(2);
+	    CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_UNICODE, strcmp(cfg.line_codepage, "UTF-8") ? MF_UNCHECKED : MF_CHECKED);
 	    break;
 	  case IDM_HELP:
 	    launch_help(hwnd, NULL);
