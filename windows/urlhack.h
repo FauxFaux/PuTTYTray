@@ -19,7 +19,7 @@ int urlhack_mouse_old_x, urlhack_mouse_old_y, urlhack_current_region;
 
 void urlhack_reset();
 void urlhack_go_find_me_some_hyperlinks(int screen_width);
-void urlhack_putchar(char ch);
+void urlhack_putchar(wchar_t ch);
 text_region urlhack_get_link_region(int index);
 
 void urlhack_clear_link_regions();
@@ -27,7 +27,7 @@ int urlhack_is_in_link_region(int x, int y);
 int urlhack_is_in_this_link_region(text_region r, int x, int y);
 text_region urlhack_get_link_bounds(int x, int y);
 void urlhack_add_link_region(int x0, int y0, int x1, int y1);
-void urlhack_launch_url(const char* app, const char *url);
+void urlhack_launch_url(const wchar_t* app, const wchar_t *url);
 int urlhack_is_ctrl_pressed();
 void urlhack_set_regular_expression(const char* expression);
 

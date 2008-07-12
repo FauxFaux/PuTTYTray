@@ -12,7 +12,7 @@
 extern int urlhack_mouse_old_x = -1, urlhack_mouse_old_y = -1, urlhack_current_region = -1;
 
 static std::vector<text_region> link_regions;
-static std::string browser_app;
+static std::wstring browser_app;
 
 extern const char* urlhack_default_regex = "(((https?|ftp):\\/\\/)|www\\.)(([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)|localhost|([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\.(com|net|org|info|biz|gov|name|edu|[a-zA-Z][a-zA-Z]))(:[0-9]+)?((\\/|\\?)[^ \"]*[^ ,;\\.:\">)])?";
 
@@ -106,10 +106,10 @@ void urlhack_add_link_region(int x0, int y0, int x1, int y1)
 
 
 
-void urlhack_launch_url(const char* app, const char *url)
+void urlhack_launch_url(const wchar_t* app, const wchar_t *url)
 {
 	if (app) {
-		ShellExecute(NULL, NULL, app, url, NULL, SW_SHOW);
+		ShellExecuteW(NULL, NULL, app, url, NULL, SW_SHOW);
 		return;
 	}
 
@@ -117,31 +117,31 @@ void urlhack_launch_url(const char* app, const char *url)
 		// Find out the default app
 		HKEY key;
 		DWORD dwValue;
-		char *str;
-		std::string lookup;
+		wchar_t *str;
+		std::wstring lookup;
 
-		if (RegOpenKeyEx(HKEY_CURRENT_USER,"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice", 0, KEY_READ, &key) == ERROR_SUCCESS) {
-			if (RegQueryValueEx(key, "Progid", NULL, NULL, NULL, &dwValue) == ERROR_SUCCESS)
+		if (RegOpenKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice", 0, KEY_READ, &key) == ERROR_SUCCESS) {
+			if (RegQueryValueExW(key, L"Progid", NULL, NULL, NULL, &dwValue) == ERROR_SUCCESS)
 			{
-				str = new char[dwValue + 1];
+				str = new wchar_t[dwValue + 1];
 
-				RegQueryValueEx(key, "Progid", NULL, NULL, (BYTE*)str, &dwValue);
+				RegQueryValueExW(key, L"Progid", NULL, NULL, (BYTE*)str, &dwValue);
 				RegCloseKey(key);
 
-				std::stringstream buffer;
-				buffer << str << "\\shell\\open\\command";
+				std::wstringstream buffer;
+				buffer << str << L"\\shell\\open\\command";
 				lookup = buffer.str();
 
 				delete [] str;
 			}
 		}
 
-		if (RegOpenKeyEx(HKEY_CLASSES_ROOT, lookup.length() > 0 ? lookup.c_str() : "HTTP\\shell\\open\\command", 0, KEY_READ, &key) == ERROR_SUCCESS) {
-			if (!RegQueryValueEx(key, NULL, NULL, NULL, NULL, &dwValue) == ERROR_SUCCESS) return;
+		if (RegOpenKeyExW(HKEY_CLASSES_ROOT, lookup.length() > 0 ? lookup.c_str() : L"HTTP\\shell\\open\\command", 0, KEY_READ, &key) == ERROR_SUCCESS) {
+			if (!RegQueryValueExW(key, NULL, NULL, NULL, NULL, &dwValue) == ERROR_SUCCESS) return;
 
-			str = new char[dwValue + 1];
+			str = new wchar_t[dwValue + 1];
 
-			RegQueryValueEx(key, NULL, NULL, NULL, (BYTE*)str, &dwValue);
+			RegQueryValueExW(key, NULL, NULL, NULL, (BYTE*)str, &dwValue);
 			RegCloseKey(key);
 
 			browser_app = str;
@@ -161,21 +161,21 @@ void urlhack_launch_url(const char* app, const char *url)
 			}
 		}
 		else {
-			MessageBox(NULL, "Could not find your default browser.", "PuTTY Tray Error", MB_OK | MB_ICONINFORMATION);
+			MessageBoxW(NULL, L"Could not find your default browser.", L"PuTTY Tray Error", MB_OK | MB_ICONINFORMATION);
 		}
 	}
 
-	std::string u = url;
+	std::wstring u = url;
 
-	if (u.find("http://") == std::string::npos && u.find("https://") == std::string::npos &&
-		u.find("ftp://") == std::string::npos && u.find("ftps://") == std::string::npos) {
-		if (u.find("ftp.") != std::string::npos)
-			u.insert(0, "ftp://");
+	if (u.find(L"http://") == std::string::npos && u.find(L"https://") == std::string::npos &&
+		u.find(L"ftp://") == std::string::npos && u.find(L"ftps://") == std::string::npos) {
+		if (u.find(L"ftp.") != std::string::npos)
+			u.insert(0, L"ftp://");
 		else
-			u.insert(0, "http://");
+			u.insert(0, L"http://");
 	}
 
-	ShellExecute(NULL, NULL, browser_app.c_str(), u.c_str(), NULL, SW_SHOW);
+	ShellExecuteW(NULL, NULL, browser_app.c_str(), u.c_str(), NULL, SW_SHOW);
 }
 
 
@@ -195,8 +195,7 @@ int urlhack_is_ctrl_pressed()
 static int urlhack_disabled = 0;
 static int is_regexp_compiled = 0;
 static regexp* urlhack_rx;
-static std::string text_mass;
-
+static std::wstring text_mass;
 
 
 void urlhack_reset()
@@ -204,15 +203,10 @@ void urlhack_reset()
 	text_mass.clear();
 }
 
-
-
-void urlhack_putchar(char ch)
+void urlhack_putchar(wchar_t ch)
 {
-	char r00fles[2] = { ch, 0 };
-	text_mass.append(r00fles);
+	text_mass.append(&ch);
 }
-
-
 
 static void rtfm(char *error)
 {
@@ -256,23 +250,35 @@ void urlhack_go_find_me_some_hyperlinks(int screen_width)
 
 	urlhack_clear_link_regions();
 
+	// Assuming that URL is composed of only non-wide characters.
+	std::string text_serialized;
+	unsigned int i;
+	for (i = 0; i < text_mass.length(); i++) {
+		int w = mk_wcwidth(text_mass[i]);
+		if (w > 1) {
+			// "Skip" wide characters to make re_lib work properly
+			text_serialized.append(" ");
+		} else {
+			char t[2] = {(char)(text_mass[i] & 0xFF), '\0'};
+			text_serialized.append(t);
+		}
+	}
+	char *stext = const_cast<char*>(text_serialized.c_str());
+	char *stext_pos = stext;
 
-	char* text = const_cast<char*>(text_mass.c_str());
-	char* text_pos = text;
-
-	while (regexec(urlhack_rx, text_pos) == 1) {
+	while (regexec(urlhack_rx, stext_pos) == 1) {
 		char* start_pos = *urlhack_rx->startp[0] == ' ' ? urlhack_rx->startp[0] + 1: urlhack_rx->startp[0];
 
-		int x0 = (start_pos - text) % screen_width;
-		int y0 = (start_pos - text) / screen_width;
-		int x1 = (urlhack_rx->endp[0] - text) % screen_width;
-		int y1 = (urlhack_rx->endp[0] - text) / screen_width;
+		int x0 = (start_pos - stext) % screen_width;
+		int y0 = (start_pos - stext) / screen_width;
+		int x1 = (urlhack_rx->endp[0] - stext) % screen_width;
+		int y1 = (urlhack_rx->endp[0] - stext) / screen_width;
 
 		if (x0 >= screen_width) x0 = screen_width - 1;
 		if (x1 >= screen_width) x1 = screen_width - 1;
 
 		urlhack_add_link_region(x0, y0, x1, y1);
 
-		text_pos = urlhack_rx->endp[0] + 1;
+		stext_pos = urlhack_rx->endp[0] + 1;
 	}
 }
