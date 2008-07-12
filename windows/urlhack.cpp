@@ -12,7 +12,7 @@
 extern int urlhack_mouse_old_x = -1, urlhack_mouse_old_y = -1, urlhack_current_region = -1;
 
 static std::vector<text_region> link_regions;
-static std::wstring browser_app;
+static std::string browser_app;
 
 extern const char* urlhack_default_regex = "(((https?|ftp):\\/\\/)|www\\.)(([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)|localhost|([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\.(com|net|org|info|biz|gov|name|edu|[a-zA-Z][a-zA-Z]))(:[0-9]+)?((\\/|\\?)[^ \"]*[^ ,;\\.:\">)])?";
 
@@ -106,10 +106,10 @@ void urlhack_add_link_region(int x0, int y0, int x1, int y1)
 
 
 
-void urlhack_launch_url(const wchar_t* app, const wchar_t *url)
+void urlhack_launch_url(const char* app, const char *url)
 {
 	if (app) {
-		ShellExecuteW(NULL, NULL, app, url, NULL, SW_SHOW);
+		ShellExecute(NULL, NULL, app, url, NULL, SW_SHOW);
 		return;
 	}
 
@@ -117,31 +117,31 @@ void urlhack_launch_url(const wchar_t* app, const wchar_t *url)
 		// Find out the default app
 		HKEY key;
 		DWORD dwValue;
-		wchar_t *str;
-		std::wstring lookup;
+		char *str;
+		std::string lookup;
 
-		if (RegOpenKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice", 0, KEY_READ, &key) == ERROR_SUCCESS) {
-			if (RegQueryValueExW(key, L"Progid", NULL, NULL, NULL, &dwValue) == ERROR_SUCCESS)
+		if (RegOpenKeyEx(HKEY_CURRENT_USER,"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice", 0, KEY_READ, &key) == ERROR_SUCCESS) {
+			if (RegQueryValueEx(key, "Progid", NULL, NULL, NULL, &dwValue) == ERROR_SUCCESS)
 			{
-				str = new wchar_t[dwValue + 1];
+				str = new char[dwValue + 1];
 
-				RegQueryValueExW(key, L"Progid", NULL, NULL, (BYTE*)str, &dwValue);
+				RegQueryValueEx(key, "Progid", NULL, NULL, (BYTE*)str, &dwValue);
 				RegCloseKey(key);
 
-				std::wstringstream buffer;
-				buffer << str << L"\\shell\\open\\command";
+				std::stringstream buffer;
+				buffer << str << "\\shell\\open\\command";
 				lookup = buffer.str();
 
 				delete [] str;
 			}
 		}
 
-		if (RegOpenKeyExW(HKEY_CLASSES_ROOT, lookup.length() > 0 ? lookup.c_str() : L"HTTP\\shell\\open\\command", 0, KEY_READ, &key) == ERROR_SUCCESS) {
-			if (!RegQueryValueExW(key, NULL, NULL, NULL, NULL, &dwValue) == ERROR_SUCCESS) return;
+		if (RegOpenKeyEx(HKEY_CLASSES_ROOT, lookup.length() > 0 ? lookup.c_str() : "HTTP\\shell\\open\\command", 0, KEY_READ, &key) == ERROR_SUCCESS) {
+			if (!RegQueryValueEx(key, NULL, NULL, NULL, NULL, &dwValue) == ERROR_SUCCESS) return;
 
-			str = new wchar_t[dwValue + 1];
+			str = new char[dwValue + 1];
 
-			RegQueryValueExW(key, NULL, NULL, NULL, (BYTE*)str, &dwValue);
+			RegQueryValueEx(key, NULL, NULL, NULL, (BYTE*)str, &dwValue);
 			RegCloseKey(key);
 
 			browser_app = str;
@@ -161,21 +161,21 @@ void urlhack_launch_url(const wchar_t* app, const wchar_t *url)
 			}
 		}
 		else {
-			MessageBoxW(NULL, L"Could not find your default browser.", L"PuTTY Tray Error", MB_OK | MB_ICONINFORMATION);
+			MessageBox(NULL, "Could not find your default browser.", "PuTTY Tray Error", MB_OK | MB_ICONINFORMATION);
 		}
 	}
 
-	std::wstring u = url;
+	std::string u = url;
 
-	if (u.find(L"http://") == std::string::npos && u.find(L"https://") == std::string::npos &&
-		u.find(L"ftp://") == std::string::npos && u.find(L"ftps://") == std::string::npos) {
-		if (u.find(L"ftp.") != std::string::npos)
-			u.insert(0, L"ftp://");
+	if (u.find("http://") == std::wstring::npos && u.find("https://") == std::wstring::npos &&
+		u.find("ftp://") == std::wstring::npos && u.find("ftps://") == std::wstring::npos) {
+		if (u.find("ftp.") != std::wstring::npos)
+			u.insert(0, "ftp://");
 		else
-			u.insert(0, L"http://");
+			u.insert(0, "http://");
 	}
 
-	ShellExecuteW(NULL, NULL, browser_app.c_str(), u.c_str(), NULL, SW_SHOW);
+	ShellExecute(NULL, NULL, browser_app.c_str(), u.c_str(), NULL, SW_SHOW);
 }
 
 
