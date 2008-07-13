@@ -4309,7 +4309,15 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 	    term->app_keypad_keys ^= 1;
 	    return 0;
 	}
-
+	/* Bluehope , alt+[] to change transparency*/
+	if (left_alt && wParam == VK_OEM_4){
+		MakeWindowTransparent(hwnd,50);
+		return -1;
+	}
+	if (left_alt && wParam == VK_OEM_6){
+		MakeWindowTransparent(hwnd,cfg.transparency);
+		return -1;
+	}
 	/* Nethack keypad */
 	if (cfg.nethack_keypad && !left_alt) {
 	    switch (wParam) {
