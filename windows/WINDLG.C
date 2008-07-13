@@ -248,8 +248,7 @@ static int SaneDialogBox(HINSTANCE hinst,
     wc.cbClsExtra = 0;
     wc.cbWndExtra = DLGWINDOWEXTRA + 2*sizeof(LONG_PTR);
     wc.hInstance = hinst;
-	wc.hIcon = (HICON)LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED); //HACK: PuTTYTray / Icon Fix
-	ret = GetLastError();
+	wc.hIcon = LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED); //HACK: PuTTYTray / Icon Fix
 	wc.hIconSm = LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED); //HACK: PuTTYTray / Icon Fix
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     wc.hbrBackground = (HBRUSH) (COLOR_BACKGROUND +1);
