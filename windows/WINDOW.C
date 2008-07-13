@@ -4309,13 +4309,29 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 	    term->app_keypad_keys ^= 1;
 	    return 0;
 	}
-	/* Bluehope , alt+[] to change transparency*/
+	/* Bluehope , alt+[] to switch transparency between (50,cfg.transparency)
+	* alt+{} to change cfg.transparency in 5 step
+	*/
 	if (left_alt && wParam == VK_OEM_4){
-		MakeWindowTransparent(hwnd,50);
+		if(0==shift_state)
+			MakeWindowTransparent(hwnd,50);
+		else if (1==shift_state)
+		{
+			cfg.transparency-=5;
+			cfg.transparency = max(50,cfg.transparency);
+			MakeWindowTransparent(hwnd,cfg.transparency);
+		}
 		return -1;
 	}
 	if (left_alt && wParam == VK_OEM_6){
-		MakeWindowTransparent(hwnd,cfg.transparency);
+		if(0==shift_state)
+			MakeWindowTransparent(hwnd,cfg.transparency);
+		else if (1==shift_state)
+		{
+			cfg.transparency+=5;
+			cfg.transparency = min(255,cfg.transparency);
+			MakeWindowTransparent(hwnd,cfg.transparency);
+		}
 		return -1;
 	}
 	/* Nethack keypad */
