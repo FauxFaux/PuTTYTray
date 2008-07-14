@@ -715,6 +715,7 @@ void load_open_settings(void *sesskey, Config *cfg)
 	 * Save transparency settings
 	 */
 	gppi(sesskey, "Transparency", 220, &cfg->transparency);
+	gppi(sesskey, "TransparencyMode", 1, &cfg->transparency_mode);
 
 	/*
 	 * HACK: PuttyTray / Session Icon

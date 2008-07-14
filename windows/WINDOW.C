@@ -4309,14 +4309,32 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 	    term->app_keypad_keys ^= 1;
 	    return 0;
 	}
-	/* Bluehope , alt+[] to switch transparency between (50,cfg.transparency)
+	/* Bluehope , alt+[] to switch transparency between (50,cfg.transparency,255)
 	* alt+{} to change cfg.transparency in 5 step
 	*/
 	if (left_alt && wParam == VK_OEM_4){
-		if(0==shift_state)
-			MakeWindowTransparent(hwnd,50);
+		if(0==shift_state){
+			cfg.transparency_mode--;
+			cfg.transparency_mode = max(0,cfg.transparency_mode);
+			switch (cfg.transparency_mode)
+			{
+			case 0:
+				MakeWindowTransparent(hwnd,50);
+				break;
+			case 1:
+				MakeWindowTransparent(hwnd,cfg.transparency);
+				break;
+			case 2:
+				MakeWindowTransparent(hwnd,255);
+				break;
+			default:
+				MakeWindowTransparent(hwnd,255);
+				break;
+			}
+		}
 		else if (1==shift_state)
 		{
+			cfg.transparency_mode = 1;
 			cfg.transparency-=5;
 			cfg.transparency = max(50,cfg.transparency);
 			MakeWindowTransparent(hwnd,cfg.transparency);
@@ -4324,10 +4342,27 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 		return -1;
 	}
 	if (left_alt && wParam == VK_OEM_6){
-		if(0==shift_state)
-			MakeWindowTransparent(hwnd,cfg.transparency);
-		else if (1==shift_state)
+		if(0==shift_state){
+			cfg.transparency_mode++;			
+			cfg.transparency_mode = min(2,cfg.transparency_mode);
+			switch (cfg.transparency_mode)
+			{
+			case 0:
+				MakeWindowTransparent(hwnd,50);
+				break;
+			case 1:
+				MakeWindowTransparent(hwnd,cfg.transparency);
+				break;
+			case 2:
+				MakeWindowTransparent(hwnd,255);
+				break;
+			default:
+				MakeWindowTransparent(hwnd,255);
+				break;
+			}
+		}else if (1==shift_state)
 		{
+			cfg.transparency_mode = 1;
 			cfg.transparency+=5;
 			cfg.transparency = min(255,cfg.transparency);
 			MakeWindowTransparent(hwnd,cfg.transparency);
