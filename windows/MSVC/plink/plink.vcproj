@@ -4,6 +4,7 @@
 	Version="8.00"
 	Name="plink"
 	ProjectGUID="{6830D831-31F0-4396-918C-247AABF04A12}"
+	RootNamespace="plink"
 	>
 	<Platforms>
 		<Platform
@@ -49,7 +50,7 @@
 				Optimization="2"
 				InlineFunctionExpansion="1"
 				AdditionalIncludeDirectories="..\..\..\./,..\..\..\charset/,..\..\..\windows/,..\..\..\unix/,..\..\..\mac/,..\..\..\macosx/"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;WIN32_LEAN_AND_MEAN"
 				StringPooling="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
@@ -143,7 +144,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="..\..\..\./,..\..\..\charset/,..\..\..\windows/,..\..\..\unix/,..\..\..\mac/,..\..\..\macosx/"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;WIN32_LEAN_AND_MEAN"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"

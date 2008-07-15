@@ -4,6 +4,7 @@
 	Version="8.00"
 	Name="puttytel"
 	ProjectGUID="{CE21A960-745C-4906-8748-D5C0CD7446F1}"
+	RootNamespace="puttytel"
 	>
 	<Platforms>
 		<Platform
@@ -48,7 +49,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="..\..\..\./,..\..\..\charset/,..\..\..\windows/,..\..\..\unix/,..\..\..\mac/,..\..\..\macosx/"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;WIN32_LEAN_AND_MEAN"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
@@ -145,7 +146,7 @@
 				Optimization="2"
 				InlineFunctionExpansion="1"
 				AdditionalIncludeDirectories="..\..\..\./,..\..\..\charset/,..\..\..\windows/,..\..\..\unix/,..\..\..\mac/,..\..\..\macosx/"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;WIN32_LEAN_AND_MEAN"
 				StringPooling="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
@@ -433,6 +434,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\..\PickIconDialog.c"
+				>
+			</File>
+			<File
 				RelativePath="..\..\..\pinger.c"
 				>
 				<FileConfiguration
@@ -497,6 +502,10 @@
 						PreprocessorDefinitions=""
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\re_lib\regexp.cpp"
+				>
 			</File>
 			<File
 				RelativePath="..\..\..\rlogin.c"
@@ -673,6 +682,10 @@
 						PreprocessorDefinitions=""
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\urlhack.cpp"
+				>
 			</File>
 			<File
 				RelativePath="..\..\..\version.c"
@@ -1108,6 +1121,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\PickIconDialog.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\..\proxy.h"
 				>
 			</File>
@@ -1128,6 +1145,14 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\re_lib\regexp.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\re_lib\regmagic.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\..\ssh.h"
 				>
 			</File>
@@ -1145,6 +1170,10 @@
 			</File>
 			<File
 				RelativePath="..\..\..\unix\unix.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\urlhack.h"
 				>
 			</File>
 			<File

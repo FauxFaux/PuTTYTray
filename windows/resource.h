@@ -701,7 +701,6 @@
 #define EM_UNDO                         0x00C7
 #define EM_FMTLINES                     0x00C8
 #define EM_LINEFROMCHAR                 0x00C9
-#define IDI_TRAYICON                    202
 #define EM_SETTABSTOPS                  0x00CB
 #define EM_SETPASSWORDCHAR              0x00CC
 #define EM_EMPTYUNDOBUFFER              0x00CD

@@ -4,6 +4,7 @@
 	Version="8.00"
 	Name="puttygen"
 	ProjectGUID="{D9C3DD4A-5E3B-498A-9A7B-C348CD15169C}"
+	RootNamespace="puttygen"
 	>
 	<Platforms>
 		<Platform
@@ -49,7 +50,7 @@
 				Optimization="2"
 				InlineFunctionExpansion="1"
 				AdditionalIncludeDirectories="..\..\..\./,..\..\..\charset/,..\..\..\windows/,..\..\..\unix/,..\..\..\mac/,..\..\..\macosx/"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;WIN32_LEAN_AND_MEAN"
 				StringPooling="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
@@ -143,7 +144,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="..\..\..\./,..\..\..\charset/,..\..\..\windows/,..\..\..\unix/,..\..\..\mac/,..\..\..\macosx/"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;WIN32_LEAN_AND_MEAN"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
@@ -277,6 +278,10 @@
 						PreprocessorDefinitions=""
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\PickIconDialog.c"
+				>
 			</File>
 			<File
 				RelativePath="..\..\..\sshaes.c"
@@ -815,6 +820,10 @@
 			</File>
 			<File
 				RelativePath="..\..\..\macosx\osx.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\PickIconDialog.h"
 				>
 			</File>
 			<File
