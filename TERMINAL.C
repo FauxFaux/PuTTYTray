@@ -2435,21 +2435,32 @@ static void do_osc(Terminal *term)
 	    term->wordness[(unsigned char)
 		term->osc_string[term->osc_strlen]] = term->esc_args[0];
     } else {
-	term->osc_string[term->osc_strlen] = '\0';
-	switch (term->esc_args[0]) {
-	  case 0:
-	  case 1:
-	    if (!term->cfg.no_remote_wintitle)
-		set_icon(term->frontend, term->osc_string);
-	    if (term->esc_args[0] == 1)
-		break;
-	    /* fall through: parameter 0 means set both */
-	  case 2:
-	  case 21:
-	    if (!term->cfg.no_remote_wintitle)
-		set_title(term->frontend, term->osc_string);
-	    break;
-	}
+		wchar_t *osc_wstring;
+		int wlen, mblen, cp;
+		term->osc_string[term->osc_strlen] = '\0';
+
+		cp = decode_codepage(term->cfg.line_codepage);
+		mblen = strlen(term->osc_string);
+		wlen = mb_to_wc(cp, 0, term->osc_string, term->osc_strlen, NULL, 0);
+		osc_wstring = snewn(wlen + 1, wchar_t);
+		mb_to_wc(cp, 0, term->osc_string, term->osc_strlen, osc_wstring, wlen);
+		osc_wstring[wlen] = '\0';
+		
+		switch (term->esc_args[0]) {
+		  case 0:
+		  case 1:
+			if (!term->cfg.no_remote_wintitle)
+				set_icon(term->frontend, osc_wstring);
+			if (term->esc_args[0] == 1)
+			break;
+			/* fall through: parameter 0 means set both */
+		  case 2:
+		  case 21:
+			if (!term->cfg.no_remote_wintitle)
+				set_title(term->frontend, osc_wstring);
+			break;
+		}
+		sfree(osc_wstring);
     }
 }
 

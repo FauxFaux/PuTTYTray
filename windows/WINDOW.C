@@ -212,7 +212,7 @@ static int wheel_accumulator = 0;
 
 static int busy_status = BUSY_NOT;
 
-static char *window_name, *icon_name;
+static wchar_t *window_name, *icon_name;
 
 static int compose_state = 0;
 
@@ -227,7 +227,7 @@ static BOOL puttyTrayVisible;
 static BOOL puttyTrayFlash;
 static HICON puttyTrayFlashIcon;
 static BOOL windowMinimized = FALSE;
-BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon);
+BOOL taskbar_addicon(LPWSTR lpszTip, BOOL showIcon);
 void tray_updatemenu(BOOL disableMenuItems);
 #define WM_NOTIFY_PUTTYTRAY (WM_USER + 1983)
 
@@ -288,6 +288,7 @@ static void start_backend(void)
 {
     const char *error;
     char msg[1024], *title;
+	wchar_t *titleW;
     char *realhost;
     int i;
 
@@ -323,14 +324,22 @@ static void start_backend(void)
     }
     window_name = icon_name = NULL;
     if (*cfg.wintitle) {
-	title = cfg.wintitle;
+	    title = cfg.wintitle;
     } else {
-	sprintf(msg, "%s - %s", realhost, appname);
-	title = msg;
+	    sprintf(msg, "%s - %s", realhost, appname);
+        title = msg;
     }
     sfree(realhost);
-    set_title(NULL, title);
-    set_icon(NULL, title);
+    
+    {
+        int cp = decode_codepage(cfg.line_codepage);
+        int wlen = MultiByteToWideChar(cp, 0, title, strlen(title), NULL, 0);
+        titleW = snewn(1 + wlen, wchar_t);
+        MultiByteToWideChar(cp, 0, title, strlen(title), titleW, wlen);
+        titleW[wlen] = '\0';
+        set_title(NULL, titleW);
+        set_icon(NULL, titleW);
+    }
 
     /*
      * Connect the terminal to the backend for resize purposes.
@@ -360,12 +369,14 @@ static void start_backend(void)
 static void close_session(void)
 {
     char morestuff[100];
+    wchar_t morestuffW[200] = {0};
     int i;
 
     session_closed = TRUE;
     sprintf(morestuff, "%.70s (inactive)", appname);
-    set_icon(NULL, morestuff);
-    set_title(NULL, morestuff);
+	MultiByteToWideChar(CP_ACP, 0, morestuff, strlen(morestuff), morestuffW, 200);
+    set_icon(NULL, morestuffW);
+    set_title(NULL, morestuffW);
 
     if (ldisc) {
 	ldisc_free(ldisc);
@@ -1037,7 +1048,7 @@ void cleanup_exit(int code)
 	/* HACK: PuttyTray 
 	 * Remove trayicon on close 
 	 */
-	taskbar_addicon("", FALSE);
+	taskbar_addicon(L"", FALSE);
 	DestroyIcon(puttyTray.hIcon);
 
     /*
@@ -2414,8 +2425,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 			inst = GetWindowLong(hwnd, -6);
 			DestroyIcon(puttyTray.hIcon);
 			puttyTray.hIcon	= LoadImage(inst, MAKEINTRESOURCE(IDI_TRAYICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
-			SetClassLong(hwnd, GCL_HICON, LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED));
-			SetClassLong(hwnd, GCL_HICONSM, LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED));
+			SetClassLong(hwnd, GCL_HICON, (LONG)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED));
+			SetClassLong(hwnd, GCL_HICONSM, (LONG)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED));
 		}
 		if (puttyTrayVisible) {
 			taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
@@ -2514,11 +2525,15 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    init_lvl = 2;
 		}
 
-		set_title(NULL, cfg.wintitle);
+		{ 
+		wchar_t wintitleW[512] = {0};
+		MultiByteToWideChar(decode_codepage(cfg.line_codepage), 0, cfg.wintitle, strlen(cfg.wintitle), wintitleW, 512);
+		set_title(NULL, wintitleW);
 		if (IsIconic(hwnd)) {
-		    SetWindowText(hwnd,
+		    SetWindowTextW(hwnd,
 				  cfg.win_name_always ? window_name :
 				  icon_name);
+		}
 		}
 
 		if (strcmp(cfg.font.name, prev_cfg.font.name) != 0 ||
@@ -3110,7 +3125,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 			control_pressed=keys[VK_CONTROL]&0x80;
 		}
 
-		SetWindowText(hwnd, cfg.win_name_always ? window_name : icon_name);
+		SetWindowTextW(hwnd, cfg.win_name_always ? window_name : icon_name);
 		
 		if (cfg.tray == TRAY_NORMAL || cfg.tray == TRAY_START || control_pressed > 0) {
 			taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
@@ -3122,7 +3137,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	}
 
 	if (wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED)
-	    SetWindowText(hwnd, window_name);
+	    SetWindowTextW(hwnd, window_name);
         if (wParam == SIZE_RESTORED)
             clear_full_screen();
         if (wParam == SIZE_MAXIMIZED && fullscr_on_max) {
@@ -4995,14 +5010,15 @@ void request_paste(void *frontend)
     term_do_paste(term);
 }
 
-void set_title(void *frontend, char *title)
+void set_title(void *frontend, wchar_t *title)
 {
-    sfree(window_name);
-    window_name = snewn(1 + strlen(title), char);
-    strcpy(window_name, title);
-    if (cfg.win_name_always || !IsIconic(hwnd))
-	SetWindowText(hwnd, title);
+	int len = wcslen(title);
+	sfree(window_name);
+    window_name = snewn(1 + len, wchar_t);
+	wcscpy(window_name, title);
 
+	if (cfg.win_name_always || !IsIconic(hwnd))
+		SetWindowTextW(hwnd, title);
 	/*
 	 * HACK: Putty Tray
 	 * Change Trayicon Tooltip to window title
@@ -5010,13 +5026,13 @@ void set_title(void *frontend, char *title)
 	taskbar_addicon(cfg.win_name_always ? window_name : icon_name, puttyTrayVisible);
 }
 
-void set_icon(void *frontend, char *title)
+void set_icon(void *frontend, wchar_t *title)
 {
     sfree(icon_name);
-    icon_name = snewn(1 + strlen(title), char);
-    strcpy(icon_name, title);
+    icon_name = snewn(1 + wcslen(title), wchar_t);
+    wcscpy(icon_name, title);
     if (!cfg.win_name_always && IsIconic(hwnd))
-	SetWindowText(hwnd, title);
+	SetWindowTextW(hwnd, title);
 }
 
 void set_sbar(void *frontend, int total, int start, int page)
@@ -6165,17 +6181,20 @@ static HWND find_next_window(void)
 	FRIEND_WINDOW val;
 	num_friends = 0;
 	EnumWindows(EnumWndProc, IDM_NEXTWINDOW);
+	// Sort, because the retrieving order of EnumWindows is not defined.
 	for (i = 1; i < num_friends; i++) {
 		val = friend_windows[i];
 		j = i - 1;
-		while (j >= 0 && friend_windows[j].pid > val.pid
-			   && friend_windows[j].hwnd > val.hwnd)
+		// pid for each window is unique, because each process can only have
+		// at most one session window.
+		while (j >= 0 && friend_windows[j].pid > val.pid)
 		{
 			friend_windows[j + 1] = friend_windows[j];
 			j--;
 		}
 		friend_windows[j + 1] = val;
 	}
+	// Find the next window in the sorted array.
 	for (i = 0; i < num_friends; i++) {
 		if (friend_windows[i].hwnd == my_hwnd) {
 			if (i == num_friends - 1)

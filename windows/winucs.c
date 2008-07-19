@@ -428,6 +428,10 @@ static const struct cp_list_item cp_list[] = {
     {"CP620 (Mazovia)", 0, 128, mazovia},
     {"CP819", 28591},
     {"CP878", 20866},
+	{"CP932", 932},
+	{"CP936", 936},
+	{"CP949", 949},
+	{"CP950", 950},
 
     {"Use font encoding", -1},
 
@@ -1107,8 +1111,8 @@ int decode_codepage(char *cp_name)
 	if (codepage != CP_UTF8 && codepage < 65536) {
 	    if (GetCPInfo(codepage, &cpinfo) == 0) {
 		codepage = -2;
-	    } else if (cpinfo.MaxCharSize > 1)
-		codepage = -3;
+	    } //else if (cpinfo.MaxCharSize > 1)
+		//codepage = -3;
 	}
     }
     if (codepage == -1 && *cp_name)
