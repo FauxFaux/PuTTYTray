@@ -60,6 +60,7 @@
  * Trayicon Menu addons
  */
 #define IDM_VISIBLE 0x0240
+#define IDM_NEXTWINDOW 0x0250
 
 #define IDM_TRAYSEP 0x0210
 #define IDM_TRAYCLOSE 0x0220
@@ -249,6 +250,16 @@ void MakeWindowOnTop(HWND hwnd);
  * HACK: PuttyTray / Transparency
  */ 
 BOOL MakeWindowTransparent(HWND hWnd, int factor);
+BOOL CALLBACK EnumWndProc(HWND hwnd, LPARAM lparam);
+HWND my_hwnd;
+typedef struct _FRIEND_WINDOW {
+	HWND hwnd;
+	int pid;
+} FRIEND_WINDOW;
+#define MAX_FRIENDS 100
+static FRIEND_WINDOW friend_windows[MAX_FRIENDS];
+static int num_friends;
+static HWND find_next_window(void);
 
 typedef DWORD (WINAPI *PSLWA)(HWND, DWORD, BYTE, DWORD);
 static PSLWA pSetLayeredWindowAttributes = NULL;
@@ -384,6 +395,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     WNDCLASSEX wndclass; //HACK: PuttyTray / Session Icon
     MSG msg;
     int guess_width, guess_height;
+	HACCEL hAccel;
 
     hinst = inst;
     hwnd = NULL;
@@ -749,6 +761,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 			      winmode, CW_USEDEFAULT, CW_USEDEFAULT,
 			      guess_width, guess_height,
 			      NULL, NULL, inst, NULL);
+	my_hwnd = hwnd;
     }
 
     /*
@@ -872,6 +885,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 		} else {
 			AppendMenu(m, MF_ENABLED | MF_UNCHECKED, IDM_VISIBLE, "Alwa&ys on top");
 		}
+		AppendMenu(m, MF_ENABLED, IDM_NEXTWINDOW, "Next &Window\tCtrl+Tab");
 
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
 	    if (has_help())
@@ -964,7 +978,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 		UpdateWindow(hwnd);
 	}
 
-    while (1) {
+	hAccel = LoadAccelerators(inst, MAKEINTRESOURCE(IDR_ACCELERATOR1));
+
+	while (1) {
 	HANDLE *handles;
 	int nhandles, n;
 
@@ -982,19 +998,21 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	    sfree(handles);
 
 	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-	    if (msg.message == WM_QUIT)
-		goto finished;	       /* two-level break */
+		if (!TranslateAccelerator(hwnd, hAccel, &msg)) {
+			if (msg.message == WM_QUIT)
+			goto finished;	       /* two-level break */
 
-	    if (!(IsWindow(logbox) && IsDialogMessage(logbox, &msg)))
-		DispatchMessage(&msg);
-	    /* Send the paste buffer if there's anything to send */
-	    term_paste(term);
-	    /* If there's nothing new in the queue then we can do everything
-	     * we've delayed, reading the socket, writing, and repainting
-	     * the window.
-	     */
-	    if (must_close_session)
-		close_session();
+			if (!(IsWindow(logbox) && IsDialogMessage(logbox, &msg)))
+			DispatchMessage(&msg);
+			/* Send the paste buffer if there's anything to send */
+			term_paste(term);
+			/* If there's nothing new in the queue then we can do everything
+			 * we've delayed, reading the socket, writing, and repainting
+			 * the window.
+			 */
+			if (must_close_session)
+			close_session();
+		}
 	}
 
 	/* The messages seem unreliable; especially if we're being tricky */
@@ -2152,6 +2170,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 				WPARAM wParam, LPARAM lParam)
 {
     HDC hdc;
+	HWND hNext;
     static int ignore_clip = FALSE;
     static int need_backend_resize = FALSE;
     static int fullscr_on_max = FALSE;
@@ -2208,7 +2227,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    return 0;
 	}
 	break;
-      case WM_COMMAND:
+	  case WM_COMMAND:
       case WM_SYSCOMMAND:
 	switch (wParam & ~0xF) {       /* low 4 bits reserved to Windows */
 	  case IDM_SHOWLOG:
@@ -2548,6 +2567,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    reset_window(2);
 	    CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_UNICODE, strcmp(cfg.line_codepage, "UTF-8") ? MF_UNCHECKED : MF_CHECKED);
 	    break;
+	  case IDM_NEXTWINDOW:
+		hNext = find_next_window();
+	    SetForegroundWindow(hNext);
+		break;
 	  case IDM_HELP:
 	    launch_help(hwnd, NULL);
 	    break;
@@ -6116,6 +6139,53 @@ BOOL MakeWindowTransparent(HWND hWnd, int factor)
 		SetWindowLong(hWnd, GWL_EXSTYLE, GetWindowLong(hWnd, GWL_EXSTYLE) & ~WS_EX_LAYERED);
 		return TRUE;
 	}
+}
+
+BOOL CALLBACK EnumWndProc(HWND hwnd, LPARAM lparam)
+{
+	char strClass[50] = {0};
+	int pid;
+	if (lparam == IDM_NEXTWINDOW) {
+		GetClassName(hwnd, strClass, 50);
+		if (strcmp(strClass, appname) == 0) {
+			if (num_friends == MAX_FRIENDS) // full....
+				return FALSE;
+			friend_windows[num_friends].hwnd = hwnd;
+			GetWindowThreadProcessId(hwnd, &pid);
+			friend_windows[num_friends].pid = pid;
+			num_friends++;
+		}
+	}
+	return TRUE;
+}
+
+static HWND find_next_window(void)
+{
+	int i, j;
+	FRIEND_WINDOW val;
+	num_friends = 0;
+	EnumWindows(EnumWndProc, IDM_NEXTWINDOW);
+	for (i = 1; i < num_friends; i++) {
+		val = friend_windows[i];
+		j = i - 1;
+		while (j >= 0 && friend_windows[j].pid > val.pid
+			   && friend_windows[j].hwnd > val.hwnd)
+		{
+			friend_windows[j + 1] = friend_windows[j];
+			j--;
+		}
+		friend_windows[j + 1] = val;
+	}
+	for (i = 0; i < num_friends; i++) {
+		if (friend_windows[i].hwnd == my_hwnd) {
+			if (i == num_friends - 1)
+				i = 0;
+			else
+				i += 1;
+			return friend_windows[i].hwnd;
+		}
+	}
+	return 0;
 }
 
 /*

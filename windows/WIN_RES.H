@@ -37,4 +37,6 @@
 #define IDC_HELPBTN     1005
 #define IDC_ABOUT       1006
 
+#define IDR_ACCELERATOR1	108
+
 #endif
