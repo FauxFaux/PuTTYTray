@@ -6147,7 +6147,7 @@ BOOL CALLBACK EnumWndProc(HWND hwnd, LPARAM lparam)
 	int pid;
 	if (lparam == IDM_NEXTWINDOW) {
 		GetClassName(hwnd, strClass, 50);
-		if (strcmp(strClass, appname) == 0) {
+		if (strcmp(strClass, appname) == 0 && IsWindowVisible(hwnd)) {
 			if (num_friends == MAX_FRIENDS) // full....
 				return FALSE;
 			friend_windows[num_friends].hwnd = hwnd;
