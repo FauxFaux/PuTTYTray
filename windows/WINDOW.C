@@ -304,7 +304,6 @@ static void start_backend(void)
 	}
     if (back == NULL) {
 	    char *str = dupprintf("%s Internal Error", appname);
-        sprintf(str, "%s Error", appname);
 	    MessageBox(NULL, "Unsupported protocol number found",
 		       str, MB_OK | MB_ICONEXCLAMATION);
 	    sfree(str);
