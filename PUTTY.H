@@ -817,7 +817,7 @@ void set_zoomed(void *frontend, int zoomed);
 int is_iconic(void *frontend);
 void get_window_pos(void *frontend, int *x, int *y);
 void get_window_pixels(void *frontend, int *x, int *y);
-char *get_window_title(void *frontend, int icon);
+wchar_t *get_window_title(void *frontend, int icon);
 /* Hint from backend to frontend about time-consuming operations.
  * Initial state is assumed to be BUSY_NOT. */
 enum {
@@ -1025,6 +1025,9 @@ extern char ver[];
 #ifndef CP_UTF8
 #define CP_UTF8 65001
 #endif
+#ifdef __cplusplus
+extern "C" {
+#endif
 /* void init_ucs(void); -- this is now in platform-specific headers */
 int is_dbcs_leadbyte(int codepage, char byte);
 int mb_to_wc(int codepage, int flags, char *mbstr, int mblen,
@@ -1032,6 +1035,7 @@ int mb_to_wc(int codepage, int flags, char *mbstr, int mblen,
 int wc_to_mb(int codepage, int flags, wchar_t *wcstr, int wclen,
 	     char *mbstr, int mblen, char *defchr, int *defused,
 	     struct unicode_data *ucsdata);
+wchar_t *short_mb_to_wc(int codepage, int flags, char *mbstr, int mblen);
 wchar_t xlat_uskbd2cyrllic(int ch);
 int check_compose(int first, int second);
 int decode_codepage(char *cp_name);
@@ -1042,9 +1046,6 @@ void get_unitab(int codepage, wchar_t * unitab, int ftype);
 /*
  * Exports from wcwidth.c
  */
-#ifdef __cplusplus
-extern "C" {
-#endif
 int mk_wcwidth(wchar_t ucs);
 int mk_wcswidth(const wchar_t *pwcs, size_t n);
 int mk_wcwidth_cjk(wchar_t ucs);

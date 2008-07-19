@@ -27,7 +27,7 @@ int urlhack_is_in_link_region(int x, int y);
 int urlhack_is_in_this_link_region(text_region r, int x, int y);
 text_region urlhack_get_link_bounds(int x, int y);
 void urlhack_add_link_region(int x0, int y0, int x1, int y1);
-void urlhack_launch_url(const char* app, const char *url);
+void urlhack_launch_url(const wchar_t* app, const wchar_t *url);
 int urlhack_is_ctrl_pressed();
 void urlhack_set_regular_expression(const char* expression);
 

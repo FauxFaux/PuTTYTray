@@ -288,7 +288,7 @@ static void start_backend(void)
 {
     const char *error;
     char msg[1024], *title;
-	wchar_t *titleW;
+	wchar_t *wtitle;
     char *realhost;
     int i;
 
@@ -303,11 +303,12 @@ static void start_backend(void)
 	    break;
 	}
     if (back == NULL) {
-	char *str = dupprintf("%s Internal Error", appname);
-	MessageBox(NULL, "Unsupported protocol number found",
-		   str, MB_OK | MB_ICONEXCLAMATION);
-	sfree(str);
-	cleanup_exit(1);
+	    char *str = dupprintf("%s Internal Error", appname);
+        sprintf(str, "%s Error", appname);
+	    MessageBox(NULL, "Unsupported protocol number found",
+		       str, MB_OK | MB_ICONEXCLAMATION);
+	    sfree(str);
+	    cleanup_exit(1);
     }
 
     error = back->init(NULL, &backhandle, &cfg,
@@ -315,12 +316,11 @@ static void start_backend(void)
 		       cfg.tcp_keepalives);
     back->provide_logctx(backhandle, logctx);
     if (error) {
-	char *str = dupprintf("%s Error", appname);
-	sprintf(msg, "Unable to open connection to\n"
-		"%.800s\n" "%s", cfg_dest(&cfg), error);
-	MessageBox(NULL, msg, str, MB_ICONERROR | MB_OK);
-	sfree(str);
-	exit(0);
+	    char *str = dupprintf("%s Error", appname);
+	    sprintf(msg, "Unable to open connection to\n%.800s\n%s", cfg_dest(&cfg), error);
+	    MessageBox(NULL, msg, str, MB_ICONERROR | MB_OK);
+	    sfree(str);
+	    exit(0);
     }
     window_name = icon_name = NULL;
     if (*cfg.wintitle) {
@@ -331,16 +331,11 @@ static void start_backend(void)
     }
     sfree(realhost);
     
-    {
-        int cp = decode_codepage(cfg.line_codepage);
-        int wlen = MultiByteToWideChar(cp, 0, title, strlen(title), NULL, 0);
-        titleW = snewn(1 + wlen, wchar_t);
-        MultiByteToWideChar(cp, 0, title, strlen(title), titleW, wlen);
-        titleW[wlen] = '\0';
-        set_title(NULL, titleW);
-        set_icon(NULL, titleW);
-    }
-
+    wtitle = short_mb_to_wc(CP_ACP, 0, title, strlen(title));
+    set_title(NULL, wtitle);
+    set_icon(NULL, wtitle);
+    sfree(wtitle);
+    
     /*
      * Connect the terminal to the backend for resize purposes.
      */
@@ -2441,12 +2436,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 				ShowWindow(hwnd, SW_HIDE);
 				taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
 			} else {
-				taskbar_addicon("", FALSE);
+				taskbar_addicon(L"", FALSE);
 			}
 		} else if (cfg.tray == TRAY_ALWAYS) {
 			taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
 		} else {
-			taskbar_addicon("", FALSE);
+			taskbar_addicon(L"", FALSE);
 		}
 
 		/* Screen size changed ? */
@@ -5869,7 +5864,7 @@ void get_window_pixels(void *frontend, int *x, int *y)
 /*
  * Return the window or icon title.
  */
-char *get_window_title(void *frontend, int icon)
+wchar_t *get_window_title(void *frontend, int icon)
 {
     return icon ? icon_name : window_name;
 }
@@ -6068,7 +6063,7 @@ BOOL taskbar_addicon(LPWSTR lpszTip, BOOL showIcon)
 			tray_updatemenu(FALSE);
 			icon_result = Shell_NotifyIconW(NIM_DELETE, &puttyTray);
 			puttyTrayVisible = FALSE;
-			return icon_result; 
+			return icon_result;
 		}
 	}
 

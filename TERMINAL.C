@@ -2436,15 +2436,9 @@ static void do_osc(Terminal *term)
 		term->osc_string[term->osc_strlen]] = term->esc_args[0];
     } else {
 		wchar_t *osc_wstring;
-		int wlen, mblen, cp;
 		term->osc_string[term->osc_strlen] = '\0';
 
-		cp = decode_codepage(term->cfg.line_codepage);
-		mblen = strlen(term->osc_string);
-		wlen = mb_to_wc(cp, 0, term->osc_string, term->osc_strlen, NULL, 0);
-		osc_wstring = snewn(wlen + 1, wchar_t);
-		mb_to_wc(cp, 0, term->osc_string, term->osc_strlen, osc_wstring, wlen);
-		osc_wstring[wlen] = '\0';
+        osc_wstring = short_mb_to_wc(decode_codepage(term->cfg.line_codepage), 0, term->osc_string, term->osc_strlen);
 		
 		switch (term->esc_args[0]) {
 		  case 0:
@@ -3815,27 +3809,37 @@ static void term_out(Terminal *term)
 			      case 20:
 				if (term->ldisc &&
 				    term->cfg.remote_qtitle_action != TITLE_NONE) {
-				    if(term->cfg.remote_qtitle_action == TITLE_REAL)
-					p = get_window_title(term->frontend, TRUE);
-				    else
-					p = EMPTY_WINDOW_TITLE;
+                    p = NULL;
+                    if(term->cfg.remote_qtitle_action == TITLE_REAL) {
+                        wchar_t *wp = get_window_title(term->frontend, TRUE);
+                        p = snewn(101, char);
+                        memset(p, 0, sizeof(char) * 101);
+                        wc_to_mb(decode_codepage(term->cfg.line_codepage), 0, wp, wcslen(wp), p, 100, NULL, NULL, NULL);
+                    } else
+					    p = EMPTY_WINDOW_TITLE;
 				    len = strlen(p);
 				    ldisc_send(term->ldisc, "\033]L", 3, 0);
 				    ldisc_send(term->ldisc, p, len, 0);
 				    ldisc_send(term->ldisc, "\033\\", 2, 0);
+                    sfree(p);
 				}
 				break;
 			      case 21:
 				if (term->ldisc &&
 				    term->cfg.remote_qtitle_action != TITLE_NONE) {
-				    if(term->cfg.remote_qtitle_action == TITLE_REAL)
-					p = get_window_title(term->frontend, FALSE);
-				    else
-					p = EMPTY_WINDOW_TITLE;
+                    p = NULL;
+				    if(term->cfg.remote_qtitle_action == TITLE_REAL) {
+                        wchar_t *wp = get_window_title(term->frontend, FALSE);
+                        p = snewn(101, char);
+                        memset(p, 0, sizeof(char) * 101);
+                        wc_to_mb(decode_codepage(term->cfg.line_codepage), 0, wp, wcslen(wp), p, 100, NULL, NULL, NULL);
+                    } else
+					    p = EMPTY_WINDOW_TITLE;
 				    len = strlen(p);
 				    ldisc_send(term->ldisc, "\033]l", 3, 0);
 				    ldisc_send(term->ldisc, p, len, 0);
 				    ldisc_send(term->ldisc, "\033\\", 2, 0);
+                    sfree(p);
 				}
 				break;
 			    }
@@ -5838,14 +5842,16 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 
 	if ((!term->cfg.url_ctrl_click || (term->cfg.url_ctrl_click && urlhack_is_ctrl_pressed())) && urlhack_is_in_link_region(x, y)) {
 		int i;
-		char *linkbuf = NULL;
+		wchar_t *linkbuf = NULL;
+        wchar_t *browser;
 		text_region region = urlhack_get_link_bounds(x, y);
 
 		if (region.y0 == region.y1) {
-			linkbuf = snewn(region.x1 - region.x0 + 2, char);
+			linkbuf = snewn(region.x1 - region.x0 + 2, wchar_t);
 			
 			for (i = region.x0; i < region.x1; i++) {
-				linkbuf[i - region.x0] = (char)(ldata->chars[i].chr);
+                // TODO: why does chr have unnecessary bits?
+				linkbuf[i - region.x0] = (wchar_t)(ldata->chars[i].chr & CHAR_MASK);
 			}
 
 			linkbuf[i - region.x0] = '\0';
@@ -5857,10 +5863,10 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 			linklen = (term->cols - region.x0) +
 				((region.y1 - region.y0 - 1) * term->cols) + region.x1 + 1;
 
-			linkbuf = snewn(linklen, char);
+			linkbuf = snewn(linklen, wchar_t);
 
 			for (i = region.x0; i < linklen + region.x0; i++) {
-				linkbuf[i - region.x0] = (char)(urldata->chars[i % term->cols].chr);
+				linkbuf[i - region.x0] = (wchar_t)(urldata->chars[i % term->cols].chr & CHAR_MASK);
 				
 				// Jump to next line?
 				if (((i + 1) % term->cols) == 0) {
@@ -5872,9 +5878,14 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 			linkbuf[linklen - 1] = '\0';
 			unlineptr(urldata);
 		}
-		
-		urlhack_launch_url(!term->cfg.url_defbrowser ? term->cfg.url_browser : NULL, linkbuf);
-		
+        if (!term->cfg.url_defbrowser) {
+            browser = short_mb_to_wc(decode_codepage(term->cfg.line_codepage), 0, term->cfg.url_browser, strlen(term->cfg.url_browser));
+        } else
+            browser = NULL;
+
+		urlhack_launch_url(browser, linkbuf);
+
+        sfree(browser);
 		sfree(linkbuf);
 	}
 	/* HACK: PuttyTray / Nutty : END */

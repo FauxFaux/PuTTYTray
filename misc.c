@@ -142,6 +142,17 @@ char *dupstr(const char *s)
     return p;
 }
 
+wchar_t *dupwstr(const wchar_t *s)
+{
+    wchar_t *p = NULL;
+    if (s) {
+        int len = wcslen(s);
+        p = snewn(len + 1, wchar_t);
+        wcscpy(p, s);
+    }
+    return p;
+}
+
 /* Allocate the concatenation of N strings. Terminate arg list with NULL. */
 char *dupcat(const char *s1, ...)
 {
@@ -170,6 +181,39 @@ char *dupcat(const char *s1, ...)
 	    break;
 	strcpy(q, sn);
 	q += strlen(q);
+    }
+    va_end(ap);
+
+    return p;
+}
+
+wchar_t *dupwcat(const wchar_t *s1, ...)
+{
+    int len;
+    wchar_t *p, *q, *sn;
+    va_list ap;
+
+    len = wcslen(s1);
+    va_start(ap, s1);
+    while (1) {
+	sn = va_arg(ap, wchar_t *);
+	if (!sn)
+	    break;
+	len += wcslen(sn);
+    }
+    va_end(ap);
+
+    p = snewn(len + 1, wchar_t);
+    wcscpy(p, s1);
+    q = p + wcslen(p);
+
+    va_start(ap, s1);
+    while (1) {
+	sn = va_arg(ap, wchar_t *);
+	if (!sn)
+	    break;
+	wcscpy(q, sn);
+	q += wcslen(q);
     }
     va_end(ap);
 
@@ -220,6 +264,17 @@ char *dupprintf(const char *fmt, ...)
     va_end(ap);
     return ret;
 }
+
+wchar_t *dupwprintf(const wchar_t *fmt, ...)
+{
+    wchar_t *ret;
+    va_list ap;
+    va_start(ap, fmt);
+    ret = dupvwprintf(fmt, ap);
+    va_end(ap);
+    return ret;
+}
+
 char *dupvprintf(const char *fmt, va_list ap)
 {
     char *buf;
@@ -264,6 +319,53 @@ char *dupvprintf(const char *fmt, va_list ap)
 	    size += 512;
 	}
 	buf = sresize(buf, size, char);
+    }
+}
+
+wchar_t *dupvwprintf(const wchar_t *fmt, va_list ap) {
+    wchar_t *buf;
+    int len, size;
+
+    buf = snewn(512, wchar_t);
+    size = 512;
+
+    while (1) {
+//#ifdef _WINDOWS
+//#define vswnprintf _vswnprintf
+//#endif
+    // NOTE: There's no vswnprintf() function. Only use vswprintf().
+#ifdef va_copy
+	/* Use the `va_copy' macro mandated by C99, if present.
+	 * XXX some environments may have this as __va_copy() */
+	va_list aq;
+	va_copy(aq, ap);
+	len = vswprintf(buf, size, fmt, aq);
+	va_end(aq);
+#else
+	/* Ugh. No va_copy macro, so do something nasty.
+	 * Technically, you can't reuse a va_list like this: it is left
+	 * unspecified whether advancing a va_list pointer modifies its
+	 * value or something it points to, so on some platforms calling
+	 * vsnprintf twice on the same va_list might fail hideously
+	 * (indeed, it has been observed to).
+	 * XXX the autoconf manual suggests that using memcpy() will give
+	 *     "maximum portability". */
+	len = vswprintf(buf, size, fmt, ap);
+#endif
+	if (len >= 0 && len < size) {
+	    /* This is the C99-specified criterion for snprintf to have
+	     * been completely successful. */
+	    return buf;
+	} else if (len > 0) {
+	    /* This is the C99 error condition: the returned length is
+	     * the required buffer size not counting the NUL. */
+	    size = len + 1;
+	} else {
+	    /* This is the pre-C99 glibc error condition: <0 means the
+	     * buffer wasn't big enough, so we enlarge it a bit and hope. */
+	    size += 512;
+	}
+	buf = sresize(buf, size, wchar_t);
     }
 }
 
