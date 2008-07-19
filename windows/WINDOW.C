@@ -222,7 +222,7 @@ static UINT wm_mousewheel = WM_MOUSEWHEEL;
  * HACK: PuttyTray
  * Trayicon struct, Message ID and functions
  */
-static NOTIFYICONDATA puttyTray;
+static NOTIFYICONDATAW puttyTray;
 static BOOL puttyTrayVisible;
 static BOOL puttyTrayFlash;
 static HICON puttyTrayFlashIcon;
@@ -6041,14 +6041,14 @@ void agent_schedule_callback(void (*callback)(void *, void *, int),
  * HACK: PuttyTray
  * Function to add icon to the taskbar's system tray
  */
-BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon) 
+BOOL taskbar_addicon(LPWSTR lpszTip, BOOL showIcon) 
 { 
     BOOL icon_result; 
 
 	if (showIcon) {
 		// Set Tooltip
 		if (lpszTip) {
-			strncpy(puttyTray.szTip, lpszTip, sizeof(puttyTray.szTip));
+			wcsncpy(puttyTray.szTip, lpszTip, sizeof(puttyTray.szTip));
 		} else {
 			puttyTray.szTip[0] = (TCHAR)'\0'; 
 		}
@@ -6056,17 +6056,17 @@ BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon)
 		// Set icon visibility
 		if (!puttyTrayVisible) {
 			tray_updatemenu(TRUE);
-			icon_result = Shell_NotifyIcon(NIM_ADD, &puttyTray);
+			icon_result = Shell_NotifyIconW(NIM_ADD, &puttyTray);
 			puttyTrayVisible = TRUE;
 			return icon_result; 
 		} else {
-			icon_result = Shell_NotifyIcon(NIM_MODIFY, &puttyTray);
+			icon_result = Shell_NotifyIconW(NIM_MODIFY, &puttyTray);
 			return icon_result; 
 		}
 	} else {
 		if (puttyTrayVisible) {
 			tray_updatemenu(FALSE);
-			icon_result = Shell_NotifyIcon(NIM_DELETE, &puttyTray);
+			icon_result = Shell_NotifyIconW(NIM_DELETE, &puttyTray);
 			puttyTrayVisible = FALSE;
 			return icon_result; 
 		}
