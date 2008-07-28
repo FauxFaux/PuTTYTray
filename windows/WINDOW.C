@@ -2175,7 +2175,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 				WPARAM wParam, LPARAM lParam)
 {
     HDC hdc;
-	HWND hNext;
+    HWND hNext;
+    static UINT msg_TaskbarCreated = -1;
     static int ignore_clip = FALSE;
     static int need_backend_resize = FALSE;
     static int fullscr_on_max = FALSE;
@@ -2199,6 +2200,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	}
 	return 0;
       case WM_CREATE:
+        msg_TaskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
 	break;
       case WM_CLOSE:
 	{
@@ -3520,58 +3522,61 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	 * END HACKS: PuttyTray / Trayicon & Reconnect
 	 */
 
-      default:
-	if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
-	    int shift_pressed=0, control_pressed=0;
+    default:
+        if (message == msg_TaskbarCreated) {
+            puttyTrayVisible = FALSE;
+            taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
+        } else if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
+            int shift_pressed=0, control_pressed=0;
 
-	    if (message == WM_MOUSEWHEEL) {
-		wheel_accumulator += (short)HIWORD(wParam);
-		shift_pressed=LOWORD(wParam) & MK_SHIFT;
-		control_pressed=LOWORD(wParam) & MK_CONTROL;
-	    } else {
-		BYTE keys[256];
-		wheel_accumulator += (int)wParam;
-		if (GetKeyboardState(keys)!=0) {
-		    shift_pressed=keys[VK_SHIFT]&0x80;
-		    control_pressed=keys[VK_CONTROL]&0x80;
-		}
-	    }
+            if (message == WM_MOUSEWHEEL) {
+                wheel_accumulator += (short)HIWORD(wParam);
+                shift_pressed=LOWORD(wParam) & MK_SHIFT;
+                control_pressed=LOWORD(wParam) & MK_CONTROL;
+            } else {
+                BYTE keys[256];
+                wheel_accumulator += (int)wParam;
+                if (GetKeyboardState(keys)!=0) {
+                    shift_pressed=keys[VK_SHIFT]&0x80;
+                    control_pressed=keys[VK_CONTROL]&0x80;
+                }
+            }
 
-	    /* process events when the threshold is reached */
-	    while (abs(wheel_accumulator) >= WHEEL_DELTA) {
-		int b;
+            /* process events when the threshold is reached */
+            while (abs(wheel_accumulator) >= WHEEL_DELTA) {
+                int b;
 
-		/* reduce amount for next time */
-		if (wheel_accumulator > 0) {
-		    b = MBT_WHEEL_UP;
-		    wheel_accumulator -= WHEEL_DELTA;
-		} else if (wheel_accumulator < 0) {
-		    b = MBT_WHEEL_DOWN;
-		    wheel_accumulator += WHEEL_DELTA;
-		} else
-		    break;
+                /* reduce amount for next time */
+                if (wheel_accumulator > 0) {
+                    b = MBT_WHEEL_UP;
+                    wheel_accumulator -= WHEEL_DELTA;
+                } else if (wheel_accumulator < 0) {
+                    b = MBT_WHEEL_DOWN;
+                    wheel_accumulator += WHEEL_DELTA;
+                } else
+                    break;
 
-		if (send_raw_mouse &&
-		    !(cfg.mouse_override && shift_pressed)) {
-		    /* send a mouse-down followed by a mouse up */
-		    term_mouse(term, b, translate_button(b),
-			       MA_CLICK,
-			       TO_CHR_X(X_POS(lParam)),
-			       TO_CHR_Y(Y_POS(lParam)), shift_pressed,
-			       control_pressed, is_alt_pressed());
-		    term_mouse(term, b, translate_button(b),
-			       MA_RELEASE, TO_CHR_X(X_POS(lParam)),
-			       TO_CHR_Y(Y_POS(lParam)), shift_pressed,
-			       control_pressed, is_alt_pressed());
-		} else {
-		    /* trigger a scroll */
-		    term_scroll(term, 0,
-				b == MBT_WHEEL_UP ?
-				-term->rows / 2 : term->rows / 2);
-		}
-	    }
-	    return 0;
-	}
+                if (send_raw_mouse &&
+                    !(cfg.mouse_override && shift_pressed)) {
+                        /* send a mouse-down followed by a mouse up */
+                        term_mouse(term, b, translate_button(b),
+                            MA_CLICK,
+                            TO_CHR_X(X_POS(lParam)),
+                            TO_CHR_Y(Y_POS(lParam)), shift_pressed,
+                            control_pressed, is_alt_pressed());
+                        term_mouse(term, b, translate_button(b),
+                            MA_RELEASE, TO_CHR_X(X_POS(lParam)),
+                            TO_CHR_Y(Y_POS(lParam)), shift_pressed,
+                            control_pressed, is_alt_pressed());
+                } else {
+                    /* trigger a scroll */
+                    term_scroll(term, 0,
+                        b == MBT_WHEEL_UP ?
+                        -term->rows / 2 : term->rows / 2);
+                }
+            }
+            return 0;
+        }
     }
 
     /*
