@@ -274,6 +274,13 @@ struct terminal_tag {
     struct bidi_cache_entry *pre_bidi_cache, *post_bidi_cache;
     int bidi_cache_size;
 
+#ifdef ONTHESPOT
+    /*
+     * These are stuff used by the on-the-spot IME support code.
+     */
+    int onthespot;
+    char onthespot_buf[2];
+#endif
 	/*
 	 * HACK: PuttyTray / Nutty
 	 */

@@ -2056,6 +2056,18 @@ static void set_input_locale(HKL kl)
 		  lbuf, sizeof(lbuf));
 
     kbd_codepage = atoi(lbuf);
+
+#ifdef ONTHESPOT
+    /* Korean IME doesn't need to show the external IME composing
+     * window and it can make users less intuitive to see what they
+     * are typing. */
+    if (kbd_codepage == 949 /* Korean */) {
+	term->onthespot = 1;
+	term->onthespot_buf[0] = 0;
+    }
+    else
+	term->onthespot = 0;
+#endif
 }
 
 static void click(Mouse_Button b, int x, int y, int shift, int ctrl, int alt)
@@ -3350,10 +3362,34 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
       case WM_IME_STARTCOMPOSITION:
 	{
 	    HIMC hImc = ImmGetContext(hwnd);
-	    ImmSetCompositionFont(hImc, &lfont);
+            LOGFONT lf_compose;
+#ifdef ONTHESPOT
+	    if (term->onthespot) {
+		COMPOSITIONFORM cf;
+		RECT rectWorkArea;
+
+		SystemParametersInfo(SPI_GETWORKAREA, 0,
+				     (void*)&rectWorkArea, 0);
+		cf.dwStyle = CFS_POINT;
+		cf.ptCurrentPos.x = 0; // drive out of screen
+		cf.ptCurrentPos.y = rectWorkArea.bottom+50;
+                GetObject(fonts[FONT_UNICODE], sizeof(LOGFONT), &lf_compose);
+                ImmSetCompositionFont(hImc, &lf_compose);
+		ImmSetCompositionWindow(hImc, &cf);
+		ImmReleaseContext(hwnd, hImc);
+		term->onthespot_buf[0] = 0;
+		return 0;
+	    }
+#endif
+            ImmSetCompositionFont(hImc, &lfont);
 	    ImmReleaseContext(hwnd, hImc);
 	}
 	break;
+#ifdef ONTHESPOT
+      case WM_IME_ENDCOMPOSITION:
+	term->onthespot_buf[0] = 0;
+	break;
+#endif
       case WM_IME_COMPOSITION:
 	{
 	    HIMC hIMC;
@@ -3363,9 +3399,28 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    if(osVersion.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS || 
 	        osVersion.dwPlatformId == VER_PLATFORM_WIN32s) break; /* no Unicode */
 
-	    if ((lParam & GCS_RESULTSTR) == 0) /* Composition unfinished. */
-		break; /* fall back to DefWindowProc */
+            if ((lParam & GCS_RESULTSTR) == 0) { /* Composition unfinished. */
+#ifdef ONTHESPOT
+		if (term->onthespot) {
+		    RECT invrect;
+                    HDC hdc;
 
+		    /* IME_COMPOSITION carries "DBCS" character */
+		    term->onthespot_buf[0] = wParam >> 8;
+		    term->onthespot_buf[1] = wParam & 0xff;
+		    invrect.left = caret_x;
+		    invrect.top = caret_y;
+		    invrect.right = caret_x + font_width * 2;
+		    invrect.bottom = caret_y + font_height;
+		    InvalidateRect(hwnd, &invrect, TRUE);
+		}
+#endif
+		break; /* fall back to DefWindowProc */
+            }
+#ifdef ONTHESPOT
+	    else
+		term->onthespot_buf[0] = 0;
+#endif
 	    hIMC = ImmGetContext(hwnd);
 	    n = ImmGetCompositionStringW(hIMC, GCS_RESULTSTR, NULL, 0);
 

@@ -1250,6 +1250,10 @@ static void power_on(Terminal *term, int clear)
     term->curs.x = 0;
     term_schedule_tblink(term);
     term_schedule_cblink(term);
+#ifdef ONTHESPOT
+    term->onthespot = 0;
+    term->onthespot_buf[0] = 0;
+#endif
 }
 
 /*
@@ -4817,6 +4821,7 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	int last_run_dirty = 0;
 	int laststart, dirtyrect;
 	int *backward;
+        int cursor_wide = 0;
 
 	scrpos.y = i + term->disptop;
 	ldata = lineptr(scrpos.y);
@@ -4949,6 +4954,35 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 		term->curstype = cursor;
 		term->dispcursx = j;
 		term->dispcursy = i;
+                if (/*in_dbcs(term) &&*/ is_dbcs_leadbyte((term)->ucsdata->line_codepage, (unsigned char)tchar)) {
+		    static FILE *fp = NULL;
+		    if (fp == NULL) {
+			fp = fopen("c:\\terminallog.txt", "w");
+		    }
+		    fprintf(fp, "[%02x]\n", (unsigned char)tchar);
+		    fflush(fp);
+		    cursor_wide = 1;
+		}
+#ifdef ONTHESPOT
+		if (term->onthespot && term->onthespot_buf[0]) {
+		    tchar = tchar & 0xffffff00 |
+			    (unsigned char)term->onthespot_buf[0];
+		    tattr |= ATTR_INVALID;
+                }
+	    }
+	    /* Onthespot IMEs always process DBCS characters and cursors
+	     * are always wide while composing */
+	    else if (i == our_curs_y && j == our_curs_x + 1 &&
+			term->onthespot && term->onthespot_buf[0]) {
+	    	tattr |= cursor | ATTR_INVALID;
+		term->curstype = cursor;
+		tchar = tchar & 0xffffff00 | (unsigned char)term->onthespot_buf[1];
+#endif
+	    }
+	    else if (cursor_wide && i == our_curs_y && j == our_curs_x+1) {
+		tattr |= cursor;
+		term->curstype = cursor;
+		cursor_wide = 0;
 	    }
 
 	    /* FULL-TERMCHAR */
@@ -5011,6 +5045,9 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 
 	    tattr = newline[j].attr;
 	    tchar = newline[j].chr;
+
+            if (cursor_wide && i == our_curs_y && j == our_curs_x+1)
+                tattr = newline[j].attr = attr;
 
 	    if ((term->disptext[i]->chars[j].attr ^ tattr) & ATTR_WIDE)
 		dirty_line = TRUE;
