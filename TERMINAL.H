@@ -279,7 +279,7 @@ struct terminal_tag {
      * These are stuff used by the on-the-spot IME support code.
      */
     int onthespot;
-    char onthespot_buf[2];
+    wchar_t onthespot_buf[2];
 #endif
 	/*
 	 * HACK: PuttyTray / Nutty

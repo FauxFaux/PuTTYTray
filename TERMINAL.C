@@ -1253,6 +1253,7 @@ static void power_on(Terminal *term, int clear)
 #ifdef ONTHESPOT
     term->onthespot = 0;
     term->onthespot_buf[0] = 0;
+    term->onthespot_buf[1] = 0;
 #endif
 }
 
@@ -4667,6 +4668,7 @@ static termchar *term_bidi_line(Terminal *term, struct termline *ldata,
  */
 static void do_paint(Terminal *term, Context ctx, int may_optimise)
 {
+    static FILE *fp = NULL;
     int i, j, our_curs_y, our_curs_x;
     int rv, cursor;
     pos scrpos;
@@ -4955,18 +4957,11 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 		term->dispcursx = j;
 		term->dispcursy = i;
                 if (/*in_dbcs(term) &&*/ is_dbcs_leadbyte((term)->ucsdata->line_codepage, (unsigned char)tchar)) {
-		    static FILE *fp = NULL;
-		    if (fp == NULL) {
-			fp = fopen("c:\\terminallog.txt", "w");
-		    }
-		    fprintf(fp, "[%02x]\n", (unsigned char)tchar);
-		    fflush(fp);
 		    cursor_wide = 1;
 		}
 #ifdef ONTHESPOT
 		if (term->onthespot && term->onthespot_buf[0]) {
-		    tchar = tchar & 0xffffff00 |
-			    (unsigned char)term->onthespot_buf[0];
+                    tchar = tchar & 0xffff0000 | term->onthespot_buf[0];
 		    tattr |= ATTR_INVALID;
                 }
 	    }
@@ -4975,8 +4970,11 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	    else if (i == our_curs_y && j == our_curs_x + 1 &&
 			term->onthespot && term->onthespot_buf[0]) {
 	    	tattr |= cursor | ATTR_INVALID;
+                // TODO: If we type hangul in front of one space before a hangul character,
+                //       the cursor is splitted into two half images of each character.
+                //tchar = 0;
+                //cursor_wide = 0;
 		term->curstype = cursor;
-		tchar = tchar & 0xffffff00 | (unsigned char)term->onthespot_buf[1];
 #endif
 	    }
 	    else if (cursor_wide && i == our_curs_y && j == our_curs_x+1) {
@@ -5062,8 +5060,8 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	     * Separate out sequences of characters that have the
 	     * same CSET, if that CSET is a magic one.
 	     */
-	    if (CSET_OF(tchar) != cset)
-		break_run = TRUE;
+	    //if (CSET_OF(tchar) != cset)
+		//break_run = TRUE;
 
 	    /*
 	     * Break on both sides of any combined-character cell.

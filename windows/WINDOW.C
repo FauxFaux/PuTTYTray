@@ -2064,6 +2064,7 @@ static void set_input_locale(HKL kl)
     if (kbd_codepage == 949 /* Korean */) {
 	term->onthespot = 1;
 	term->onthespot_buf[0] = 0;
+        term->onthespot_buf[1] = 0;
     }
     else
 	term->onthespot = 0;
@@ -3392,22 +3393,29 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 #endif
       case WM_IME_COMPOSITION:
 	{
-	    HIMC hIMC;
+	    HIMC hIMC = ImmGetContext(hwnd);
 	    int n;
 	    char *buff;
+            wchar_t *wbuff;
 
 	    if(osVersion.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS || 
 	        osVersion.dwPlatformId == VER_PLATFORM_WIN32s) break; /* no Unicode */
 
-            if ((lParam & GCS_RESULTSTR) == 0) { /* Composition unfinished. */
+            if (lParam & GCS_COMPSTR) { /* Composition unfinished. */
 #ifdef ONTHESPOT
-		if (term->onthespot) {
+                // wParam only has DBCS characters, but we want unicode characters.
+                // So we call the unicode version.
+                n = ImmGetCompositionStringW(hIMC, GCS_COMPSTR, NULL, 0);
+		if (term->onthespot && n > 0) {
 		    RECT invrect;
                     HDC hdc;
+                    buff = snewn(n + 2, char);
+                    memset(buff, 0, n + 2);
+                    ImmGetCompositionStringW(hIMC, GCS_COMPSTR, buff, n);
+                    wbuff = (wchar_t*) buff;
+                    term->onthespot_buf[0] = wbuff[0];
+                    free(buff);
 
-		    /* IME_COMPOSITION carries "DBCS" character */
-		    term->onthespot_buf[0] = wParam >> 8;
-		    term->onthespot_buf[1] = wParam & 0xff;
 		    invrect.left = caret_x;
 		    invrect.top = caret_y;
 		    invrect.right = caret_x + font_width * 2;
@@ -3421,9 +3429,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    else
 		term->onthespot_buf[0] = 0;
 #endif
-	    hIMC = ImmGetContext(hwnd);
-	    n = ImmGetCompositionStringW(hIMC, GCS_RESULTSTR, NULL, 0);
 
+            n = ImmGetCompositionStringW(hIMC, GCS_RESULTSTR, NULL, 0);
 	    if (n > 0) {
 		int i;
 		buff = snewn(n, char);
@@ -3910,7 +3917,8 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
 
 	for (i = 0; i < len; i++)
 	    directbuf[i] = text[i] & 0xFF;
-
+        // TODO: If we make here a loop with drawing character by character,
+        //       then we can fix font mismatch problem in IME box.
 	ExtTextOut(hdc, x,
 		   y - font_height * (lattr == LATTR_BOT) + text_adjust,
 		   ETO_CLIPPED | ETO_OPAQUE, &line_box, directbuf, len, IpDx);
