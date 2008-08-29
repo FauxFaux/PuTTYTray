@@ -3917,8 +3917,7 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
 
 	for (i = 0; i < len; i++)
 	    directbuf[i] = text[i] & 0xFF;
-        // TODO: If we make here a loop with drawing character by character,
-        //       then we can fix font mismatch problem in IME box.
+        
 	ExtTextOut(hdc, x,
 		   y - font_height * (lattr == LATTR_BOT) + text_adjust,
 		   ETO_CLIPPED | ETO_OPAQUE, &line_box, directbuf, len, IpDx);

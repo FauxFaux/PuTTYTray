@@ -1253,7 +1253,6 @@ static void power_on(Terminal *term, int clear)
 #ifdef ONTHESPOT
     term->onthespot = 0;
     term->onthespot_buf[0] = 0;
-    term->onthespot_buf[1] = 0;
 #endif
 }
 
