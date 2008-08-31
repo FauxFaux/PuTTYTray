@@ -3406,15 +3406,19 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
                 // wParam only has DBCS characters, but we want unicode characters.
                 // So we call the unicode version.
                 n = ImmGetCompositionStringW(hIMC, GCS_COMPSTR, NULL, 0);
-		if (term->onthespot && n > 0) {
+		if (term->onthespot) {
 		    RECT invrect;
                     HDC hdc;
-                    buff = snewn(n + 2, char);
-                    memset(buff, 0, n + 2);
-                    ImmGetCompositionStringW(hIMC, GCS_COMPSTR, buff, n);
-                    wbuff = (wchar_t*) buff;
-                    term->onthespot_buf[0] = wbuff[0];
-                    free(buff);
+                    if (n > 0) {
+                        buff = snewn(n + 2, char);
+                        memset(buff, 0, n + 2);
+                        ImmGetCompositionStringW(hIMC, GCS_COMPSTR, buff, n);
+                        wbuff = (wchar_t*) buff;
+                        term->onthespot_buf[0] = wbuff[0];
+                        free(buff);
+                    }
+                    else
+                        term->onthespot_buf[0] = 0;
 
 		    invrect.left = caret_x;
 		    invrect.top = caret_y;
