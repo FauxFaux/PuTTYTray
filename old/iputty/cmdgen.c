@@ -232,7 +232,7 @@ static char *blobfp(char *alg, int bits, char *blob, int bloblen)
     int i;
 
     MD5Init(&md5c);
-    MD5Update(&md5c, blob, bloblen);
+    MD5Update(&md5c, (unsigned char *)blob, bloblen);
     MD5Final(digest, &md5c);
 
     sprintf(buffer, "%s ", alg);
@@ -693,13 +693,13 @@ int main(int argc, char **argv)
 
 		n = 4;		       /* skip modulus bits */
 		
-		l = ssh1_read_bignum(blob + n, bloblen - n,
+		l = ssh1_read_bignum((unsigned char *)blob + n, bloblen - n,
 				     &ssh1key->exponent);
 		if (l < 0) {
 		    error = "SSH1 public key blob was too short";
 		} else {
 		    n += l;
-		    l = ssh1_read_bignum(blob + n, bloblen - n,
+		    l = ssh1_read_bignum((unsigned char *)blob + n, bloblen - n,
 					 &ssh1key->modulus);
 		    if (l < 0) {
 			error = "SSH1 public key blob was too short";
@@ -872,7 +872,7 @@ int main(int argc, char **argv)
 	} else if (outtype == PUBLIC) {
 	    if (!ssh2blob) {
 		assert(ssh2key);
-		ssh2blob = ssh2key->alg->public_blob(ssh2key->data,
+		ssh2blob = (char *)ssh2key->alg->public_blob(ssh2key->data,
 						     &ssh2bloblen);
 	    }
 	    save_ssh2_pubkey(outfile, ssh2key ? ssh2key->comment : origcomment,
@@ -884,7 +884,7 @@ int main(int argc, char **argv)
 
 	    if (!ssh2blob) {
 		assert(ssh2key);
-		ssh2blob = ssh2key->alg->public_blob(ssh2key->data,
+		ssh2blob = (char *)ssh2key->alg->public_blob(ssh2key->data,
 						     &ssh2bloblen);
 	    }
 	    if (!ssh2alg) {
@@ -905,7 +905,7 @@ int main(int argc, char **argv)
 	    i = 0;
 	    while (i < ssh2bloblen) {
 		int n = (ssh2bloblen - i < 3 ? ssh2bloblen - i : 3);
-		base64_encode_atom(ssh2blob + i, n, p);
+		base64_encode_atom((unsigned char *)ssh2blob + i, n, p);
 		i += n;
 		p += 4;
 	    }

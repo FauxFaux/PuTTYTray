@@ -118,9 +118,10 @@ int count234(tree234 * t)
  */
 static void *add234_internal(tree234 * t, void *e, int index)
 {
-    node234 *n, **np, *left, *right;
+    node234 *n = NULL, **np = NULL, *left = NULL, *right = NULL;
     void *orig_e = e;
     int c, lcount, rcount;
+
 
     LOG(("adding node %p to tree %p\n", e, t));
     if (t->root == NULL) {

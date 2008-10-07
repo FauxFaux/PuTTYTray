@@ -173,6 +173,16 @@ static void sftp_pkt_getstring(struct sftp_packet *pkt,
 static struct fxp_attrs sftp_pkt_getattrs(struct sftp_packet *pkt)
 {
     struct fxp_attrs ret;
+
+    ret.size.hi = 0;
+    ret.size.lo = 0;
+    ret.flags = 0;
+    ret.uid = -1;
+    ret.gid = -1;
+    ret.permissions = -1;
+    ret.atime = -1;
+    ret.mtime = -1;
+
     ret.flags = sftp_pkt_getuint32(pkt);
     if (ret.flags & SSH_FILEXFER_ATTR_SIZE) {
 	unsigned long hi, lo;

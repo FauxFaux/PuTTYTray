@@ -186,6 +186,10 @@ static void lz77_compress(struct LZ77Context *ctx,
     struct Match defermatch, matches[MAXMATCH];
     int deferchr;
 
+    defermatch.distance = -1;
+    defermatch.len = -1;
+
+
     /*
      * Add any pending characters from last time to the window. (We
      * might not be able to.)
