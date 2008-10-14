@@ -46,7 +46,7 @@ static int nevents = 0, negsize = 0;
 
 extern Config cfg;		       /* defined in window.c */
 
-#define PRINTER_DISABLED_STRING "None (printing disabled)"
+#define PRINTER_DISABLED_STRING "없음 (프린트 사용 안 함)"
 
 void force_normal(HWND hwnd)
 {
@@ -74,7 +74,7 @@ static int CALLBACK LogProc(HWND hwnd, UINT msg,
     switch (msg) {
       case WM_INITDIALOG:
 	{
-	    char *str = dupprintf("%s Event Log", appname);
+	    char *str = dupprintf("%s 사건 로그", appname);
 	    SetWindowText(hwnd, str);
 	    sfree(str);
 	}
@@ -167,7 +167,7 @@ static int CALLBACK LicenceProc(HWND hwnd, UINT msg,
     switch (msg) {
       case WM_INITDIALOG:
 	{
-	    char *str = dupprintf("%s Licence", appname);
+	    char *str = dupprintf("%s 라이선스", appname);
 	    SetWindowText(hwnd, str);
 	    sfree(str);
 	}
@@ -194,7 +194,7 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 
     switch (msg) {
       case WM_INITDIALOG:
-	str = dupprintf("About %s", appname);
+	str = dupprintf("%s에 대해", appname);
 	SetWindowText(hwnd, str);
 	sfree(str);
 	SetDlgItemText(hwnd, IDA_TEXT1, appname);
@@ -418,7 +418,7 @@ static int CALLBACK GenericMainDlgProc(HWND hwnd, UINT msg,
 	    r.top = 3;
 	    r.bottom = r.top + 10;
 	    MapDialogRect(hwnd, &r);
-	    tvstatic = CreateWindowEx(0, "STATIC", "Cate&gory:",
+	    tvstatic = CreateWindowEx(0, "STATIC", "분류(&G)",
 				      WS_CHILD | WS_VISIBLE,
 				      r.left, r.top,
 				      r.right - r.left, r.bottom - r.top,
@@ -646,8 +646,8 @@ int do_config(void)
     winctrl_init(&ctrls_panel);
     dp_add_tree(&dp, &ctrls_base);
     dp_add_tree(&dp, &ctrls_panel);
-    dp.wintitle = dupprintf("%s Configuration", appname);
-    dp.errtitle = dupprintf("%s Error", appname);
+    dp.wintitle = dupprintf("%s 설정", appname);
+    dp.errtitle = dupprintf("%s 에러", appname);
     dp.data = &cfg;
     dp.shortcuts['g'] = TRUE;	       /* the treeview: `Cate&gory' */
 
@@ -679,8 +679,8 @@ int do_reconfig(HWND hwnd, int protcfginfo)
     winctrl_init(&ctrls_panel);
     dp_add_tree(&dp, &ctrls_base);
     dp_add_tree(&dp, &ctrls_panel);
-    dp.wintitle = dupprintf("%s Reconfiguration", appname);
-    dp.errtitle = dupprintf("%s Error", appname);
+    dp.wintitle = dupprintf("%s 설정 변경", appname);
+    dp.errtitle = dupprintf("%s 에러", appname);
     dp.data = &cfg;
     dp.shortcuts['g'] = TRUE;	       /* the treeview: `Cate&gory' */
 
@@ -748,36 +748,12 @@ int verify_ssh_host_key(void *frontend, char *host, int port, char *keytype,
     int ret;
 
     static const char absentmsg[] =
-	"The server's host key is not cached in the registry. You\n"
-	"have no guarantee that the server is the computer you\n"
-	"think it is.\n"
-	"The server's %s key fingerprint is:\n"
-	"%s\n"
-	"If you trust this host, hit Yes to add the key to\n"
-	"%s's cache and carry on connecting.\n"
-	"If you want to carry on connecting just once, without\n"
-	"adding the key to the cache, hit No.\n"
-	"If you do not trust this host, hit Cancel to abandon the\n"
-	"connection.\n";
+	"서버의 호스트 키가 레지스트리에 저장되어있지 않습니다.\n지금 접속한 서버가 원래 접속하려던 컴퓨터가 맞는 지 확\n신할 수 없습니다.\n서버의 %s 공개키 지문은:\n%s\n이 호스트를 신뢰한다면, 예를 눌러서 %s의 캐쉬\n에 이 키를 등록하고, 접속을 계속하세요.\n이 호스트를 캐쉬에 등록하기 않고 그냥 이번 접속만 허용\n하려면 아니오를 누르세요.\n이 호스트를 신뢰하지 않으면, 취소를 누르면 접속을 중단\n할 수 있습니다.\n";
 
     static const char wrongmsg[] =
-	"WARNING - POTENTIAL SECURITY BREACH!\n"
-	"\n"
-	"The server's host key does not match the one %s has\n"
-	"cached in the registry. This means that either the\n"
-	"server administrator has changed the host key, or you\n"
-	"have actually connected to another computer pretending\n"
-	"to be the server.\n"
-	"The new %s key fingerprint is:\n"
-	"%s\n"
-	"If you were expecting this change and trust the new key,\n"
-	"hit Yes to update %s's cache and continue connecting.\n"
-	"If you want to carry on connecting but without updating\n"
-	"the cache, hit No.\n"
-	"If you want to abandon the connection completely, hit\n"
-	"Cancel. Hitting Cancel is the ONLY guaranteed safe\n" "choice.\n";
+	"경고 - 잠재적 보안 위험!\n\n서버의 호스트 키가 레지스트리에 저장된 %s 와 맞지\n않습니다. 즉, 서버 관리자가 호스트 키를 바꾸었거나,\n실제로는 진짜 서버인척 하는 다른 위장 서버에 접속되었\n을 수도 있습니다.\n새로운 %s 키 지문은:\n%s\n새로운 서버를 믿고 키를 바꾸기 원하신다면, 예를 눌러서\n레지스트리의 키를 업데이트하고 접속을 계속하세요.\n캐쉬는 그대로 놓아두고 이번 접속만 허용하기 원하시면\n아니오를 눌러주세요.\n서버를 믿지 못하는 경우에는 취소를 누르고 접속을 중단\n하시는 것이 가장 안전합니다.\n";
 
-    static const char mbtitle[] = "%s Security Alert";
+    static const char mbtitle[] = "%s 보안 경고";
 
     /*
      * Verify the key against the registry.
@@ -830,12 +806,9 @@ int verify_ssh_host_key(void *frontend, char *host, int port, char *keytype,
 int askalg(void *frontend, const char *algtype, const char *algname,
 	   void (*callback)(void *ctx, int result), void *ctx)
 {
-    static const char mbtitle[] = "%s Security Alert";
+    static const char mbtitle[] = "%s 보안 경고";
     static const char msg[] =
-	"The first %s supported by the server\n"
-	"is %.64s, which is below the configured\n"
-	"warning threshold.\n"
-	"Do you want to continue with this connection?\n";
+	"첫 번째 %s 가 서버 %.64s와 맞지만\n설정된 보안 경고 수준 이하입니다.\n이 방법으로 계속 진행하시겠습니까?\n";
     char *message, *title;
     int mbret;
 
@@ -860,18 +833,13 @@ int askappend(void *frontend, Filename filename,
 	      void (*callback)(void *ctx, int result), void *ctx)
 {
     static const char msgtemplate[] =
-	"The session log file \"%.*s\" already exists.\n"
-	"You can overwrite it with a new session log,\n"
-	"append your session log to the end of it,\n"
-	"or disable session logging for this session.\n"
-	"Hit Yes to wipe the file, No to append to it,\n"
-	"or Cancel to disable logging.";
+	"세션 로그파일 \"%.*s\"가 이미 존재합니다.\n새 세션 로그파일로 덮어쓰거나, 기존 세션 로그\n의 끝에 덧붙여쓰거나, 이번 접속에서 세션 로깅\n을 안 할 수도 있습니다.\n기존 로그 파일을 지우려면 예를 누르고, 덧붙이\n려면 아니오, 로깅하지 않으려면 취소를 누르세요\n";
     char *message;
     char *mbtitle;
     int mbret;
 
     message = dupprintf(msgtemplate, FILENAME_MAX, filename.path);
-    mbtitle = dupprintf("%s Log to File", appname);
+    mbtitle = dupprintf("%s 파일로 로그 남김", appname);
 
     mbret = MessageBox(NULL, message, mbtitle,
 		       MB_ICONQUESTION | MB_YESNOCANCEL | MB_DEFBUTTON3);
@@ -901,17 +869,9 @@ int askappend(void *frontend, Filename filename,
  */
 void old_keyfile_warning(void)
 {
-    static const char mbtitle[] = "%s Key File Warning";
+    static const char mbtitle[] = "%s 키 파일 경고";
     static const char message[] =
-	"You are loading an SSH-2 private key which has an\n"
-	"old version of the file format. This means your key\n"
-	"file is not fully tamperproof. Future versions of\n"
-	"%s may stop supporting this private key format,\n"
-	"so we recommend you convert your key to the new\n"
-	"format.\n"
-	"\n"
-	"You can perform this conversion by loading the key\n"
-	"into PuTTYgen and then saving it again.";
+	"오래된 버전의 형식으로 된 SSH 2 개인 키를 읽어오고\n있습니다. 옛 버전의 개인 키 파일은 다른 사람에게\n노출된 경우 암호구가 없더라도 개인 키를 풀어낼 수\n있습니다. %s는 앞으로 이 개인 키 형식을 지원하지\n않을 예정입니다. 지금 이 파일을 새로운 형식으로 변환\n하는 것이 좋습니다.\n\n변환은 PuTTYgen에서 키를 읽었다가 다시 저장해서\n쉽게 변환할 수 있습니다.\n";
 
     char *msg, *title;
     msg = dupprintf(message, appname);

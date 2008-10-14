@@ -81,7 +81,7 @@ void *open_settings_w(const char *sessionname, char **errmsg)
     *errmsg = NULL;
 
     if (!sessionname || !*sessionname)
-	sessionname = "Default Settings";
+	sessionname = "기본 설정";
 
     p = snewn(3 * strlen(sessionname) + 1, char);
     mungestr(sessionname, p);
@@ -89,15 +89,13 @@ void *open_settings_w(const char *sessionname, char **errmsg)
     ret = RegCreateKey(HKEY_CURRENT_USER, puttystr, &subkey1);
     if (ret != ERROR_SUCCESS) {
 	sfree(p);
-        *errmsg = dupprintf("Unable to create registry key\n"
-                            "HKEY_CURRENT_USER\\%s", puttystr);
+        *errmsg = dupprintf("다음 레지스트리 키를 만들 수 없습니다:\nHKEY_CURRENT_USER\\%s", puttystr);
 	return NULL;
     }
     ret = RegCreateKey(subkey1, p, &sesskey);
     RegCloseKey(subkey1);
     if (ret != ERROR_SUCCESS) {
-        *errmsg = dupprintf("Unable to create registry key\n"
-                            "HKEY_CURRENT_USER\\%s\\%s", puttystr, p);
+        *errmsg = dupprintf("다음 레지스트리 키를 만들 수 없습니다:\nHKEY_CURRENT_USER\\%s\\%s", puttystr, p);
 	sfree(p);
 	return NULL;
     }
@@ -130,7 +128,7 @@ void *open_settings_r(const char *sessionname)
     char *p;
 
     if (!sessionname || !*sessionname)
-	sessionname = "Default Settings";
+	sessionname = "기본 설정";
 
     p = snewn(3 * strlen(sessionname) + 1, char);
     mungestr(sessionname, p);

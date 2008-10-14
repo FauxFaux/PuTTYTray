@@ -14,14 +14,14 @@
 #endif
 
 char ver[] = "Development snapshot " SNAPSHOT_TEXT;
-char sshver[] = "PuTTY-Snapshot-" SNAPSHOT_TEXT;
+char sshver[] = "ÆÛÆ¼-½º³À¼¦-" SNAPSHOT_TEXT;
 
 #undef SNAPSHOT_TEXT
 
 #elif defined RELEASE
 
 char ver[] = "Release " STR(RELEASE);
-char sshver[] = "PuTTY-Release-" STR(RELEASE);
+char sshver[] = "ÆÛÆ¼-ÇÑ±ÛÆÇ-" STR(RELEASE);
 
 #elif defined SVN_REV
 
@@ -30,7 +30,7 @@ char sshver[] = "PuTTY-Custom-r" STR(SVN_REV);
 
 #else
 
-char ver[] = "Unidentified build, " __DATE__ " " __TIME__;
+char ver[] = "¾Ë ¼ö ¾ø´Â ºôµå, " __DATE__ " " __TIME__;
 char sshver[] = "PuTTY-Local: " __DATE__ " " __TIME__;
 
 #endif

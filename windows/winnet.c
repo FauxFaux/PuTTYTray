@@ -213,7 +213,7 @@ void sk_init(void)
 	winsock_module = LoadLibrary("WSOCK32.DLL");
     }
     if (!winsock_module)
-	fatalbox("Unable to load any WinSock library");
+	fatalbox("WinSock 라이브러리를 읽어올 수 없습니다");
 
 #ifndef NO_IPV6
     /* Check if we have getaddrinfo in Winsock */
@@ -280,7 +280,7 @@ void sk_init(void)
     if (!sk_startup(2,2) &&
 	!sk_startup(2,0) &&
 	!sk_startup(1,1)) {
-	fatalbox("Unable to initialise WinSock");
+	fatalbox("WinSock을 초기화할 수 없습니다");
     }
 
     sktree = newtree234(cmpfortree);
@@ -312,78 +312,78 @@ char *winsock_error_string(int error)
 {
     switch (error) {
       case WSAEACCES:
-	return "Network error: Permission denied";
+	return "네트워크 에러: 권한이 없습니다";
       case WSAEADDRINUSE:
-	return "Network error: Address already in use";
+	return "네트워크 에러: 주소가 이미 사용 중입니다";
       case WSAEADDRNOTAVAIL:
-	return "Network error: Cannot assign requested address";
+	return "네트워크 에러: 요청된 주소를 할당할 수 없습니다";
       case WSAEAFNOSUPPORT:
 	return
-	    "Network error: Address family not supported by protocol family";
+	    "네트워크 에러: 프로토콜 형태에서 지원되지 않는 주소 그룹입니다";
       case WSAEALREADY:
-	return "Network error: Operation already in progress";
+	return "네트워크 에러: 이미 작업이 진행 중입니다";
       case WSAECONNABORTED:
-	return "Network error: Software caused connection abort";
+	return "네트워크 에러: 소프트웨어적인 접속 중단입니다";
       case WSAECONNREFUSED:
-	return "Network error: Connection refused";
+	return "네트워크 에러: 접속이 거부되었습니다";
       case WSAECONNRESET:
-	return "Network error: Connection reset by peer";
+	return "네트워크 에러: 접속이 끊겼습니다";
       case WSAEDESTADDRREQ:
-	return "Network error: Destination address required";
+	return "네트워크 에러: 대상 주소가 필요합니다";
       case WSAEFAULT:
-	return "Network error: Bad address";
+	return "네트워크 에러: 잘못된 주소";
       case WSAEHOSTDOWN:
-	return "Network error: Host is down";
+	return "네트워크 에러: 상대 호스트가 죽어 있습니다";
       case WSAEHOSTUNREACH:
-	return "Network error: No route to host";
+	return "네트워크 에러: 호스트에의 경로를 찾을 수 없습니다";
       case WSAEINPROGRESS:
-	return "Network error: Operation now in progress";
+	return "네트워크 에러: 작업이 이제 진행 중입니다";
       case WSAEINTR:
-	return "Network error: Interrupted function call";
+	return "네트워크 에러: 함수 호출이 중단되었습니다";
       case WSAEINVAL:
-	return "Network error: Invalid argument";
+	return "네트워크 에러: 잘못된 인자가 전달되었습니다";
       case WSAEISCONN:
-	return "Network error: Socket is already connected";
+	return "네트워크 에러: 소켓이 이미 접속되어있습니다";
       case WSAEMFILE:
-	return "Network error: Too many open files";
+	return "네트워크 에러: 열린 파일이 너무 많습니다";
       case WSAEMSGSIZE:
-	return "Network error: Message too long";
+	return "네트워크 에러: 메시지가 너무 깁니다";
       case WSAENETDOWN:
-	return "Network error: Network is down";
+	return "네트워크 에러: 네트워크가 죽었습니다";
       case WSAENETRESET:
-	return "Network error: Network dropped connection on reset";
+	return "네트워크 에러: 리셋되어 네트워크 접속이 떨어졌습니다";
       case WSAENETUNREACH:
-	return "Network error: Network is unreachable";
+	return "네트워크 에러: 도달할 수 없는 네트워크입니다";
       case WSAENOBUFS:
-	return "Network error: No buffer space available";
+	return "네트워크 에러: 버퍼 공간이 부족합니다";
       case WSAENOPROTOOPT:
-	return "Network error: Bad protocol option";
+	return "네트워크 에러: 잘못된 프로토콜 옵션";
       case WSAENOTCONN:
-	return "Network error: Socket is not connected";
+	return "네트워크 에러: 소켓이 접속되지 않았습니다";
       case WSAENOTSOCK:
-	return "Network error: Socket operation on non-socket";
+	return "네트워크 에러: 소켓이 아닌 파일에 대한 소켓 작업입니다";
       case WSAEOPNOTSUPP:
-	return "Network error: Operation not supported";
+	return "네트워크 에러: 지원되지 않는 작업입니다";
       case WSAEPFNOSUPPORT:
-	return "Network error: Protocol family not supported";
+	return "네트워크 에러: 지원되지 않는 프로토콜 유형입니다";
       case WSAEPROCLIM:
-	return "Network error: Too many processes";
+	return "네트워크 에러: 프로세스가 너무 많습니다";
       case WSAEPROTONOSUPPORT:
-	return "Network error: Protocol not supported";
+	return "네트워크 에러: 지원되지 않는 프로토콜입니다";
       case WSAEPROTOTYPE:
-	return "Network error: Protocol wrong type for socket";
+	return "네트워크 에러: 해당 소켓에 잘못된 프로토콜 타입입니다";
       case WSAESHUTDOWN:
-	return "Network error: Cannot send after socket shutdown";
+	return "네트워크 에러: 닫힌 소켓에는 보낼 수 없습니다";
       case WSAESOCKTNOSUPPORT:
-	return "Network error: Socket type not supported";
+	return "네트워크 에러: 지원되지 않는 소켓 타입입니다";
       case WSAETIMEDOUT:
-	return "Network error: Connection timed out";
+	return "네트워크 에러: 접속이 타임아웃 되었습니다";
       case WSAEWOULDBLOCK:
-	return "Network error: Resource temporarily unavailable";
+	return "네트워크 에러: 시스템 자원이 임시로 부족합니다";
       case WSAEDISCON:
-	return "Network error: Graceful shutdown in progress";
+	return "네트워크 에러: 정상 중단이 진행 중입니다";
       default:
-	return "Unknown network error";
+	return "알 수 없는 네트워크 에러";
     }
 }
 
@@ -444,9 +444,9 @@ SockAddr sk_namelookup(const char *host, char **canonicalname,
 	}
 
 	if (ret_family == AF_UNSPEC) {
-	    ret->error = (err == WSAENETDOWN ? "Network is down" :
-			  err == WSAHOST_NOT_FOUND ? "Host does not exist" :
-			  err == WSATRY_AGAIN ? "Host not found" :
+	    ret->error = (err == WSAENETDOWN ? "네트워크가 끊겼습니다" :
+			  err == WSAHOST_NOT_FOUND ? "호스트가 존재하지 않음" :
+			  err == WSATRY_AGAIN ? "호스트를 찾을 수 없음" :
 #ifndef NO_IPV6
 			  p_getaddrinfo&&p_gai_strerror ? p_gai_strerror(err) :
 #endif
@@ -586,7 +586,7 @@ static int ipv4_is_local_addr(struct in_addr addr)
 		       &retbytes, NULL, NULL) == 0)
 	    n_local_interfaces = retbytes / sizeof(INTERFACE_INFO);
 	else
-	    logevent(NULL, "Unable to get list of local IP addresses");
+	    logevent(NULL, "지역 IP 주소 목록을 가져올 수 없습니다");
     }
     if (n_local_interfaces > 0) {
 	int i;
@@ -1411,7 +1411,7 @@ int select_result(WPARAM wParam, LPARAM lParam)
 	ret = p_recv(s->s, buf, sizeof(buf), MSG_OOB);
 	noise_ultralight(ret);
 	if (ret <= 0) {
-	    char *str = (ret == 0 ? "Internal networking trouble" :
+	    char *str = (ret == 0 ? "네트워크 내부 문제 발생" :
 			 winsock_error_string(p_WSAGetLastError()));
 	    /* We're inside the Windows frontend here, so we know
 	     * that the frontend handle is unnecessary. */
@@ -1625,6 +1625,6 @@ SockAddr platform_get_x11_unix_address(int displaynum, char **canonicalname)
 {
     SockAddr ret = snew(struct SockAddr_tag);
     memset(ret, 0, sizeof(struct SockAddr_tag));
-    ret->error = "unix sockets not supported on this platform";
+    ret->error = "이 플랫폼에서는 유닉스 소켓을 쓸 수 없습니다";
     return ret;
 }

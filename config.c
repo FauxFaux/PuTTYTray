@@ -10,7 +10,7 @@
 #include "dialog.h"
 #include "storage.h"
 
-#define PRINTER_DISABLED_STRING "None (printing disabled)"
+#define PRINTER_DISABLED_STRING "없음 (프린트 사용 안 함)"
 
 #define HOST_BOX_TITLE "Host Name (or IP address)"
 #define PORT_BOX_TITLE "Port"
@@ -212,9 +212,9 @@ static void cipherlist_handler(union control *ctrl, void *dlg,
 	    { "3DES",			CIPHER_3DES },
 	    { "Blowfish",		CIPHER_BLOWFISH },
 	    { "DES",			CIPHER_DES },
-	    { "AES (SSH-2 only)",	CIPHER_AES },
-	    { "Arcfour (SSH-2 only)",	CIPHER_ARCFOUR },
-	    { "-- warn below here --",	CIPHER_WARN }
+	    { "AES (SSH2 만)",	CIPHER_AES },
+	    { "Arc4 (SSH2 만)",	CIPHER_ARCFOUR },
+	    { "-- 이하는 위험함 --",	CIPHER_WARN }
 	};
 
 	/* Set up the "selected ciphers" box. */
@@ -253,10 +253,10 @@ static void kexlist_handler(union control *ctrl, void *dlg,
 	int i;
 
 	static const struct { char *s; int k; } kexes[] = {
-	    { "Diffie-Hellman group 1",		KEX_DHGROUP1 },
-	    { "Diffie-Hellman group 14",	KEX_DHGROUP14 },
-	    { "Diffie-Hellman group exchange",	KEX_DHGEX },
-	    { "-- warn below here --",		KEX_WARN }
+	    { "디피-헬만 그룹 1",		KEX_DHGROUP1 },
+	    { "디피-헬만 그룹 14",	KEX_DHGROUP14 },
+	    { "디피-헬만 그룹 교환",	KEX_DHGEX },
+	    { "-- 이하는 위험함 --",		KEX_WARN }
 	};
 
 	/* Set up the "kex preference" box. */
@@ -348,9 +348,9 @@ static void sshbug_handler(union control *ctrl, void *dlg,
     if (event == EVENT_REFRESH) {
 	dlg_update_start(ctrl, dlg);
 	dlg_listbox_clear(ctrl, dlg);
-	dlg_listbox_addwithid(ctrl, dlg, "Auto", AUTO);
-	dlg_listbox_addwithid(ctrl, dlg, "Off", FORCE_OFF);
-	dlg_listbox_addwithid(ctrl, dlg, "On", FORCE_ON);
+	dlg_listbox_addwithid(ctrl, dlg, "자동", AUTO);
+	dlg_listbox_addwithid(ctrl, dlg, "끔", FORCE_OFF);
+	dlg_listbox_addwithid(ctrl, dlg, "켬", FORCE_ON);
 	switch (*(int *)ATOFFSET(data, ctrl->listbox.context.i)) {
 	  case AUTO:      dlg_listbox_select(ctrl, dlg, 0); break;
 	  case FORCE_OFF: dlg_listbox_select(ctrl, dlg, 1); break;
@@ -391,7 +391,7 @@ static int load_selected_session(struct sessionsaver_data *ssd,
 	dlg_beep(dlg);
 	return 0;
     }
-    isdef = !strcmp(ssd->sesslist.sessions[i], "Default Settings");
+    isdef = !strcmp(ssd->sesslist.sessions[i], "기본 설정");
     load_settings(ssd->sesslist.sessions[i], cfg);
     if (!isdef) {
 	strncpy(savedsession, ssd->sesslist.sessions[i],
@@ -484,14 +484,14 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
 		dlg_end(dlg, 1);       /* it's all over, and succeeded */
 	    }
 	} else if (ctrl == ssd->savebutton) {
-	    int isdef = !strcmp(savedsession, "Default Settings");
+	    int isdef = !strcmp(savedsession, "기본 설정");
 	    if (!savedsession[0]) {
 		int i = dlg_listbox_index(ssd->listbox, dlg);
 		if (i < 0) {
 		    dlg_beep(dlg);
 		    return;
 		}
-		isdef = !strcmp(ssd->sesslist.sessions[i], "Default Settings");
+		isdef = !strcmp(ssd->sesslist.sessions[i], "기본 설정");
 		if (!isdef) {
 		    strncpy(savedsession, ssd->sesslist.sessions[i],
 			    SAVEDSESSION_LEN);
@@ -612,17 +612,17 @@ struct colour_data {
 };
 
 static const char *const colours[] = {
-    "Default Foreground", "Default Bold Foreground",
-    "Default Background", "Default Bold Background",
-    "Cursor Text", "Cursor Colour",
-    "ANSI Black", "ANSI Black Bold",
-    "ANSI Red", "ANSI Red Bold",
-    "ANSI Green", "ANSI Green Bold",
-    "ANSI Yellow", "ANSI Yellow Bold",
-    "ANSI Blue", "ANSI Blue Bold",
-    "ANSI Magenta", "ANSI Magenta Bold",
-    "ANSI Cyan", "ANSI Cyan Bold",
-    "ANSI White", "ANSI White Bold"
+    "기본 글자색", "기본 글자색(굵음)",
+    "기본 배경색", "기본 배경색(굵음)",
+    "커서 글자", "커서 색깔",
+    "ANSI 검은색", "ANSI 검은색(굵음)",
+    "ANSI 빨강", "ANSI 빨강(굵음)",
+    "ANSI 녹색", "ANSI 녹색(굵음)",
+    "ANSI 노랑", "ANSI 노랑(굵음)",
+    "ANSI 파랑", "ANSI 파랑(굵음)",
+    "ANSI 마젠타", "ANSI 마젠타(굵음)",
+    "ANSI 하늘색", "ANSI 하늘색(굵음)",
+    "ANSI 하양", "ANSI 하양(굵음)"
 };
 
 static void colour_handler(union control *ctrl, void *dlg,
@@ -741,7 +741,7 @@ static void ttymodes_handler(union control *ctrl, void *dlg,
 	    while (*p) {
 		int tabpos = strchr(p, '\t') - p;
 		char *disp = dupprintf("%.*s\t%s", tabpos, p,
-				       (p[tabpos+1] == 'A') ? "(auto)" :
+				       (p[tabpos+1] == 'A') ? "자동" :
 				       p+tabpos+2);
 		dlg_listbox_add(ctrl, dlg, disp);
 		p += strlen(p) + 1;
@@ -888,7 +888,7 @@ static void environ_handler(union control *ctrl, void *dlg,
 		dlg_editbox_set(ed->varbox, dlg, "");
 		dlg_editbox_set(ed->valbox, dlg, "");
 	    } else {
-		dlg_error_msg(dlg, "Environment too big");
+		dlg_error_msg(dlg, "환경 변수가 너무 큽니다");
 	    }
 	} else if (ctrl == ed->rembutton) {
 	    int i = dlg_listbox_index(ed->listbox, dlg);
@@ -999,7 +999,7 @@ static void portfwd_handler(union control *ctrl, void *dlg,
 
 	    dlg_editbox_get(pfd->sourcebox, dlg, str+i, sizeof(str) - i);
 	    if (!str[i]) {
-		dlg_error_msg(dlg, "You need to specify a source port number");
+		dlg_error_msg(dlg, "원본 포트 번호를 적으셔야 합니다");
 		return;
 	    }
 	    p = str + strlen(str);
@@ -1009,8 +1009,7 @@ static void portfwd_handler(union control *ctrl, void *dlg,
 				sizeof(str) - (p - str));
 		if (!*p || !strchr(p, ':')) {
 		    dlg_error_msg(dlg,
-				  "You need to specify a destination address\n"
-				  "in the form \"host.name:port\"");
+				  "대상 주소는 다음 형식으로 적으셔야 합니다:\n\"호스트.이름:포트\"");
 		    return;
 		}
 	    } else
@@ -1029,7 +1028,7 @@ static void portfwd_handler(union control *ctrl, void *dlg,
 		dlg_editbox_set(pfd->sourcebox, dlg, "");
 		dlg_editbox_set(pfd->destbox, dlg, "");
 	    } else {
-		dlg_error_msg(dlg, "Too many forwardings");
+		dlg_error_msg(dlg, "포워딩이 너무 많습니다");
 	    }
 	} else if (ctrl == pfd->rembutton) {
 	    int i = dlg_listbox_index(pfd->listbox, dlg);
@@ -1126,13 +1125,13 @@ void setup_config_box(struct controlbox *b, int midsession,
     s = ctrl_getset(b, "", "", "");
     ctrl_columns(s, 5, 20, 20, 20, 20, 20);
     ssd->okbutton = ctrl_pushbutton(s,
-				    (midsession ? "Apply" : "Open"),
+				    (midsession ? "적용 (A)" : "열기 (O)"),
 				    (char)(midsession ? 'a' : 'o'),
 				    HELPCTX(no_help),
 				    sessionsaver_handler, P(ssd));
     ssd->okbutton->button.isdefault = TRUE;
     ssd->okbutton->generic.column = 3;
-    ssd->cancelbutton = ctrl_pushbutton(s, "Cancel", 'c', HELPCTX(no_help),
+    ssd->cancelbutton = ctrl_pushbutton(s, "취소 (C)", 'c', HELPCTX(no_help),
 					sessionsaver_handler, P(ssd));
     ssd->cancelbutton->button.iscancel = TRUE;
     ssd->cancelbutton->generic.column = 4;
@@ -1142,16 +1141,16 @@ void setup_config_box(struct controlbox *b, int midsession,
     /*
      * The Session panel.
      */
-    str = dupprintf("Basic options for your %s session", appname);
-    ctrl_settitle(b, "Session", str);
+    str = dupprintf("%s 세션 기본 옵션", appname);
+    ctrl_settitle(b, "세션", str);
     sfree(str);
 
     if (!midsession) {
 	struct hostport *hp = (struct hostport *)
 	    ctrl_alloc(b, sizeof(struct hostport));
 
-	s = ctrl_getset(b, "Session", "hostport",
-			"Specify the destination you want to connect to");
+	s = ctrl_getset(b, "세션", "hostport",
+			"접속 대상 정보");
 	ctrl_columns(s, 2, 75, 25);
 	c = ctrl_editbox(s, HOST_BOX_TITLE, 'n', 100,
 			 HELPCTX(session_hostname),
@@ -1166,18 +1165,18 @@ void setup_config_box(struct controlbox *b, int midsession,
 	ctrl_columns(s, 1, 100);
 
 	if (!have_backend(PROT_SSH)) {
-	    ctrl_radiobuttons(s, "Connection type:", NO_SHORTCUT, 3,
+	    ctrl_radiobuttons(s, "접속 형식:", NO_SHORTCUT, 3,
 			      HELPCTX(session_hostname),
 			      config_protocolbuttons_handler, P(hp),
-			      "Raw", 'r', I(PROT_RAW),
+			      "생짜 (R)", 'r', I(PROT_RAW),
 			      "Telnet", 't', I(PROT_TELNET),
 			      "Rlogin", 'i', I(PROT_RLOGIN),
 			      NULL);
 	} else {
-	    ctrl_radiobuttons(s, "Connection type:", NO_SHORTCUT, 4,
+	    ctrl_radiobuttons(s, "접속 형식:", NO_SHORTCUT, 4,
 			      HELPCTX(session_hostname),
 			      config_protocolbuttons_handler, P(hp),
-			      "Raw", 'r', I(PROT_RAW),
+			      "생짜 (R)", 'r', I(PROT_RAW),
 			      "Telnet", 't', I(PROT_TELNET),
 			      "Rlogin", 'i', I(PROT_RLOGIN),
 			      "SSH", 's', I(PROT_SSH),
@@ -1188,12 +1187,12 @@ void setup_config_box(struct controlbox *b, int midsession,
     /*
      * The Load/Save panel is available even in mid-session.
      */
-    s = ctrl_getset(b, "Session", "savedsessions",
-		    midsession ? "Save the current session settings" :
-		    "Load, save or delete a stored session");
+    s = ctrl_getset(b, "세션", "savedsessions",
+		    midsession ? "현재 세션 설정 저장" :
+		    "저장된 세션의 불러오기, 저장, 지움");
     ctrl_columns(s, 2, 75, 25);
     get_sesslist(&ssd->sesslist, TRUE);
-    ssd->editbox = ctrl_editbox(s, "Saved Sessions", 'e', 100,
+    ssd->editbox = ctrl_editbox(s, "저장된 세션 (E)", 'e', 100,
 				HELPCTX(session_saved),
 				sessionsaver_handler, P(ssd), P(NULL));
     ssd->editbox->generic.column = 0;
@@ -1207,7 +1206,7 @@ void setup_config_box(struct controlbox *b, int midsession,
     ssd->listbox->generic.column = 0;
     ssd->listbox->listbox.height = 7;
     if (!midsession) {
-	ssd->loadbutton = ctrl_pushbutton(s, "Load", 'l',
+	ssd->loadbutton = ctrl_pushbutton(s, "불러옴(L)", 'l',
 					  HELPCTX(session_saved),
 					  sessionsaver_handler, P(ssd));
 	ssd->loadbutton->generic.column = 1;
@@ -1219,12 +1218,12 @@ void setup_config_box(struct controlbox *b, int midsession,
 	ssd->loadbutton = NULL;
     }
     /* "Save" button is permitted mid-session. */
-    ssd->savebutton = ctrl_pushbutton(s, "Save", 'v',
+    ssd->savebutton = ctrl_pushbutton(s, "저장(V)", 'v',
 				      HELPCTX(session_saved),
 				      sessionsaver_handler, P(ssd));
     ssd->savebutton->generic.column = 1;
     if (!midsession) {
-	ssd->delbutton = ctrl_pushbutton(s, "Delete", 'd',
+	ssd->delbutton = ctrl_pushbutton(s, "지움(D)", 'd',
 					 HELPCTX(session_saved),
 					 sessionsaver_handler, P(ssd));
 	ssd->delbutton->generic.column = 1;
@@ -1234,21 +1233,21 @@ void setup_config_box(struct controlbox *b, int midsession,
     }
     ctrl_columns(s, 1, 100);
 
-    s = ctrl_getset(b, "Session", "otheropts", NULL);
-    c = ctrl_radiobuttons(s, "Close window on exit:", 'w', 4,
+    s = ctrl_getset(b, "세션", "otheropts", NULL);
+    c = ctrl_radiobuttons(s, "종료시에 창을 닫음 (W):", 'w', 4,
 			  HELPCTX(session_coe),
 			  dlg_stdradiobutton_handler,
 			  I(offsetof(Config, close_on_exit)),
-			  "Always", I(FORCE_ON),
-			  "Never", I(FORCE_OFF),
-			  "Only on clean exit", I(AUTO), NULL);
+			  "항상", I(FORCE_ON),
+			  "안 닫음", I(FORCE_OFF),
+			  "접속이 끊겼을 때만", I(AUTO), NULL);
 
     /*
      * The Session/Logging panel.
      */
-    ctrl_settitle(b, "Session/Logging", "Options controlling session logging");
+    ctrl_settitle(b, "세션/로깅", "세션 로그 제어 옵션을 조정합니다");
 
-    s = ctrl_getset(b, "Session/Logging", "main", NULL);
+    s = ctrl_getset(b, "세션/로깅", "main", NULL);
     /*
      * The logging buttons change depending on whether SSH packet
      * logging can sensibly be available.
@@ -1257,48 +1256,47 @@ void setup_config_box(struct controlbox *b, int midsession,
 	char *sshlogname, *sshrawlogname;
 	if ((midsession && protocol == PROT_SSH) ||
 	    (!midsession && have_backend(PROT_SSH))) {
-	    sshlogname = "SSH packets";
+	    sshlogname = "SSH 패킷";
 	    sshrawlogname = "SSH packets and raw data";
         } else {
 	    sshlogname = NULL;	       /* this will disable both buttons */
 	    sshrawlogname = NULL;      /* this will just placate optimisers */
         }
-	ctrl_radiobuttons(s, "Session logging:", NO_SHORTCUT, 2,
+	ctrl_radiobuttons(s, "세션 로그:", NO_SHORTCUT, 2,
 			  HELPCTX(logging_main),
 			  loggingbuttons_handler,
 			  I(offsetof(Config, logtype)),
-			  "None", 't', I(LGTYP_NONE),
-			  "Printable output", 'p', I(LGTYP_ASCII),
-			  "All session output", 'l', I(LGTYP_DEBUG),
+			  "기록하지 않음 (T)", 't', I(LGTYP_NONE),
+			  "출력 가능한 글자만 (P)", 'p', I(LGTYP_ASCII),
+			  "모든 세션 출력 (L)", 'l', I(LGTYP_DEBUG),
 			  sshlogname, 's', I(LGTYP_PACKETS),
 			  sshrawlogname, 'r', I(LGTYP_SSHRAW),
 			  NULL);
     }
-    ctrl_filesel(s, "Log file name:", 'f',
-		 NULL, TRUE, "Select session log file name",
+    ctrl_filesel(s, "로그 파일 이름 (F):", 'f',
+		 NULL, TRUE, "세션 로그 파일 이름 선택",
 		 HELPCTX(logging_filename),
 		 dlg_stdfilesel_handler, I(offsetof(Config, logfilename)));
-    ctrl_text(s, "(Log file name can contain &Y, &M, &D for date,"
-	      " &T for time, and &H for host name)",
+    ctrl_text(s, "(로그 파일 이름엔 날짜는 &Y, &M, &D, 시간은 &T, 호스트 이름으로는 &H를 쓸 수 있습니다)",
 	      HELPCTX(logging_filename));
-    ctrl_radiobuttons(s, "What to do if the log file already exists:", 'e', 1,
+    ctrl_radiobuttons(s, "로그 파일이 이미 있을 때 (E):", 'e', 1,
 		      HELPCTX(logging_exists),
 		      dlg_stdradiobutton_handler, I(offsetof(Config,logxfovr)),
-		      "Always overwrite it", I(LGXF_OVR),
-		      "Always append to the end of it", I(LGXF_APN),
-		      "Ask the user every time", I(LGXF_ASK), NULL);
-    ctrl_checkbox(s, "Flush log file frequently", 'u',
+		      "늘 덮어 씀", I(LGXF_OVR),
+		      "늘 파일 끝에 추가함", I(LGXF_APN),
+		      "매번 사용자에게 물어 봄", I(LGXF_ASK), NULL);
+    ctrl_checkbox(s, "로그 파일을 자주 뿌림", 'u',
 		 HELPCTX(logging_flush),
 		 dlg_stdcheckbox_handler, I(offsetof(Config,logflush)));
 
     if ((midsession && protocol == PROT_SSH) ||
 	(!midsession && have_backend(PROT_SSH))) {
-	s = ctrl_getset(b, "Session/Logging", "ssh",
-			"Options specific to SSH packet logging");
-	ctrl_checkbox(s, "Omit known password fields", 'k',
+	s = ctrl_getset(b, "세션/로깅", "ssh",
+			"SSH 패킷 로깅 옵션을 조정합니다");
+	ctrl_checkbox(s, "패스워드 처럼 보이는 것 숨김 (K)", 'k',
 		      HELPCTX(logging_ssh_omit_password),
 		      dlg_stdcheckbox_handler, I(offsetof(Config,logomitpass)));
-	ctrl_checkbox(s, "Omit session data", 'd',
+	ctrl_checkbox(s, "세션 데이터 숨김 (D)", 'd',
 		      HELPCTX(logging_ssh_omit_data),
 		      dlg_stdcheckbox_handler, I(offsetof(Config,logomitdata)));
     }
@@ -1306,115 +1304,115 @@ void setup_config_box(struct controlbox *b, int midsession,
     /*
      * The Terminal panel.
      */
-    ctrl_settitle(b, "Terminal", "Options controlling the terminal emulation");
+    ctrl_settitle(b, "터미널", "터미널 에뮬레이션 제어 옵션을 조정합니다");
 
-    s = ctrl_getset(b, "Terminal", "general", "Set various terminal options");
-    ctrl_checkbox(s, "Auto wrap mode initially on", 'w',
+    s = ctrl_getset(b, "터미널", "general", "다양한 터미널 옵션");
+    ctrl_checkbox(s, "기본으로 자동 줄넘김 (W)", 'w',
 		  HELPCTX(terminal_autowrap),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,wrap_mode)));
-    ctrl_checkbox(s, "DEC Origin Mode initially on", 'd',
+    ctrl_checkbox(s, "DEC 줄 모드를 기본으로 켬", 'd',
 		  HELPCTX(terminal_decom),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,dec_om)));
-    ctrl_checkbox(s, "Implicit CR in every LF", 'r',
+    ctrl_checkbox(s, "CR이 없어도 LF가 발견되면 줄넘김 인정", 'r',
 		  HELPCTX(terminal_lfhascr),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,lfhascr)));
-    ctrl_checkbox(s, "Use background colour to erase screen", 'e',
+    ctrl_checkbox(s, "배경색으로 화면 지움 (E)", 'e',
 		  HELPCTX(terminal_bce),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,bce)));
-    ctrl_checkbox(s, "Enable blinking text", 'n',
+    ctrl_checkbox(s, "글자 깜빡임 사용 (N)", 'n',
 		  HELPCTX(terminal_blink),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,blinktext)));
-    ctrl_editbox(s, "Answerback to ^E:", 's', 100,
+    ctrl_editbox(s, "^E에 대한 응답 (S):", 's', 100,
 		 HELPCTX(terminal_answerback),
 		 dlg_stdeditbox_handler, I(offsetof(Config,answerback)),
 		 I(sizeof(((Config *)0)->answerback)));
 
-    s = ctrl_getset(b, "Terminal", "ldisc", "Line discipline options");
-    ctrl_radiobuttons(s, "Local echo:", 'l', 3,
+    s = ctrl_getset(b, "터미널", "ldisc", "행 구분 옵션");
+    ctrl_radiobuttons(s, "자국 반향 (L):", 'l', 3,
 		      HELPCTX(terminal_localecho),
 		      dlg_stdradiobutton_handler,I(offsetof(Config,localecho)),
-		      "Auto", I(AUTO),
-		      "Force on", I(FORCE_ON),
-		      "Force off", I(FORCE_OFF), NULL);
-    ctrl_radiobuttons(s, "Local line editing:", 't', 3,
+		      "자동", I(AUTO),
+		      "항상 켬", I(FORCE_ON),
+		      "항상 끔", I(FORCE_OFF), NULL);
+    ctrl_radiobuttons(s, "자체 줄 편집 (T):", 't', 3,
 		      HELPCTX(terminal_localedit),
 		      dlg_stdradiobutton_handler,I(offsetof(Config,localedit)),
-		      "Auto", I(AUTO),
-		      "Force on", I(FORCE_ON),
-		      "Force off", I(FORCE_OFF), NULL);
+		      "자동", I(AUTO),
+		      "항상 켬", I(FORCE_ON),
+		      "항상 끔", I(FORCE_OFF), NULL);
 
-    s = ctrl_getset(b, "Terminal", "printing", "Remote-controlled printing");
-    ctrl_combobox(s, "Printer to send ANSI printer output to:", 'p', 100,
+    s = ctrl_getset(b, "터미널", "printing", "원격 제어 프린트");
+    ctrl_combobox(s, "ANSI 프린터 출력을 보낼 프린터 (P):", 'p', 100,
 		  HELPCTX(terminal_printing),
 		  printerbox_handler, P(NULL), P(NULL));
 
     /*
      * The Terminal/Keyboard panel.
      */
-    ctrl_settitle(b, "Terminal/Keyboard",
-		  "Options controlling the effects of keys");
+    ctrl_settitle(b, "터미널/키보드",
+		  "키 효과 제어 옵션을 조정합니다");
 
-    s = ctrl_getset(b, "Terminal/Keyboard", "mappings",
-		    "Change the sequences sent by:");
-    ctrl_radiobuttons(s, "The Backspace key", 'b', 2,
+    s = ctrl_getset(b, "터미널/키보드", "mappings",
+		    "키 입력 전달 방법 조절:");
+    ctrl_radiobuttons(s, "백스페이스 키 (B)", 'b', 2,
 		      HELPCTX(keyboard_backspace),
 		      dlg_stdradiobutton_handler,
 		      I(offsetof(Config, bksp_is_delete)),
-		      "Control-H", I(0), "Control-? (127)", I(1), NULL);
-    ctrl_radiobuttons(s, "The Home and End keys", 'e', 2,
+		      "Ctrl-H", I(0), "Ctrl-? (127)", I(1), NULL);
+    ctrl_radiobuttons(s, "Home과 End키", 'e', 2,
 		      HELPCTX(keyboard_homeend),
 		      dlg_stdradiobutton_handler,
 		      I(offsetof(Config, rxvt_homeend)),
-		      "Standard", I(0), "rxvt", I(1), NULL);
-    ctrl_radiobuttons(s, "The Function keys and keypad", 'f', 3,
+		      "표준", I(0), "rxvt", I(1), NULL);
+    ctrl_radiobuttons(s, "펑션키와 키패드 (F)", 'f', 3,
 		      HELPCTX(keyboard_funkeys),
 		      dlg_stdradiobutton_handler,
 		      I(offsetof(Config, funky_type)),
-		      "ESC[n~", I(0), "Linux", I(1), "Xterm R6", I(2),
+		      "ESC[n~", I(0), "리눅스", I(1), "Xterm R6", I(2),
 		      "VT400", I(3), "VT100+", I(4), "SCO", I(5), NULL);
 
-    s = ctrl_getset(b, "Terminal/Keyboard", "appkeypad",
-		    "Application keypad settings:");
-    ctrl_radiobuttons(s, "Initial state of cursor keys:", 'r', 3,
+    s = ctrl_getset(b, "터미널/키보드", "appkeypad",
+		    "애플리케이션 키패드 설정:");
+    ctrl_radiobuttons(s, "커서 키 기본 상태 (R):", 'r', 3,
 		      HELPCTX(keyboard_appcursor),
 		      dlg_stdradiobutton_handler,
 		      I(offsetof(Config, app_cursor)),
-		      "Normal", I(0), "Application", I(1), NULL);
-    ctrl_radiobuttons(s, "Initial state of numeric keypad:", 'n', 3,
+		      "일반", I(0), "프로그램", I(1), NULL);
+    ctrl_radiobuttons(s, "숫자 키패드 기본 상태 (N):", 'n', 3,
 		      HELPCTX(keyboard_appkeypad),
 		      numeric_keypad_handler, P(NULL),
-		      "Normal", I(0), "Application", I(1), "NetHack", I(2),
+		      "일반", I(0), "프로그램", I(1), "넷핵", I(2),
 		      NULL);
 
     /*
      * The Terminal/Bell panel.
      */
-    ctrl_settitle(b, "Terminal/Bell",
-		  "Options controlling the terminal bell");
+    ctrl_settitle(b, "터미널/벨",
+		  "터미널 벨 제어 옵션을 조정합니다");
 
-    s = ctrl_getset(b, "Terminal/Bell", "style", "Set the style of bell");
-    ctrl_radiobuttons(s, "Action to happen when a bell occurs:", 'b', 1,
+    s = ctrl_getset(b, "터미널/벨", "style", "벨 스타일");
+    ctrl_radiobuttons(s, "벨 울림 효과 (B):", 'b', 1,
 		      HELPCTX(bell_style),
 		      dlg_stdradiobutton_handler, I(offsetof(Config, beep)),
-		      "None (bell disabled)", I(BELL_DISABLED),
-		      "Make default system alert sound", I(BELL_DEFAULT),
-		      "Visual bell (flash window)", I(BELL_VISUAL), NULL);
+		      "없음 (벨 사용 안 함) ", I(BELL_DISABLED),
+		      "기본 시스템 벨소리", I(BELL_DEFAULT),
+		      "시각 벨 (창 번쩍임)", I(BELL_VISUAL), NULL);
 
-    s = ctrl_getset(b, "Terminal/Bell", "overload",
-		    "Control the bell overload behaviour");
-    ctrl_checkbox(s, "Bell is temporarily disabled when over-used", 'd',
+    s = ctrl_getset(b, "터미널/벨", "overload",
+		    "일시적인 벨소리 과부하 제어");
+    ctrl_checkbox(s, "벨소리가 시끄러울 때 임시로 무시함 (D)", 'd',
 		  HELPCTX(bell_overload),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,bellovl)));
-    ctrl_editbox(s, "Over-use means this many bells...", 'm', 20,
+    ctrl_editbox(s, "최소 벨 과부하 결정 기준", 'm', 20,
 		 HELPCTX(bell_overload),
 		 dlg_stdeditbox_handler, I(offsetof(Config,bellovl_n)), I(-1));
-    ctrl_editbox(s, "... in this many seconds", 't', 20,
+    ctrl_editbox(s, "멈춤 시간(T) (초)", 't', 20,
 		 HELPCTX(bell_overload),
 		 dlg_stdeditbox_handler, I(offsetof(Config,bellovl_t)),
 		 I(-TICKSPERSEC));
-    ctrl_text(s, "The bell is re-enabled after a few seconds of silence.",
+    ctrl_text(s, "일정 시간 조용하면 벨소리 다시 복구",
 	      HELPCTX(bell_overload));
-    ctrl_editbox(s, "Seconds of silence required", 's', 20,
+    ctrl_editbox(s, "해제 시간 (S)", 's', 20,
 		 HELPCTX(bell_overload),
 		 dlg_stdeditbox_handler, I(offsetof(Config,bellovl_s)),
 		 I(-TICKSPERSEC));
@@ -1422,84 +1420,84 @@ void setup_config_box(struct controlbox *b, int midsession,
     /*
      * The Terminal/Features panel.
      */
-    ctrl_settitle(b, "Terminal/Features",
-		  "Enabling and disabling advanced terminal features");
+    ctrl_settitle(b, "터미널/기능",
+		  "부가적인 터미널 기능들을 켜거나 끕니다.");
 
-    s = ctrl_getset(b, "Terminal/Features", "main", NULL);
-    ctrl_checkbox(s, "Disable application cursor keys mode", 'u',
+    s = ctrl_getset(b, "터미널/기능", "main", NULL);
+    ctrl_checkbox(s, "애플리케이션 커서 키 모드 사용 안 함 (U)", 'u',
 		  HELPCTX(features_application),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,no_applic_c)));
-    ctrl_checkbox(s, "Disable application keypad mode", 'k',
+    ctrl_checkbox(s, "애플리케이션 키패드 모드 사용 안 함 (K)", 'k',
 		  HELPCTX(features_application),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,no_applic_k)));
-    ctrl_checkbox(s, "Disable xterm-style mouse reporting", 'x',
+    ctrl_checkbox(s, "xterm 스타일 마우스 사용 안 함", 'x',
 		  HELPCTX(features_mouse),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,no_mouse_rep)));
-    ctrl_checkbox(s, "Disable remote-controlled terminal resizing", 's',
+    ctrl_checkbox(s, "원격 창 크기 조절 사용 안 함 (S)", 's',
 		  HELPCTX(features_resize),
 		  dlg_stdcheckbox_handler,
 		  I(offsetof(Config,no_remote_resize)));
-    ctrl_checkbox(s, "Disable switching to alternate terminal screen", 'w',
+    ctrl_checkbox(s, "대체 터미널 스크린 변경 기능 사용 안 함 (W)", 'w',
 		  HELPCTX(features_altscreen),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,no_alt_screen)));
-    ctrl_checkbox(s, "Disable remote-controlled window title changing", 't',
+    ctrl_checkbox(s, "원격 창 제목 변경 사용 안 함 (T)", 't',
 		  HELPCTX(features_retitle),
 		  dlg_stdcheckbox_handler,
 		  I(offsetof(Config,no_remote_wintitle)));
-    ctrl_radiobuttons(s, "Response to remote title query (SECURITY):", 'q', 3,
+    ctrl_radiobuttons(s, "원격에서의 창 제목 알아내기 응답 (보안) (Q)", 'q', 3,
 		      HELPCTX(features_qtitle),
 		      dlg_stdradiobutton_handler,
 		      I(offsetof(Config,remote_qtitle_action)),
-		      "None", I(TITLE_NONE),
-		      "Empty string", I(TITLE_EMPTY),
-		      "Window title", I(TITLE_REAL), NULL);
-    ctrl_checkbox(s, "Disable destructive backspace on server sending ^?",'b',
+		      "응답하지 않음", I(TITLE_NONE),
+		      "빈 문자열", I(TITLE_EMPTY),
+		      "창 제목", I(TITLE_REAL), NULL);
+    ctrl_checkbox(s, "서버가 보내는 ^? 삭제를 사용 안 함 (B)",'b',
 		  HELPCTX(features_dbackspace),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,no_dbackspace)));
-    ctrl_checkbox(s, "Disable remote-controlled character set configuration",
+    ctrl_checkbox(s, "원격 문자 셋 설정 사용 안 함 (R)",
 		  'r', HELPCTX(features_charset), dlg_stdcheckbox_handler,
 		  I(offsetof(Config,no_remote_charset)));
-    ctrl_checkbox(s, "Disable Arabic text shaping",
+    ctrl_checkbox(s, "아랍어 출력을 사용하지 않음 (L)",
 		  'l', HELPCTX(features_arabicshaping), dlg_stdcheckbox_handler,
 		  I(offsetof(Config, arabicshaping)));
-    ctrl_checkbox(s, "Disable bidirectional text display",
+    ctrl_checkbox(s, "오른쪽에서 왼쪽으로 글쓰기 사용 안 함 (D)",
 		  'd', HELPCTX(features_bidi), dlg_stdcheckbox_handler,
 		  I(offsetof(Config, bidi)));
 
     /*
      * The Window panel.
      */
-    str = dupprintf("Options controlling %s's window", appname);
-    ctrl_settitle(b, "Window", str);
+    str = dupprintf("%s의 창 제어 옵션을 조정합니다", appname);
+    ctrl_settitle(b, "창", str);
     sfree(str);
 
-    s = ctrl_getset(b, "Window", "size", "Set the size of the window");
+    s = ctrl_getset(b, "창", "size", "창 크기 조절");
     ctrl_columns(s, 2, 50, 50);
-    c = ctrl_editbox(s, "Columns", 'm', 100,
+    c = ctrl_editbox(s, "가로 (M)", 'm', 100,
 		     HELPCTX(window_size),
 		     dlg_stdeditbox_handler, I(offsetof(Config,width)), I(-1));
     c->generic.column = 0;
-    c = ctrl_editbox(s, "Rows", 'r', 100,
+    c = ctrl_editbox(s, "줄 (R)", 'r', 100,
 		     HELPCTX(window_size),
 		     dlg_stdeditbox_handler, I(offsetof(Config,height)),I(-1));
     c->generic.column = 1;
     ctrl_columns(s, 1, 100);
 
-    s = ctrl_getset(b, "Window", "scrollback",
-		    "Control the scrollback in the window");
-    ctrl_editbox(s, "Lines of scrollback", 's', 50,
+    s = ctrl_getset(b, "창", "scrollback",
+		    "창 이전 내용 올려보기 설정");
+    ctrl_editbox(s, "이전화면 저장 줄 수 (S)", 's', 50,
 		 HELPCTX(window_scrollback),
 		 dlg_stdeditbox_handler, I(offsetof(Config,savelines)), I(-1));
-    ctrl_checkbox(s, "Display scrollbar", 'd',
+    ctrl_checkbox(s, "스크롤 바 보임 (D)", 'd',
 		  HELPCTX(window_scrollback),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,scrollbar)));
-    ctrl_checkbox(s, "Reset scrollback on keypress", 'k',
+    ctrl_checkbox(s, "키 입력이 있으면 이전화면 보기를 초기화 (K)", 'k',
 		  HELPCTX(window_scrollback),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,scroll_on_key)));
-    ctrl_checkbox(s, "Reset scrollback on display activity", 'p',
+    ctrl_checkbox(s, "출력이 있으면 이전화면 보기를 초기화 (P)", 'p',
 		  HELPCTX(window_scrollback),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,scroll_on_disp)));
-    ctrl_checkbox(s, "Push erased text into scrollback", 'e',
+    ctrl_checkbox(s, "지워진 글을 이전화면으로 밀어냄 (E)", 'e',
 		  HELPCTX(window_erased),
 		  dlg_stdcheckbox_handler,
 		  I(offsetof(Config,erase_to_scrollback)));
@@ -1507,38 +1505,38 @@ void setup_config_box(struct controlbox *b, int midsession,
     /*
      * The Window/Appearance panel.
      */
-    str = dupprintf("Configure the appearance of %s's window", appname);
-    ctrl_settitle(b, "Window/Appearance", str);
+    str = dupprintf("%s 창 모양을 설정합니다.", appname);
+    ctrl_settitle(b, "창/모양", str);
     sfree(str);
 
-    s = ctrl_getset(b, "Window/Appearance", "cursor",
-		    "Adjust the use of the cursor");
-    ctrl_radiobuttons(s, "Cursor appearance:", NO_SHORTCUT, 3,
+    s = ctrl_getset(b, "창/모양", "cursor",
+		    "커서 동작 조절");
+    ctrl_radiobuttons(s, "커서 모양:", NO_SHORTCUT, 3,
 		      HELPCTX(appearance_cursor),
 		      dlg_stdradiobutton_handler,
 		      I(offsetof(Config, cursor_type)),
-		      "Block", 'l', I(0),
-		      "Underline", 'u', I(1),
-		      "Vertical line", 'v', I(2), NULL);
-    ctrl_checkbox(s, "Cursor blinks", 'b',
+		      "사각형 (B)", 'l', I(0),
+		      "밑줄 (U)", 'u', I(1),
+		      "세로줄 (V)", 'v', I(2), NULL);
+    ctrl_checkbox(s, "커서 깜빡임 (B)", 'b',
 		  HELPCTX(appearance_cursor),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,blink_cur)));
 
-    s = ctrl_getset(b, "Window/Appearance", "font",
-		    "Font settings");
-    ctrl_fontsel(s, "Font used in the terminal window", 'n',
+    s = ctrl_getset(b, "창/모양", "font",
+		    "글꼴 설정");
+    ctrl_fontsel(s, "터미널 창 글꼴 (N)", 'n',
 		 HELPCTX(appearance_font),
 		 dlg_stdfontsel_handler, I(offsetof(Config, font)));
 
-    s = ctrl_getset(b, "Window/Appearance", "mouse",
-		    "Adjust the use of the mouse pointer");
-    ctrl_checkbox(s, "Hide mouse pointer when typing in window", 'p',
+    s = ctrl_getset(b, "창/모양", "mouse",
+		    "마우스 포인터 동작 조절");
+    ctrl_checkbox(s, "입력 중에는 마우스 커서 숨김 (P)", 'p',
 		  HELPCTX(appearance_hidemouse),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,hide_mouseptr)));
 
-    s = ctrl_getset(b, "Window/Appearance", "border",
-		    "Adjust the window border");
-    ctrl_editbox(s, "Gap between text and window edge:", 'e', 20,
+    s = ctrl_getset(b, "창/모양", "border",
+		    "창틀 조절");
+    ctrl_editbox(s, "본문과 창틀 간격:", 'e', 20,
 		 HELPCTX(appearance_border),
 		 dlg_stdeditbox_handler,
 		 I(offsetof(Config,window_border)), I(-1));
@@ -1546,81 +1544,81 @@ void setup_config_box(struct controlbox *b, int midsession,
     /*
      * The Window/Behaviour panel.
      */
-    str = dupprintf("Configure the behaviour of %s's window", appname);
-    ctrl_settitle(b, "Window/Behaviour", str);
+    str = dupprintf("%s 창 특성을 설정합니다.", appname);
+    ctrl_settitle(b, "창/특성", str);
     sfree(str);
 
-    s = ctrl_getset(b, "Window/Behaviour", "title",
-		    "Adjust the behaviour of the window title");
-    ctrl_editbox(s, "Window title:", 't', 100,
+    s = ctrl_getset(b, "창/특성", "title",
+		    "창 제목 조절");
+    ctrl_editbox(s, "창 제목 (T):", 't', 100,
 		 HELPCTX(appearance_title),
 		 dlg_stdeditbox_handler, I(offsetof(Config,wintitle)),
 		 I(sizeof(((Config *)0)->wintitle)));
-    ctrl_checkbox(s, "Separate window and icon titles", 'i',
+    ctrl_checkbox(s, "창과 아이콘 제목을 분리 (I)", 'i',
 		  HELPCTX(appearance_title),
 		  dlg_stdcheckbox_handler,
 		  I(CHECKBOX_INVERT | offsetof(Config,win_name_always)));
 
-    s = ctrl_getset(b, "Window/Behaviour", "main", NULL);
-    ctrl_checkbox(s, "Warn before closing window", 'w',
+    s = ctrl_getset(b, "창/특성", "main", NULL);
+    ctrl_checkbox(s, "창 닫기 전에 경고 (W)", 'w',
 		  HELPCTX(behaviour_closewarn),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,warn_on_close)));
 
     /*
      * The Window/Translation panel.
      */
-    ctrl_settitle(b, "Window/Translation",
-		  "Options controlling character set translation");
+    ctrl_settitle(b, "창/변환",
+		  "문자 셋 변환 제어 옵션을 조정합니다");
 
-    s = ctrl_getset(b, "Window/Translation", "trans",
-		    "Character set translation on received data");
-    ctrl_combobox(s, "Received data assumed to be in which character set:",
+    s = ctrl_getset(b, "창/변환", "trans",
+		    "수신 데이터의 문자 셋 변환");
+    ctrl_combobox(s, "수신한 데이터를 이 문자셋으로 가정 (R):",
 		  'r', 100, HELPCTX(translation_codepage),
 		  codepage_handler, P(NULL), P(NULL));
 
-    s = ctrl_getset(b, "Window/Translation", "tweaks", NULL);
-    ctrl_checkbox(s, "Treat CJK ambiguous characters as wide", 'w',
+    s = ctrl_getset(b, "창/변환", "tweaks", NULL);
+    ctrl_checkbox(s, "너비가 지정되지 않은 한중일 글자를 넓게 표시 (W)", 'w',
 		  HELPCTX(translation_cjk_ambig_wide),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,cjk_ambig_wide)));
 
-    str = dupprintf("Adjust how %s handles line drawing characters", appname);
-    s = ctrl_getset(b, "Window/Translation", "linedraw", str);
+    str = dupprintf("%s가 선그림 문자를 다루는 방법", appname);
+    s = ctrl_getset(b, "창/변환", "linedraw", str);
     sfree(str);
-    ctrl_radiobuttons(s, "Handling of line drawing characters:", NO_SHORTCUT,1,
+    ctrl_radiobuttons(s, "선그림 문자 다루기:", NO_SHORTCUT,1,
 		      HELPCTX(translation_linedraw),
 		      dlg_stdradiobutton_handler,
 		      I(offsetof(Config, vtmode)),
-		      "Use Unicode line drawing code points",'u',I(VT_UNICODE),
-		      "Poor man's line drawing (+, - and |)",'p',I(VT_POORMAN),
+		      "유니코드 선문자 사용 (U)",'u',I(VT_UNICODE),
+		      "가난한 자의 선그림 문자 (+, - 와 |) (P)",'p',I(VT_POORMAN),
 		      NULL);
-    ctrl_checkbox(s, "Copy and paste line drawing characters as lqqqk",'d',
+    ctrl_checkbox(s, "VT100 선그림 문자를 lqqqk로 뿌림 (D)",'d',
 		  HELPCTX(selection_linedraw),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,rawcnp)));
 
     /*
      * The Window/Selection panel.
      */
-    ctrl_settitle(b, "Window/Selection", "Options controlling copy and paste");
+    ctrl_settitle(b, "창/선택", "복사, 붙여넣기 제어 옵션을 조정합니다");
 	
-    s = ctrl_getset(b, "Window/Selection", "mouse",
-		    "Control use of mouse");
-    ctrl_checkbox(s, "Shift overrides application's use of mouse", 'p',
+    s = ctrl_getset(b, "창/선택", "mouse",
+		    "마우스 설정");
+    ctrl_checkbox(s, "쉬프트로 애플리케이션 마우스사용을 엎음 (P)", 'p',
 		  HELPCTX(selection_shiftdrag),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,mouse_override)));
     ctrl_radiobuttons(s,
-		      "Default selection mode (Alt+drag does the other one):",
+		      "기본 영역 선택 모드 (Alt+드래그는 다름):",
 		      NO_SHORTCUT, 2,
 		      HELPCTX(selection_rect),
 		      dlg_stdradiobutton_handler,
 		      I(offsetof(Config, rect_select)),
-		      "Normal", 'n', I(0),
-		      "Rectangular block", 'r', I(1), NULL);
+		      "일반", 'n', I(0),
+		      "사각 블럭 (R)", 'r', I(1), NULL);
 
-    s = ctrl_getset(b, "Window/Selection", "charclass",
-		    "Control the select-one-word-at-a-time mode");
+    s = ctrl_getset(b, "창/선택", "charclass",
+		    "클릭해서 한 단어만 선택하기 설정");
     ccd = (struct charclass_data *)
 	ctrl_alloc(b, sizeof(struct charclass_data));
-    ccd->listbox = ctrl_listbox(s, "Character classes:", 'e',
+    ccd->listbox = ctrl_listbox(s, "문자 종류 (E):", 'e',
 				HELPCTX(selection_charclasses),
 				charclass_handler, P(ccd));
     ccd->listbox->listbox.multisel = 1;
@@ -1631,11 +1629,11 @@ void setup_config_box(struct controlbox *b, int midsession,
     ccd->listbox->listbox.percentages[2] = 20;
     ccd->listbox->listbox.percentages[3] = 40;
     ctrl_columns(s, 2, 67, 33);
-    ccd->editbox = ctrl_editbox(s, "Set to class", 't', 50,
+    ccd->editbox = ctrl_editbox(s, "클래스 (T)", 't', 50,
 				HELPCTX(selection_charclasses),
 				charclass_handler, P(ccd), P(NULL));
     ccd->editbox->generic.column = 0;
-    ccd->button = ctrl_pushbutton(s, "Set", 's',
+    ccd->button = ctrl_pushbutton(s, "바꿈 (S)", 's',
 				  HELPCTX(selection_charclasses),
 				  charclass_handler, P(ccd));
     ccd->button->generic.column = 1;
@@ -1644,44 +1642,43 @@ void setup_config_box(struct controlbox *b, int midsession,
     /*
      * The Window/Colours panel.
      */
-    ctrl_settitle(b, "Window/Colours", "Options controlling use of colours");
+    ctrl_settitle(b, "창/색깔", "색상 사용 옵션을 조정합니다");
 
-    s = ctrl_getset(b, "Window/Colours", "general",
-		    "General options for colour usage");
-    ctrl_checkbox(s, "Allow terminal to specify ANSI colours", 'i',
+    s = ctrl_getset(b, "창/색깔", "general",
+		    "색깔관련 일반 옵션");
+    ctrl_checkbox(s, "ANSI 색상 지정 허용", 'i',
 		  HELPCTX(colours_ansi),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,ansi_colour)));
-    ctrl_checkbox(s, "Allow terminal to use xterm 256-colour mode", '2',
+    ctrl_checkbox(s, "xterm 256색 모드 허용", '2',
 		  HELPCTX(colours_xterm256), dlg_stdcheckbox_handler,
 		  I(offsetof(Config,xterm_256_colour)));
-    ctrl_checkbox(s, "Bolded text is a different colour", 'b',
+    ctrl_checkbox(s, "굵은 글씨를 다른 색깔로 표시 (B)", 'b',
 		  HELPCTX(colours_bold),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,bold_colour)));
 
-    str = dupprintf("Adjust the precise colours %s displays", appname);
-    s = ctrl_getset(b, "Window/Colours", "adjust", str);
+    str = dupprintf("색상 미세 조절", appname);
+    s = ctrl_getset(b, "창/색깔", "adjust", str);
     sfree(str);
-    ctrl_text(s, "Select a colour from the list, and then click the"
-	      " Modify button to change its appearance.",
+    ctrl_text(s, "목록에서 색깔을 고르고 변경 버튼을 눌러 표현색을 바꾸세요.",
 	      HELPCTX(colours_config));
     ctrl_columns(s, 2, 67, 33);
     cd = (struct colour_data *)ctrl_alloc(b, sizeof(struct colour_data));
-    cd->listbox = ctrl_listbox(s, "Select a colour to adjust:", 'u',
+    cd->listbox = ctrl_listbox(s, "조정할 색깔 선택 (U):", 'u',
 			       HELPCTX(colours_config), colour_handler, P(cd));
     cd->listbox->generic.column = 0;
     cd->listbox->listbox.height = 7;
-    c = ctrl_text(s, "RGB value:", HELPCTX(colours_config));
+    c = ctrl_text(s, "RGB 값:", HELPCTX(colours_config));
     c->generic.column = 1;
-    cd->redit = ctrl_editbox(s, "Red", 'r', 50, HELPCTX(colours_config),
+    cd->redit = ctrl_editbox(s, "빨강", 'r', 50, HELPCTX(colours_config),
 			     colour_handler, P(cd), P(NULL));
     cd->redit->generic.column = 1;
-    cd->gedit = ctrl_editbox(s, "Green", 'n', 50, HELPCTX(colours_config),
+    cd->gedit = ctrl_editbox(s, "녹색", 'n', 50, HELPCTX(colours_config),
 			     colour_handler, P(cd), P(NULL));
     cd->gedit->generic.column = 1;
-    cd->bedit = ctrl_editbox(s, "Blue", 'e', 50, HELPCTX(colours_config),
+    cd->bedit = ctrl_editbox(s, "파랑", 'e', 50, HELPCTX(colours_config),
 			     colour_handler, P(cd), P(NULL));
     cd->bedit->generic.column = 1;
-    cd->button = ctrl_pushbutton(s, "Modify", 'm', HELPCTX(colours_config),
+    cd->button = ctrl_pushbutton(s, "변경 (M)", 'm', HELPCTX(colours_config),
 				 colour_handler, P(cd));
     cd->button->generic.column = 1;
     ctrl_columns(s, 1, 100);
@@ -1692,34 +1689,34 @@ void setup_config_box(struct controlbox *b, int midsession,
      * passed a protocol < 0.
      */
     if (protocol >= 0) {
-	ctrl_settitle(b, "Connection", "Options controlling the connection");
+	ctrl_settitle(b, "접속", "접속 제어 옵션을 조정합니다");
 
-	s = ctrl_getset(b, "Connection", "keepalive",
-			"Sending of null packets to keep session active");
-	ctrl_editbox(s, "Seconds between keepalives (0 to turn off)", 'k', 20,
+	s = ctrl_getset(b, "접속", "keepalive",
+			"세션 유지를 위한 빈패킷 보내기");
+	ctrl_editbox(s, "접속 유지 간격 (초단위, 0은 끔)", 'k', 20,
 		     HELPCTX(connection_keepalive),
 		     dlg_stdeditbox_handler, I(offsetof(Config,ping_interval)),
 		     I(-1));
 
 	if (!midsession) {
-	    s = ctrl_getset(b, "Connection", "tcp",
-			    "Low-level TCP connection options");
-	    ctrl_checkbox(s, "Disable Nagle's algorithm (TCP_NODELAY option)",
+	    s = ctrl_getset(b, "접속", "tcp",
+			    "저수준 TCP 압축 옵션");
+	    ctrl_checkbox(s, "네이글 알고리즘 사용 안 함 (N)",
 			  'n', HELPCTX(connection_nodelay),
 			  dlg_stdcheckbox_handler,
 			  I(offsetof(Config,tcp_nodelay)));
-	    ctrl_checkbox(s, "Enable TCP keepalives (SO_KEEPALIVE option)",
+	    ctrl_checkbox(s, "TCP 접속유지 사용 함 (SO_KEEPALIVE 옵션)",
 			  'p', HELPCTX(connection_tcpkeepalive),
 			  dlg_stdcheckbox_handler,
 			  I(offsetof(Config,tcp_keepalives)));
 #ifndef NO_IPV6
-	    s = ctrl_getset(b, "Connection", "ipversion",
-			  "Internet protocol version");
+	    s = ctrl_getset(b, "접속", "ipversion",
+			  "인터넷 프로토콜 버전");
 	    ctrl_radiobuttons(s, NULL, NO_SHORTCUT, 3,
 			  HELPCTX(connection_ipversion),
 			  dlg_stdradiobutton_handler,
 			  I(offsetof(Config, addressfamily)),
-			  "Auto", 'u', I(ADDRTYPE_UNSPEC),
+			  "자동", 'u', I(ADDRTYPE_UNSPEC),
 			  "IPv4", '4', I(ADDRTYPE_IPV4),
 			  "IPv6", '6', I(ADDRTYPE_IPV6),
 			  NULL);
@@ -1731,44 +1728,44 @@ void setup_config_box(struct controlbox *b, int midsession,
 	 * decide on data to send to the server.
 	 */
 	if (!midsession) {
-	    ctrl_settitle(b, "Connection/Data", "Data to send to the server");
+	    ctrl_settitle(b, "접속/데이터", "서버에 보낼 데이터");
 
-	    s = ctrl_getset(b, "Connection/Data", "login",
-			    "Login details");
-	    ctrl_editbox(s, "Auto-login username", 'u', 50,
+	    s = ctrl_getset(b, "접속/데이터", "login",
+			    "로그인 정보");
+	    ctrl_editbox(s, "자동 로그인 사용자 (U)", 'u', 50,
 			 HELPCTX(connection_username),
 			 dlg_stdeditbox_handler, I(offsetof(Config,username)),
 			 I(sizeof(((Config *)0)->username)));
 
-	    s = ctrl_getset(b, "Connection/Data", "term",
-			    "Terminal details");
-	    ctrl_editbox(s, "Terminal-type string", 't', 50,
+	    s = ctrl_getset(b, "접속/데이터", "term",
+			    "터미널 정보");
+	    ctrl_editbox(s, "터미널 타입 문자열 (T)", 't', 50,
 			 HELPCTX(connection_termtype),
 			 dlg_stdeditbox_handler, I(offsetof(Config,termtype)),
 			 I(sizeof(((Config *)0)->termtype)));
-	    ctrl_editbox(s, "Terminal speeds", 's', 50,
+	    ctrl_editbox(s, "터미널 속도 (S)", 's', 50,
 			 HELPCTX(connection_termspeed),
 			 dlg_stdeditbox_handler, I(offsetof(Config,termspeed)),
 			 I(sizeof(((Config *)0)->termspeed)));
 
-	    s = ctrl_getset(b, "Connection/Data", "env",
-			    "Environment variables");
+	    s = ctrl_getset(b, "접속/데이터", "env",
+			    "환경 변수");
 	    ctrl_columns(s, 2, 80, 20);
 	    ed = (struct environ_data *)
 		ctrl_alloc(b, sizeof(struct environ_data));
-	    ed->varbox = ctrl_editbox(s, "Variable", 'v', 60,
+	    ed->varbox = ctrl_editbox(s, "변수(V)", 'v', 60,
 				      HELPCTX(telnet_environ),
 				      environ_handler, P(ed), P(NULL));
 	    ed->varbox->generic.column = 0;
-	    ed->valbox = ctrl_editbox(s, "Value", 'l', 60,
+	    ed->valbox = ctrl_editbox(s, "값(L)", 'l', 60,
 				      HELPCTX(telnet_environ),
 				      environ_handler, P(ed), P(NULL));
 	    ed->valbox->generic.column = 0;
-	    ed->addbutton = ctrl_pushbutton(s, "Add", 'd',
+	    ed->addbutton = ctrl_pushbutton(s, "추가 (D)", 'd',
 					    HELPCTX(telnet_environ),
 					    environ_handler, P(ed));
 	    ed->addbutton->generic.column = 1;
-	    ed->rembutton = ctrl_pushbutton(s, "Remove", 'r',
+	    ed->rembutton = ctrl_pushbutton(s, "지움 (R)", 'r',
 					    HELPCTX(telnet_environ),
 					    environ_handler, P(ed));
 	    ed->rembutton->generic.column = 1;
@@ -1789,62 +1786,62 @@ void setup_config_box(struct controlbox *b, int midsession,
 	/*
 	 * The Connection/Proxy panel.
 	 */
-	ctrl_settitle(b, "Connection/Proxy",
-		      "Options controlling proxy usage");
+	ctrl_settitle(b, "접속/프락시",
+		      "프락시 제어 옵션을 조정합니다");
 
-	s = ctrl_getset(b, "Connection/Proxy", "basics", NULL);
-	ctrl_radiobuttons(s, "Proxy type:", 't', 3,
+	s = ctrl_getset(b, "접속/프락시", "basics", NULL);
+	ctrl_radiobuttons(s, "프락시 유형 (T):", 't', 3,
 			  HELPCTX(proxy_type),
 			  dlg_stdradiobutton_handler,
 			  I(offsetof(Config, proxy_type)),
-			  "None", I(PROXY_NONE),
+			  "없음", I(PROXY_NONE),
 			  "SOCKS 4", I(PROXY_SOCKS4),
 			  "SOCKS 5", I(PROXY_SOCKS5),
 			  "HTTP", I(PROXY_HTTP),
 			  "Telnet", I(PROXY_TELNET),
 			  NULL);
 	ctrl_columns(s, 2, 80, 20);
-	c = ctrl_editbox(s, "Proxy hostname", 'y', 100,
+	c = ctrl_editbox(s, "프락시 호스트 (Y)", 'y', 100,
 			 HELPCTX(proxy_main),
 			 dlg_stdeditbox_handler,
 			 I(offsetof(Config,proxy_host)),
 			 I(sizeof(((Config *)0)->proxy_host)));
 	c->generic.column = 0;
-	c = ctrl_editbox(s, "Port", 'p', 100,
+	c = ctrl_editbox(s, "포트 (P)", 'p', 100,
 			 HELPCTX(proxy_main),
 			 dlg_stdeditbox_handler,
 			 I(offsetof(Config,proxy_port)),
 			 I(-1));
 	c->generic.column = 1;
 	ctrl_columns(s, 1, 100);
-	ctrl_editbox(s, "Exclude Hosts/IPs", 'e', 100,
+	ctrl_editbox(s, "금지된 호스트/IP (E)", 'e', 100,
 		     HELPCTX(proxy_exclude),
 		     dlg_stdeditbox_handler,
 		     I(offsetof(Config,proxy_exclude_list)),
 		     I(sizeof(((Config *)0)->proxy_exclude_list)));
-	ctrl_checkbox(s, "Consider proxying local host connections", 'x',
+	ctrl_checkbox(s, "로컬 호스트 접속을 프락시에서 고려함 (X)", 'x',
 		      HELPCTX(proxy_exclude),
 		      dlg_stdcheckbox_handler,
 		      I(offsetof(Config,even_proxy_localhost)));
-	ctrl_radiobuttons(s, "Do DNS name lookup at proxy end:", 'd', 3,
+	ctrl_radiobuttons(s, "프락시 접속에 대해 DNS 네임을 찾음:", 'd', 3,
 			  HELPCTX(proxy_dns),
 			  dlg_stdradiobutton_handler,
 			  I(offsetof(Config, proxy_dns)),
-			  "No", I(FORCE_OFF),
-			  "Auto", I(AUTO),
-			  "Yes", I(FORCE_ON), NULL);
-	ctrl_editbox(s, "Username", 'u', 60,
+			  "아니요", I(FORCE_OFF),
+			  "자동", I(AUTO),
+			  "예", I(FORCE_ON), NULL);
+	ctrl_editbox(s, "사용자명 (U)", 'u', 60,
 		     HELPCTX(proxy_auth),
 		     dlg_stdeditbox_handler,
 		     I(offsetof(Config,proxy_username)),
 		     I(sizeof(((Config *)0)->proxy_username)));
-	c = ctrl_editbox(s, "Password", 'w', 60,
+	c = ctrl_editbox(s, "암호 (W)", 'w', 60,
 			 HELPCTX(proxy_auth),
 			 dlg_stdeditbox_handler,
 			 I(offsetof(Config,proxy_password)),
 			 I(sizeof(((Config *)0)->proxy_password)));
 	c->editbox.password = 1;
-	ctrl_editbox(s, "Telnet command", 'm', 100,
+	ctrl_editbox(s, "텔넷 명령 (M)", 'm', 100,
 		     HELPCTX(proxy_command),
 		     dlg_stdeditbox_handler,
 		     I(offsetof(Config,proxy_telnet_command)),
@@ -1859,31 +1856,31 @@ void setup_config_box(struct controlbox *b, int midsession,
 	/*
 	 * The Connection/Telnet panel.
 	 */
-	ctrl_settitle(b, "Connection/Telnet",
-		      "Options controlling Telnet connections");
+	ctrl_settitle(b, "접속/텔넷",
+		      "텔넷 접속 제어 옵션을 조정합니다");
 
-	s = ctrl_getset(b, "Connection/Telnet", "protocol",
-			"Telnet protocol adjustments");
+	s = ctrl_getset(b, "접속/텔넷", "protocol",
+			"텔넷 프로토콜 조정");
 
 	if (!midsession) {
-	    ctrl_radiobuttons(s, "Handling of OLD_ENVIRON ambiguity:",
+	    ctrl_radiobuttons(s, "OLD_ENVIRON 모호성 다루기:",
 			      NO_SHORTCUT, 2,
 			      HELPCTX(telnet_oldenviron),
 			      dlg_stdradiobutton_handler,
 			      I(offsetof(Config, rfc_environ)),
-			      "BSD (commonplace)", 'b', I(0),
-			      "RFC 1408 (unusual)", 'f', I(1), NULL);
-	    ctrl_radiobuttons(s, "Telnet negotiation mode:", 't', 2,
+			      "BSD (통상)", 'b', I(0),
+			      "RFC 1408 (안 쓰임)", 'f', I(1), NULL);
+	    ctrl_radiobuttons(s, "텔넷 협상 모드 (T):", 't', 2,
 			      HELPCTX(telnet_passive),
 			      dlg_stdradiobutton_handler,
 			      I(offsetof(Config, passive_telnet)),
-			      "Passive", I(1), "Active", I(0), NULL);
+			      "수동", I(1), "능동", I(0), NULL);
 	}
-	ctrl_checkbox(s, "Keyboard sends Telnet special commands", 'k',
+	ctrl_checkbox(s, "키보드로 텔넷 특수 명령 보냄 (K)", 'k',
 		      HELPCTX(telnet_specialkeys),
 		      dlg_stdcheckbox_handler,
 		      I(offsetof(Config,telnet_keyboard)));
-	ctrl_checkbox(s, "Return key sends Telnet New Line instead of ^M",
+	ctrl_checkbox(s, "CR대신 텔넷 New Line 문자를 보냄",
 		      'm', HELPCTX(telnet_newline),
 		      dlg_stdcheckbox_handler,
 		      I(offsetof(Config,telnet_newline)));
@@ -1894,12 +1891,12 @@ void setup_config_box(struct controlbox *b, int midsession,
 	/*
 	 * The Connection/Rlogin panel.
 	 */
-	ctrl_settitle(b, "Connection/Rlogin",
-		      "Options controlling Rlogin connections");
+	ctrl_settitle(b, "접속/rlogin",
+		      "Rlogin 접속 제어 옵션을 조정합니다");
 
-	s = ctrl_getset(b, "Connection/Rlogin", "data",
-			"Data to send to the server");
-	ctrl_editbox(s, "Local username:", 'l', 50,
+	s = ctrl_getset(b, "접속/rlogin", "data",
+			"서버에 보낼 데이터");
+	ctrl_editbox(s, "사용자 명 (L):", 'l', 50,
 		     HELPCTX(rlogin_localuser),
 		     dlg_stdeditbox_handler, I(offsetof(Config,localusername)),
 		     I(sizeof(((Config *)0)->localusername)));
@@ -1916,62 +1913,60 @@ void setup_config_box(struct controlbox *b, int midsession,
 	/*
 	 * The Connection/SSH panel.
 	 */
-	ctrl_settitle(b, "Connection/SSH",
-		      "Options controlling SSH connections");
+	ctrl_settitle(b, "접속/SSH",
+		      "SSH 접속 옵션을 조정합니다");
 
 	if (midsession && protcfginfo == 1) {
-	    s = ctrl_getset(b, "Connection/SSH", "disclaimer", NULL);
-	    ctrl_text(s, "Nothing on this panel may be reconfigured in mid-"
-		      "session; it is only here so that sub-panels of it can "
-		      "exist without looking strange.", HELPCTX(no_help));
+	    s = ctrl_getset(b, "접속/SSH", "disclaimer", NULL);
+	    ctrl_text(s, "이 화면에 있는 설정은 접속 중에는 변경되지 않습니다. 단지 하위의 다른 설정을 표시하기 위해서 나오고 있을 뿐입니다.", HELPCTX(no_help));
 	}
 
 	if (!midsession) {
 
-	    s = ctrl_getset(b, "Connection/SSH", "data",
-			    "Data to send to the server");
-	    ctrl_editbox(s, "Remote command:", 'r', 100,
+	    s = ctrl_getset(b, "접속/SSH", "data",
+			    "서버에 보낼 데이터");
+	    ctrl_editbox(s, "원격 명령 (R):", 'r', 100,
 			 HELPCTX(ssh_command),
 			 dlg_stdeditbox_handler, I(offsetof(Config,remote_cmd)),
 			 I(sizeof(((Config *)0)->remote_cmd)));
 
-	    s = ctrl_getset(b, "Connection/SSH", "protocol", "Protocol options");
-	    ctrl_checkbox(s, "Don't start a shell or command at all", 'n',
+	    s = ctrl_getset(b, "접속/SSH", "protocol", "프로토콜 옵션");
+	    ctrl_checkbox(s, "셸이나 명령어 실행을 하지 않음 (N)", 'n',
 			  HELPCTX(ssh_noshell),
 			  dlg_stdcheckbox_handler,
 			  I(offsetof(Config,ssh_no_shell)));
 	}
 
 	if (!midsession || protcfginfo != 1) {
-	    s = ctrl_getset(b, "Connection/SSH", "protocol", "Protocol options");
+	    s = ctrl_getset(b, "접속/SSH", "protocol", "프로토콜 옵션");
 
-	    ctrl_checkbox(s, "Enable compression", 'e',
+	    ctrl_checkbox(s, "압축 허용 (E)", 'e',
 			  HELPCTX(ssh_compress),
 			  dlg_stdcheckbox_handler,
 			  I(offsetof(Config,compression)));
 	}
 
 	if (!midsession) {
-	    s = ctrl_getset(b, "Connection/SSH", "protocol", "Protocol options");
+	    s = ctrl_getset(b, "접속/SSH", "protocol", "프로토콜 옵션");
 
-	    ctrl_radiobuttons(s, "Preferred SSH protocol version:", NO_SHORTCUT, 4,
+	    ctrl_radiobuttons(s, "먼저 시도할 SSH 프로토콜 버전:", NO_SHORTCUT, 4,
 			      HELPCTX(ssh_protocol),
 			      dlg_stdradiobutton_handler,
 			      I(offsetof(Config, sshprot)),
-			      "1 only", 'l', I(0),
-			      "1", '1', I(1),
-			      "2", '2', I(2),
-			      "2 only", 'y', I(3), NULL);
+			      "SSH1만", 'l', I(0),
+			      "SSH1", '1', I(1),
+			      "SSH2", '2', I(2),
+			      "SSH2만", 'y', I(3), NULL);
 	}
 
 	if (!midsession || protcfginfo != 1) {
-	    s = ctrl_getset(b, "Connection/SSH", "encryption", "Encryption options");
-	    c = ctrl_draglist(s, "Encryption cipher selection policy:", 's',
+	    s = ctrl_getset(b, "접속/SSH", "encryption", "암호화 옵션");
+	    c = ctrl_draglist(s, "암호 알고리즘 선택 정책 (S):", 's',
 			      HELPCTX(ssh_ciphers),
 			      cipherlist_handler, P(NULL));
 	    c->listbox.height = 6;
 
-	    ctrl_checkbox(s, "Enable legacy use of single-DES in SSH-2", 'i',
+	    ctrl_checkbox(s, "SSH 2에서 단일-DES 하위 호환성 사용 (I)", 'i',
 			  HELPCTX(ssh_ciphers),
 			  dlg_stdcheckbox_handler,
 			  I(offsetof(Config,ssh2_des_cbc)));
@@ -1983,30 +1978,30 @@ void setup_config_box(struct controlbox *b, int midsession,
 	 * we're using SSH-2 or haven't decided yet.)
 	 */
 	if (protcfginfo != 1) {
-	    ctrl_settitle(b, "Connection/SSH/Kex",
-			  "Options controlling SSH key exchange");
+	    ctrl_settitle(b, "접속/SSH/키교환",
+			  "SSH 키 교환 옵션을 조정합니다");
 
-	    s = ctrl_getset(b, "Connection/SSH/Kex", "main",
-			    "Key exchange algorithm options");
-	    c = ctrl_draglist(s, "Algorithm selection policy:", 's',
+	    s = ctrl_getset(b, "접속/SSH/키교환", "main",
+			    "키 교환 알고리즘 옵션");
+	    c = ctrl_draglist(s, "암호 알고리즘 선택 정책 (S):", 's',
 			      HELPCTX(ssh_kexlist),
 			      kexlist_handler, P(NULL));
 	    c->listbox.height = 5;
 
-	    s = ctrl_getset(b, "Connection/SSH/Kex", "repeat",
-			    "Options controlling key re-exchange");
+	    s = ctrl_getset(b, "접속/SSH/키교환", "repeat",
+			    "키 재교환 제어 옵션을 조정합니다");
 
-	    ctrl_editbox(s, "Max minutes before rekey (0 for no limit)", 't', 20,
+	    ctrl_editbox(s, "시간(분) 기준 키 재교환 (0: 무제한) (T)", 't', 20,
 			 HELPCTX(ssh_kex_repeat),
 			 dlg_stdeditbox_handler,
 			 I(offsetof(Config,ssh_rekey_time)),
 			 I(-1));
-	    ctrl_editbox(s, "Max data before rekey (0 for no limit)", 'x', 20,
+	    ctrl_editbox(s, "데이터 크기 기준 키 재교환 (0: 무제한) (K)", 'x', 20,
 			 HELPCTX(ssh_kex_repeat),
 			 dlg_stdeditbox_handler,
 			 I(offsetof(Config,ssh_rekey_data)),
 			 I(16));
-	    ctrl_text(s, "(Use 1M for 1 megabyte, 1G for 1 gigabyte etc)",
+	    ctrl_text(s, "(1메가는 1M, 1기가는 1G 같이 입력하세요)",
 		      HELPCTX(ssh_kex_repeat));
 	}
 
@@ -2015,41 +2010,41 @@ void setup_config_box(struct controlbox *b, int midsession,
 	    /*
 	     * The Connection/SSH/Auth panel.
 	     */
-	    ctrl_settitle(b, "Connection/SSH/Auth",
-			  "Options controlling SSH authentication");
+	    ctrl_settitle(b, "접속/SSH/인증",
+			  "SSH 인증 제어 옵션을 조정합니다");
 
-	    s = ctrl_getset(b, "Connection/SSH/Auth", "main", NULL);
-	    ctrl_checkbox(s, "Bypass authentication entirely (SSH-2 only)", 'b',
+	    s = ctrl_getset(b, "접속/SSH/인증", "main", NULL);
+	    ctrl_checkbox(s, "인증을 모두 건너 뜀 (SSH-2) (B)", 'b',
 			  HELPCTX(ssh_auth_bypass),
 			  dlg_stdcheckbox_handler,
 			  I(offsetof(Config,ssh_no_userauth)));
 
-	    s = ctrl_getset(b, "Connection/SSH/Auth", "methods",
-			    "Authentication methods");
-	    ctrl_checkbox(s, "Attempt authentication using Pageant", 'p',
+	    s = ctrl_getset(b, "접속/SSH/인증", "methods",
+			    "인증 방법");
+	    ctrl_checkbox(s, "Pageant를 이용한 인증을 시도 (P)", 'p',
 			  HELPCTX(ssh_auth_pageant),
 			  dlg_stdcheckbox_handler,
 			  I(offsetof(Config,tryagent)));
-	    ctrl_checkbox(s, "Attempt TIS or CryptoCard auth (SSH-1)", 'm',
+	    ctrl_checkbox(s, "SSH1에서 TIS나 CryptoCard 인증을 시도 (M)", 'm',
 			  HELPCTX(ssh_auth_tis),
 			  dlg_stdcheckbox_handler,
 			  I(offsetof(Config,try_tis_auth)));
-	    ctrl_checkbox(s, "Attempt \"keyboard-interactive\" auth (SSH-2)",
+	    ctrl_checkbox(s, "SSH2에서 \"키보드로 직접 입력\"인증을 시도 (I)",
 			  'i', HELPCTX(ssh_auth_ki),
 			  dlg_stdcheckbox_handler,
 			  I(offsetof(Config,try_ki_auth)));
 
-	    s = ctrl_getset(b, "Connection/SSH/Auth", "params",
-			    "Authentication parameters");
-	    ctrl_checkbox(s, "Allow agent forwarding", 'f',
+	    s = ctrl_getset(b, "접속/SSH/인증", "params",
+			    "인증 인자");
+	    ctrl_checkbox(s, "에이전트 포워딩 허용 (F)", 'f',
 			  HELPCTX(ssh_auth_agentfwd),
 			  dlg_stdcheckbox_handler, I(offsetof(Config,agentfwd)));
-	    ctrl_checkbox(s, "Allow attempted changes of username in SSH-2", 'u',
+	    ctrl_checkbox(s, "SSH2에서 사용자 이름 변경을 시도함 (U)", 'u',
 			  HELPCTX(ssh_auth_changeuser),
 			  dlg_stdcheckbox_handler,
 			  I(offsetof(Config,change_username)));
-	    ctrl_filesel(s, "Private key file for authentication:", 'k',
-			 FILTER_KEY_FILES, FALSE, "Select private key file",
+	    ctrl_filesel(s, "인증 개인키 파일 (K):", 'k',
+			 FILTER_KEY_FILES, FALSE, "비밀키 파일 선택",
 			 HELPCTX(ssh_auth_privkey),
 			 dlg_stdfilesel_handler, I(offsetof(Config, keyfile)));
 	}
@@ -2058,22 +2053,22 @@ void setup_config_box(struct controlbox *b, int midsession,
 	    /*
 	     * The Connection/SSH/TTY panel.
 	     */
-	    ctrl_settitle(b, "Connection/SSH/TTY", "Remote terminal settings");
+	    ctrl_settitle(b, "접속/SSH/TTY", "원격 터미널 설정");
 
-	    s = ctrl_getset(b, "Connection/SSH/TTY", "sshtty", NULL);
-	    ctrl_checkbox(s, "Don't allocate a pseudo-terminal", 'p',
+	    s = ctrl_getset(b, "접속/SSH/TTY", "sshtty", NULL);
+	    ctrl_checkbox(s, "수도(pseudo)-터미날을 할당하지 않음", 'p',
 			  HELPCTX(ssh_nopty),
 			  dlg_stdcheckbox_handler,
 			  I(offsetof(Config,nopty)));
 
-	    s = ctrl_getset(b, "Connection/SSH/TTY", "ttymodes",
-			    "Terminal modes");
+	    s = ctrl_getset(b, "접속/SSH/TTY", "ttymodes",
+			    "터미널 모드");
 	    td = (struct ttymodes_data *)
 		ctrl_alloc(b, sizeof(struct ttymodes_data));
 	    ctrl_columns(s, 2, 75, 25);
-	    c = ctrl_text(s, "Terminal modes to send:", HELPCTX(ssh_ttymodes));
+	    c = ctrl_text(s, "보내는 터미널 모드", HELPCTX(ssh_ttymodes));
 	    c->generic.column = 0;
-	    td->rembutton = ctrl_pushbutton(s, "Remove", 'r',
+	    td->rembutton = ctrl_pushbutton(s, "지움 (R)", 'r',
 					    HELPCTX(ssh_ttymodes),
 					    ttymodes_handler, P(td));
 	    td->rembutton->generic.column = 1;
@@ -2090,11 +2085,11 @@ void setup_config_box(struct controlbox *b, int midsession,
 	    td->listbox->listbox.percentages[1] = 60;
 	    ctrl_tabdelay(s, td->rembutton);
 	    ctrl_columns(s, 2, 75, 25);
-	    td->modelist = ctrl_droplist(s, "Mode:", 'm', 67,
+	    td->modelist = ctrl_droplist(s, "모드:", 'm', 67,
 					 HELPCTX(ssh_ttymodes),
 					 ttymodes_handler, P(td));
 	    td->modelist->generic.column = 0;
-	    td->addbutton = ctrl_pushbutton(s, "Add", 'd',
+	    td->addbutton = ctrl_pushbutton(s, "추가 (D)", 'd',
 					    HELPCTX(ssh_ttymodes),
 					    ttymodes_handler, P(td));
 	    td->addbutton->generic.column = 1;
@@ -2103,13 +2098,13 @@ void setup_config_box(struct controlbox *b, int midsession,
 	    /* Bit of a hack to get the value radio buttons and
 	     * edit-box on the same row. */
 	    ctrl_columns(s, 3, 25, 50, 25);
-	    c = ctrl_text(s, "Value:", HELPCTX(ssh_ttymodes));
+	    c = ctrl_text(s, "값:", HELPCTX(ssh_ttymodes));
 	    c->generic.column = 0;
 	    td->valradio = ctrl_radiobuttons(s, NULL, NO_SHORTCUT, 2,
 					     HELPCTX(ssh_ttymodes),
 					     ttymodes_handler, P(td),
-					     "Auto", NO_SHORTCUT, P(NULL),
-					     "This:", NO_SHORTCUT, P(NULL),
+					     "자동", NO_SHORTCUT, P(NULL),
+					     "입력:", NO_SHORTCUT, P(NULL),
 					     NULL);
 	    td->valradio->generic.column = 1;
 	    td->valbox = ctrl_editbox(s, NULL, NO_SHORTCUT, 100,
@@ -2124,18 +2119,18 @@ void setup_config_box(struct controlbox *b, int midsession,
 	    /*
 	     * The Connection/SSH/X11 panel.
 	     */
-	    ctrl_settitle(b, "Connection/SSH/X11",
-			  "Options controlling SSH X11 forwarding");
+	    ctrl_settitle(b, "접속/SSH/X11",
+			  "SSH X11 포워드 제어 옵션을 조정합니다");
 
-	    s = ctrl_getset(b, "Connection/SSH/X11", "x11", "X11 forwarding");
-	    ctrl_checkbox(s, "Enable X11 forwarding", 'e',
+	    s = ctrl_getset(b, "접속/SSH/X11", "x11", "X11 포워딩");
+	    ctrl_checkbox(s, "X11 포워딩 사용 (E)", 'e',
 			  HELPCTX(ssh_tunnels_x11),
 			  dlg_stdcheckbox_handler,I(offsetof(Config,x11_forward)));
-	    ctrl_editbox(s, "X display location", 'x', 50,
+	    ctrl_editbox(s, "X 디스플레이 위치", 'x', 50,
 			 HELPCTX(ssh_tunnels_x11),
 			 dlg_stdeditbox_handler, I(offsetof(Config,x11_display)),
 			 I(sizeof(((Config *)0)->x11_display)));
-	    ctrl_radiobuttons(s, "Remote X11 authentication protocol", 'u', 2,
+	    ctrl_radiobuttons(s, "원격 X11 인증 프로토콜 (U)", 'u', 2,
 			      HELPCTX(ssh_tunnels_x11auth),
 			      dlg_stdradiobutton_handler,
 			      I(offsetof(Config, x11_auth)),
@@ -2146,27 +2141,27 @@ void setup_config_box(struct controlbox *b, int midsession,
 	/*
 	 * The Tunnels panel _is_ still available in mid-session.
 	 */
-	ctrl_settitle(b, "Connection/SSH/Tunnels",
-		      "Options controlling SSH port forwarding");
+	ctrl_settitle(b, "접속/SSH/터널링",
+		      "SSH 포트 포워드 옵션을 조정합니다");
 
-	s = ctrl_getset(b, "Connection/SSH/Tunnels", "portfwd",
-			"Port forwarding");
-	ctrl_checkbox(s, "Local ports accept connections from other hosts",'t',
+	s = ctrl_getset(b, "접속/SSH/터널링", "portfwd",
+			"포트 포워딩");
+	ctrl_checkbox(s, "다른 호스트에서 우리측 포트로의 접속 (T)",'t',
 		      HELPCTX(ssh_tunnels_portfwd_localhost),
 		      dlg_stdcheckbox_handler,
 		      I(offsetof(Config,lport_acceptall)));
-	ctrl_checkbox(s, "Remote ports do the same (SSH-2 only)", 'p',
+	ctrl_checkbox(s, "원격 포트도 같은 방법으로 (SSH2만) (P)", 'p',
 		      HELPCTX(ssh_tunnels_portfwd_localhost),
 		      dlg_stdcheckbox_handler,
 		      I(offsetof(Config,rport_acceptall)));
 
 	ctrl_columns(s, 3, 55, 20, 25);
-	c = ctrl_text(s, "Forwarded ports:", HELPCTX(ssh_tunnels_portfwd));
+	c = ctrl_text(s, "포워드 포트:", HELPCTX(ssh_tunnels_portfwd));
 	c->generic.column = COLUMN_FIELD(0,2);
 	/* You want to select from the list, _then_ hit Remove. So tab order
 	 * should be that way round. */
 	pfd = (struct portfwd_data *)ctrl_alloc(b,sizeof(struct portfwd_data));
-	pfd->rembutton = ctrl_pushbutton(s, "Remove", 'r',
+	pfd->rembutton = ctrl_pushbutton(s, "지움 (R)", 'r',
 					 HELPCTX(ssh_tunnels_portfwd),
 					 portfwd_handler, P(pfd));
 	pfd->rembutton->generic.column = 2;
@@ -2180,34 +2175,34 @@ void setup_config_box(struct controlbox *b, int midsession,
 	pfd->listbox->listbox.percentages[0] = 20;
 	pfd->listbox->listbox.percentages[1] = 80;
 	ctrl_tabdelay(s, pfd->rembutton);
-	ctrl_text(s, "Add new forwarded port:", HELPCTX(ssh_tunnels_portfwd));
+	ctrl_text(s, "포워드될 포트 추가:", HELPCTX(ssh_tunnels_portfwd));
 	/* You want to enter source, destination and type, _then_ hit Add.
 	 * Again, we adjust the tab order to reflect this. */
-	pfd->addbutton = ctrl_pushbutton(s, "Add", 'd',
+	pfd->addbutton = ctrl_pushbutton(s, "추가 (D)", 'd',
 					 HELPCTX(ssh_tunnels_portfwd),
 					 portfwd_handler, P(pfd));
 	pfd->addbutton->generic.column = 2;
 	pfd->addbutton->generic.tabdelay = 1;
-	pfd->sourcebox = ctrl_editbox(s, "Source port", 's', 40,
+	pfd->sourcebox = ctrl_editbox(s, "원 포트 (S)", 's', 40,
 				      HELPCTX(ssh_tunnels_portfwd),
 				      portfwd_handler, P(pfd), P(NULL));
 	pfd->sourcebox->generic.column = 0;
-	pfd->destbox = ctrl_editbox(s, "Destination", 'i', 67,
+	pfd->destbox = ctrl_editbox(s, "대상 (I)", 'i', 67,
 				    HELPCTX(ssh_tunnels_portfwd),
 				    portfwd_handler, P(pfd), P(NULL));
 	pfd->direction = ctrl_radiobuttons(s, NULL, NO_SHORTCUT, 3,
 					   HELPCTX(ssh_tunnels_portfwd),
 					   portfwd_handler, P(pfd),
-					   "Local", 'l', P(NULL),
-					   "Remote", 'm', P(NULL),
-					   "Dynamic", 'y', P(NULL),
+					   "로컬 (L)", 'l', P(NULL),
+					   "원격 (M)", 'm', P(NULL),
+					   "동적 (Y)", 'y', P(NULL),
 					   NULL);
 #ifndef NO_IPV6
 	pfd->addressfamily =
 	    ctrl_radiobuttons(s, NULL, NO_SHORTCUT, 3,
 			      HELPCTX(ssh_tunnels_portfwd_ipversion),
 			      portfwd_handler, P(pfd),
-			      "Auto", 'u', I(ADDRTYPE_UNSPEC),
+			      "자동", 'u', I(ADDRTYPE_UNSPEC),
 			      "IPv4", '4', I(ADDRTYPE_IPV4),
 			      "IPv6", '6', I(ADDRTYPE_IPV6),
 			      NULL);
@@ -2219,33 +2214,33 @@ void setup_config_box(struct controlbox *b, int midsession,
 	    /*
 	     * The Connection/SSH/Bugs panel.
 	     */
-	    ctrl_settitle(b, "Connection/SSH/Bugs",
-			  "Workarounds for SSH server bugs");
+	    ctrl_settitle(b, "접속/SSH/버그",
+			  "SSH 서버 버그 피해가기");
 
-	    s = ctrl_getset(b, "Connection/SSH/Bugs", "main",
-			    "Detection of known bugs in SSH servers");
-	    ctrl_droplist(s, "Chokes on SSH-1 ignore messages", 'i', 20,
+	    s = ctrl_getset(b, "접속/SSH/버그", "main",
+			    "SSH 서버의 알려진 버그 피해가기");
+	    ctrl_droplist(s, "SSH1 무시 메시지 문제 (I)", 'i', 20,
 			  HELPCTX(ssh_bugs_ignore1),
 			  sshbug_handler, I(offsetof(Config,sshbug_ignore1)));
-	    ctrl_droplist(s, "Refuses all SSH-1 password camouflage", 's', 20,
+	    ctrl_droplist(s, "SSH1 패스워드 위장을 거부", 's', 20,
 			  HELPCTX(ssh_bugs_plainpw1),
 			  sshbug_handler, I(offsetof(Config,sshbug_plainpw1)));
-	    ctrl_droplist(s, "Chokes on SSH-1 RSA authentication", 'r', 20,
+	    ctrl_droplist(s, "SSH1 RSA 인증 문제 (R)", 'r', 20,
 			  HELPCTX(ssh_bugs_rsa1),
 			  sshbug_handler, I(offsetof(Config,sshbug_rsa1)));
-	    ctrl_droplist(s, "Miscomputes SSH-2 HMAC keys", 'm', 20,
+	    ctrl_droplist(s, "SSH2 HMAC 키를 잘못 계산 (M)", 'm', 20,
 			  HELPCTX(ssh_bugs_hmac2),
 			  sshbug_handler, I(offsetof(Config,sshbug_hmac2)));
-	    ctrl_droplist(s, "Miscomputes SSH-2 encryption keys", 'e', 20,
+	    ctrl_droplist(s, "SSH2 암호화 키를 잘못 계산함 (E)", 'e', 20,
 			  HELPCTX(ssh_bugs_derivekey2),
 			  sshbug_handler, I(offsetof(Config,sshbug_derivekey2)));
-	    ctrl_droplist(s, "Requires padding on SSH-2 RSA signatures", 'p', 20,
+	    ctrl_droplist(s, "SSH2 RSA 시그너춰에 패딩 요구 (P)", 'p', 20,
 			  HELPCTX(ssh_bugs_rsapad2),
 			  sshbug_handler, I(offsetof(Config,sshbug_rsapad2)));
-	    ctrl_droplist(s, "Misuses the session ID in SSH-2 PK auth", 'n', 20,
+	    ctrl_droplist(s, "세션 ID를 PK 인증에 오용 (N)", 'n', 20,
 			  HELPCTX(ssh_bugs_pksessid2),
 			  sshbug_handler, I(offsetof(Config,sshbug_pksessid2)));
-	    ctrl_droplist(s, "Handles SSH-2 key re-exchange badly", 'k', 20,
+	    ctrl_droplist(s, "잘못된 SSH2 키 재교환 허용 (K)", 'k', 20,
 			  HELPCTX(ssh_bugs_rekey2),
 			  sshbug_handler, I(offsetof(Config,sshbug_rekey2)));
 	}

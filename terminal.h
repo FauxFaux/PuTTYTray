@@ -273,8 +273,17 @@ struct terminal_tag {
     int wcFromTo_size;
     struct bidi_cache_entry *pre_bidi_cache, *post_bidi_cache;
     int bidi_cache_size;
+
+#ifdef ONTHESPOT
+    /*
+     * These are stuff used by the on-the-spot IME support code.
+     */
+    int onthespot;
+    char onthespot_buf[2];
+#endif
 };
 
 #define in_utf(term) ((term)->utf || (term)->ucsdata->line_codepage==CP_UTF8)
+#define in_dbcs(term) ((term)->ucsdata->line_codepage==949)
 
 #endif

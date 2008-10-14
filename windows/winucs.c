@@ -390,21 +390,21 @@ struct cp_list_item {
 };
 
 static const struct cp_list_item cp_list[] = {
-    {"ISO-8859-1:1998 (Latin-1, West Europe)", 0, 96, iso_8859_1},
-    {"ISO-8859-2:1999 (Latin-2, East Europe)", 0, 96, iso_8859_2},
-    {"ISO-8859-3:1999 (Latin-3, South Europe)", 0, 96, iso_8859_3},
-    {"ISO-8859-4:1998 (Latin-4, North Europe)", 0, 96, iso_8859_4},
-    {"ISO-8859-5:1999 (Latin/Cyrillic)", 0, 96, iso_8859_5},
-    {"ISO-8859-6:1999 (Latin/Arabic)", 0, 96, iso_8859_6},
-    {"ISO-8859-7:1987 (Latin/Greek)", 0, 96, iso_8859_7},
-    {"ISO-8859-8:1999 (Latin/Hebrew)", 0, 96, iso_8859_8},
-    {"ISO-8859-9:1999 (Latin-5, Turkish)", 0, 96, iso_8859_9},
-    {"ISO-8859-10:1998 (Latin-6, Nordic)", 0, 96, iso_8859_10},
-    {"ISO-8859-11:2001 (Latin/Thai)", 0, 96, iso_8859_11},
-    {"ISO-8859-13:1998 (Latin-7, Baltic)", 0, 96, iso_8859_13},
-    {"ISO-8859-14:1998 (Latin-8, Celtic)", 0, 96, iso_8859_14},
-    {"ISO-8859-15:1999 (Latin-9, \"euro\")", 0, 96, iso_8859_15},
-    {"ISO-8859-16:2001 (Latin-10, Balkan)", 0, 96, iso_8859_16},
+    {"ISO-8859-1:1998 (라틴-1, 서유럽)", 0, 96, iso_8859_1},
+    {"ISO-8859-2:1999 (라틴-2, 동유럽)", 0, 96, iso_8859_2},
+    {"ISO-8859-3:1999 (라틴-3, 남유럽)", 0, 96, iso_8859_3},
+    {"ISO-8859-4:1998 (라틴-4, 북유럽)", 0, 96, iso_8859_4},
+    {"ISO-8859-5:1999 (라틴/키릴어)", 0, 96, iso_8859_5},
+    {"ISO-8859-6:1999 (라틴/아랍어)", 0, 96, iso_8859_6},
+    {"ISO-8859-7:1987 (라틴/그리스어)", 0, 96, iso_8859_7},
+    {"ISO-8859-8:1999 (라틴/히브리어)", 0, 96, iso_8859_8},
+    {"ISO-8859-9:1999 (라틴-5, 터키어)", 0, 96, iso_8859_9},
+    {"ISO-8859-10:1998 (라틴-6, 스칸디나비아어)", 0, 96, iso_8859_10},
+    {"ISO-8859-11:2001 (라틴/타이어)", 0, 96, iso_8859_11},
+    {"ISO-8859-13:1998 (라틴-7, 발틱어)", 0, 96, iso_8859_13},
+    {"ISO-8859-14:1998 (라틴-8, 켈트어)", 0, 96, iso_8859_14},
+    {"ISO-8859-15:1999 (라틴-9, \"유로\")", 0, 96, iso_8859_15},
+    {"ISO-8859-16:2001 (라틴-10, 발칸어)", 0, 96, iso_8859_16},
 
     {"UTF-8", CP_UTF8},
 
@@ -414,20 +414,24 @@ static const struct cp_list_item cp_list[] = {
     {"VSCII", 0, 256, vscii},
     {"DEC-MCS", 0, 96, dec_mcs},
 
-    {"Win1250 (Central European)", 1250},
-    {"Win1251 (Cyrillic)", 1251},
-    {"Win1252 (Western)", 1252},
-    {"Win1253 (Greek)", 1253},
-    {"Win1254 (Turkish)", 1254},
-    {"Win1255 (Hebrew)", 1255},
-    {"Win1256 (Arabic)", 1256},
-    {"Win1257 (Baltic)", 1257},
-    {"Win1258 (Vietnamese)", 1258},
+    {"Win1250 (중앙 유럽) ", 1250},
+    {"Win1251 (키릴)", 1251},
+    {"Win1252 (서유럽", 1252},
+    {"Win1253 (그리스어)", 1253},
+    {"Win1254 (터키어)", 1254},
+    {"Win1255 (히브리어)", 1255},
+    {"Win1256 (아랍어) ", 1256},
+    {"Win1257 (발트어)", 1257},
+    {"Win1258 (베트남어)", 1258},
 
     {"CP437", 437},
-    {"CP620 (Mazovia)", 0, 128, mazovia},
+    {"CP620 (마조비아)", 0, 128, mazovia},
     {"CP819", 28591},
     {"CP878", 20866},
+    {"CP932", 932},
+    {"CP936", 936},
+    {"CP949", 949},
+    {"CP950", 950},
 
     {"Use font encoding", -1},
 
@@ -1107,8 +1111,8 @@ int decode_codepage(char *cp_name)
 	if (codepage != CP_UTF8 && codepage < 65536) {
 	    if (GetCPInfo(codepage, &cpinfo) == 0) {
 		codepage = -2;
-	    } else if (cpinfo.MaxCharSize > 1)
-		codepage = -3;
+	    } //else if (cpinfo.MaxCharSize > 1)
+		//codepage = -3;
 	}
     }
     if (codepage == -1 && *cp_name)

@@ -226,8 +226,8 @@ static void start_backend(void)
 	    break;
 	}
     if (back == NULL) {
-	char *str = dupprintf("%s Internal Error", appname);
-	MessageBox(NULL, "Unsupported protocol number found",
+	char *str = dupprintf("%s 내부 에러", appname);
+	MessageBox(NULL, "지원되는 프로토콜 번호가 아닙니다",
 		   str, MB_OK | MB_ICONEXCLAMATION);
 	sfree(str);
 	cleanup_exit(1);
@@ -238,9 +238,8 @@ static void start_backend(void)
 		       cfg.tcp_keepalives);
     back->provide_logctx(backhandle, logctx);
     if (error) {
-	char *str = dupprintf("%s Error", appname);
-	sprintf(msg, "Unable to open connection to\n"
-		"%.800s\n" "%s", cfg_dest(&cfg), error);
+	char *str = dupprintf("%s 에러", appname);
+	sprintf(msg, "%.800s에 접속할 수 없습니다.\n" "%s", cfg_dest(&cfg), error);
 	MessageBox(NULL, msg, str, MB_ICONERROR | MB_OK);
 	sfree(str);
 	exit(0);
@@ -287,7 +286,7 @@ static void close_session(void)
     int i;
 
     session_closed = TRUE;
-    sprintf(morestuff, "%.70s (inactive)", appname);
+    sprintf(morestuff, "%.70s (오프라인)", appname);
     set_icon(NULL, morestuff);
     set_title(NULL, morestuff);
 
@@ -310,7 +309,7 @@ static void close_session(void)
     for (i = 0; i < lenof(popup_menus); i++) {
 	DeleteMenu(popup_menus[i].menu, IDM_RESTART, MF_BYCOMMAND);
 	InsertMenu(popup_menus[i].menu, IDM_DUPSESS, MF_BYCOMMAND | MF_ENABLED,
-		   IDM_RESTART, "&Restart Session");
+		   IDM_RESTART, "다시 접속 (&R)");
     }
 }
 
@@ -334,8 +333,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     if (!init_winver())
     {
-	char *str = dupprintf("%s Fatal Error", appname);
-	MessageBox(NULL, "Windows refuses to report a version",
+	char *str = dupprintf("%s 치명적 에러", appname);
+	MessageBox(NULL, "윈도우 버전을 알 수 없습니다",
 		   str, MB_OK | MB_ICONEXCLAMATION);
 	sfree(str);
 	return 1;
@@ -453,28 +452,13 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 		    char *s1, *s2;
 		    /* Are we being invoked from an uninstaller? */
 		    if (!strcmp(p, "-cleanup-during-uninstall")) {
-			s1 = dupprintf("Remove saved sessions and random seed file?\n"
-				       "\n"
-				       "If you hit Yes, ALL Registry entries associated\n"
-				       "with %s will be removed, as well as the\n"
-				       "random seed file. THIS PROCESS WILL\n"
-				       "DESTROY YOUR SAVED SESSIONS.\n"
-				       "(This only affects the currently logged-in user.)\n"
-				       "\n"
-				       "If you hit No, uninstallation will proceed, but\n"
-				       "saved sessions etc will be left on the machine.",
+			s1 = dupprintf("저장된 세션과 랜덤 시드 파일을 삭제겠습니까?\n\n\"예\"를 누르면 %s와 관련된 모든 레지스트리가\n모두 지워지며 랜덤 시드 파일도 싹 지워집니다.\n[모든/저장된/세션이/지워집니다] (현재 로그인\n사용자에게만 영향을 미칩니다.)\n\n\"아니오\"를 누르면 일반적인 프로그램 제거가\n진행되지만, 세션과 기타 정보들은 그대로 남아 있게\n됩니다.",
 				       appname);
-			s2 = dupprintf("%s Uninstallation", appname);
+			s2 = dupprintf("%s 제거", appname);
 		    } else {
-			s1 = dupprintf("This procedure will remove ALL Registry entries\n"
-				       "associated with %s, and will also remove\n"
-				       "the random seed file. (This only affects the\n"
-				       "currently logged-in user.)\n"
-				       "\n"
-				       "THIS PROCESS WILL DESTROY YOUR SAVED SESSIONS.\n"
-				       "Are you really sure you want to continue?",
+			s1 = dupprintf("이제 %s와 관련된 모든 레지스트리를 지우고\n랜덤 시드 파일도 지우게 될 것입니다.\n(현재 로그인 사용자에게만 영향을 미칩니다.)\n\n!주의! 결과적으로 모든 저장된 세션을 지우게 됩\n니다. 진짜로 모든 정보를 지우시겠습니까?\n",
 				       appname);
-			s2 = dupprintf("%s Warning", appname);
+			s2 = dupprintf("%s 경고", appname);
 		    }
 		    if (message_box(s1, s2,
 				    MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2,
@@ -607,8 +591,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     /* Check for invalid Port number (i.e. zero) */
     if (cfg.port == 0) {
-	char *str = dupprintf("%s Internal Error", appname);
-	MessageBox(NULL, "Invalid Port Number",
+	char *str = dupprintf("%s 내부 에러", appname);
+	MessageBox(NULL, "잘못된 포트 번호입니다",
 		   str, MB_OK | MB_ICONEXCLAMATION);
 	sfree(str);
 	cleanup_exit(1);
@@ -755,7 +739,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
 	popup_menus[SYSMENU].menu = GetSystemMenu(hwnd, FALSE);
 	popup_menus[CTXMENU].menu = CreatePopupMenu();
-	AppendMenu(popup_menus[CTXMENU].menu, MF_ENABLED, IDM_PASTE, "&Paste");
+	AppendMenu(popup_menus[CTXMENU].menu, MF_ENABLED, IDM_PASTE, "붙여넣기 (&P)");
 
 	savedsess_menu = CreateMenu();
 	get_sesslist(&sesslist, TRUE);
@@ -765,24 +749,24 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	    m = popup_menus[j].menu;
 
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
-	    AppendMenu(m, MF_ENABLED, IDM_SHOWLOG, "&Event Log");
+	    AppendMenu(m, MF_ENABLED, IDM_SHOWLOG, "사건 로그 (&E)");
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
-	    AppendMenu(m, MF_ENABLED, IDM_NEWSESS, "Ne&w Session...");
-	    AppendMenu(m, MF_ENABLED, IDM_DUPSESS, "&Duplicate Session");
+	    AppendMenu(m, MF_ENABLED, IDM_NEWSESS, "새 접속 (&W)");
+	    AppendMenu(m, MF_ENABLED, IDM_DUPSESS, "같은 연결 하나 더 (&D)");
 	    AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT) savedsess_menu,
-		       "Sa&ved Sessions");
-	    AppendMenu(m, MF_ENABLED, IDM_RECONF, "Chan&ge Settings...");
+		       "저장된 세션 (&V)");
+	    AppendMenu(m, MF_ENABLED, IDM_RECONF, "설정 변경 (&G)");
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
-	    AppendMenu(m, MF_ENABLED, IDM_COPYALL, "C&opy All to Clipboard");
-	    AppendMenu(m, MF_ENABLED, IDM_CLRSB, "C&lear Scrollback");
-	    AppendMenu(m, MF_ENABLED, IDM_RESET, "Rese&t Terminal");
+	    AppendMenu(m, MF_ENABLED, IDM_COPYALL, "클립보드로 전체 복사 (&O)");
+	    AppendMenu(m, MF_ENABLED, IDM_CLRSB, "이전 화면 비움 (&C)");
+	    AppendMenu(m, MF_ENABLED, IDM_RESET, "터미널 초기화 (&T)");
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
 	    AppendMenu(m, (cfg.resize_action == RESIZE_DISABLED) ?
-		       MF_GRAYED : MF_ENABLED, IDM_FULLSCREEN, "&Full Screen");
+		       MF_GRAYED : MF_ENABLED, IDM_FULLSCREEN, "전체 화면 (&F)");
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
 	    if (has_help())
-		AppendMenu(m, MF_ENABLED, IDM_HELP, "&Help");
-	    str = dupprintf("&About %s", appname);
+		AppendMenu(m, MF_ENABLED, IDM_HELP, "도움말(&H)");
+	    str = dupprintf("%s에 대해(&A)", appname);
 	    AppendMenu(m, MF_ENABLED, IDM_ABOUT, str);
 	    sfree(str);
 	}
@@ -901,9 +885,9 @@ char *do_select(SOCKET skt, int startup)
     if (p_WSAAsyncSelect(skt, hwnd, msg, events) == SOCKET_ERROR) {
 	switch (p_WSAGetLastError()) {
 	  case WSAENETDOWN:
-	    return "Network is down";
+	    return "네트워크가 끊겼습니다";
 	  default:
-	    return "WSAAsyncSelect(): unknown error";
+	    return "WSAAsyncSelect(): 알 수 없는 에러";
 	}
     }
     return NULL;
@@ -988,7 +972,7 @@ void update_specials_menu(void *frontend)
 	if (new_menu) {
 	    InsertMenu(popup_menus[j].menu, IDM_SHOWLOG,
 		       MF_BYCOMMAND | MF_POPUP | MF_ENABLED,
-		       (UINT) new_menu, "S&pecial Command");
+		       (UINT) new_menu, "특별 명령 (&P)");
 	    InsertMenu(popup_menus[j].menu, IDM_SHOWLOG,
 		       MF_BYCOMMAND | MF_SEPARATOR, IDM_SPECIALSEP, 0);
 	}
@@ -1061,7 +1045,7 @@ void connection_fatal(void *frontend, char *fmt, ...)
     va_start(ap, fmt);
     stuff = dupvprintf(fmt, ap);
     va_end(ap);
-    sprintf(morestuff, "%.70s Fatal Error", appname);
+    sprintf(morestuff, "%.70s 치명적 에러", appname);
     MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
     sfree(stuff);
 
@@ -1083,7 +1067,7 @@ void cmdline_error(char *fmt, ...)
     va_start(ap, fmt);
     stuff = dupvprintf(fmt, ap);
     va_end(ap);
-    sprintf(morestuff, "%.70s Command Line Error", appname);
+    sprintf(morestuff, "%.70s 명령행 에러", appname);
     MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
     sfree(stuff);
     exit(1);
@@ -1850,6 +1834,18 @@ static void set_input_locale(HKL kl)
 		  lbuf, sizeof(lbuf));
 
     kbd_codepage = atoi(lbuf);
+
+#ifdef ONTHESPOT
+    /* Korean IME doesn't need to show the external IME composing
+     * window and it can make users less intuitive to see what they
+     * are typing. */
+    if (kbd_codepage == 949 /* Korean */) {
+	term->onthespot = 1;
+	term->onthespot_buf[0] = 0;
+    }
+    else
+	term->onthespot = 0;
+#endif
 }
 
 static void click(Mouse_Button b, int x, int y, int shift, int ctrl, int alt)
@@ -1950,7 +1946,7 @@ void notify_remote_exit(void *fe)
 	     * by a fatal error, so an error box will be coming our way and
 	     * we should not generate this informational one. */
 	    if (exitcode != INT_MAX)
-		MessageBox(hwnd, "Connection closed by remote host",
+		MessageBox(hwnd, "접속이 끊어졌습니다.",
 			   appname, MB_OK | MB_ICONINFORMATION);
 	}
     }
@@ -1992,10 +1988,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	{
 	    char *str;
 	    show_mouseptr(1);
-	    str = dupprintf("%s Exit Confirmation", appname);
+	    str = dupprintf("%s 종료 확인", appname);
 	    if (!cfg.warn_on_close || session_closed ||
 		MessageBox(hwnd,
-			   "Are you sure you want to close this session?",
+			   "진짜로 이 접속을 닫겠습니까?",
 			   str, MB_ICONWARNING | MB_OKCANCEL | MB_DEFBUTTON1)
 		== IDOK)
 		DestroyWindow(hwnd);
@@ -2933,10 +2929,31 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
       case WM_IME_STARTCOMPOSITION:
 	{
 	    HIMC hImc = ImmGetContext(hwnd);
+#ifdef ONTHESPOT
+	    if (term->onthespot) {
+		COMPOSITIONFORM cf;
+		RECT rectWorkArea;
+
+		SystemParametersInfo(SPI_GETWORKAREA, 0,
+				     (void*)&rectWorkArea, 0);
+		cf.dwStyle = CFS_POINT;
+		cf.ptCurrentPos.x = 0; // drive out of screen
+		cf.ptCurrentPos.y = rectWorkArea.bottom+50;
+		ImmSetCompositionWindow(hImc, &cf);
+		ImmReleaseContext(hwnd, hImc);
+		term->onthespot_buf[0] = 0;
+		return 0;
+	    }
+#endif
 	    ImmSetCompositionFont(hImc, &lfont);
 	    ImmReleaseContext(hwnd, hImc);
 	}
 	break;
+#ifdef ONTHESPOT
+      case WM_IME_ENDCOMPOSITION:
+	term->onthespot_buf[0] = 0;
+	break;
+#endif
       case WM_IME_COMPOSITION:
 	{
 	    HIMC hIMC;
@@ -2946,8 +2963,27 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    if(osVersion.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS || 
 	        osVersion.dwPlatformId == VER_PLATFORM_WIN32s) break; /* no Unicode */
 
-	    if ((lParam & GCS_RESULTSTR) == 0) /* Composition unfinished. */
+	    if ((lParam & GCS_RESULTSTR) == 0) { /* Composition unfinished. */
+#ifdef ONTHESPOT
+		if (term->onthespot) {
+		    RECT invrect;
+
+		    /* IME_COMPOSITION carries "DBCS" character */
+		    term->onthespot_buf[0] = wParam >> 8;
+		    term->onthespot_buf[1] = wParam & 0xff;
+		    invrect.left = caret_x;
+		    invrect.top = caret_y;
+		    invrect.right = caret_x + font_width * 2;
+		    invrect.bottom = caret_y + font_height;
+		    InvalidateRect(hwnd, &invrect, TRUE);
+		}
+#endif
 		break; /* fall back to DefWindowProc */
+	    }
+#ifdef ONTHESPOT
+	    else
+		term->onthespot_buf[0] = 0;
+#endif
 
 	    hIMC = ImmGetContext(hwnd);
 	    n = ImmGetCompositionStringW(hIMC, GCS_RESULTSTR, NULL, 0);
@@ -4987,7 +5023,7 @@ void fatalbox(char *fmt, ...)
     va_start(ap, fmt);
     stuff = dupvprintf(fmt, ap);
     va_end(ap);
-    sprintf(morestuff, "%.70s Fatal Error", appname);
+    sprintf(morestuff, "%.70s 치명적 에러", appname);
     MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
     sfree(stuff);
     cleanup_exit(1);
@@ -5004,7 +5040,7 @@ void modalfatalbox(char *fmt, ...)
     va_start(ap, fmt);
     stuff = dupvprintf(fmt, ap);
     va_end(ap);
-    sprintf(morestuff, "%.70s Fatal Error", appname);
+    sprintf(morestuff, "%.70s 치명적 에러", appname);
     MessageBox(hwnd, stuff, morestuff,
 	       MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
     sfree(stuff);
@@ -5128,9 +5164,8 @@ void do_beep(void *frontend, int mode)
 		       SND_ASYNC | SND_FILENAME)) {
 	    char buf[sizeof(cfg.bell_wavefile.path) + 80];
 	    char otherbuf[100];
-	    sprintf(buf, "Unable to play sound file\n%s\n"
-		    "Using default sound instead", cfg.bell_wavefile.path);
-	    sprintf(otherbuf, "%.70s Sound Error", appname);
+	    sprintf(buf, "다음 소리 파일을 재생할 수 없습니다:\n%s\n기본 소리를 대신 사용합니다", cfg.bell_wavefile.path);
+	    sprintf(otherbuf, "%.70s 사운드 시스템 에러", appname);
 	    MessageBox(hwnd, buf, otherbuf,
 		       MB_OK | MB_ICONEXCLAMATION);
 	    cfg.beep = BELL_DEFAULT;

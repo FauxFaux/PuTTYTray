@@ -642,6 +642,13 @@ GLOBAL int loaded_session;
 
 struct RSAKey;			       /* be a little careful of scope */
 
+#if defined(WIN32) || defined(WIN64)
+/* Korean IME doesn't need to show the external IME composing
+ * window and it can make users less intuitive to see what they
+ * are typing. */
+#define ONTHESPOT	1
+#endif
+
 /*
  * Mechanism for getting text strings such as usernames and passwords
  * from the front-end.

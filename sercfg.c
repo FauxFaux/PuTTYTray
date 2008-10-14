@@ -113,8 +113,8 @@ void ser_setup_config_box(struct controlbox *b, int midsession,
 	 * Add the serial back end to the protocols list at the
 	 * top of the config box.
 	 */
-	s = ctrl_getset(b, "Session", "hostport",
-			"Specify the destination you want to connect to");
+        s = ctrl_getset(b, "技记", "hostport",
+			"扁夯 立加 沥焊");
 
         for (i = 0; i < s->ncontrols; i++) {
             c = s->ctrls[i];
@@ -125,7 +125,7 @@ void ser_setup_config_box(struct controlbox *b, int midsession,
 		c->radio.buttons =
 		    sresize(c->radio.buttons, c->radio.nbuttons, char *);
 		c->radio.buttons[c->radio.nbuttons-1] =
-		    dupstr("Serial");
+		    dupstr("矫府倔");
 		c->radio.buttondata =
 		    sresize(c->radio.buttondata, c->radio.nbuttons, intorptr);
 		c->radio.buttondata[c->radio.nbuttons-1] = I(PROT_SERIAL);
@@ -142,7 +142,7 @@ void ser_setup_config_box(struct controlbox *b, int midsession,
      * Entirely new Connection/Serial panel for serial port
      * configuration.
      */
-    ctrl_settitle(b, "Connection/Serial",
+    ctrl_settitle(b, "立加/矫府倔",
 		  "Options controlling local serial lines");
 
     if (!midsession) {
@@ -151,7 +151,7 @@ void ser_setup_config_box(struct controlbox *b, int midsession,
 	 * midflight, although we do allow all other
 	 * reconfiguration.
 	 */
-	s = ctrl_getset(b, "Connection/Serial", "serline",
+	s = ctrl_getset(b, "立加/矫府倔", "serline",
 			"Select a serial line");
 	ctrl_editbox(s, "Serial line to connect to", 'l', 40,
 		     HELPCTX(serial_line),
@@ -159,7 +159,7 @@ void ser_setup_config_box(struct controlbox *b, int midsession,
 		     I(sizeof(((Config *)0)->serline)));
     }
 
-    s = ctrl_getset(b, "Connection/Serial", "sercfg", "Configure the serial line");
+    s = ctrl_getset(b, "立加/矫府倔", "sercfg", "Configure the serial line");
     ctrl_editbox(s, "Speed (baud)", 's', 40,
 		 HELPCTX(serial_speed),
 		 dlg_stdeditbox_handler, I(offsetof(Config,serspeed)), I(-1));

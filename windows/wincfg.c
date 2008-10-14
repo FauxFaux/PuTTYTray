@@ -42,11 +42,11 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	 * Add the About and Help buttons to the standard panel.
 	 */
 	s = ctrl_getset(b, "", "", "");
-	c = ctrl_pushbutton(s, "About", 'a', HELPCTX(no_help),
+	c = ctrl_pushbutton(s, "도움", 'a', HELPCTX(no_help),
 			    about_handler, P(hwndp));
 	c->generic.column = 0;
 	if (has_help) {
-	    c = ctrl_pushbutton(s, "Help", 'h', HELPCTX(no_help),
+	    c = ctrl_pushbutton(s, "도움 (H)", 'h', HELPCTX(no_help),
 				help_handler, P(hwndp));
 	    c->generic.column = 1;
 	}
@@ -56,9 +56,9 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
      * Full-screen mode is a Windows peculiarity; hence
      * scrollbar_in_fullscreen is as well.
      */
-    s = ctrl_getset(b, "Window", "scrollback",
-		    "Control the scrollback in the window");
-    ctrl_checkbox(s, "Display scrollbar in full screen mode", 'i',
+    s = ctrl_getset(b, "창", "scrollback",
+		    "창 이전 내용 올려보기 설정");
+    ctrl_checkbox(s, "전화면 모드에서 스크롤 바 보임 (I)", 'i',
 		  HELPCTX(window_scrollback),
 		  dlg_stdcheckbox_handler,
 		  I(offsetof(Config,scrollbar_in_fullscreen)));
@@ -91,12 +91,12 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
      * Windows has the AltGr key, which has various Windows-
      * specific options.
      */
-    s = ctrl_getset(b, "Terminal/Keyboard", "features",
-		    "Enable extra keyboard features:");
-    ctrl_checkbox(s, "AltGr acts as Compose key", 't',
+    s = ctrl_getset(b, "터미널/키보드", "features",
+		    "키보드 부가 기능:");
+    ctrl_checkbox(s, "회색 Alt를 조합 키로 사용 (T)", 't',
 		  HELPCTX(keyboard_compose),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,compose_key)));
-    ctrl_checkbox(s, "Control-Alt is different from AltGr", 'd',
+    ctrl_checkbox(s, "Ctrl-Alt를 회색 Alt와 구분 (D)", 'd',
 		  HELPCTX(keyboard_ctrlalt),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,ctrlaltkeys)));
 
@@ -117,7 +117,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
      * the interface, and template creation code is under no actual
      * obligation to use them.
      */
-    s = ctrl_getset(b, "Terminal/Bell", "style", "Set the style of bell");
+    s = ctrl_getset(b, "터미널/벨", "style", "벨 스타일");
     {
 	int i;
 	for (i = 0; i < s->ncontrols; i++) {
@@ -129,9 +129,9 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		c->radio.buttons =
 		    sresize(c->radio.buttons, c->radio.nbuttons, char *);
 		c->radio.buttons[c->radio.nbuttons-1] =
-		    dupstr("Play a custom sound file");
+		    dupstr("다른 사운드 파일 사용");
 		c->radio.buttons[c->radio.nbuttons-2] =
-		    dupstr("Beep using the PC speaker");
+		    dupstr("PC 스피커를 이용해서 벨소리 냄");
 		c->radio.buttondata =
 		    sresize(c->radio.buttondata, c->radio.nbuttons, intorptr);
 		c->radio.buttondata[c->radio.nbuttons-1] = I(BELL_WAVEFILE);
@@ -146,8 +146,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	    }
 	}
     }
-    ctrl_filesel(s, "Custom sound file to play as a bell:", NO_SHORTCUT,
-		 FILTER_WAVE_FILES, FALSE, "Select bell sound file",
+    ctrl_filesel(s, "벨 소리로 사용할 소리 파일:", NO_SHORTCUT,
+		 FILTER_WAVE_FILES, FALSE, "벨 소리 파일 선택",
 		 HELPCTX(bell_style),
 		 dlg_stdfilesel_handler, I(offsetof(Config, bell_wavefile)));
 
@@ -166,33 +166,33 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     /*
      * The sunken-edge border is a Windows GUI feature.
      */
-    s = ctrl_getset(b, "Window/Appearance", "border",
-		    "Adjust the window border");
-    ctrl_checkbox(s, "Sunken-edge border (slightly thicker)", 's',
+    s = ctrl_getset(b, "창/모양", "border",
+		    "창틀 조절");
+    ctrl_checkbox(s, "튀어나온 창틀 (좀 더 두터움) (S)", 's',
 		  HELPCTX(appearance_border),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,sunken_edge)));
 
     /*
      * Configurable font quality settings for Windows.
      */
-    s = ctrl_getset(b, "Window/Appearance", "font",
-		    "Font settings");
-    ctrl_radiobuttons(s, "Font quality:", 'q', 2,
+    s = ctrl_getset(b, "창/모양", "font",
+		    "글꼴 설정");
+    ctrl_radiobuttons(s, "글꼴 품질 (Q):", 'q', 2,
 		      HELPCTX(appearance_font),
 		      dlg_stdradiobutton_handler,
 		      I(offsetof(Config, font_quality)),
 		      "Antialiased", I(FQ_ANTIALIASED),
 		      "Non-Antialiased", I(FQ_NONANTIALIASED),
 		      "ClearType", I(FQ_CLEARTYPE),
-		      "Default", I(FQ_DEFAULT), NULL);
+		      "기본", I(FQ_DEFAULT), NULL);
 
     /*
      * Cyrillic Lock is a horrid misfeature even on Windows, and
      * the least we can do is ensure it never makes it to any other
      * platform (at least unless someone fixes it!).
      */
-    s = ctrl_getset(b, "Window/Translation", "tweaks", NULL);
-    ctrl_checkbox(s, "Caps Lock acts as Cyrillic switch", 's',
+    s = ctrl_getset(b, "창/변환", "tweaks", NULL);
+    ctrl_checkbox(s, "CapsLock을 키릴 전환키로 사용", 's',
 		  HELPCTX(translation_cyrillic),
 		  dlg_stdcheckbox_handler,
 		  I(offsetof(Config,xlat_capslockcyr)));
@@ -201,10 +201,9 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
      * On Windows we can use but not enumerate translation tables
      * from the operating system. Briefly document this.
      */
-    s = ctrl_getset(b, "Window/Translation", "trans",
-		    "Character set translation on received data");
-    ctrl_text(s, "(Codepages supported by Windows but not listed here, "
-	      "such as CP866 on many systems, can be entered manually)",
+    s = ctrl_getset(b, "창/변환", "trans",
+		    "수신 데이터의 문자 셋 변환");
+    ctrl_text(s, "(여기에 없지만 윈도우가 지원하는 CP866 같은 인코딩은 직접 입력하면 쓸 수 있습니다.)",
 	      HELPCTX(translation_codepage));
 
     /*
@@ -212,8 +211,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
      * additional options when working with line-drawing
      * characters.
      */
-    str = dupprintf("Adjust how %s displays line drawing characters", appname);
-    s = ctrl_getset(b, "Window/Translation", "linedraw", str);
+    str = dupprintf("%s가 선그림 문자를 출력하는 방법", appname);
+    s = ctrl_getset(b, "창/변환", "linedraw", str);
     sfree(str);
     {
 	int i;
@@ -226,11 +225,11 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		c->radio.buttons =
 		    sresize(c->radio.buttons, c->radio.nbuttons, char *);
 		c->radio.buttons[c->radio.nbuttons-3] =
-		    dupstr("Font has XWindows encoding");
+		    dupstr("X윈도우 인코딩사용 (X)");
 		c->radio.buttons[c->radio.nbuttons-2] =
-		    dupstr("Use font in both ANSI and OEM modes");
+		    dupstr("ANSI와 OEM모드 모두 사용 (B)");
 		c->radio.buttons[c->radio.nbuttons-1] =
-		    dupstr("Use font in OEM mode only");
+		    dupstr("글꼴을 OEM 모드로만 사용");
 		c->radio.buttondata =
 		    sresize(c->radio.buttondata, c->radio.nbuttons, intorptr);
 		c->radio.buttondata[c->radio.nbuttons-3] = I(VT_XWINDOWS);
@@ -256,9 +255,9 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     /*
      * RTF paste is Windows-specific.
      */
-    s = ctrl_getset(b, "Window/Selection", "format",
-		    "Formatting of pasted characters");
-    ctrl_checkbox(s, "Paste to clipboard in RTF as well as plain text", 'f',
+    s = ctrl_getset(b, "창/선택", "format",
+		    "붙여넣기 글자 변환");
+    ctrl_checkbox(s, "클립보드로 텍스트와 RTF를 동시에 복사", 'f',
 		  HELPCTX(selection_rtf),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,rtf_paste)));
 
@@ -267,15 +266,15 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
      * mode in which the more critical Paste action is available on
      * the right button instead.
      */
-    s = ctrl_getset(b, "Window/Selection", "mouse",
-		    "Control use of mouse");
-    ctrl_radiobuttons(s, "Action of mouse buttons:", 'm', 1,
+    s = ctrl_getset(b, "창/선택", "mouse",
+		    "마우스 설정");
+    ctrl_radiobuttons(s, "마우스 버튼 특성:", 'm', 1,
 		      HELPCTX(selection_buttons),
 		      dlg_stdradiobutton_handler,
 		      I(offsetof(Config, mouse_is_xterm)),
-		      "Windows (Middle extends, Right brings up menu)", I(2),
-		      "Compromise (Middle extends, Right pastes)", I(0),
-		      "xterm (Right extends, Middle pastes)", I(1), NULL);
+		      "윈도우 (휠 확장, 오른쪽 메뉴 띄움)", I(2),
+		      "어중간 (휠 확장, 오른쪽 붙여넣기)", I(0),
+		      "xterm (오른쪽 확장, 휠 붙여넣기)", I(1), NULL);
     /*
      * This really ought to go at the _top_ of its box, not the
      * bottom, so we'll just do some shuffling now we've set it
@@ -288,12 +287,12 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     /*
      * Logical palettes don't even make sense anywhere except Windows.
      */
-    s = ctrl_getset(b, "Window/Colours", "general",
-		    "General options for colour usage");
-    ctrl_checkbox(s, "Attempt to use logical palettes", 'l',
+    s = ctrl_getset(b, "창/색깔", "general",
+		    "색깔관련 일반 옵션");
+    ctrl_checkbox(s, "논리 팔레트 사용을 시도 (L)", 'l',
 		  HELPCTX(colours_logpal),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,try_palette)));
-    ctrl_checkbox(s, "Use system colours", 's',
+    ctrl_checkbox(s, "시스템 컬러 씀 (S)", 's',
                   HELPCTX(colours_system),
                   dlg_stdcheckbox_handler, I(offsetof(Config,system_colour)));
 
@@ -301,35 +300,35 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     /*
      * Resize-by-changing-font is a Windows insanity.
      */
-    s = ctrl_getset(b, "Window", "size", "Set the size of the window");
-    ctrl_radiobuttons(s, "When window is resized:", 'z', 1,
+    s = ctrl_getset(b, "창", "size", "창 크기 조절");
+    ctrl_radiobuttons(s, "창 크기가 바뀌었을 때 (Z):", 'z', 1,
 		      HELPCTX(window_resize),
 		      dlg_stdradiobutton_handler,
 		      I(offsetof(Config, resize_action)),
-		      "Change the number of rows and columns", I(RESIZE_TERM),
-		      "Change the size of the font", I(RESIZE_FONT),
-		      "Change font size only when maximised", I(RESIZE_EITHER),
-		      "Forbid resizing completely", I(RESIZE_DISABLED), NULL);
+		      "가로 세로 크기 조절", I(RESIZE_TERM),
+		      "글꼴 크기를 조절", I(RESIZE_FONT),
+		      "최대화 되었을 때에만 글꼴 크기 조정", I(RESIZE_EITHER),
+		      "전혀 크기 조절 하지 않음", I(RESIZE_DISABLED), NULL);
 
     /*
      * Most of the Window/Behaviour stuff is there to mimic Windows
      * conventions which PuTTY can optionally disregard. Hence,
      * most of these options are Windows-specific.
      */
-    s = ctrl_getset(b, "Window/Behaviour", "main", NULL);
-    ctrl_checkbox(s, "Window closes on ALT-F4", '4',
+    s = ctrl_getset(b, "창/특성", "main", NULL);
+    ctrl_checkbox(s, "Alt-F4를 누르면 창을 닫음", '4',
 		  HELPCTX(behaviour_altf4),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_f4)));
-    ctrl_checkbox(s, "System menu appears on ALT-Space", 'y',
+    ctrl_checkbox(s, "ALT-스페이스를 누르면 시스템 메뉴 나옴 (Y)", 'y',
 		  HELPCTX(behaviour_altspace),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_space)));
-    ctrl_checkbox(s, "System menu appears on ALT alone", 'l',
+    ctrl_checkbox(s, "ALT만 누르면 시스템 메뉴 나옴 (L)", 'l',
 		  HELPCTX(behaviour_altonly),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_only)));
-    ctrl_checkbox(s, "Ensure window is always on top", 'e',
+    ctrl_checkbox(s, "창 항상 맨 위에 (E)", 'e',
 		  HELPCTX(behaviour_alwaysontop),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,alwaysontop)));
-    ctrl_checkbox(s, "Full screen on Alt-Enter", 'f',
+    ctrl_checkbox(s, "Alt-Enter를 누르면 전체 화면으로 전환 (F)", 'f',
 		  HELPCTX(behaviour_altenter),
 		  dlg_stdcheckbox_handler,
 		  I(offsetof(Config,fullscreenonaltenter)));
@@ -340,7 +339,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
      */
     if (!midsession) {
 	int i;
-        s = ctrl_getset(b, "Connection/Proxy", "basics", NULL);
+        s = ctrl_getset(b, "접속/프락시", "basics", NULL);
 	for (i = 0; i < s->ncontrols; i++) {
 	    c = s->ctrls[i];
 	    if (c->generic.type == CTRL_RADIO &&

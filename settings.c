@@ -723,7 +723,7 @@ void load_open_settings(void *sesskey, Config *cfg)
      * The empty default for LineCodePage will be converted later
      * into a plausible default for the locale.
      */
-    gpps(sesskey, "LineCodePage", "", cfg->line_codepage,
+    gpps(sesskey, "LineCodePage", "CP949", cfg->line_codepage,
 	 sizeof(cfg->line_codepage));
     gppi(sesskey, "CJKAmbigWide", 0, &cfg->cjk_ambig_wide);
     gppi(sesskey, "UTF8Override", 1, &cfg->utf8_override);
@@ -791,9 +791,9 @@ static int sessioncmp(const void *av, const void *bv)
      * Alphabetical order, except that "Default Settings" is a
      * special case and comes first.
      */
-    if (!strcmp(a, "Default Settings"))
+    if (!strcmp(a, "기본 설정"))
 	return -1;		       /* a comes first */
-    if (!strcmp(b, "Default Settings"))
+    if (!strcmp(b, "기본 설정"))
 	return +1;		       /* b comes first */
     /*
      * FIXME: perhaps we should ignore the first & in determining
@@ -840,7 +840,7 @@ void get_sesslist(struct sesslist *list, int allocate)
 	p = list->buffer;
 	list->nsessions = 1;	       /* "Default Settings" counts as one */
 	while (*p) {
-	    if (strcmp(p, "Default Settings"))
+	    if (strcmp(p, "기본 설정"))
 		list->nsessions++;
 	    while (*p)
 		p++;
@@ -848,11 +848,11 @@ void get_sesslist(struct sesslist *list, int allocate)
 	}
 
 	list->sessions = snewn(list->nsessions + 1, char *);
-	list->sessions[0] = "Default Settings";
+	list->sessions[0] = "기본 설정";
 	p = list->buffer;
 	i = 1;
 	while (*p) {
-	    if (strcmp(p, "Default Settings"))
+	    if (strcmp(p, "기본 설정"))
 		list->sessions[i++] = p;
 	    while (*p)
 		p++;
