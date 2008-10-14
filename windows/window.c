@@ -54,6 +54,9 @@
 
 #define IDM_SAVED_MIN 0x1000
 #define IDM_SAVED_MAX 0x5000
+
+#define IDM_UNICODE   0x2000
+
 #define MENU_SAVED_STEP 16
 /* Maximum number of sessions on saved-session submenu */
 #define MENU_SAVED_MAX ((IDM_SAVED_MAX-IDM_SAVED_MIN) / MENU_SAVED_STEP)
@@ -756,6 +759,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	    AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT) savedsess_menu,
 		       "저장된 세션 (&V)");
 	    AppendMenu(m, MF_ENABLED, IDM_RECONF, "설정 변경 (&G)");
+	    AppendMenu(m, MF_SEPARATOR, 0, 0);
+	    AppendMenu(m, MF_ENABLED | (strncmp(cfg.line_codepage, "UTF-8", 6) ? 0 : MF_CHECKED),
+		       IDM_UNICODE, "유니코드 전환 (&U)");
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
 	    AppendMenu(m, MF_ENABLED, IDM_COPYALL, "클립보드로 전체 복사 (&O)");
 	    AppendMenu(m, MF_ENABLED, IDM_CLRSB, "이전 화면 비움 (&C)");
@@ -2264,6 +2270,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    term_pwron(term, TRUE);
 	    if (ldisc)
 		ldisc_send(ldisc, NULL, 0, 0);
+	    break;
+	  case IDM_UNICODE:
+	    strncpy(cfg.line_codepage,
+		    strncmp(cfg.line_codepage, "UTF-8", 6) ? "UTF-8" : "CP949", 6);
+	    reset_window(2);
+	    CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_UNICODE,
+			  strcmp(cfg.line_codepage, "UTF-8") ? MF_UNCHECKED : MF_CHECKED);
 	    break;
 	  case IDM_ABOUT:
 	    showabout(hwnd);
