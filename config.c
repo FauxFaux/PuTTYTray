@@ -1369,7 +1369,8 @@ void setup_config_box(struct controlbox *b, int midsession,
 		      dlg_stdradiobutton_handler,
 		      I(offsetof(Config, funky_type)),
 		      "ESC[n~", I(0), "리눅스", I(1), "Xterm R6", I(2),
-		      "VT400", I(3), "VT100+", I(4), "SCO", I(5), NULL);
+		      "VT400", I(3), "VT100+", I(4), "SCO", I(5), 
+                      "한텀", I(6), NULL);
 
     s = ctrl_getset(b, "터미널/키보드", "appkeypad",
 		    "애플리케이션 키패드 설정:");

@@ -332,7 +332,8 @@ enum {
     FUNKY_XTERM,
     FUNKY_VT400,
     FUNKY_VT100P,
-    FUNKY_SCO
+    FUNKY_SCO,
+    FUNKY_HANTERM
 };
 
 enum {

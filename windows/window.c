@@ -4233,6 +4233,36 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 		p += sprintf((char *) p, "\x1BO%c", code + 'P' - 11);
 	    return p - output;
 	}
+	/* Hanterm function keys Arcy <arcturus@arcy.org> */
+	if (cfg.funky_type == FUNKY_HANTERM &&
+	    code >= 11 && code <= 34) {
+	    switch (wParam) {
+	      case VK_F1: code = 0; break;
+	      case VK_F2: code = 1; break;
+	      case VK_F3: code = 2; break;
+	      case VK_F4: code = 3; break;
+	      case VK_F5: code = 15; break;
+	      case VK_F6: code = 17; break;
+	      case VK_F7: code = 18; break;
+	      case VK_F8: code = 19; break;
+	      case VK_F9: code = 20; break;
+	      case VK_F10: code = 21; break;
+	      case VK_F11: code = 23; break;
+	      case VK_F12: code = 24; break;
+	    }
+	    if ( code <= 3 ) {
+		if (keystate[VK_SHIFT] & 0x80)
+		    p += sprintf((char *) p, "\x1BO2%c", code + 'P');
+		else
+		    p += sprintf((char *) p, "\x1BO%c", code + 'P');
+	    } else {
+		if (keystate[VK_SHIFT] & 0x80)
+		    p += sprintf((char *) p, "\x1B[%d;2~", code);
+		else
+		    p += sprintf((char *) p, "\x1B[%d~", code);
+	    }
+	    return p - output;
+	}
 	if (cfg.rxvt_homeend && (code == 1 || code == 4)) {
 	    p += sprintf((char *) p, code == 1 ? "\x1B[H" : "\x1BOw");
 	    return p - output;
