@@ -71,6 +71,7 @@
 			/>
 			<Tool
 				Name="VCManifestTool"
+				AdditionalManifestFiles="../../putty.mft"
 			/>
 			<Tool
 				Name="VCXDCMakeTool"
@@ -149,6 +150,7 @@
 			/>
 			<Tool
 				Name="VCManifestTool"
+				AdditionalManifestFiles="../../putty.mft"
 			/>
 			<Tool
 				Name="VCXDCMakeTool"
