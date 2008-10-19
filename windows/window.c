@@ -25,6 +25,7 @@
 #endif
 
 #include <imm.h>
+#include <shellapi.h>
 #include <commctrl.h>
 #include <richedit.h>
 #include <mmsystem.h>
