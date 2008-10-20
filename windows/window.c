@@ -2259,6 +2259,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
                     cfg.font_unicode.isbold != prev_cfg.font_unicode.isbold ||
                     // height of font_unicode is ignored.
                     cfg.font_unicode.charset != prev_cfg.font_unicode.charset ||
+                    cfg.font_unicode_adj != prev_cfg.font_unicode_adj ||
 		    cfg.vtmode != prev_cfg.vtmode ||
 		    cfg.bold_colour != prev_cfg.bold_colour ||
 		    cfg.resize_action == RESIZE_DISABLED ||
@@ -3450,7 +3451,7 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
 
         if (cfg.use_font_unicode) {
             SelectObject(hdc, fonts[FONT_UNICODE]);
-            text_adjust = cfg.font_unicode_adj_x;
+            text_adjust = cfg.font_unicode_adj;
         }
 
 	/* print Glyphs as they are, without Windows' Shaping*/

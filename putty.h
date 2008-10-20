@@ -535,7 +535,7 @@ struct config_tag {
     FontSpec font;
     int use_font_unicode;
     FontSpec font_unicode;
-    int font_unicode_adj_x;
+    int font_unicode_adj;
     int font_quality;
     Filename logfilename;
     int logtype;

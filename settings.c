@@ -373,7 +373,7 @@ void save_open_settings(void *sesskey, Config *cfg)
     write_setting_fontspec(sesskey, "Font", cfg->font);
     write_setting_i(sesskey, "UseFontUnicode", cfg->use_font_unicode);
     write_setting_fontspec(sesskey, "FontUnicode", cfg->font_unicode);
-    write_setting_i(sesskey, "FontUnicodeAdjustment", cfg->font_unicode_adj_x);
+    write_setting_i(sesskey, "FontUnicodeAdjustment", cfg->font_unicode_adj);
     write_setting_i(sesskey, "FontQuality", cfg->font_quality);
     write_setting_i(sesskey, "FontVTMode", cfg->vtmode);
     write_setting_i(sesskey, "UseSystemColours", cfg->system_colour);
@@ -668,7 +668,7 @@ void load_open_settings(void *sesskey, Config *cfg)
     gppfont(sesskey, "Font", &cfg->font);
     gppi(sesskey, "UseFontUnicode", 1, &cfg->use_font_unicode);
     gppfont(sesskey, "FontUnicode", &cfg->font_unicode);
-    gppi(sesskey, "FontUnicodeAdjustment", 0, &cfg->font_unicode_adj_x);
+    gppi(sesskey, "FontUnicodeAdjustment", 0, &cfg->font_unicode_adj);
     gppi(sesskey, "FontQuality", FQ_DEFAULT, &cfg->font_quality);
     gppi(sesskey, "FontVTMode", VT_UNICODE, (int *) &cfg->vtmode);
     gppi(sesskey, "UseSystemColours", 0, &cfg->system_colour);

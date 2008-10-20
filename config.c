@@ -1534,9 +1534,9 @@ void setup_config_box(struct controlbox *b, int midsession,
     ctrl_fontsel(s, "터미널 유니코드 글꼴 (S)", '\0',
                  HELPCTX(no_help),
                  dlg_stdfontsel_handler, I(offsetof(Config, font_unicode)));
-    ctrl_editbox(s, "유니코드 글꼴 X좌표 미세 조정 (px)", '\0', 20,
+    ctrl_editbox(s, "유니코드 글꼴 Y 좌표 미세 조정 (px)", '\0', 20,
                  HELPCTX(no_help),
-                 dlg_stdeditbox_handler, I(offsetof(Config, font_unicode_adj_x)), I(-1));
+                 dlg_stdeditbox_handler, I(offsetof(Config, font_unicode_adj)), I(-1));
 
     s = ctrl_getset(b, "창/모양", "mouse",
 		    "마우스 포인터 동작 조절");
