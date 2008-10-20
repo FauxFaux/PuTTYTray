@@ -1248,6 +1248,7 @@ static void power_on(Terminal *term, int clear)
 #ifdef ONTHESPOT
     term->onthespot = 0;
     term->onthespot_buf[0] = 0;
+    term->onthespot_buf[1] = 0;
 #endif
 }
 
@@ -4863,28 +4864,28 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 		term->dispcursx = j;
 		term->dispcursy = i;
 		if (in_dbcs(term) && is_dbcs_leadbyte((term)->ucsdata->line_codepage, (unsigned char)tchar)) {
-		    static FILE *fp = NULL;
-		    if (fp == NULL) {
-			fp = fopen("c:\\terminallog.txt", "w");
-		    }
-		    fprintf(fp, "[%02x]\n", (unsigned char)tchar);
-		    fflush(fp);
+		    /* The below is for testing. */
+		    //static FILE *fp = NULL;
+		    //if (fp == NULL) {
+			//fp = fopen("c:\\terminallog.txt", "w");
+		    //}
+		    //fprintf(fp, "[%02x]\n", (unsigned char)tchar);
+		    //fflush(fp);
 		    cursor_wide = 1;
 		}
 #ifdef ONTHESPOT
 		if (term->onthespot && term->onthespot_buf[0]) {
-		    tchar = tchar & 0xffffff00 |
-			    (unsigned char)term->onthespot_buf[0];
+		    tchar = tchar & 0xffff0000 | term->onthespot_buf[0];
 		    tattr |= ATTR_INVALID;
 		}
 	    }
-	    /* Onthespot IMEs always process DBCS characters and cursors
+	    /* Onthespot IMEs process wide characters and cursors
 	     * are always wide while composing */
 	    else if (i == our_curs_y && j == our_curs_x + 1 &&
 			term->onthespot && term->onthespot_buf[0]) {
 	    	tattr |= cursor | ATTR_INVALID;
 		term->curstype = cursor;
-		tchar = tchar & 0xffffff00 | (unsigned char)term->onthespot_buf[1];
+		//tchar = tchar & 0xffffff00 | (unsigned char)term->onthespot_buf[1];
 #endif
 	    }
 	    else if (cursor_wide && i == our_curs_y && j == our_curs_x+1) {
@@ -4970,8 +4971,10 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	     * Separate out sequences of characters that have the
 	     * same CSET, if that CSET is a magic one.
 	     */
+#ifndef ONTHESPOT // This affects IME's behaviour in Unicode mode.
 	    if (CSET_OF(tchar) != cset)
 		break_run = TRUE;
+#endif
 
 	    /*
 	     * Break on both sides of any combined-character cell.

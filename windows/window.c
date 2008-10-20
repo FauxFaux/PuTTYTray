@@ -1865,6 +1865,7 @@ static void set_input_locale(HKL kl)
     if (kbd_codepage == 949 /* Korean */) {
 	term->onthespot = 1;
 	term->onthespot_buf[0] = 0;
+	term->onthespot_buf[1] = 0;
     }
     else
 	term->onthespot = 0;
@@ -2982,6 +2983,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		ImmSetCompositionWindow(hImc, &cf);
 		ImmReleaseContext(hwnd, hImc);
 		term->onthespot_buf[0] = 0;
+		term->onthespot_buf[1] = 0;
 		return 0;
 	    }
 #endif
@@ -2996,21 +2998,31 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 #endif
       case WM_IME_COMPOSITION:
 	{
-	    HIMC hIMC;
+	    HIMC hIMC = ImmGetContext(hwnd);
 	    int n;
 	    char *buff;
+	    wchar_t *wbuff;
 
 	    if(osVersion.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS || 
 	        osVersion.dwPlatformId == VER_PLATFORM_WIN32s) break; /* no Unicode */
 
-	    if ((lParam & GCS_RESULTSTR) == 0) { /* Composition unfinished. */
+	    if (lParam & GCS_COMPSTR) { /* Composition unfinished. */
 #ifdef ONTHESPOT
+		n = ImmGetCompositionStringW(hIMC, GCS_COMPSTR, NULL, 0);
 		if (term->onthespot) {
 		    RECT invrect;
 
-		    /* IME_COMPOSITION carries "DBCS" character */
-		    term->onthespot_buf[0] = wParam >> 8;
-		    term->onthespot_buf[1] = wParam & 0xff;
+		    /* IME_COMPOSITION carries "DBCS" character, but we need wide ones. */
+		    if (n > 0) {
+			buff = snewn(n + 2, char);
+			memset(buff, 0, n + 2);
+			ImmGetCompositionStringW(hIMC, GCS_COMPSTR, buff, n);
+			wbuff = (wchar_t*)buff;
+			term->onthespot_buf[0] = wbuff[0];
+			sfree(buff);
+		    } else
+			term->onthespot_buf[0] = 0;
+		    
 		    invrect.left = caret_x;
 		    invrect.top = caret_y;
 		    invrect.right = caret_x + font_width * 2;
@@ -3025,7 +3037,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		term->onthespot_buf[0] = 0;
 #endif
 
-	    hIMC = ImmGetContext(hwnd);
 	    n = ImmGetCompositionStringW(hIMC, GCS_RESULTSTR, NULL, 0);
 
 	    if (n > 0) {
