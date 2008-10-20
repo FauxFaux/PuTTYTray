@@ -2249,12 +2249,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    init_lvl = 2;
 		}
 
-                {
-                    wchar_t *wwintitle;
-                    wwintitle = short_mb_to_wc(decode_codepage(cfg.line_codepage), 0, cfg.wintitle, strlen(cfg.wintitle));
+		{
+		    wchar_t *wwintitle;
+		    wwintitle = short_mb_to_wc(decode_codepage(cfg.line_codepage), 0, cfg.wintitle, strlen(cfg.wintitle));
 		    set_title(NULL, wwintitle);
-                    sfree(wwintitle);
-                }
+		    sfree(wwintitle);
+		}
 		if (IsIconic(hwnd)) {
 		    SetWindowTextW(hwnd,
 				  cfg.win_name_always ? window_name :
@@ -2267,11 +2267,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    cfg.font.height != prev_cfg.font.height ||
 		    cfg.font.charset != prev_cfg.font.charset ||
 		    cfg.font_quality != prev_cfg.font_quality ||
-                    strcmp(cfg.font_unicode.name, prev_cfg.font_unicode.name) != 0 ||
-                    cfg.font_unicode.isbold != prev_cfg.font_unicode.isbold ||
-                    // height of font_unicode is ignored.
-                    cfg.font_unicode.charset != prev_cfg.font_unicode.charset ||
-                    cfg.font_unicode_adj != prev_cfg.font_unicode_adj ||
+		    strcmp(cfg.font_unicode.name, prev_cfg.font_unicode.name) != 0 ||
+		    cfg.font_unicode.isbold != prev_cfg.font_unicode.isbold ||
+		    // height of font_unicode is ignored.
+		    cfg.font_unicode.charset != prev_cfg.font_unicode.charset ||
+		    cfg.font_unicode_adj != prev_cfg.font_unicode_adj ||
 		    cfg.vtmode != prev_cfg.vtmode ||
 		    cfg.bold_colour != prev_cfg.bold_colour ||
 		    cfg.resize_action == RESIZE_DISABLED ||
