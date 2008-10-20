@@ -198,7 +198,7 @@ static int wheel_accumulator = 0;
 
 static int busy_status = BUSY_NOT;
 
-static char *window_name, *icon_name;
+static wchar_t *window_name, *icon_name;
 
 static int compose_state = 0;
 
@@ -218,6 +218,7 @@ static void start_backend(void)
 {
     const char *error;
     char msg[1024], *title;
+    wchar_t *wtitle;
     char *realhost;
     int i;
 
@@ -258,8 +259,11 @@ static void start_backend(void)
 	title = msg;
     }
     sfree(realhost);
-    set_title(NULL, title);
-    set_icon(NULL, title);
+
+    wtitle = short_mb_to_wc(CP_ACP, 0, title, strlen(title));
+    set_title(NULL, wtitle);
+    set_icon(NULL, wtitle);
+    sfree(wtitle);
 
     /*
      * Connect the terminal to the backend for resize purposes.
@@ -288,13 +292,16 @@ static void start_backend(void)
 
 static void close_session(void)
 {
-    char morestuff[100];
+    char morestuff[100] = {'\0'};
+    wchar_t *wmorestuff;
     int i;
 
     session_closed = TRUE;
     sprintf(morestuff, "%.70s (오프라인)", appname);
-    set_icon(NULL, morestuff);
-    set_title(NULL, morestuff);
+    wmorestuff = short_mb_to_wc(CP_ACP, 0, morestuff, strlen(morestuff));
+    set_icon(NULL, wmorestuff);
+    set_title(NULL, wmorestuff);
+    sfree(wmorestuff);
 
     if (ldisc) {
 	ldisc_free(ldisc);
@@ -2242,9 +2249,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    init_lvl = 2;
 		}
 
-		set_title(NULL, cfg.wintitle);
+                {
+                    wchar_t *wwintitle;
+                    wwintitle = short_mb_to_wc(decode_codepage(cfg.line_codepage), 0, cfg.wintitle, strlen(cfg.wintitle));
+		    set_title(NULL, wwintitle);
+                    sfree(wwintitle);
+                }
 		if (IsIconic(hwnd)) {
-		    SetWindowText(hwnd,
+		    SetWindowTextW(hwnd,
 				  cfg.win_name_always ? window_name :
 				  icon_name);
 		}
@@ -2766,10 +2778,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    LOWORD(lParam), HIWORD(lParam)));
 #endif
 	if (wParam == SIZE_MINIMIZED)
-	    SetWindowText(hwnd,
+	    SetWindowTextW(hwnd,
 			  cfg.win_name_always ? window_name : icon_name);
 	if (wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED)
-	    SetWindowText(hwnd, window_name);
+	    SetWindowTextW(hwnd, window_name);
         if (wParam == SIZE_RESTORED)
             clear_full_screen();
         if (wParam == SIZE_MAXIMIZED && fullscr_on_max) {
@@ -4539,22 +4551,22 @@ void request_paste(void *frontend)
     term_do_paste(term);
 }
 
-void set_title(void *frontend, char *title)
+void set_title(void *frontend, wchar_t *title)
 {
     sfree(window_name);
-    window_name = snewn(1 + strlen(title), char);
-    strcpy(window_name, title);
+    window_name = snewn(1 + wcslen(title), wchar_t);
+    wcscpy(window_name, title);
     if (cfg.win_name_always || !IsIconic(hwnd))
-	SetWindowText(hwnd, title);
+	SetWindowTextW(hwnd, title);
 }
 
-void set_icon(void *frontend, char *title)
+void set_icon(void *frontend, wchar_t *title)
 {
     sfree(icon_name);
-    icon_name = snewn(1 + strlen(title), char);
-    strcpy(icon_name, title);
+    icon_name = snewn(1 + wcslen(title), wchar_t);
+    wcscpy(icon_name, title);
     if (!cfg.win_name_always && IsIconic(hwnd))
-	SetWindowText(hwnd, title);
+	SetWindowTextW(hwnd, title);
 }
 
 void set_sbar(void *frontend, int total, int start, int page)
@@ -5353,7 +5365,7 @@ void get_window_pixels(void *frontend, int *x, int *y)
 /*
  * Return the window or icon title.
  */
-char *get_window_title(void *frontend, int icon)
+wchar_t *get_window_title(void *frontend, int icon)
 {
     return icon ? icon_name : window_name;
 }

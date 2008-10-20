@@ -2429,21 +2429,28 @@ static void do_osc(Terminal *term)
 	    term->wordness[(unsigned char)
 		term->osc_string[term->osc_strlen]] = term->esc_args[0];
     } else {
+	wchar_t *osc_wstring;
+	int cp;
 	term->osc_string[term->osc_strlen] = '\0';
+
+	cp = decode_codepage(term->cfg.line_codepage);
+	osc_wstring = short_mb_to_wc(cp, 0, term->osc_string, term->osc_strlen);
+
 	switch (term->esc_args[0]) {
 	  case 0:
 	  case 1:
 	    if (!term->cfg.no_remote_wintitle)
-		set_icon(term->frontend, term->osc_string);
+		set_icon(term->frontend, osc_wstring);
 	    if (term->esc_args[0] == 1)
 		break;
 	    /* fall through: parameter 0 means set both */
 	  case 2:
 	  case 21:
 	    if (!term->cfg.no_remote_wintitle)
-		set_title(term->frontend, term->osc_string);
+		set_title(term->frontend, osc_wstring);
 	    break;
 	}
+	sfree(osc_wstring);
     }
 }
 
@@ -3798,27 +3805,37 @@ static void term_out(Terminal *term)
 			      case 20:
 				if (term->ldisc &&
 				    term->cfg.remote_qtitle_action != TITLE_NONE) {
-				    if(term->cfg.remote_qtitle_action == TITLE_REAL)
-					p = get_window_title(term->frontend, TRUE);
-				    else
+				    if(term->cfg.remote_qtitle_action == TITLE_REAL) {
+					wchar_t *wp = get_window_title(term->frontend, TRUE);
+					int wlen = wcslen(wp);
+					int cp = decode_codepage(term->cfg.line_codepage);
+					p = short_wc_to_mb(cp, 0, wp, wlen);
+				    } else
 					p = EMPTY_WINDOW_TITLE;
 				    len = strlen(p);
 				    ldisc_send(term->ldisc, "\033]L", 3, 0);
 				    ldisc_send(term->ldisc, p, len, 0);
 				    ldisc_send(term->ldisc, "\033\\", 2, 0);
+				    if (p != EMPTY_WINDOW_TITLE)
+					sfree(p);
 				}
 				break;
 			      case 21:
 				if (term->ldisc &&
 				    term->cfg.remote_qtitle_action != TITLE_NONE) {
-				    if(term->cfg.remote_qtitle_action == TITLE_REAL)
-					p = get_window_title(term->frontend, FALSE);
-				    else
+				    if(term->cfg.remote_qtitle_action == TITLE_REAL) {
+					wchar_t *wp = get_window_title(term->frontend, FALSE);
+					int wlen = wcslen(wp);
+					int cp = decode_codepage(term->cfg.line_codepage);
+					p = short_wc_to_mb(cp, 0, wp, wlen);
+				    } else
 					p = EMPTY_WINDOW_TITLE;
 				    len = strlen(p);
 				    ldisc_send(term->ldisc, "\033]l", 3, 0);
 				    ldisc_send(term->ldisc, p, len, 0);
 				    ldisc_send(term->ldisc, "\033\\", 2, 0);
+				    if (p != EMPTY_WINDOW_TITLE)
+					sfree(p);
 				}
 				break;
 			    }

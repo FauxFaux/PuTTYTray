@@ -1249,6 +1249,24 @@ int mb_to_wc(int codepage, int flags, char *mbstr, int mblen,
     return MultiByteToWideChar(codepage, flags, mbstr, mblen, wcstr, wclen);
 }
 
+wchar_t *short_mb_to_wc(int codepage, int flags, char *mbstr, int mblen)
+{
+    int wlen = MultiByteToWideChar(codepage, flags, mbstr, mblen, NULL, 0);
+    wchar_t *wstr = snewn(1 + wlen, wchar_t);
+    MultiByteToWideChar(codepage, flags, mbstr, mblen,wstr, wlen);
+    wstr[wlen] = '\0';
+    return wstr;
+}
+
+char *short_wc_to_mb(int codepage, int flags, wchar_t *wstr, int wlen)
+{
+    int mblen = WideCharToMultiByte(codepage, flags, wstr, wlen, NULL, 0, "?", NULL);
+    char *mbstr = snewn(1 + mblen, char);
+    WideCharToMultiByte(codepage, flags, wstr, wlen, mbstr, mblen, "?", NULL);
+    mbstr[mblen] = '\0';
+    return mbstr;
+}
+
 int is_dbcs_leadbyte(int codepage, char byte)
 {
     return IsDBCSLeadByteEx(codepage, byte);

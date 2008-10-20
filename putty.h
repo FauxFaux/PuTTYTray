@@ -709,8 +709,8 @@ int char_width(Context ctx, int uc);
 #ifdef OPTIMISE_SCROLL
 void do_scroll(Context, int, int, int);
 #endif
-void set_title(void *frontend, char *);
-void set_icon(void *frontend, char *);
+void set_title(void *frontend, wchar_t *);
+void set_icon(void *frontend, wchar_t *);
 void set_sbar(void *frontend, int, int, int);
 Context get_ctx(void *frontend);
 void free_ctx(Context);
@@ -761,7 +761,7 @@ void set_zoomed(void *frontend, int zoomed);
 int is_iconic(void *frontend);
 void get_window_pos(void *frontend, int *x, int *y);
 void get_window_pixels(void *frontend, int *x, int *y);
-char *get_window_title(void *frontend, int icon);
+wchar_t *get_window_title(void *frontend, int icon);
 /* Hint from backend to frontend about time-consuming operations.
  * Initial state is assumed to be BUSY_NOT. */
 enum {
@@ -969,6 +969,8 @@ int mb_to_wc(int codepage, int flags, char *mbstr, int mblen,
 int wc_to_mb(int codepage, int flags, wchar_t *wcstr, int wclen,
 	     char *mbstr, int mblen, char *defchr, int *defused,
 	     struct unicode_data *ucsdata);
+wchar_t *short_mb_to_wc(int codepage, int flags, char *mbstr, int mblen);
+char *short_wc_to_mb(int codepage, int flags, wchar_t *wstr, int wlen);
 wchar_t xlat_uskbd2cyrllic(int ch);
 int check_compose(int first, int second);
 int decode_codepage(char *cp_name);
