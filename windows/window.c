@@ -164,7 +164,9 @@ struct agent_callback {
 #define FONT_OEMUND 	0x22
 #define FONT_OEMBOLDUND 0x23
 
-#define FONT_MAXNO 	0x2F
+#define FONT_UNICODE    0x2F
+
+#define FONT_MAXNO 	0x30
 #define FONT_SHIFT	5
 static HFONT fonts[FONT_MAXNO];
 static LOGFONT lfont;
@@ -1391,6 +1393,13 @@ static void init_fonts(int pick_width, int pick_height)
 			   FIXED_PITCH | FF_DONTCARE, cfg.font.name)
 
     f(FONT_NORMAL, cfg.font.charset, fw_dontcare, FALSE);
+    if (cfg.use_font_unicode)
+        fonts[FONT_UNICODE] = CreateFont(font_height, font_width, 0, 0, fw_dontcare, FALSE, FALSE, FALSE, \
+                                         cfg.font_unicode.charset, OUT_DEFAULT_PRECIS, \
+                                         CLIP_DEFAULT_PRECIS, FONT_QUALITY(cfg.font_quality), \
+                                         FIXED_PITCH | FF_DONTCARE, cfg.font_unicode.name);
+    else
+        fonts[FONT_UNICODE] = NULL;
 
     SelectObject(hdc, fonts[FONT_NORMAL]);
     GetTextMetrics(hdc, &tm);
@@ -2246,6 +2255,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    cfg.font.height != prev_cfg.font.height ||
 		    cfg.font.charset != prev_cfg.font.charset ||
 		    cfg.font_quality != prev_cfg.font_quality ||
+                    strcmp(cfg.font_unicode.name, prev_cfg.font_unicode.name) != 0 ||
+                    cfg.font_unicode.isbold != prev_cfg.font_unicode.isbold ||
+                    // height of font_unicode is ignored.
+                    cfg.font_unicode.charset != prev_cfg.font_unicode.charset ||
 		    cfg.vtmode != prev_cfg.vtmode ||
 		    cfg.bold_colour != prev_cfg.bold_colour ||
 		    cfg.resize_action == RESIZE_DISABLED ||
@@ -3434,6 +3447,11 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
 
 	for (i = 0; i < len; i++)
 	    wbuf[i] = text[i];
+
+        if (cfg.use_font_unicode) {
+            SelectObject(hdc, fonts[FONT_UNICODE]);
+            text_adjust = cfg.font_unicode_adj_x;
+        }
 
 	/* print Glyphs as they are, without Windows' Shaping*/
 	general_textout(hdc, x, y - font_height * (lattr == LATTR_BOT) + text_adjust,

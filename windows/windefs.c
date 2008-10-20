@@ -9,7 +9,7 @@
 FontSpec platform_default_fontspec(const char *name)
 {
     FontSpec ret;
-    if (!strcmp(name, "Font")) {
+    if (!strcmp(name, "Font") || !strcmp(name, "FontUnicode")) {
 	strcpy(ret.name, "±¼¸²Ã¼");
 	ret.isbold = 0;
 	ret.charset = HANGEUL_CHARSET;
