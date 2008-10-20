@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
-	Name="psftp"
-	ProjectGUID="{881D739C-B561-4AA7-9A22-1C4BB17154A2}"
-	RootNamespace="psftp"
+	Name="pscp"
+	ProjectGUID="{31592CD6-F68A-4A9A-85F0-B3F63BF8177F}"
+	RootNamespace="pscp"
 	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
@@ -43,7 +43,7 @@
 				MkTypLibCompatible="true"
 				SuppressStartupBanner="true"
 				TargetEnvironment="1"
-				TypeLibraryName=".\Debug/psftp.tlb"
+				TypeLibraryName=".\Debug/pscp.tlb"
 				HeaderFileName=""
 			/>
 			<Tool
@@ -54,7 +54,7 @@
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
-				PrecompiledHeaderFile=".\Debug/psftp.pch"
+				PrecompiledHeaderFile=".\Debug/pscp.pch"
 				AssemblerListingLocation=".\Debug/"
 				ObjectFile=".\Debug/"
 				ProgramDataBaseFileName=".\Debug/"
@@ -76,11 +76,11 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib imm32.lib winmm.lib"
-				OutputFile=".\Debug/psftp.exe"
+				OutputFile=".\Debug/pscp.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile=".\Debug/psftp.pdb"
+				ProgramDatabaseFile=".\Debug/pscp.pdb"
 				SubSystem="1"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -98,7 +98,7 @@
 			<Tool
 				Name="VCBscMakeTool"
 				SuppressStartupBanner="true"
-				OutputFile=".\Debug/psftp.bsc"
+				OutputFile=".\Debug/pscp.bsc"
 			/>
 			<Tool
 				Name="VCFxCopTool"
@@ -138,7 +138,7 @@
 				MkTypLibCompatible="true"
 				SuppressStartupBanner="true"
 				TargetEnvironment="1"
-				TypeLibraryName=".\Release/psftp.tlb"
+				TypeLibraryName=".\Release/pscp.tlb"
 				HeaderFileName=""
 			/>
 			<Tool
@@ -150,7 +150,7 @@
 				StringPooling="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
-				PrecompiledHeaderFile=".\Release/psftp.pch"
+				PrecompiledHeaderFile=".\Release/pscp.pch"
 				AssemblerListingLocation=".\Release/"
 				ObjectFile=".\Release/"
 				ProgramDataBaseFileName=".\Release/"
@@ -171,10 +171,10 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib imm32.lib winmm.lib"
-				OutputFile=".\Release/psftp.exe"
+				OutputFile=".\Release/pscp.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
-				ProgramDatabaseFile=".\Release/psftp.pdb"
+				ProgramDatabaseFile=".\Release/pscp.pdb"
 				SubSystem="1"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -192,7 +192,7 @@
 			<Tool
 				Name="VCBscMakeTool"
 				SuppressStartupBanner="true"
-				OutputFile=".\Release/psftp.bsc"
+				OutputFile=".\Release/pscp.bsc"
 			/>
 			<Tool
 				Name="VCFxCopTool"
@@ -411,7 +411,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\..\..\psftp.c"
+				RelativePath="..\..\..\pscp.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -1316,7 +1316,7 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\psftp.rc"
+				RelativePath="..\..\pscp.rc"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"

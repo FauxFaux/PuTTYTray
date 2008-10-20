@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
-	Name="pageant"
-	ProjectGUID="{99C6E057-1518-47D8-867D-5AFD38094349}"
-	RootNamespace="pageant"
+	Name="puttytel"
+	ProjectGUID="{CE21A960-745C-4906-8748-D5C0CD7446F1}"
+	RootNamespace="puttytel"
 	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
@@ -43,7 +43,7 @@
 				MkTypLibCompatible="true"
 				SuppressStartupBanner="true"
 				TargetEnvironment="1"
-				TypeLibraryName=".\Debug/pageant.tlb"
+				TypeLibraryName=".\Debug/puttytel.tlb"
 				HeaderFileName=""
 			/>
 			<Tool
@@ -54,7 +54,7 @@
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
-				PrecompiledHeaderFile=".\Debug/pageant.pch"
+				PrecompiledHeaderFile=".\Debug/puttytel.pch"
 				AssemblerListingLocation=".\Debug/"
 				ObjectFile=".\Debug/"
 				ProgramDataBaseFileName=".\Debug/"
@@ -76,11 +76,11 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib imm32.lib winmm.lib"
-				OutputFile=".\Debug/pageant.exe"
+				OutputFile=".\Debug/puttytel.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile=".\Debug/pageant.pdb"
+				ProgramDatabaseFile=".\Debug/puttytel.pdb"
 				SubSystem="2"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -98,7 +98,7 @@
 			<Tool
 				Name="VCBscMakeTool"
 				SuppressStartupBanner="true"
-				OutputFile=".\Debug/pageant.bsc"
+				OutputFile=".\Debug/puttytel.bsc"
 			/>
 			<Tool
 				Name="VCFxCopTool"
@@ -138,7 +138,7 @@
 				MkTypLibCompatible="true"
 				SuppressStartupBanner="true"
 				TargetEnvironment="1"
-				TypeLibraryName=".\Release/pageant.tlb"
+				TypeLibraryName=".\Release/puttytel.tlb"
 				HeaderFileName=""
 			/>
 			<Tool
@@ -150,7 +150,7 @@
 				StringPooling="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
-				PrecompiledHeaderFile=".\Release/pageant.pch"
+				PrecompiledHeaderFile=".\Release/puttytel.pch"
 				AssemblerListingLocation=".\Release/"
 				ObjectFile=".\Release/"
 				ProgramDataBaseFileName=".\Release/"
@@ -171,10 +171,10 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib imm32.lib winmm.lib"
-				OutputFile=".\Release/pageant.exe"
+				OutputFile=".\Release/puttytel.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
-				ProgramDatabaseFile=".\Release/pageant.pdb"
+				ProgramDatabaseFile=".\Release/puttytel.pdb"
 				SubSystem="2"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -185,7 +185,6 @@
 			/>
 			<Tool
 				Name="VCManifestTool"
-				AdditionalManifestFiles="..\..\pageant.mft"
 			/>
 			<Tool
 				Name="VCXDCMakeTool"
@@ -193,7 +192,7 @@
 			<Tool
 				Name="VCBscMakeTool"
 				SuppressStartupBanner="true"
-				OutputFile=".\Release/pageant.bsc"
+				OutputFile=".\Release/puttytel.bsc"
 			/>
 			<Tool
 				Name="VCFxCopTool"
@@ -213,6 +212,182 @@
 			Name="Source Files"
 			Filter="cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 			>
+			<File
+				RelativePath="..\..\..\be_nos_s.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\..\cmdline.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\..\config.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\..\dialog.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\..\ldisc.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\..\ldiscucs.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\..\logging.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\..\minibidi.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
 			<File
 				RelativePath="..\..\..\misc.c"
 				>
@@ -236,7 +411,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\..\..\sshaes.c"
+				RelativePath="..\..\..\nocproxy.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -258,7 +433,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\..\..\sshbn.c"
+				RelativePath="..\..\..\pinger.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -280,7 +455,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\..\..\sshdes.c"
+				RelativePath="..\..\..\proxy.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -302,7 +477,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\..\..\sshdss.c"
+				RelativePath="..\..\..\raw.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -324,7 +499,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\..\..\sshmd5.c"
+				RelativePath="..\..\..\rlogin.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -346,7 +521,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\..\..\sshpubk.c"
+				RelativePath="..\..\..\sercfg.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -368,7 +543,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\..\..\sshrsa.c"
+				RelativePath="..\..\..\settings.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -390,7 +565,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\..\..\sshsh512.c"
+				RelativePath="..\..\sizetip.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -412,7 +587,51 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\..\..\sshsha.c"
+				RelativePath="..\..\..\telnet.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\..\terminal.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\..\timing.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -478,6 +697,160 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\..\..\wcwidth.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\wincfg.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\winctrls.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\windefs.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\windlg.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\window.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\winhandl.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
 				RelativePath="..\..\winhelp.c"
 				>
 				<FileConfiguration
@@ -522,7 +895,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\..\winpgnt.c"
+				RelativePath="..\..\winnet.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -544,7 +917,117 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\..\winpgntc.c"
+				RelativePath="..\..\winprint.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\winproxy.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\winser.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\winstore.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\wintime.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories=""
+						PreprocessorDefinitions=""
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\winucs.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -597,7 +1080,15 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\..\dialog.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\..\int64.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\..\ldisc.h"
 				>
 			</File>
 			<File
@@ -614,6 +1105,10 @@
 			</File>
 			<File
 				RelativePath="..\..\..\macosx\osx.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\..\proxy.h"
 				>
 			</File>
 			<File
@@ -637,11 +1132,23 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\..\storage.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\..\terminal.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\..\tree234.h"
 				>
 			</File>
 			<File
 				RelativePath="..\..\..\unix\unix.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\win_res.h"
 				>
 			</File>
 			<File
@@ -658,11 +1165,15 @@
 			Filter="ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"
 			>
 			<File
-				RelativePath="..\..\pageant.ico"
+				RelativePath="..\..\putty.ico"
 				>
 			</File>
 			<File
-				RelativePath="..\..\pageant.rc"
+				RelativePath="..\..\puttycfg.ico"
+				>
+			</File>
+			<File
+				RelativePath="..\..\puttytel.rc"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -682,10 +1193,6 @@
 						AdditionalIncludeDirectories="\Projects\putty 0.60\windows"
 					/>
 				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\pageants.ico"
-				>
 			</File>
 		</Filter>
 	</Files>
