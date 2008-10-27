@@ -179,7 +179,7 @@ struct agent_callback {
 #define FONT_OEMUND 	0x22
 #define FONT_OEMBOLDUND 0x23
 
-#define FONT_UNICODE 0x30
+#define FONT_UNICODE	0x2F
 #define FONT_MAXNO 	0x30
 #define FONT_SHIFT	5
 static HFONT fonts[FONT_MAXNO];
@@ -2551,12 +2551,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    cfg.font.height != prev_cfg.font.height ||
 		    cfg.font.charset != prev_cfg.font.charset ||
 		    cfg.font_quality != prev_cfg.font_quality ||
-			strcmp(cfg.font_unicode.name, prev_cfg.font_unicode.name) != 0 ||
+		    strcmp(cfg.font_unicode.name, prev_cfg.font_unicode.name) != 0 ||
 		    strcmp(cfg.line_codepage, prev_cfg.line_codepage) != 0 ||
 		    cfg.font_unicode.isbold != prev_cfg.font_unicode.isbold ||
-		    cfg.font_unicode.height != prev_cfg.font_unicode.height ||
 		    cfg.font_unicode.charset != prev_cfg.font_unicode.charset ||
-		    cfg.font_quality != prev_cfg.font_quality ||
 		    cfg.vtmode != prev_cfg.vtmode ||
 		    cfg.bold_colour != prev_cfg.bold_colour ||
 		    cfg.resize_action == RESIZE_DISABLED ||
