@@ -4791,6 +4791,9 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	 */
 	for (j = 0; j < term->cols; j++) {
 	    unsigned long tattr, tchar;
+#ifdef ONTHESPOT
+	    int j_offset = 0;
+#endif
 	    termchar *d = lchars + j;
 	    scrpos.x = backward ? backward[j] : j;
 
@@ -4885,6 +4888,7 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 			term->onthespot && term->onthespot_buf[0]) {
 	    	tattr |= cursor | ATTR_INVALID;
 		term->curstype = cursor;
+		j_offset = -1;
 		//tchar = tchar & 0xffffff00 | (unsigned char)term->onthespot_buf[1];
 #endif
 	    }
@@ -4896,6 +4900,9 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 
 	    /* FULL-TERMCHAR */
 	    newline[j].attr = tattr;
+#ifdef ONTHESPOT
+	    newline[j].offset = j_offset;
+#endif
 	    newline[j].chr = tchar;
 	    /* Combining characters are still read from lchars */
 	    newline[j].cc_next = 0;
@@ -4971,9 +4978,13 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	     * Separate out sequences of characters that have the
 	     * same CSET, if that CSET is a magic one.
 	     */
-#ifndef ONTHESPOT // This affects IME's behaviour in Unicode mode.
+#ifdef ONTHESPOT // This affects IME's behaviour in Unicode mode.
+	    if (newline[j].offset == 0) {
+#endif
 	    if (CSET_OF(tchar) != cset)
 		break_run = TRUE;
+#ifdef ONTHESPOT
+	    }
 #endif
 
 	    /*
