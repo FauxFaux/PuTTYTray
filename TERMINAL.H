@@ -40,7 +40,9 @@ struct termchar {
      */
     unsigned long chr;
     unsigned long attr;
-
+#ifdef ONTHESPOT
+    int offset;
+#endif
     /*
      * The cc_next field is used to link multiple termchars
      * together into a list, so as to fit more than one character

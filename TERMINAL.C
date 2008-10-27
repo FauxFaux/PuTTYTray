@@ -4842,6 +4842,9 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	 */
 	for (j = 0; j < term->cols; j++) {
 	    unsigned long tattr, tchar;
+#ifdef ONTHESPOT
+	    int j_offset = 0;
+#endif
 	    termchar *d = lchars + j;
 	    scrpos.x = backward ? backward[j] : j;
 
@@ -4969,11 +4972,8 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	    else if (i == our_curs_y && j == our_curs_x + 1 &&
 			term->onthespot && term->onthespot_buf[0]) {
 	    	tattr |= cursor | ATTR_INVALID;
-                // TODO: If we type hangul in front of one space before a hangul character,
-                //       the cursor is splitted into two half images of each character.
-                //tchar = 0;
-                //cursor_wide = 0;
 		term->curstype = cursor;
+		j_offset = -1;
 #endif
 	    }
 	    else if (cursor_wide && i == our_curs_y && j == our_curs_x+1) {
@@ -4985,6 +4985,9 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	    /* FULL-TERMCHAR */
 	    newline[j].attr = tattr;
 	    newline[j].chr = tchar;
+#ifdef ONTHESPOT
+	    newline[j].offset = j_offset;
+#endif
 	    /* Combining characters are still read from lchars */
 	    newline[j].cc_next = 0;
 	}
@@ -5059,8 +5062,11 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	     * Separate out sequences of characters that have the
 	     * same CSET, if that CSET is a magic one.
 	     */
-	    //if (CSET_OF(tchar) != cset)
-		//break_run = TRUE;
+#ifdef ONTHESPOT
+	    if (newline[j].offset == 0)
+#endif
+	    if (CSET_OF(tchar) != cset)
+		break_run = TRUE;
 
 	    /*
 	     * Break on both sides of any combined-character cell.
