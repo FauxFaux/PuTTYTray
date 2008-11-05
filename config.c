@@ -1257,7 +1257,7 @@ void setup_config_box(struct controlbox *b, int midsession,
 	if ((midsession && protocol == PROT_SSH) ||
 	    (!midsession && have_backend(PROT_SSH))) {
 	    sshlogname = "SSH 패킷";
-	    sshrawlogname = "SSH packets and raw data";
+	    sshrawlogname = "SSH 패킷과 생짜 데이터";
         } else {
 	    sshlogname = NULL;	       /* this will disable both buttons */
 	    sshrawlogname = NULL;      /* this will just placate optimisers */
