@@ -1246,9 +1246,15 @@ static void power_on(Terminal *term, int clear)
     term_schedule_tblink(term);
     term_schedule_cblink(term);
 #ifdef ONTHESPOT
-    term->onthespot = 0;
-    term->onthespot_buf[0] = 0;
-    term->onthespot_buf[1] = 0;
+    {
+	int cp = decode_codepage(term->cfg.line_codepage);
+	if (cp == CP_UTF8 || cp == 949)
+	    term->onthespot = 1;
+	else
+	    term->onthespot = 0;
+	term->onthespot_buf[0] = 0;
+	term->onthespot_buf[1] = 0;
+    }
 #endif
 }
 
