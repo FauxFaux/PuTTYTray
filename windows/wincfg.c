@@ -364,8 +364,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		offsetof(Config, proxy_telnet_command)) {
 		assert(c->generic.handler == dlg_stdeditbox_handler);
 		sfree(c->generic.label);
-		c->generic.label = dupstr("Telnet command, or local"
-					  " proxy command");
+		c->generic.label = dupstr("텔넷 명령어나 로컬"
+					  " 프락시 명령어 (M)");
 		break;
 	    }
 	}
