@@ -13,22 +13,25 @@
 ;    UninstallDisplayIcon, though.
 
 [Setup]
-AppName=PuTTY
-AppVerName=PuTTY version 0.60
+AppName=한글 PuTTY
+AppVerName=Hangul PuTTY version 0.60
 VersionInfoTextVersion=Release 0.60
 AppVersion=0.60
 VersionInfoVersion=0.60.0.0
 AppPublisher=Simon Tatham
 AppPublisherURL=http://www.chiark.greenend.org.uk/~sgtatham/putty/
 AppReadmeFile={app}\README.txt
-DefaultDirName={pf}\PuTTY
-DefaultGroupName=PuTTY
+DefaultDirName={pf}\iPuTTY
+DefaultGroupName=한글 PuTTY
 SetupIconFile=puttyins.ico
 UninstallDisplayIcon={app}\putty.exe
 ChangesAssociations=yes
 ;ChangesEnvironment=yes -- when PATH munging is sorted (probably)
 Compression=zip/9
 AllowNoIcons=yes
+
+[Languages]
+Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
 
 [Files]
 ; We flag all files with "restartreplace" et al primarily for the benefit
@@ -72,11 +75,11 @@ Name: "{userdesktop}\PuTTY"; Filename: "{app}\putty.exe"; Tasks: desktopicon\use
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\PuTTY"; Filename: "{app}\putty.exe"; Tasks: quicklaunchicon
 
 [Tasks]
-Name: desktopicon; Description: "Create a &desktop icon for PuTTY"; GroupDescription: "Additional icons:"; Flags: unchecked
-Name: desktopicon\common; Description: "For all users"; GroupDescription: "Additional icons:"; Flags: exclusive unchecked
-Name: desktopicon\user; Description: "For the current user only"; GroupDescription: "Additional icons:"; Flags: exclusive unchecked
-Name: quicklaunchicon; Description: "Create a &Quick Launch icon for PuTTY (current user only)"; GroupDescription: "Additional icons:"; Flags: unchecked
-Name: associate; Description: "&Associate .PPK files (PuTTY Private Key) with Pageant and PuTTYgen"; GroupDescription: "Other tasks:"
+Name: desktopicon; Description: "바탕화면에 PuTTY 바로가기를 만듭니다."; GroupDescription: "바로가기 만들기:"; Flags: unchecked
+Name: desktopicon\common; Description: "모든 사용자에게 적용"; GroupDescription: "바로가기 만들기:"; Flags: exclusive unchecked
+Name: desktopicon\user; Description: "현재 사용자에게만 적용"; GroupDescription: "바로가기 만들기:"; Flags: exclusive unchecked
+Name: quicklaunchicon; Description: "빠른 실행에 바로가기를 만듭니다. (현재 사용자에게만 적용)"; GroupDescription: "바로가기 만들기:"; Flags: unchecked
+Name: associate; Description: ".PPK 확장자의 개인키 파일을 Pageant 와 PuTTYgen 프로그램에 연결시킵니다."; GroupDescription: "그 외 작업:"
 
 [Registry]
 Root: HKCR; Subkey: ".ppk"; ValueType: string; ValueName: ""; ValueData: "PuTTYPrivateKey"; Flags: uninsdeletevalue; Tasks: associate
