@@ -2992,6 +2992,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	DestroyCaret();
 	caret_x = caret_y = -1;	       /* ensure caret is replaced next time */
 	term_update(term);
+#ifdef ONTHESPOT
+	term->onthespot_buf[0] = 0;
+#endif
 	break;
       case WM_ENTERSIZEMOVE:
 #ifdef RDB_DEBUG_PATCH
