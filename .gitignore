@@ -1,0 +1,8 @@
+WINDOWS/MSVC/ipch
+WINDOWS/MSVC/*/Debug
+WINDOWS/MSVC/*/Release
+*.user
+*.sdf
+*.suo
+*.opensdf
+putty.aps
