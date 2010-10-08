@@ -27,5 +27,6 @@ Backend *backends[] = {
     &telnet_backend,
     &rlogin_backend,
     &raw_backend,
+    &adb_backend,
     NULL
 };
