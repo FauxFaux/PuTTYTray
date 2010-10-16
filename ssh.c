@@ -990,7 +990,18 @@ struct ssh_tag {
 #endif
 };
 
-#define logevent(s) logevent(ssh->frontend, s)
+// FireEgl - Send log events to the terminal for easy viewing:
+static void ssh_logevent(Ssh ssh, const char *fmt, ...)
+{
+	// Only send logs to it while we're connecting or after we've disconnected:
+	if (ssh->state != SSH_STATE_SESSION) {
+		from_backend(ssh->frontend, 1, fmt, strlen(fmt));
+		from_backend(ssh->frontend, 1, "\r\n", 2);
+	}
+	logevent(ssh->frontend, fmt);
+}
+#define logevent(s) ssh_logevent(ssh, s)
+// #define logevent(s) logevent(ssh->frontend, s)
 
 /* logevent, only printf-formatted. */
 static void logeventf(Ssh ssh, const char *fmt, ...)
