@@ -994,7 +994,7 @@ struct ssh_tag {
 static void ssh_logevent(Ssh ssh, const char *fmt, ...)
 {
 	// Only send logs to it while we're connecting or after we've disconnected:
-	if (ssh->state != SSH_STATE_SESSION) {
+	if (ssh->pkt_actx == SSH2_PKTCTX_NOAUTH && ssh->state != SSH_STATE_SESSION) {
 		from_backend(ssh->frontend, 1, fmt, strlen(fmt));
 		from_backend(ssh->frontend, 1, "\r\n", 2);
 	}
