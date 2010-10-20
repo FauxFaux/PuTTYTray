@@ -827,6 +827,7 @@ static DWORD try_connect(Actual_Socket sock)
     char *errstr;
     short localport;
     int family;
+	int tos;
 
     if (sock->s != INVALID_SOCKET) {
 	do_select(sock->s, 0);
@@ -861,6 +862,12 @@ static DWORD try_connect(Actual_Socket sock)
 	BOOL b = TRUE;
 	p_setsockopt(s, SOL_SOCKET, SO_OOBINLINE, (void *) &b, sizeof(b));
     }
+
+#if defined(IPTOS) && defined(WINSOCK_TWO)
+	// FireEgl - Set IP_TOS to whatever IPTOS is defined to:
+	tos = IPTOS;	/* see <netinet/ip.h> */
+	p_setsockopt(s, IPPROTO_IP, IP_TOS, (char *)&tos, sizeof(tos));
+#endif
 
     if (sock->nodelay) {
 	BOOL b = TRUE;
