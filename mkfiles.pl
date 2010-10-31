@@ -636,6 +636,9 @@ if (defined $makefiles{'vc'}) {
       " /D_WINDOWS /D_WIN32_WINDOWS=0x500 /DWINVER=0x500\n".
       "LFLAGS = /incremental:no /fixed\n".
       "RCFLAGS = -DWIN32 -D_WIN32 -DWINVER=0x0400\n".
+      "!if \"\$(PROCESSOR_ARCHITECTURE)\" == \"AMD64\"\n".
+      "RCFLAGS = \$(RCFLAGS) -D_WIN64=1\n".
+      "!endif\n".
       "\n".
       $makefile_extra{'vc'}->{'vars'} .
       "\n".
