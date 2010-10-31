@@ -84,5 +84,9 @@ END
 #include "version.rc2"
 
 #ifndef NO_MANIFESTS
+#ifndef _WIN64
 1 RT_MANIFEST "puttygen.mft"
+#else
+1 RT_MANIFEST "puttygen64.mft"
+#endif
 #endif /* NO_MANIFESTS */
