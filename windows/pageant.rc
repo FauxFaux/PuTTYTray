@@ -91,5 +91,9 @@ END
 #include "version.rc2"
 
 #ifndef NO_MANIFESTS
+#ifndef _WIN64
 1 RT_MANIFEST "pageant.mft"
+#else
+1 RT_MANIFEST "pageant64.mft"
+#endif
 #endif /* NO_MANIFESTS */
