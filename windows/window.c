@@ -323,6 +323,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     hinst = inst;
     hwnd = NULL;
     flags = FLAG_VERBOSE | FLAG_INTERACTIVE;
+	
+	jumplist_startup();
 
     sk_init();
 

@@ -418,6 +418,7 @@ static int load_selected_session(struct sessionsaver_data *ssd,
 	savedsession[SAVEDSESSION_LEN-1] = '\0';
 	if (maybe_launch)
 	    *maybe_launch = TRUE;
+	propogate(ssd->sesslist.sessions[i]);
     } else {
 	savedsession[0] = '\0';
 	if (maybe_launch)
