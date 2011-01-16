@@ -92,6 +92,18 @@
 #define WHEEL_DELTA 120
 #endif
 
+#ifndef GCL_HCURSOR
+#define GCL_HCURSOR -12
+#endif
+
+#ifndef GCL_HICON
+#define GCL_HICON -14
+#endif
+
+#ifndef GCL_HICONSM
+#define GCL_HICONSM -34
+#endif
+
 static Mouse_Button translate_button(Mouse_Button button);
 static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
