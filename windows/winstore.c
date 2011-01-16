@@ -7,6 +7,7 @@
  * Added file support for PuTTY Tray
  */
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -39,9 +40,6 @@ struct enumsettings {
 	int fromFile;
 	HANDLE hFile;
 };
-
-// Random seed functions enumeration
-enum { DEL, OPEN_R, OPEN_W };
 
 // PUTTY Tray / PuTTY File - global storage type
 static int storagetype = 0;	// 0 = registry, 1 = file
@@ -401,250 +399,6 @@ void store_host_key(const char *hostname, int port, const char *keytype, const c
 /* ----------------------------------------------------------------------
  * Functions to access PuTTY's random number seed file.
  */
-/*
- * HELPER FOR RANDOM SEED FUNCTIONS (not part of storage.h)
- * Open (or delete) the random seed file.
- *
- * NO HACK: PuttyTray / PuTTY File - This is an original function (not patched)
- */
-static int try_random_seed(char const *path, int action, HANDLE *ret)
-{
-    if (action == DEL) {
-	remove(path);
-	*ret = INVALID_HANDLE_VALUE;
-	return FALSE;		       /* so we'll do the next ones too */
-    }
-
-    *ret = CreateFile(path,
-		      action == OPEN_W ? GENERIC_WRITE : GENERIC_READ,
-		      action == OPEN_W ? 0 : (FILE_SHARE_READ |
-					      FILE_SHARE_WRITE),
-		      NULL,
-		      action == OPEN_W ? CREATE_ALWAYS : OPEN_EXISTING,
-		      action == OPEN_W ? FILE_ATTRIBUTE_NORMAL : 0,
-		      NULL);
-
-    return (*ret != INVALID_HANDLE_VALUE);
-}
-
- /*
-  * HELPER FOR RANDOM SEED FUNCTIONS (not part of storage.h)
-  * 
-  * PARTLY HACKED: PuttyTray / PuTTY File - This is an original function (only first lines patched)
-  */
-static HANDLE access_random_seed(int action)
-{
-    HKEY rkey;
-    DWORD type, size;
-    HANDLE rethandle;
-    char seedpath[2 * MAX_PATH + 10] = "\0";
-
-	/* PuttyTray / PuTTY File - HACK STARTS HERE */
-	if (seedpath != '\0') {
-		/* JK: In PuTTY 0.58 this won't ever happen - this function was called only if (!seedpath[0])
-		 * This changed in PuTTY 0.59 - read the long comment below
-		 */
-		return;
-	}
-	/* PuttyTray / PuTTY File - HACK ENDS HERE */
-
-    /*
-     * Iterate over a selection of possible random seed paths until
-     * we find one that works.
-     * 
-     * We do this iteration separately for reading and writing,
-     * meaning that we will automatically migrate random seed files
-     * if a better location becomes available (by reading from the
-     * best location in which we actually find one, and then
-     * writing to the best location in which we can _create_ one).
-     */
-
-    /*
-     * First, try the location specified by the user in the
-     * Registry, if any.
-     */
-    size = sizeof(seedpath);
-    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS, &rkey) ==
-	ERROR_SUCCESS) {
-	int ret = RegQueryValueEx(rkey, "RandSeedFile",
-				  0, &type, seedpath, &size);
-	if (ret != ERROR_SUCCESS || type != REG_SZ)
-	    seedpath[0] = '\0';
-	RegCloseKey(rkey);
-
-	if (*seedpath && try_random_seed(seedpath, action, &rethandle))
-	    return rethandle;
-    }
-
-    /*
-     * Next, try the user's local Application Data directory,
-     * followed by their non-local one. This is found using the
-     * SHGetFolderPath function, which won't be present on all
-     * versions of Windows.
-     */
-    if (!tried_shgetfolderpath) {
-	/* This is likely only to bear fruit on systems with IE5+
-	 * installed, or WinMe/2K+. There is some faffing with
-	 * SHFOLDER.DLL we could do to try to find an equivalent
-	 * on older versions of Windows if we cared enough.
-	 * However, the invocation below requires IE5+ anyway,
-	 * so stuff that. */
-	shell32_module = LoadLibrary("SHELL32.DLL");
-	if (shell32_module) {
-	    p_SHGetFolderPath = (p_SHGetFolderPath_t)
-		GetProcAddress(shell32_module, "SHGetFolderPathA");
-	}
-    }
-    if (p_SHGetFolderPath) {
-	if (SUCCEEDED(p_SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA,
-					NULL, SHGFP_TYPE_CURRENT, seedpath))) {
-	    strcat(seedpath, "\\PUTTY.RND");
-	    if (try_random_seed(seedpath, action, &rethandle))
-		return rethandle;
-	}
-
-	if (SUCCEEDED(p_SHGetFolderPath(NULL, CSIDL_APPDATA,
-					NULL, SHGFP_TYPE_CURRENT, seedpath))) {
-	    strcat(seedpath, "\\PUTTY.RND");
-	    if (try_random_seed(seedpath, action, &rethandle))
-		return rethandle;
-	}
-    }
-
-    /*
-     * Failing that, try %HOMEDRIVE%%HOMEPATH% as a guess at the
-     * user's home directory.
-     */
-    {
-	int len, ret;
-
-	len =
-	    GetEnvironmentVariable("HOMEDRIVE", seedpath,
-				   sizeof(seedpath));
-	ret =
-	    GetEnvironmentVariable("HOMEPATH", seedpath + len,
-				   sizeof(seedpath) - len);
-	if (ret != 0) {
-	    strcat(seedpath, "\\PUTTY.RND");
-	    if (try_random_seed(seedpath, action, &rethandle))
-		return rethandle;
-	}
-    }
-
-    /*
-     * And finally, fall back to C:\WINDOWS.
-     */
-    GetWindowsDirectory(seedpath, sizeof(seedpath));
-    strcat(seedpath, "\\PUTTY.RND");
-    if (try_random_seed(seedpath, action, &rethandle))
-	return rethandle;
-
-    /*
-     * If even that failed, give up.
-     */
-    return INVALID_HANDLE_VALUE;
-}
-
-
-/*
- * Read PuTTY's random seed file and pass its contents to a noise
- * consumer function.
- *
- * NO HACK: PuttyTray / PuTTY File - This is an original function (not patched)
- */
-void read_random_seed(noise_consumer_t consumer)
-{
-    HANDLE seedf = access_random_seed(OPEN_R);
-
-    if (seedf != INVALID_HANDLE_VALUE) {
-	while (1) {
-	    char buf[1024];
-	    DWORD len;
-
-	    if (ReadFile(seedf, buf, sizeof(buf), &len, NULL) && len)
-		consumer(buf, len);
-	    else
-		break;
-	}
-	CloseHandle(seedf);
-    }
-}
-
-/*
- * Write PuTTY's random seed file from a given chunk of noise.
- *
- * NO HACK: PuttyTray / PuTTY File - This is an original function (not patched)
- */
-void write_random_seed(void *data, int len)
-{
-    HANDLE seedf = access_random_seed(OPEN_W);
-
-    if (seedf != INVALID_HANDLE_VALUE) {
-	DWORD lenwritten;
-
-	WriteFile(seedf, data, len, &lenwritten, NULL);
-	CloseHandle(seedf);
-    }
-}
-
-
-/* ----------------------------------------------------------------------
- * Cleanup function: remove all of PuTTY's persistent state.
- *
- * NO HACK: PuttyTray / PuTTY File - This is an original function (not patched)
- */
-void cleanup_all(void)
-{
-    HKEY key;
-    int ret;
-    char name[MAX_PATH + 1];
-
-    /* ------------------------------------------------------------
-     * Wipe out the random seed file, in all of its possible
-     * locations.
-     */
-    access_random_seed(DEL);
-
-    /* ------------------------------------------------------------
-     * Destroy all registry information associated with PuTTY.
-     */
-
-    /*
-     * Open the main PuTTY registry key and remove everything in it.
-     */
-    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS, &key) ==
-	ERROR_SUCCESS) {
-	registry_recursive_remove(key);
-	RegCloseKey(key);
-    }
-    /*
-     * Now open the parent key and remove the PuTTY main key. Once
-     * we've done that, see if the parent key has any other
-     * children.
-     */
-    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_PARENT,
-		   &key) == ERROR_SUCCESS) {
-	RegDeleteKey(key, PUTTY_REG_PARENT_CHILD);
-	ret = RegEnumKey(key, 0, name, sizeof(name));
-	RegCloseKey(key);
-	/*
-	 * If the parent key had no other children, we must delete
-	 * it in its turn. That means opening the _grandparent_
-	 * key.
-	 */
-	if (ret != ERROR_SUCCESS) {
-	    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_GPARENT,
-			   &key) == ERROR_SUCCESS) {
-		RegDeleteKey(key, PUTTY_REG_GPARENT_CHILD);
-		RegCloseKey(key);
-	    }
-	}
-    }
-    /*
-     * Now we're done.
-     */
-}
-
 
 /* ----------------------------------------------------------------------
  * PUTTY FILE HELPERS (not part of storage.h)
@@ -965,25 +719,6 @@ static void unmungestr(const char *in, char *out, int outlen)
     }
     *out = '\0';
     return;
-}
-
-/*
- * Recursively delete a registry key and everything under it.
- */
-static void registry_recursive_remove(HKEY key)
-{
-    DWORD i;
-    char name[MAX_PATH + 1];
-    HKEY subkey;
-
-    i = 0;
-    while (RegEnumKey(key, i, name, sizeof(name)) == ERROR_SUCCESS) {
-	if (RegOpenKey(key, name, &subkey) == ERROR_SUCCESS) {
-	    registry_recursive_remove(subkey);
-	    RegCloseKey(subkey);
-	}
-	RegDeleteKey(key, name);
-    }
 }
 
 
@@ -2211,6 +1946,15 @@ static HANDLE access_random_seed(int action)
     DWORD type, size;
     HANDLE rethandle;
     char seedpath[2 * MAX_PATH + 10] = "\0";
+
+	/* PuttyTray / PuTTY File - HACK STARTS HERE */
+	assert(seedpath != '\0'); {
+		/* JK: In PuTTY 0.58 this won't ever happen - this function was called only if (!seedpath[0])
+		 * This changed in PuTTY 0.59 - read the long comment below
+		 */
+
+	}
+	/* PuttyTray / PuTTY File - HACK ENDS HERE */
 
     /*
      * Iterate over a selection of possible random seed paths until
