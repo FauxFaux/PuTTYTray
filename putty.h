@@ -137,6 +137,30 @@ typedef struct terminal_tag Terminal;
 #define ATTR_DEFBG   (258 << ATTR_BGSHIFT)
 #define ATTR_DEFAULT (ATTR_DEFFG | ATTR_DEFBG)
 
+/*
+ * HACK: PuttyTray / Nutty
+ * Hyperlink stuff: define
+ */
+#define CHAR_MASK    0x000000FFUL
+
+/*
+ * HACK: PuttyTray / Nutty
+ * Hyperlink stuff: Underline settings
+ */
+enum {
+	URLHACK_UNDERLINE_ALWAYS,
+	URLHACK_UNDERLINE_HOVER,
+	URLHACK_UNDERLINE_NEVER
+};
+
+/*
+ * HACK: PuttyTray
+ * Tray options
+ */
+enum {
+    TRAY_NEVER, TRAY_NORMAL, TRAY_START, TRAY_ALWAYS
+};
+
 struct sesslist {
     int nsessions;
     char **sessions;
@@ -598,6 +622,45 @@ struct config_tag {
     FontSpec widefont;
     FontSpec wideboldfont;
     int shadowboldoffset;
+
+	/*
+	 * HACK: PuttyTray / PuTTY File
+	 */
+	int session_storagetype;
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Underline settings
+	 */
+	int url_ctrl_click;
+	int url_underline;
+	int url_defbrowser;
+	int url_defregex;
+	char url_browser[MAX_PATH];
+	char url_regex[1024];
+
+	/*
+	 * HACK: PuttyTray
+	 */
+    int tray;
+	int start_tray;
+	int tray_restore;
+
+	/*
+	 * HACK: PuttyTray / Transparency
+	 */
+	int transparency;
+	
+	/*
+	 * HACK: PuttyTray / Reconnect
+	 */
+	int wakeup_reconnect;
+	int failure_reconnect;
+
+	/*
+	 * HACK: PuttyTray / Session Icon
+	 */
+	char win_icon[256];
 };
 
 /*
@@ -781,9 +844,16 @@ char *save_settings(char *section, Config * cfg);
 void save_open_settings(void *sesskey, Config *cfg);
 void load_settings(char *section, Config * cfg);
 void load_open_settings(void *sesskey, Config *cfg);
-void get_sesslist(struct sesslist *, int allocate);
+int get_sesslist(struct sesslist *, int allocate); // HACK: PuTTYTray / PuTTY File - changed return type
 void do_defaults(char *, Config *);
 void registry_cleanup(void);
+
+/*
+ * HACK: PuttyTray / PuTTY File
+ * Quick hack to load defaults from file
+ */
+void do_defaults_file(char *, Config *);
+void load_settings_file(char *section, Config * cfg);
 
 /*
  * Functions used by settings.c to provide platform-specific
