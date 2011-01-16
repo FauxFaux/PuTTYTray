@@ -1336,11 +1336,6 @@ struct winctrl *winctrl_findbyindex(struct winctrls *wc, int index)
     return index234(wc->byid, index);
 }
 
-/*
- * HACK: PuttyTray / Session Icon
- */
-extern Config cfg;
-//----------------------
 
 void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
 		    struct ctlpos *cp, struct controlset *s, int *id)
@@ -1554,10 +1549,12 @@ void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
 		/*
 		 * HACK: PuttyTray / Session Icon
 		 */ 
-		case CTRL_ICON:
+		case CTRL_ICON: {
+			Config *cfg = (Config *)dp->data;
 			num_ids = 1;
 			staticicon(&pos, ctrl->icon.label, (char *) ATOFFSET(&cfg, ctrl->icon.context.i), base_id);
 			break;
+		}
 		//-----------------------------------------------------
 
 	  case CTRL_RADIO:
