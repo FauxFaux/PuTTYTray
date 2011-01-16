@@ -13,11 +13,6 @@
  */ 
 #include "urlhack.h"
 
-/*
- * Tables of string <-> enum value mappings
- */
-struct keyval { char *s; int v; };
-
 /* The cipher order given here is the default order. */
 static const struct keyval ciphernames[] = {
     { "aes",	    CIPHER_AES },
