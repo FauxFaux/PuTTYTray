@@ -27,20 +27,6 @@ struct sessionsaver_data {
     int midsession;
 };
 
-/*
- * Convenience function: determine whether this binary supports a
- * given backend.
- */
-static int have_backend(int protocol)
-{
-    struct backend_list *p = backends;
-    for (p = backends; p->name; p++) {
-	if (p->protocol == protocol)
-	    return 1;
-    }
-    return 0;
-}
-
 
 static void config_host_handler(union control *ctrl, void *dlg,
 				void *data, int event)
