@@ -881,7 +881,7 @@ char *save_settings(char *section, Config * cfg);
 void save_open_settings(void *sesskey, Config *cfg);
 void load_settings(char *section, Config * cfg);
 void load_open_settings(void *sesskey, Config *cfg);
-int get_sesslist(struct sesslist *, int allocate); // HACK: PuTTYTray / PuTTY File - changed return type
+int get_sesslist(struct sesslist *, int allocate, int storagetype); // HACK: PuTTYTray / PuTTY File - changed return type
 void do_defaults(char *, Config *);
 void registry_cleanup(void);
 
@@ -1192,7 +1192,7 @@ void cmdline_error(char *, ...);
  */
 struct controlbox;
 void setup_config_box(struct controlbox *b, int midsession,
-		      int protocol, int protcfginfo);
+		      int protocol, int protcfginfo, int session_storagetype);
 
 /*
  * Exports from minibidi.c.
