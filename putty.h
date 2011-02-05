@@ -857,6 +857,7 @@ void cleanup_exit(int);
     X(INT, NONE, transparency) \
     X(INT, NONE, failure_reconnect) \
     X(INT, NONE, wakeup_reconnect) \
+    X(INT, NONE, session_storagetype) \
 
 /* Now define the actual enum of option keywords using that macro. */
 #define CONF_ENUM_DEF(valtype, keytype, keyword) CONF_ ## keyword,
@@ -934,9 +935,16 @@ char *save_settings(char *section, Conf *conf);
 void save_open_settings(void *sesskey, Conf *conf);
 void load_settings(char *section, Conf *conf);
 void load_open_settings(void *sesskey, Conf *conf);
-void get_sesslist(struct sesslist *, int allocate);
+int get_sesslist(struct sesslist *, int allocate, int storagetype);
 void do_defaults(char *, Conf *);
 void registry_cleanup(void);
+
+/*
+ * HACK: PuttyTray / PuTTY File
+ * Quick hack to load defaults from file
+ */
+void do_defaults_file(char *, Conf *);
+void load_settings_file(char *section, Conf * cfg);
 
 /*
  * Functions used by settings.c to provide platform-specific
@@ -1255,7 +1263,7 @@ void conf_filesel_handler(union control *ctrl, void *dlg,
 void conf_fontsel_handler(union control *ctrl, void *dlg,
 			  void *data, int event);
 void setup_config_box(struct controlbox *b, int midsession,
-		      int protocol, int protcfginfo);
+		      int protocol, int protcfginfo, int session_storagetype);
 
 /*
  * Exports from minibidi.c.

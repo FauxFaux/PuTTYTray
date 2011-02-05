@@ -817,7 +817,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	AppendMenu(popup_menus[CTXMENU].menu, MF_ENABLED, IDM_PASTE, "&Paste");
 
 	savedsess_menu = CreateMenu();
-	get_sesslist(&sesslist, TRUE);
+
+	get_sesslist(&sesslist, TRUE, conf_get_int(conf, CONF_session_storagetype));
 	update_savedsess_menu();
 
 	for (j = 0; j < lenof(popup_menus); j++) {
@@ -2134,8 +2135,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	if ((HMENU)wParam == savedsess_menu) {
 	    /* About to pop up Saved Sessions sub-menu.
 	     * Refresh the session list. */
-	    get_sesslist(&sesslist, FALSE); /* free */
-	    get_sesslist(&sesslist, TRUE);
+		/*
+		 * HACK: PuttyTray / PuTTY File
+		 * Added storagetype to get_sesslist
+		 */
+	    get_sesslist(&sesslist, FALSE, conf_get_int(conf, CONF_session_storagetype)); /* free */
+	    get_sesslist(&sesslist, TRUE, conf_get_int(conf, CONF_session_storagetype));
 	    update_savedsess_menu();
 	    return 0;
 	}
@@ -3365,10 +3370,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    } /* else: not sure when this can fail */
 		} else {
 			if (control_pressed) {
-				cfg.font.height += MBT_WHEEL_UP == b ? 1 : -1;
+				conf_get_fontspec(conf, CONF_font)->height += MBT_WHEEL_UP == b ? 1 : -1;
 
 				// short version of IDM_RECONF's reconfig:
-				term_size(term, cfg.height, cfg.width, cfg.savelines);
+				term_size(term, conf_get_int(conf, CONF_height), conf_get_int(conf, CONF_width), conf_get_int(conf, CONF_savelines));
 				reset_window(2);
 			} else {
 				/* trigger a scroll */
