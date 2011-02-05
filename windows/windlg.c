@@ -215,10 +215,11 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 	    return 0;
 
 	  case IDA_WEB:
-	    /* Load web browser */
-	    ShellExecute(hwnd, "open",
-			 "http://www.chiark.greenend.org.uk/~sgtatham/putty/",
-			 0, 0, SW_SHOWDEFAULT);
+		/*
+		 * HACK: PuttyTray
+		 * Show different website
+		 */
+	    ShellExecute(hwnd, "open", "http://www.xs4all.nl/~whaa/putty/", 0, 0, SW_SHOWDEFAULT);
 	    return 0;
 	}
 	return 0;
