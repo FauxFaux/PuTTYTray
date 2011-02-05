@@ -88,6 +88,7 @@
     <ClInclude Include="..\..\..\tree234.h" />
     <ClInclude Include="..\..\..\unix\unix.h" />
     <ClInclude Include="..\..\..\windows\rcstuff.h" />
+    <ClInclude Include="..\..\..\windows\win_res.h" />
     <ClInclude Include="..\..\..\windows\winhelp.h" />
     <ClInclude Include="..\..\..\windows\winstuff.h" />
   </ItemGroup>

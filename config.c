@@ -1905,7 +1905,7 @@ void setup_config_box(struct controlbox *b, int midsession,
 	    s = ctrl_getset(b, "Connection", "tcp",
 			    "Low-level TCP connection options");
 	    ctrl_checkbox(s, "Disable Nagle's algorithm (TCP_NODELAY option)",
-			  'n', HELPCTX(connection_nodelay),
+			  'l', HELPCTX(connection_nodelay),
 			  conf_checkbox_handler,
 			  I(CONF_tcp_nodelay));
 	    ctrl_checkbox(s, "Enable TCP keepalives (SO_KEEPALIVE option)",

@@ -35,6 +35,7 @@
     <ClCompile Include="..\..\..\tree234.c" />
     <ClCompile Include="..\..\..\version.c" />
     <ClCompile Include="..\..\..\wcwidth.c" />
+    <ClCompile Include="..\..\..\windows\pickicondialog.c" />
     <ClCompile Include="..\..\..\windows\sizetip.c" />
     <ClCompile Include="..\..\..\windows\wincfg.c" />
     <ClCompile Include="..\..\..\windows\winctrls.c" />
@@ -71,6 +72,7 @@
     <ClInclude Include="..\..\..\terminal.h" />
     <ClInclude Include="..\..\..\tree234.h" />
     <ClInclude Include="..\..\..\unix\unix.h" />
+    <ClInclude Include="..\..\..\windows\pickicondialog.h" />
     <ClInclude Include="..\..\..\windows\rcstuff.h" />
     <ClInclude Include="..\..\..\windows\win_res.h" />
     <ClInclude Include="..\..\..\windows\winhelp.h" />

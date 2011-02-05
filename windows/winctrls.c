@@ -22,6 +22,12 @@
 
 #include <commctrl.h>
 
+/*
+ * HACK: PuttyTray / Session Icon
+ */ 
+#include "pickicondialog.h"
+#define	ICONHEIGHT 20
+
 #define GAPBETWEEN 3
 #define GAPWITHIN 1
 #define GAPXBOX 7
@@ -955,6 +961,23 @@ void prefslist(struct prefslist *hdl, struct ctlpos *cp, int lines,
 
 }
 
+void staticicon(struct ctlpos *cp, char *stext, char *iname, int id)
+{
+    RECT r;
+    HWND hcontrol;
+    HICON hicon;
+
+    r.left = GAPBETWEEN;
+    r.top = cp->ypos;
+    r.right = cp->width;
+    r.bottom = ICONHEIGHT;
+    cp->ypos += r.bottom + GAPBETWEEN;
+    hcontrol = doctl(cp, r, "STATIC",
+	        WS_CHILD | WS_VISIBLE | SS_ICON, 0, NULL, id);
+    hicon = extract_icon(iname, FALSE);
+    SendMessage(hcontrol, STM_SETICON, (WPARAM) hicon, 0);
+}
+
 /*
  * Helper function for prefslist: move item in list box.
  */
@@ -1520,6 +1543,13 @@ void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
 	    }
 	    sfree(escaped);
 	    break;
+	  case CTRL_ICON:
+            {
+		Conf *conf = (Conf *)dp->data;
+		num_ids = 1;
+		staticicon(&pos, ctrl->icon.label, conf_get_filename(conf, ctrl->icon.context.i)->path, base_id);
+	    }
+            break;
 	  case CTRL_RADIO:
 	    num_ids = ctrl->radio.nbuttons + 1;   /* label as well */
 	    {
@@ -2240,6 +2270,16 @@ void dlg_text_set(union control *ctrl, void *dlg, char const *text)
     SetDlgItemText(dp->hwnd, c->base_id, text);
 }
 
+void dlg_icon_set(union control *ctrl, void *dlg, char const *icon)
+{
+    HICON hicon;
+    struct dlgparam *dp = (struct dlgparam *) dlg;
+    struct winctrl *c = dlg_findbyctrl(dp, ctrl);
+    assert(c && c->ctrl->generic.type == CTRL_ICON);
+    hicon = extract_icon((char *) icon, FALSE);
+    SendDlgItemMessage(dp->hwnd, c->base_id, STM_SETICON, (WPARAM) hicon, 0);
+}
+
 void dlg_label_change(union control *ctrl, void *dlg, char const *text)
 {
     struct dlgparam *dp = (struct dlgparam *)dlg;
@@ -2633,4 +2673,11 @@ void *dlg_alloc_privdata(union control *ctrl, void *dlg, size_t size)
      */
     p->data = smalloc(size);
     return p->data;
+}
+
+int dlg_pick_icon(void *dlg, char **iname, int inamesize, DWORD *iindex)
+{
+    struct dlgparam *dp = (struct dlgparam *) dlg;
+    int ret = SelectIcon(dp->hwnd, *iname, inamesize, iindex);
+    return ret == IDOK ? TRUE : FALSE;
 }
