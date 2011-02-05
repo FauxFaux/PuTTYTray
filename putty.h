@@ -153,6 +153,14 @@ enum {
 	URLHACK_UNDERLINE_NEVER
 };
 
+/*
+ * HACK: PuttyTray
+ * Tray options
+ */
+enum {
+    TRAY_NEVER, TRAY_NORMAL, TRAY_START, TRAY_ALWAYS
+};
+
 struct sesslist {
     int nsessions;
     char **sessions;
@@ -648,6 +656,13 @@ struct config_tag {
 	 * HACK: PuttyTray / PuTTY File
 	 */
 	int session_storagetype;
+	/*
+	 * HACK: PuttyTray
+	 */
+    int tray;
+	int start_tray;
+	int tray_restore;
+
 	/*
 	 * HACK: PuttyTray / Session Icon
 	 */
