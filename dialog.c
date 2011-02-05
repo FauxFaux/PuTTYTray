@@ -272,6 +272,15 @@ union control *ctrl_combobox(struct controlset *s, char *label, char shortcut,
 }
 
 /*
+ * HACK: PuttyTray / Session Icon
+ */ 
+union control *ctrl_icon(struct controlset *s, intorptr helpctx, intorptr context)
+{
+    union control *c = ctrl_new(s, CTRL_ICON, helpctx, NULL, context);
+    return c;
+};
+
+/*
  * `ncolumns' is followed by (alternately) radio button titles and
  * intorptrs, until a NULL in place of a title string is seen. Each
  * title is expected to be followed by a shortcut _iff_ `shortcut'
