@@ -8,6 +8,12 @@
 #define IDI_MAINICON     200
 #define IDI_CFGICON      201
 
+/*
+ * HACK: PuttyTray
+ * TrayIcon Resource
+ */
+#define IDI_TRAYICON     202
+
 #define IDD_MAINBOX      102
 #define IDD_LOGBOX       110
 #define IDD_ABOUTBOX     111
