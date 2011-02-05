@@ -15,6 +15,12 @@
  */
 
 /*
+ * HACK: PuttyTray / PuTTY File
+ * Function to force the storage loader to a certain type
+ */
+void set_storagetype(int new_storagetype);
+
+/*
  * Write a saved session. The caller is expected to call
  * open_setting_w() to get a `void *' handle, then pass that to a
  * number of calls to write_setting_s() and write_setting_i(), and
@@ -66,7 +72,7 @@ void del_settings(const char *sessionname);
 /*
  * Enumerate all saved sessions.
  */
-void *enum_settings_start(void);
+void *enum_settings_start(int new_storagetype); // HACK: PuttyTray / PuTTY File - enum_settings_start with storagetype
 char *enum_settings_next(void *handle, char *buffer, int buflen);
 void enum_settings_finish(void *handle);
 
