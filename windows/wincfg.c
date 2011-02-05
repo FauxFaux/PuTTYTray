@@ -384,7 +384,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 			  "Always", 'y', I(TRAY_ALWAYS),
 			  "Never", 'r', I(TRAY_NEVER),
 			  "On start", 's', I(TRAY_START), NULL);
-    ctrl_checkbox(s, "Accept single-click to restore from tray", 'm',
+    ctrl_checkbox(s, "Accept single-click to restore from tray", 'p',
 		  HELPCTX(no_help),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,tray_restore)));
 
@@ -414,7 +414,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	 */
 	s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options");
 	ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,wakeup_reconnect)));
-	ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'w', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,failure_reconnect)));
+	ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'f', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,failure_reconnect)));
 
 	/*
 	 * HACK: PuttyTray / Nutty
