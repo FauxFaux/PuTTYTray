@@ -35,7 +35,13 @@ enum {
     CTRL_COLUMNS,		       /* divide window into columns */
     CTRL_FILESELECT,		       /* label plus filename selector */
     CTRL_FONTSELECT,		       /* label plus font selector */
-    CTRL_TABDELAY		       /* see `tabdelay' below */
+    CTRL_TABDELAY,		       /* see `tabdelay' below */
+
+	/*
+	 * HACK: PuttyTray / Session Icon
+	 * Add ctrl_icon, ctrl_path, ctrl_sessionlistbox
+	 */ 
+    CTRL_ICON					/* static icon without label */
 };
 
 /*
@@ -404,6 +410,15 @@ union control {
 	STANDARD_PREFIX;
 	char shortcut;
     } fontselect;
+
+	/*
+	 * HACK: PuttyTray / Session Icon
+	 */ 
+    struct {
+		STANDARD_PREFIX;
+		intorptr handle;
+    } icon;
+	//--------------
 };
 
 #undef STANDARD_PREFIX
@@ -520,6 +535,12 @@ union control *ctrl_checkbox(struct controlset *, char *label, char shortcut,
 			     intorptr helpctx,
 			     handler_fn handler, intorptr context);
 union control *ctrl_tabdelay(struct controlset *, union control *);
+
+union control *ctrl_icon(struct controlset *, intorptr helpctx, intorptr context);
+
+// Should be somewhere below, but this is easier
+void dlg_icon_set(union control *ctrl, void *dlg, char const *icon);
+int dlg_pick_icon(void *dlg, char **iname, int inamesize, int *iindex);
 
 /*
  * Routines the platform-independent dialog code can call to read
