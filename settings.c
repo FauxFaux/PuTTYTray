@@ -451,6 +451,20 @@ void save_open_settings(void *sesskey, Config *cfg)
 	 */
     write_setting_i(sesskey, "StorageType", cfg->session_storagetype);
 
+	/*
+	 * HACK: PuttyTray
+	 * Save tray settings
+	 */
+    write_setting_i(sesskey, "Tray", cfg->tray);
+	write_setting_i(sesskey, "StartTray", cfg->start_tray);
+	write_setting_i(sesskey, "TrayRestore", cfg->tray_restore);
+
+
+	/*
+	 * HACK: PuttyTray / Session Icon
+	 */ 
+	write_setting_s(sesskey, "WindowIcon", cfg->win_icon);
+
     write_setting_i(sesskey, "AltF4", cfg->alt_f4);
     write_setting_i(sesskey, "AltSpace", cfg->alt_space);
     write_setting_i(sesskey, "AltOnly", cfg->alt_only);
@@ -789,6 +803,20 @@ void load_open_settings(void *sesskey, Config *cfg)
 	 * Save storagetype
 	 */
 	gppi(sesskey, "StorageType", 0, &cfg->session_storagetype);
+
+	/*
+	 * HACK: PuttyTray
+	 * Save tray settings
+	 */
+	gppi(sesskey, "Tray", TRAY_NEVER, &cfg->tray);
+	gppi(sesskey, "StartTray", 0, &cfg->start_tray);
+	gppi(sesskey, "TrayRestore", 0, &cfg->tray_restore);
+
+
+	/*
+	 * HACK: PuttyTray / Session Icon
+	 */
+	gpps(sesskey, "WindowIcon", "", cfg->win_icon, sizeof(cfg->win_icon));
 
     gppi(sesskey, "AltF4", 1, &cfg->alt_f4);
     gppi(sesskey, "AltSpace", 0, &cfg->alt_space);

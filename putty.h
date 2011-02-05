@@ -137,6 +137,30 @@ typedef struct terminal_tag Terminal;
 #define ATTR_DEFBG   (258 << ATTR_BGSHIFT)
 #define ATTR_DEFAULT (ATTR_DEFFG | ATTR_DEFBG)
 
+/*
+ * HACK: PuttyTray / Nutty
+ * Hyperlink stuff: define
+ */
+#define CHAR_MASK    0x000000FFUL
+
+/*
+ * HACK: PuttyTray / Nutty
+ * Hyperlink stuff: Underline settings
+ */
+enum {
+	URLHACK_UNDERLINE_ALWAYS,
+	URLHACK_UNDERLINE_HOVER,
+	URLHACK_UNDERLINE_NEVER
+};
+
+/*
+ * HACK: PuttyTray
+ * Tray options
+ */
+enum {
+    TRAY_NEVER, TRAY_NORMAL, TRAY_START, TRAY_ALWAYS
+};
+
 struct sesslist {
     int nsessions;
     char **sessions;
@@ -683,6 +707,17 @@ struct config_tag {
 	 * HACK: PuttyTray / PuTTY File
 	 */
 	int session_storagetype;
+	/*
+	 * HACK: PuttyTray
+	 */
+    int tray;
+	int start_tray;
+	int tray_restore;
+
+	/*
+	 * HACK: PuttyTray / Session Icon
+	 */
+	char win_icon[256];
 };
 
 /*
