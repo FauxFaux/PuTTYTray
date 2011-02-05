@@ -639,7 +639,7 @@ int do_config(void)
     int ret;
 
     ctrlbox = ctrl_new_box();
-    setup_config_box(ctrlbox, FALSE, 0, 0);
+    setup_config_box(ctrlbox, FALSE, 0, 0, 0); // HACK: PuttyTray / PuTTY File, Added 0 for 'int session_storagetype'
     win_setup_config_box(ctrlbox, &dp.hwnd, has_help(), FALSE, 0);
     dp_init(&dp);
     winctrl_init(&ctrls_base);
@@ -672,7 +672,7 @@ int do_reconfig(HWND hwnd, int protcfginfo)
     backup_cfg = cfg;		       /* structure copy */
 
     ctrlbox = ctrl_new_box();
-    setup_config_box(ctrlbox, TRUE, cfg.protocol, protcfginfo);
+    setup_config_box(ctrlbox, TRUE, cfg.protocol, protcfginfo, cfg.session_storagetype); // HACK: PuttyTray / PuTTY File, Added 'session_storagetype'
     win_setup_config_box(ctrlbox, &dp.hwnd, has_help(), TRUE,
                          cfg.protocol);
     dp_init(&dp);
