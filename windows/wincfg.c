@@ -40,6 +40,33 @@ static void variable_pitch_handler(union control *ctrl, void *dlg,
     }
 }
 
+/*
+ * HACK: PuttyTray / Session Icon
+ */ 
+static void window_icon_handler(union control *ctrl, void *dlg, void *data, int event)
+{
+    Config *cfg = (Config *) data;
+
+    if (event == EVENT_ACTION) {
+		char buf[512], iname[512], *ipointer;
+		int iindex;
+
+		memset(&iname, 0, sizeof(iname));
+		memset(&buf, 0, sizeof(buf));
+		iindex = 0;
+		ipointer = iname;
+		if (dlg_pick_icon(dlg, &ipointer, sizeof(iname), &iindex) /*&& iname[0]*/) {
+			if (iname[0]) {
+				sprintf(buf, "%s,%d", iname, iindex);
+			} else {
+				sprintf(buf, "%s", iname);
+			}
+			dlg_icon_set((union control *) ctrl->button.context.p, dlg, buf);
+			strcpy(cfg->win_icon, buf);
+		};
+	};
+};
+
 void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 			  int midsession, int protocol)
 {
@@ -332,7 +359,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     ctrl_checkbox(s, "Window closes on ALT-F4", '4',
 		  HELPCTX(behaviour_altf4),
 		  conf_checkbox_handler, I(CONF_alt_f4));
-    ctrl_checkbox(s, "System menu appears on ALT-Space", 'y',
+    ctrl_checkbox(s, "System menu appears on ALT-Space", 'm',
 		  HELPCTX(behaviour_altspace),
 		  conf_checkbox_handler, I(CONF_alt_space));
     ctrl_checkbox(s, "System menu appears on ALT alone", 'l',
@@ -358,6 +385,36 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options");
 	ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,wakeup_reconnect)));
 	ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'f', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,failure_reconnect)));
+
+	/*
+	 * HACK: PuttyTray
+	 */
+    ctrl_radiobuttons(s, "Show tray icon:", NO_SHORTCUT, 4,
+		      HELPCTX(no_help),
+		      dlg_stdradiobutton_handler,
+		      I(offsetof(Config, tray)),
+		      "Normal", 'n', I(TRAY_NORMAL),
+			  "Always", 'y', I(TRAY_ALWAYS),
+			  "Never", 'r', I(TRAY_NEVER),
+			  "On start", 's', I(TRAY_START), NULL);
+    ctrl_checkbox(s, "Accept single-click to restore from tray", 't',
+		  HELPCTX(no_help),
+		  dlg_stdcheckbox_handler, I(offsetof(Config,tray_restore)));
+
+	/*
+	 * HACK: PuttyTray / Session Icon
+	 */
+	s = ctrl_getset(b, "Window/Behaviour", "icon", "Adjust the icon");
+    ctrl_columns(s, 3, 40, 20, 40);
+    c = ctrl_text(s, "Window / tray icon:", HELPCTX(appearance_title));
+    c->generic.column = 0;
+    c = ctrl_icon(s, HELPCTX(appearance_title),
+		  I(offsetof(Config, win_icon)));
+    c->generic.column = 1;
+    c = ctrl_pushbutton(s, "Change Icon...", 'h', HELPCTX(appearance_title),
+			window_icon_handler, P(c));
+    c->generic.column = 2;
+    ctrl_columns(s, 1, 100);
 
     /*
      * Windows supports a local-command proxy. This also means we

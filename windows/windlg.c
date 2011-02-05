@@ -234,24 +234,26 @@ static int SaneDialogBox(HINSTANCE hinst,
 			 HWND hwndparent,
 			 DLGPROC lpDialogFunc)
 {
-    WNDCLASS wc;
+    WNDCLASSEX wc; //HACK: PuTTYTray / Icon Fix
     HWND hwnd;
     MSG msg;
     int flags;
     int ret;
     int gm;
 
-    wc.style = CS_DBLCLKS | CS_SAVEBITS | CS_BYTEALIGNWINDOW;
+    wc.cbSize = sizeof(WNDCLASSEX); //HACK: PuTTYTray / Icon Fix
+	wc.style = CS_DBLCLKS | CS_SAVEBITS | CS_BYTEALIGNWINDOW;
     wc.lpfnWndProc = DefDlgProc;
     wc.cbClsExtra = 0;
     wc.cbWndExtra = DLGWINDOWEXTRA + 2*sizeof(LONG_PTR);
     wc.hInstance = hinst;
-    wc.hIcon = NULL;
+	wc.hIcon = LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED); //HACK: PuTTYTray / Icon Fix
+	wc.hIconSm = LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED); //HACK: PuTTYTray / Icon Fix
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     wc.hbrBackground = (HBRUSH) (COLOR_BACKGROUND +1);
     wc.lpszMenuName = NULL;
     wc.lpszClassName = "PuTTYConfigBox";
-    RegisterClass(&wc);
+    RegisterClassEx(&wc); //HACK: PuTTYTray / Icon Fix
 
     hwnd = CreateDialog(hinst, tmpl, hwndparent, lpDialogFunc);
 
@@ -389,8 +391,10 @@ static int CALLBACK GenericMainDlgProc(HWND hwnd, UINT msg,
             if (item)
                 DestroyWindow(item);
         }
-	SendMessage(hwnd, WM_SETICON, (WPARAM) ICON_BIG,
-		    (LPARAM) LoadIcon(hinst, MAKEINTRESOURCE(IDI_CFGICON)));
+
+	// HACK: DISABLES LINE
+	//SendMessage(hwnd, WM_SETICON, (WPARAM) ICON_BIG, (LPARAM) LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR|LR_SHARED)); //HACK: PuTTYTray / Icon Fix
+	
 	/*
 	 * Centre the window.
 	 */

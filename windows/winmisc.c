@@ -7,6 +7,13 @@
 #include "putty.h"
 #include <security.h>
 
+/*
+ * HACK: PuttyTray / Session Icon
+ * Otherwise it will not know IDI_MAINICON
+ */ 
+#include "win_res.h"
+//--------------------------
+
 OSVERSIONINFO osVersion;
 
 char *platform_get_x_display(void) {
@@ -458,3 +465,44 @@ FontSpec *fontspec_deserialise(void *vdata, int maxsize, int *used)
                         GET_32BIT_MSB_FIRST(end + 4),
                         GET_32BIT_MSB_FIRST(end + 8));
 }
+
+HICON extract_icon(char *iconpath, int smallicon)
+{
+    char *iname, *comma;
+    int iindex;
+	HICON hiconLarge, hiconSmall;
+
+    hiconLarge = NULL;
+	hiconSmall = NULL;
+
+	// Get icon
+    if (iconpath && iconpath[0]) {
+		iname = dupstr(iconpath);
+		comma = strrchr(iname, ',');
+
+		if (comma) {
+			*comma = '\0';
+			*comma++;
+			iindex = atoi(comma);
+
+			ExtractIconEx(iname, iindex, &hiconLarge, &hiconSmall, 1);
+		};
+		sfree(iname);
+    };
+
+	// Fix if no icon found
+	if (!hiconLarge && !smallicon) {
+		hiconLarge = LoadImage(hinst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED);
+	}
+	if (!hiconSmall && smallicon) {
+		hiconSmall = LoadImage(hinst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
+	}
+
+	// Return the right icon
+	if (smallicon) {
+		return hiconSmall;
+	} else {
+		return hiconLarge;
+	}
+};
+

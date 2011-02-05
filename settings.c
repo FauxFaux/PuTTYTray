@@ -516,6 +516,10 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "WakeupReconnect", conf_get_int(conf, CONF_wakeup_reconnect);
     write_setting_i(sesskey, "FailureReconnect", conf_get_int(conf, CONF_failure_reconnect);
     write_setting_i(sesskey, "StorageType", conf_get_int(conf, CONF_session_storagetype);
+    write_setting_i(sesskey, "Tray", conf_get_int(conf, CONF_tray);
+    write_setting_i(sesskey, "StartTray", conf_get_int(conf, CONF_start_tray);
+    write_setting_i(sesskey, "TrayRestore", conf_get_int(conf, CONF_tray_restore);
+    write_setting_s(sesskey, "WinIcon", conf_get_int(conf, CONF_win_icon);
     write_setting_i(sesskey, "AltF4", conf_get_int(conf, CONF_alt_f4));
     write_setting_i(sesskey, "AltSpace", conf_get_int(conf, CONF_alt_space));
     write_setting_i(sesskey, "AltOnly", conf_get_int(conf, CONF_alt_only));
@@ -825,6 +829,10 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "WakeupReconnect", 0, conf, CONF_wakeup_reconnect);
     gppi(sesskey, "FailureReconnect", 0, conf, CONF_failure_reconnect);
     gppi(sesskey, "StorageType", 0, conf, CONF_session_storagetype);
+    gppi(sesskey, "Tray", TRAY_NEVER, conf, CONF_tray);
+    gppi(sesskey, "StartTray", 0, conf, CONF_start_tray);
+    gppi(sesskey, "TrayRestore", 0, conf, CONF_tray_restore);
+    gpps(sesskey, "WinIcon", "", conf, CONF_win_icon);
     gppi(sesskey, "AltF4", 1, conf, CONF_alt_f4);
     gppi(sesskey, "AltSpace", 0, conf, CONF_alt_space);
     gppi(sesskey, "AltOnly", 0, conf, CONF_alt_only);
