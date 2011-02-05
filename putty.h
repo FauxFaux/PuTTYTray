@@ -679,6 +679,10 @@ struct config_tag {
 	int wakeup_reconnect;
 	int failure_reconnect;
 
+	/*
+	 * HACK: PuttyTray / PuTTY File
+	 */
+	int session_storagetype;
 };
 
 /*
@@ -870,9 +874,16 @@ char *save_settings(char *section, Config * cfg);
 void save_open_settings(void *sesskey, Config *cfg);
 void load_settings(char *section, Config * cfg);
 void load_open_settings(void *sesskey, Config *cfg);
-void get_sesslist(struct sesslist *, int allocate);
+int get_sesslist(struct sesslist *, int allocate, int storagetype); // HACK: PuTTYTray / PuTTY File - changed return type
 void do_defaults(char *, Config *);
 void registry_cleanup(void);
+
+/*
+ * HACK: PuttyTray / PuTTY File
+ * Quick hack to load defaults from file
+ */
+void do_defaults_file(char *, Config *);
+void load_settings_file(char *section, Config * cfg);
 
 /*
  * Functions used by settings.c to provide platform-specific
@@ -1174,7 +1185,7 @@ void cmdline_error(char *, ...);
  */
 struct controlbox;
 void setup_config_box(struct controlbox *b, int midsession,
-		      int protocol, int protcfginfo);
+		      int protocol, int protcfginfo, int session_storagetype);
 
 /*
  * Exports from minibidi.c.
