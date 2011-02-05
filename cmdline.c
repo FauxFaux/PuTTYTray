@@ -172,7 +172,19 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
 	cmdline_session_name = dupstr(value);
 	return 2;
     }
-    if (!strcmp(p, "-ssh")) {
+    
+	/*
+	 * HACK: PuttyTray / PuTTY File
+	 * Load file based session from commandline
+	 */
+	if (!strcmp(p, "-loadfile") || !strcmp(p, "-file") || !strcmp(p, "-fileload")) {
+	RETURN(2);
+	do_defaults_file(value, cfg);
+	loaded_session = TRUE;
+	return 2;
+    }
+
+	if (!strcmp(p, "-ssh")) {
 	RETURN(1);
 	UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
 	SAVEABLE(0);

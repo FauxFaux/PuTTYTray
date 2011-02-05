@@ -515,6 +515,7 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "Transparency", conf_get_int(conf, CONF_transparency);
     write_setting_i(sesskey, "WakeupReconnect", conf_get_int(conf, CONF_wakeup_reconnect);
     write_setting_i(sesskey, "FailureReconnect", conf_get_int(conf, CONF_failure_reconnect);
+    write_setting_i(sesskey, "StorageType", conf_get_int(conf, CONF_session_storagetype);
     write_setting_i(sesskey, "AltF4", conf_get_int(conf, CONF_alt_f4));
     write_setting_i(sesskey, "AltSpace", conf_get_int(conf, CONF_alt_space));
     write_setting_i(sesskey, "AltOnly", conf_get_int(conf, CONF_alt_only));
@@ -650,6 +651,19 @@ void load_settings(char *section, Conf *conf)
 
     if (conf_launchable(conf))
         add_session_to_jumplist(section);
+}
+
+/*
+ * HACK: PuttyTray / PuTTY File
+ * Quick hack to load defaults from file
+ */
+void load_settings_file(char *section, Conf * cfg)
+{
+    void *sesskey;
+	set_storagetype(1);
+    sesskey = open_settings_r(section);
+    load_open_settings(sesskey, cfg);
+    close_settings_r(sesskey);
 }
 
 void load_open_settings(void *sesskey, Conf *conf)
@@ -810,6 +824,7 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "Transparency", 255, conf, CONF_transparency);
     gppi(sesskey, "WakeupReconnect", 0, conf, CONF_wakeup_reconnect);
     gppi(sesskey, "FailureReconnect", 0, conf, CONF_failure_reconnect);
+    gppi(sesskey, "StorageType", 0, conf, CONF_session_storagetype);
     gppi(sesskey, "AltF4", 1, conf, CONF_alt_f4);
     gppi(sesskey, "AltSpace", 0, conf, CONF_alt_space);
     gppi(sesskey, "AltOnly", 0, conf, CONF_alt_only);
@@ -988,6 +1003,15 @@ void do_defaults(char *session, Conf *conf)
     load_settings(session, conf);
 }
 
+/*
+ * HACK: PuttyTray / PuTTY File
+ * Quick hack to load defaults from file
+ */
+void do_defaults_file(char *session, Config * cfg)
+{
+    load_settings_file(session, cfg);
+}
+
 static int sessioncmp(const void *av, const void *bv)
 {
     const char *a = *(const char *const *) av;
@@ -1008,18 +1032,28 @@ static int sessioncmp(const void *av, const void *bv)
     return strcmp(a, b);	       /* otherwise, compare normally */
 }
 
-void get_sesslist(struct sesslist *list, int allocate)
+/*
+ * HACK: PuttyTray / PuTTY File
+ * Updated get_sesslist with storagetype
+ */
+int get_sesslist(struct sesslist *list, int allocate, int storagetype) // HACK: PuTTYTray / PuTTY File - changed return type
 {
     char otherbuf[2048];
     int buflen, bufsize, i;
     char *p, *ret;
     void *handle;
+	
+	// HACK: PUTTY FILE
+	int autoswitch = 0;
+	if (storagetype > 1) {
+		storagetype = storagetype - 2;
+		autoswitch = 1;
+	}
 
     if (allocate) {
-
 	buflen = bufsize = 0;
 	list->buffer = NULL;
-	if ((handle = enum_settings_start()) != NULL) {
+	if ((handle = enum_settings_start(storagetype)) != NULL) { // HACK: PuTTYTray / PuTTY File - storagetype
 	    do {
 		ret = enum_settings_next(handle, otherbuf, sizeof(otherbuf));
 		if (ret) {
@@ -1036,6 +1070,45 @@ void get_sesslist(struct sesslist *list, int allocate)
 	}
 	list->buffer = sresize(list->buffer, buflen + 1, char);
 	list->buffer[buflen] = '\0';
+
+	/*
+	 * HACK: PuttyTray / PuTTY File
+	 * Switch to file mode if registry is empty (and in registry mode)
+	 */
+	if (autoswitch == 1 && storagetype != 1 && buflen == 0) {
+		storagetype = 1;
+
+		// Ok, this is a copy of the code above. Crude but working
+		buflen = bufsize = 0;
+		list->buffer = NULL;
+		if ((handle = enum_settings_start(1)) != NULL) { // Force file storage type
+			do {
+			ret = enum_settings_next(handle, otherbuf, sizeof(otherbuf));
+			if (ret) {
+				int len = strlen(otherbuf) + 1;
+				if (bufsize < buflen + len) {
+				bufsize = buflen + len + 2048;
+				list->buffer = sresize(list->buffer, bufsize, char);
+				}
+				strcpy(list->buffer + buflen, otherbuf);
+				buflen += strlen(list->buffer + buflen) + 1;
+			}
+			} while (ret);
+			enum_settings_finish(handle);
+		}
+		list->buffer = sresize(list->buffer, buflen + 1, char);
+		list->buffer[buflen] = '\0';
+	}
+
+	/*
+	 * HACK: PuttyTray / PuTTY File
+	 * If registry is empty AND file store is empty, show empty registry
+	 */
+	if (autoswitch == 1 && storagetype == 1 && buflen == 0) {
+		storagetype = 0;
+		set_storagetype(storagetype);
+	}
+
 
 	/*
 	 * Now set up the list of sessions. Note that "Default
@@ -1072,4 +1145,10 @@ void get_sesslist(struct sesslist *list, int allocate)
 	list->buffer = NULL;
 	list->sessions = NULL;
     }
+
+	/*
+	 * HACK: PuttyTray / PuTTY File
+	 * Return storagetype
+	 */
+	return storagetype;
 }
