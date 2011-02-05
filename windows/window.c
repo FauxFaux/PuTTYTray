@@ -802,7 +802,11 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	AppendMenu(popup_menus[CTXMENU].menu, MF_ENABLED, IDM_PASTE, "&Paste");
 
 	savedsess_menu = CreateMenu();
-	get_sesslist(&sesslist, TRUE);
+	/*
+	 * HACK: PuttyTray / PuTTY File
+	 * Added storagetype to get_sesslist
+	 */
+	get_sesslist(&sesslist, TRUE, cfg.session_storagetype);
 	update_savedsess_menu();
 
 	for (j = 0; j < lenof(popup_menus); j++) {
@@ -2093,8 +2097,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	if ((HMENU)wParam == savedsess_menu) {
 	    /* About to pop up Saved Sessions sub-menu.
 	     * Refresh the session list. */
-	    get_sesslist(&sesslist, FALSE); /* free */
-	    get_sesslist(&sesslist, TRUE);
+		/*
+		 * HACK: PuttyTray / PuTTY File
+		 * Added storagetype to get_sesslist
+		 */
+	    get_sesslist(&sesslist, FALSE, cfg.session_storagetype); /* free */
+	    get_sesslist(&sesslist, TRUE, cfg.session_storagetype);
 	    update_savedsess_menu();
 	    return 0;
 	}
