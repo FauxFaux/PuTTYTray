@@ -852,8 +852,7 @@ void load_open_settings(void *sesskey, Conf *conf)
 #ifdef PUTTY_UNIX_H
 		 / 1000
 #endif
-		 );
-    gppi(sesskey, "ScrollbackLines", 200, conf, CONF_savelines);
+    gppi(sesskey, "ScrollbackLines", 1000, conf, CONF_savelines);
     gppi(sesskey, "DECOriginMode", 0, conf, CONF_dec_om);
     gppi(sesskey, "AutoWrapMode", 1, conf, CONF_wrap_mode);
     gppi(sesskey, "LFImpliesCR", 0, conf, CONF_lfhascr);
