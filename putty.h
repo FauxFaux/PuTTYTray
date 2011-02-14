@@ -627,6 +627,12 @@ struct config_tag {
     int shadowboldoffset;
     int crhaslf;
     char winclass[256];
+
+	/*
+	 * HACK: PuttyTray / Transparency
+	 */
+	int transparency;
+
 };
 
 /*

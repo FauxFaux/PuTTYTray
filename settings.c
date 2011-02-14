@@ -380,6 +380,13 @@ void save_open_settings(void *sesskey, Config *cfg)
     write_setting_i(sesskey, "ApplicationCursorKeys", cfg->app_cursor);
     write_setting_i(sesskey, "ApplicationKeypad", cfg->app_keypad);
     write_setting_i(sesskey, "NetHackKeypad", cfg->nethack_keypad);
+
+	/*
+	 * HACK: PuttyTray / Transparency
+	 * Save transparency settings
+	 */
+    write_setting_i(sesskey, "Transparency", cfg->transparency);
+
     write_setting_i(sesskey, "AltF4", cfg->alt_f4);
     write_setting_i(sesskey, "AltSpace", cfg->alt_space);
     write_setting_i(sesskey, "AltOnly", cfg->alt_only);
@@ -687,6 +694,13 @@ void load_open_settings(void *sesskey, Config *cfg)
     gppi(sesskey, "ApplicationCursorKeys", 0, &cfg->app_cursor);
     gppi(sesskey, "ApplicationKeypad", 0, &cfg->app_keypad);
     gppi(sesskey, "NetHackKeypad", 0, &cfg->nethack_keypad);
+
+	/*
+	 * HACK: PuttyTray / Transparency
+	 * Save transparency settings
+	 */
+	gppi(sesskey, "Transparency", 255, &cfg->transparency);
+
     gppi(sesskey, "AltF4", 1, &cfg->alt_f4);
     gppi(sesskey, "AltSpace", 0, &cfg->alt_space);
     gppi(sesskey, "AltOnly", 0, &cfg->alt_only);
