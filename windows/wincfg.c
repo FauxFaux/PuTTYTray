@@ -349,6 +349,10 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     s = ctrl_getset(b, "Window", "main", "Window transparency options");
     ctrl_editbox(s, "Opacity (50-255)", 't', 30, HELPCTX(no_help), conf_editbox_handler, I(CONF_transparency), I(-1));
 
+    s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options");
+    ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), conf_checkbox_handler, I(CONF_wakeup_reconnect));
+    ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'f', HELPCTX(no_help), conf_checkbox_handler, I(CONF_failure_reconnect));
+
     /*
      * Windows supports a local-command proxy. This also means we
      * must adjust the text on the `Telnet command' control.
