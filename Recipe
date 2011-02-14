@@ -25,6 +25,7 @@
 # Source directories.
 !srcdir charset/
 !srcdir windows/
+!srcdir windows/re_lib/
 !srcdir unix/
 !srcdir macosx/
 
@@ -287,6 +288,7 @@ TERMINAL = terminal wcwidth ldiscucs logging tree234 minibidi
 GUITERM  = TERMINAL window windlg winctrls sizetip winucs winprint
          + winutils wincfg sercfg winhelp winjump
          + pickicondialog
+         + urlhack urlhack_win regexp
 
 # Same thing on Unix.
 UXTERM   = TERMINAL uxcfg sercfg uxucs uxprint timing
@@ -341,8 +343,8 @@ U_BE_NOSSH = be_nos_s uxser nocproxy
 # keywords [G] for Windows GUI app, [C] for Console app, [X] for
 # X/GTK Unix app, [U] for command-line Unix app.
 
-putty    : [G] GUITERM NONSSH WINSSH W_BE_ALL WINMISC winx11 putty.res LIBS
-puttytel : [G] GUITERM NONSSH W_BE_NOSSH WINMISC puttytel.res nogss LIBS
+putty    : [G] GUITERM NONSSH WINSSH W_BE_ALL WINMISC winx11 putty.res urlhack regexp LIBS
+puttytel : [G] GUITERM NONSSH W_BE_NOSSH WINMISC puttytel.res nogss urlhack regexp LIBS
 plink    : [C] winplink wincons NONSSH WINSSH W_BE_ALL logging WINMISC
          + winx11 plink.res winnojmp LIBS
 pscp     : [C] pscp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
