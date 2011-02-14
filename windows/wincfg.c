@@ -410,6 +410,13 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     ctrl_editbox(s, "Opacity (50-255)", 't', 30, HELPCTX(no_help), dlg_stdeditbox_handler, I(offsetof(Config,transparency)), I(-1));
 
 	/*
+	 * HACK: PuttyTray / Reconnect
+	 */
+	s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options");
+	ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,wakeup_reconnect)));
+	ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'f', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,failure_reconnect)));
+
+	/*
 	 * HACK: PuttyTray / Nutty
 	 * Hyperlink stuff: The Window/Hyperlinks panel.
 	 */

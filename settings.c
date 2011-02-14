@@ -401,6 +401,12 @@ void save_open_settings(void *sesskey, Config *cfg)
 	write_setting_i(sesskey, "TrayRestore", cfg->tray_restore);
 
 	/*
+	 * HACK: PuttyTray / Reconnect
+	 */
+	write_setting_i(sesskey, "WakeupReconnect", cfg->wakeup_reconnect);
+	write_setting_i(sesskey, "FailureReconnect", cfg->failure_reconnect);
+
+	/*
 	 * HACK: PuttyTray / Transparency
 	 * Save transparency settings
 	 */
@@ -756,6 +762,12 @@ void load_open_settings(void *sesskey, Config *cfg)
 	gppi(sesskey, "Tray", 1, &cfg->tray);
 	gppi(sesskey, "StartTray", 0, &cfg->start_tray);
 	gppi(sesskey, "TrayRestore", 0, &cfg->tray_restore);
+
+	/*
+	 * HACK: PuttyTray / Reconnect
+	 */
+	gppi(sesskey, "WakeupReconnect", 0, &cfg->wakeup_reconnect);
+	gppi(sesskey, "FailureReconnect", 0, &cfg->failure_reconnect);
 
 	/*
 	 * HACK: PuttyTray / Transparency
