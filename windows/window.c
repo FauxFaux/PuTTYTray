@@ -923,6 +923,19 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	}
 
 	/*
+	 * HACK: PuttyTray
+	 * Set trayicon menu properties
+	 */
+	{
+		MENUINFO mi;
+		memset(&mi, 0, sizeof(MENUINFO));
+		mi.cbSize = sizeof(MENUINFO);
+		mi.fMask = MIM_STYLE;
+		mi.dwStyle = MNS_NOCHECK | MNS_AUTODISMISS;
+		SetMenuInfo(popup_menus[CTXMENU].menu, &mi);
+	}
+		
+	/*
 	 * HACK: PuttyTray / Nutty
 	 * Hyperlink stuff: Set the regular expression
 	 */
