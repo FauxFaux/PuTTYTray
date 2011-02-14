@@ -137,16 +137,8 @@ typedef struct terminal_tag Terminal;
 #define ATTR_DEFBG   (258 << ATTR_BGSHIFT)
 #define ATTR_DEFAULT (ATTR_DEFFG | ATTR_DEFBG)
 
-/*
- * HACK: PuttyTray / Nutty
- * Hyperlink stuff: define
- */
 #define CHAR_MASK    0x000000FFUL
 
-/*
- * HACK: PuttyTray / Nutty
- * Hyperlink stuff: Underline settings
- */
 enum {
     URLHACK_UNDERLINE_ALWAYS,
     URLHACK_UNDERLINE_HOVER,
@@ -887,6 +879,12 @@ void cleanup_exit(int);
     X(INT, NONE, start_tray) \
     X(INT, NONE, tray_restore) \
     X(FILENAME, NONE, win_icon) \
+    X(INT, NONE, url_ctrl_click) \
+    X(INT, NONE, url_underline) \
+    X(INT, NONE, url_defbrowser) \
+    X(INT, NONE, url_defregex) \
+    X(FILENAME, NONE, url_browser) \
+    X(STR, NONE, url_regex) \
 
 /* Now define the actual enum of option keywords using that macro. */
 #define CONF_ENUM_DEF(valtype, keytype, keyword) CONF_ ## keyword,

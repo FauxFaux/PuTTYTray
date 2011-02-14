@@ -10,6 +10,8 @@
 #include <limits.h>
 #include <assert.h>
 
+#include "urlhack.h"
+
 #ifndef NO_MULTIMON
 #define COMPILE_MULTIMON_STUBS
 #endif
@@ -277,6 +279,8 @@ BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon);
 void tray_updatemenu(BOOL disableMenuItems);
 #define WM_NOTIFY_PUTTYTRAY (WM_USER + 1983)
 
+static int urlhack_cursor_is_hand = 0;
+
 /* Dummy routine, only required in plink. */
 void ldisc_update(void *frontend, int echo, int edit)
 {
@@ -442,6 +446,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     init_flashwindow();
 
     conf = conf_new();
+
+    urlhack_init();
 
     /*
      * Initialize COM.
@@ -934,6 +940,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	SetMenuInfo(popup_menus[CTXMENU].menu, &mi);
     }
 
+    if (conf_get_int(term->conf, CONF_url_defregex) == 0) {
+        urlhack_set_regular_expression(conf_get_str(term->conf, CONF_url_regex));
+    }
+
     /*
      * Set up the initial input locale.
      */
@@ -1036,6 +1046,7 @@ void cleanup_exit(int code)
     /*
      * Clean up.
      */
+    urlhack_cleanup();
     deinit_fonts();
     sfree(logpal);
     if (pal)
@@ -2422,6 +2433,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    MakeWindowTransparent(hwnd, 255);
 		}
 
+                if (conf_get_int(conf, CONF_url_defregex) == 0) {
+                    urlhack_set_regular_expression(conf_get_str(conf, CONF_url_regex));
+                }
+                term->url_update = TRUE;
+                term_update(term);
+
 		if (conf_get_filename(conf, CONF_win_icon) && conf_get_filename(conf, CONF_win_icon)->path[0]) {
                     hIcon = extract_icon(filename_to_str(conf_get_filename(conf, CONF_win_icon)), TRUE);
 		    DestroyIcon(puttyTray.hIcon);
@@ -2801,6 +2818,31 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	 * number noise.
 	 */
 	noise_ultralight(lParam);
+
+        if (urlhack_mouse_old_x != TO_CHR_X(X_POS(lParam)) || urlhack_mouse_old_y != TO_CHR_Y(Y_POS(lParam))) {
+	    urlhack_mouse_old_x = TO_CHR_X(X_POS(lParam));
+	    urlhack_mouse_old_y = TO_CHR_Y(Y_POS(lParam));
+
+	    if ((!conf_get_int(term->conf, CONF_url_ctrl_click) || urlhack_is_ctrl_pressed()) &&
+	        urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y)) {
+		    if (urlhack_cursor_is_hand == 0) {
+		        SetClassLongPtr(hwnd, GCLP_HCURSOR, LoadCursor(NULL, MAKEINTRESOURCE(IDC_HAND)));
+		        urlhack_cursor_is_hand = 1;
+		        term_update(term); // Force the terminal to update, otherwise the underline will not show (bug somewhere, this is an ugly fix)
+		    }
+	    }
+	    else if (urlhack_cursor_is_hand == 1) {
+		SetClassLongPtr(hwnd, GCLP_HCURSOR, LoadCursor(NULL, MAKEINTRESOURCE(IDC_IBEAM)));
+		urlhack_cursor_is_hand = 0;
+		term_update(term); // Force the terminal to update, see above
+	    }
+
+	    // If mouse jumps from one link directly into another, we need a forced terminal update too
+	    if (urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y) != urlhack_current_region) {
+		urlhack_current_region = urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y);
+		term_update(term);
+	    }
+        }
 
 	if (wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON) &&
 	    GetCapture() == hwnd) {
@@ -3295,8 +3337,24 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	}
 	return FALSE;
       case WM_KEYDOWN:
-      case WM_SYSKEYDOWN:
+        if (wParam == VK_CONTROL && conf_get_int(term->conf, CONF_url_ctrl_click)) {
+            GetCursorPos(&cursor_pt);
+            ScreenToClient(hwnd, &cursor_pt);
+
+            if (urlhack_is_in_link_region(TO_CHR_X(cursor_pt.x), TO_CHR_Y(cursor_pt.y))) {
+	        SetCursor(LoadCursor(NULL, IDC_HAND));
+	        term_update(term);
+            }
+            goto KEY_END;
+        } // fallthrough
       case WM_KEYUP:
+	if (wParam == VK_CONTROL && conf_get_int(term->conf, CONF_url_ctrl_click)) {
+	    SetCursor(LoadCursor(NULL, IDC_IBEAM));
+	    term_update(term);
+	    goto KEY_END;
+	} // fallthrough
+	KEY_END:
+      case WM_SYSKEYDOWN:
       case WM_SYSKEYUP:
 	/*
 	 * Add the scan code and keypress timing to the random
