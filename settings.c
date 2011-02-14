@@ -433,6 +433,12 @@ void save_open_settings(void *sesskey, Config *cfg)
     write_setting_i(sesskey, "NetHackKeypad", cfg->nethack_keypad);
 
 	/*
+	 * HACK: PuttyTray / Reconnect
+	 */
+	write_setting_i(sesskey, "WakeupReconnect", cfg->wakeup_reconnect);
+	write_setting_i(sesskey, "FailureReconnect", cfg->failure_reconnect);
+
+	/*
 	 * HACK: PuttyTray / Transparency
 	 * Save transparency settings
 	 */
@@ -745,6 +751,12 @@ void load_open_settings(void *sesskey, Config *cfg)
     gppi(sesskey, "ApplicationCursorKeys", 0, &cfg->app_cursor);
     gppi(sesskey, "ApplicationKeypad", 0, &cfg->app_keypad);
     gppi(sesskey, "NetHackKeypad", 0, &cfg->nethack_keypad);
+
+	/*
+	 * HACK: PuttyTray / Reconnect
+	 */
+	gppi(sesskey, "WakeupReconnect", 0, &cfg->wakeup_reconnect);
+	gppi(sesskey, "FailureReconnect", 0, &cfg->failure_reconnect);
 
 	/*
 	 * HACK: PuttyTray / Transparency
