@@ -859,6 +859,21 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     start_backend();
 
+	/*
+	 * HACK: PuttyTray
+	 * Init TrayIcon
+	 */
+	puttyTray.cbSize = sizeof(NOTIFYICONDATA); 
+	puttyTray.hWnd	= hwnd; 
+	puttyTray.uID	= 1983; 
+	puttyTray.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP; 
+	puttyTray.uCallbackMessage = WM_NOTIFY_PUTTYTRAY;
+	if (cfg.win_icon[0]) {
+		puttyTray.hIcon	= wndclass.hIconSm;
+	} else {
+		puttyTray.hIcon	= LoadImage(inst, MAKEINTRESOURCE(IDI_TRAYICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
+	}
+
     /*
      * Set up the initial input locale.
      */
