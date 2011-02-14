@@ -400,6 +400,11 @@ void save_open_settings(void *sesskey, Config *cfg)
 	write_setting_i(sesskey, "StartTray", cfg->start_tray);
 	write_setting_i(sesskey, "TrayRestore", cfg->tray_restore);
 
+	/*
+	 * HACK: PuttyTray / Transparency
+	 * Save transparency settings
+	 */
+    write_setting_i(sesskey, "Transparency", cfg->transparency);
 
 	/*
 	 * HACK: PuttyTray / Session Icon
@@ -752,6 +757,11 @@ void load_open_settings(void *sesskey, Config *cfg)
 	gppi(sesskey, "StartTray", 0, &cfg->start_tray);
 	gppi(sesskey, "TrayRestore", 0, &cfg->tray_restore);
 
+	/*
+	 * HACK: PuttyTray / Transparency
+	 * Save transparency settings
+	 */
+	gppi(sesskey, "Transparency", 255, &cfg->transparency);
 
 	/*
 	 * HACK: PuttyTray / Session Icon
