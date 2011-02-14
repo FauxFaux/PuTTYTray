@@ -2457,17 +2457,22 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 			GetWindowLongPtr(hwnd, GWL_EXSTYLE);
 
 		    nexflag = exflag;
-		    if (cfg.alwaysontop != prev_cfg.alwaysontop) {
-			if (cfg.alwaysontop) {
-			    nexflag |= WS_EX_TOPMOST;
-			    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-					 SWP_NOMOVE | SWP_NOSIZE);
-			} else {
-			    nexflag &= ~(WS_EX_TOPMOST);
-			    SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
-					 SWP_NOMOVE | SWP_NOSIZE);
-			}
-		    }
+			//if (cfg.alwaysontop != prev_cfg.alwaysontop) { //HACK: PuttyTray / Always on top:
+				if (cfg.alwaysontop) {
+					nexflag |= WS_EX_TOPMOST;
+					SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+
+					//HACK: PuttyTray / Always on top:
+					CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_VISIBLE, MF_CHECKED);
+				} else {
+					nexflag &= ~(WS_EX_TOPMOST);
+					SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+
+					//HACK: PuttyTray / Always on top:
+					CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_VISIBLE, MF_UNCHECKED);
+				}
+		    //}
+
 		    if (cfg.sunken_edge)
 			nexflag |= WS_EX_CLIENTEDGE;
 		    else
