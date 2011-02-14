@@ -579,6 +579,15 @@ void load_open_settings(void *sesskey, Config *cfg)
 {
     int i;
     char prot[10];
+	
+	/*
+	 * HACK: PuttyTray / Vista
+	 * Check windows version and set default font quality to 'cleartype' if this is Windows Vista
+	 */
+    OSVERSIONINFO versioninfo;
+    versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+    GetVersionEx(&versioninfo);
+	/**/
 
     cfg->ssh_subsys = 0;	       /* FIXME: load this properly */
     cfg->remote_cmd_ptr = NULL;
@@ -836,7 +845,17 @@ void load_open_settings(void *sesskey, Config *cfg)
     gppi(sesskey, "TermWidth", 80, &cfg->width);
     gppi(sesskey, "TermHeight", 24, &cfg->height);
     gppfont(sesskey, "Font", &cfg->font);
-    gppi(sesskey, "FontQuality", FQ_DEFAULT, &cfg->font_quality);
+
+	/*
+	 * HACK: PuttyTray / Vista
+	 * Check windows version and set default font quality to 'cleartype' if this is Windows Vista
+	 */
+	if (versioninfo.dwMajorVersion >= 6) {
+		gppi(sesskey, "FontQuality", FQ_CLEARTYPE, &cfg->font_quality);
+	} else {
+		gppi(sesskey, "FontQuality", FQ_DEFAULT, &cfg->font_quality);
+	}
+    
     gppi(sesskey, "FontVTMode", VT_UNICODE, (int *) &cfg->vtmode);
     gppi(sesskey, "UseSystemColours", 0, &cfg->system_colour);
     gppi(sesskey, "TryPalette", 0, &cfg->try_palette);
