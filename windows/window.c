@@ -10,6 +10,11 @@
 #include <limits.h>
 #include <assert.h>
 
+/*
+ * HACK: PuttyTray / Nutty
+ */ 
+#include "urlhack.h"
+
 #ifndef NO_MULTIMON
 #define COMPILE_MULTIMON_STUBS
 #endif
@@ -238,6 +243,10 @@ BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon);
 void tray_updatemenu(BOOL disableMenuItems);
 #define WM_NOTIFY_PUTTYTRAY (WM_USER + 1983)
 
+/*
+ * HACK: PuttyTray / Nutty
+ */ 
+static int urlhack_cursor_is_hand = 0;
 /* Dummy routine, only required in plink. */
 void ldisc_update(void *frontend, int echo, int edit)
 {
@@ -2317,6 +2326,15 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		if (back)
 		    back->reconfig(backhandle, &cfg);
 
+		/*
+		 * HACK: PuttyTray / Nutty
+		 * Reconfigure
+		 */
+		if (cfg.url_defregex == 0) {
+			urlhack_set_regular_expression(cfg.url_regex);
+		}
+		term->url_update = TRUE;
+		term_update(term);
 
 		/*
 		 * HACK: PuttyTray / Session Icon
@@ -2673,6 +2691,37 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	 * number noise.
 	 */
 	noise_ultralight(lParam);
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Change cursor type if hovering over link
+	 */ 
+	if (urlhack_mouse_old_x != TO_CHR_X(X_POS(lParam)) || urlhack_mouse_old_y != TO_CHR_Y(Y_POS(lParam))) {
+		urlhack_mouse_old_x = TO_CHR_X(X_POS(lParam));
+		urlhack_mouse_old_y = TO_CHR_Y(Y_POS(lParam));
+
+		if ((!term->cfg.url_ctrl_click || urlhack_is_ctrl_pressed()) &&
+			urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y)) {
+				if (urlhack_cursor_is_hand == 0) {
+					SetClassLongPtr(hwnd, GCLP_HCURSOR, LoadCursor(NULL, MAKEINTRESOURCE(IDC_HAND)));
+					urlhack_cursor_is_hand = 1;
+					term_update(term); // Force the terminal to update, otherwise the underline will not show (bug somewhere, this is an ugly fix)
+				}
+		}
+		else if (urlhack_cursor_is_hand == 1) {
+			SetClassLongPtr(hwnd, GCLP_HCURSOR, LoadCursor(NULL, MAKEINTRESOURCE(IDC_IBEAM)));
+			urlhack_cursor_is_hand = 0;
+			term_update(term); // Force the terminal to update, see above
+		}
+
+		// If mouse jumps from one link directly into another, we need a forced terminal update too
+		if (urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y) != urlhack_current_region) {
+			urlhack_current_region = urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y);
+			term_update(term);
+		}
+
+	}
+	/* HACK: PuttyTray / Nutty : END */
 
 	if (wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON) &&
 	    GetCapture() == hwnd) {
@@ -3133,10 +3182,39 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    }
 	}
 	return FALSE;
-      case WM_KEYDOWN:
-      case WM_SYSKEYDOWN:
-      case WM_KEYUP:
-      case WM_SYSKEYUP:
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Change cursor if we are in ctrl+click link mode
+	 *
+	 * WARNING: Spans over multiple CASEs
+	 */
+	case WM_KEYDOWN:
+		if (wParam == VK_CONTROL && term->cfg.url_ctrl_click) {
+			GetCursorPos(&cursor_pt);
+			ScreenToClient(hwnd, &cursor_pt);
+
+			if (urlhack_is_in_link_region(TO_CHR_X(cursor_pt.x), TO_CHR_Y(cursor_pt.y))) {
+				SetCursor(LoadCursor(NULL, IDC_HAND));
+				term_update(term);
+			}
+		
+			goto KEY_END;
+		}	
+
+	case WM_KEYUP:
+		if (wParam == VK_CONTROL && term->cfg.url_ctrl_click) {
+			SetCursor(LoadCursor(NULL, IDC_IBEAM));
+			term_update(term);
+		
+			goto KEY_END;
+		}
+	KEY_END:
+
+	case WM_SYSKEYDOWN:
+	case WM_SYSKEYUP:
+	/* HACK: PuttyTray / Nutty : END */
+
 	/*
 	 * Add the scan code and keypress timing to the random
 	 * number noise.
