@@ -9,13 +9,27 @@
 FontSpec platform_default_fontspec(const char *name)
 {
     FontSpec ret;
+
+	/*
+	 * HACK: PuttyTray / Vista
+	 * Check windows version and set default font to 'consolas' if this is Windows Vista
+	 */
+    OSVERSIONINFO versioninfo;
+    versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+    GetVersionEx(&versioninfo);
+
     if (!strcmp(name, "Font")) {
-	strcpy(ret.name, "Courier New");
-	ret.isbold = 0;
-	ret.charset = ANSI_CHARSET;
-	ret.height = 10;
+		if (versioninfo.dwMajorVersion >= 6) {
+			strcpy(ret.name, "Consolas");
+		} else{
+			strcpy(ret.name, "Courier New");
+		}
+
+		ret.isbold = 0;
+		ret.charset = ANSI_CHARSET;
+		ret.height = 10;
     } else {
-	ret.name[0] = '\0';
+		ret.name[0] = '\0';
     }
     return ret;
 }
@@ -39,5 +53,13 @@ char *platform_default_s(const char *name)
 
 int platform_default_i(const char *name, int def)
 {
+	if (!strcmp(name, "FontQuality"))
+	{
+		OSVERSIONINFO versioninfo;
+		versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+		GetVersionEx(&versioninfo);
+		if (versioninfo.dwMajorVersion >= 6) 
+			return FQ_CLEARTYPE;
+	}
     return def;
 }
