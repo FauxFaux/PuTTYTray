@@ -8,6 +8,11 @@
 #include "putty.h"
 #include "storage.h"
 
+/*
+ * HACK: PuttyTray / Nutty
+ */ 
+#include "urlhack.h"
+
 /* The cipher order given here is the default order. */
 static const struct keyval ciphernames[] = {
     { "aes",	    CIPHER_AES },
@@ -521,6 +526,17 @@ void save_open_settings(void *sesskey, Config *cfg)
     write_setting_i(sesskey, "SerialParity", cfg->serparity);
     write_setting_i(sesskey, "SerialFlowControl", cfg->serflow);
     write_setting_s(sesskey, "WindowClass", cfg->winclass);
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Save hyperlink settings
+	 */
+	write_setting_i(sesskey, "HyperlinkUnderline", cfg->url_underline);
+	write_setting_i(sesskey, "HyperlinkUseCtrlClick", cfg->url_ctrl_click);
+	write_setting_i(sesskey, "HyperlinkBrowserUseDefault", cfg->url_defbrowser);
+	write_setting_s(sesskey, "HyperlinkBrowser", cfg->url_browser);
+	write_setting_i(sesskey, "HyperlinkRegularExpressionUseDefault", cfg->url_defregex);
+	write_setting_s(sesskey, "HyperlinkRegularExpression", cfg->url_regex);
 }
 
 void load_settings(char *section, Config * cfg)
@@ -915,6 +931,17 @@ void load_open_settings(void *sesskey, Config *cfg)
     gppi(sesskey, "SerialParity", SER_PAR_NONE, &cfg->serparity);
     gppi(sesskey, "SerialFlowControl", SER_FLOW_XONXOFF, &cfg->serflow);
     gpps(sesskey, "WindowClass", "", cfg->winclass, sizeof(cfg->winclass));
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Save hyperlink settings
+	 */
+	gppi(sesskey, "HyperlinkUnderline", 1, &cfg->url_underline);
+	gppi(sesskey, "HyperlinkUseCtrlClick", 0, &cfg->url_ctrl_click);
+	gppi(sesskey, "HyperlinkBrowserUseDefault", 1, &cfg->url_defbrowser);
+	gpps(sesskey, "HyperlinkBrowser", "", cfg->url_browser, sizeof(cfg->url_browser));
+	gppi(sesskey, "HyperlinkRegularExpressionUseDefault", 1, &cfg->url_defregex);
+	gpps(sesskey, "HyperlinkRegularExpression", urlhack_default_regex, cfg->url_regex, sizeof(cfg->url_regex));
 }
 
 void do_defaults(char *session, Config * cfg)

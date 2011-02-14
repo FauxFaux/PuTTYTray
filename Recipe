@@ -251,6 +251,7 @@ TERMINAL = terminal wcwidth ldiscucs logging tree234 minibidi
 GUITERM  = TERMINAL window windlg winctrls sizetip winucs winprint
          + winutils wincfg sercfg winhelp winjump
          + pickicondialog
+         + urlhack regexp
 
 # Same thing on Unix.
 UXTERM   = TERMINAL uxcfg sercfg uxucs uxprint timing
