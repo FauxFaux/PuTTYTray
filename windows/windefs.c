@@ -8,9 +8,15 @@
 
 FontSpec *platform_default_fontspec(const char *name)
 {
-    if (!strcmp(name, "Font"))
+    if (!strcmp(name, "Font")) {
+        OSVERSIONINFO versioninfo;
+        versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+        GetVersionEx(&versioninfo);
+
+        if (versioninfo.dwMajorVersion >= 6) {
+            return fontspec_new("Consolas", 0, 10, ANSI_CHARSET);
         return fontspec_new("Courier New", 0, 10, ANSI_CHARSET);
-    else
+    } else
         return fontspec_new("", 0, 0, 0);
 }
 
@@ -31,5 +37,13 @@ char *platform_default_s(const char *name)
 
 int platform_default_i(const char *name, int def)
 {
+	if (!strcmp(name, "FontQuality"))
+	{
+		OSVERSIONINFO versioninfo;
+		versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+		GetVersionEx(&versioninfo);
+		if (versioninfo.dwMajorVersion >= 6) 
+			return FQ_CLEARTYPE;
+	}
     return def;
 }
