@@ -656,6 +656,18 @@ struct config_tag {
 	 * HACK: PuttyTray / PuTTY File
 	 */
 	int session_storagetype;
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Underline settings
+	 */
+	int url_ctrl_click;
+	int url_underline;
+	int url_defbrowser;
+	int url_defregex;
+	char url_browser[MAX_PATH];
+	char url_regex[1024];
+
 	/*
 	 * HACK: PuttyTray
 	 */
