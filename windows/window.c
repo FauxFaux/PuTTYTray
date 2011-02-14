@@ -208,6 +208,11 @@ static UINT wm_mousewheel = WM_MOUSEWHEEL;
 static time_t last_reconnect = 0;
 
 /*
+ * HACK: PuttyTray / Always on top
+ */ 
+void MakeWindowOnTop(HWND hwnd);
+
+/*
  * HACK: PuttyTray / Transparency
  */ 
 BOOL MakeWindowTransparent(HWND hWnd, int factor);
@@ -818,6 +823,16 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
 	    AppendMenu(m, (cfg.resize_action == RESIZE_DISABLED) ?
 		       MF_GRAYED : MF_ENABLED, IDM_FULLSCREEN, "&Full Screen");
+
+		/*
+		 * HACK: PuttyTray / Always on top
+		 */
+		if (cfg.alwaysontop) {
+			AppendMenu(m, MF_ENABLED | MF_CHECKED, IDM_VISIBLE, "Alwa&ys on top");
+		} else {
+			AppendMenu(m, MF_ENABLED | MF_UNCHECKED, IDM_VISIBLE, "Alwa&ys on top");
+		}
+
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
 	    if (has_help())
 		AppendMenu(m, MF_ENABLED, IDM_HELP, "&Help");
@@ -2263,10 +2278,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 			    nexflag |= WS_EX_TOPMOST;
 			    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
 					 SWP_NOMOVE | SWP_NOSIZE);
+			    //HACK: PuttyTray / Always on top:
+			    CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_VISIBLE, MF_CHECKED);
 			} else {
 			    nexflag &= ~(WS_EX_TOPMOST);
 			    SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
 					 SWP_NOMOVE | SWP_NOSIZE);
+			    //HACK: PuttyTray / Always on top:
+			    CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_VISIBLE, MF_UNCHECKED);
 			}
 		    }
 		    if (cfg.sunken_edge)
@@ -2358,6 +2377,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	  case IDM_HELP:
 	    launch_help(hwnd, NULL);
 	    break;
+
+	  /*
+	   * HACK: PuttyTray / Always on top
+	   */
+	  case IDM_VISIBLE: 
+	  	MakeWindowOnTop(hwnd);
+		break ;
+
 	  case SC_MOUSEMENU:
 	    /*
 	     * We get this if the System menu has been activated
@@ -5679,5 +5706,24 @@ BOOL MakeWindowTransparent(HWND hWnd, int factor)
 	} else {
 		SetWindowLong(hWnd, GWL_EXSTYLE, GetWindowLong(hWnd, GWL_EXSTYLE) & ~WS_EX_LAYERED);
 		return TRUE;
+	}
+}
+
+/*
+ * HACK: PuttyTray / Always on top
+ * Function to switch the window positioning to and from 'always on top'
+ */ 
+void MakeWindowOnTop(HWND hwnd) {
+	HMENU m;
+	if ((m = GetSystemMenu(hwnd, FALSE)) != NULL) {
+		DWORD fdwMenu = GetMenuState(m, (UINT)IDM_VISIBLE, MF_BYCOMMAND); 
+		if (!(fdwMenu & MF_CHECKED)) {
+			CheckMenuItem(m, (UINT)IDM_VISIBLE, MF_BYCOMMAND|MF_CHECKED);
+			SetWindowPos(hwnd, (HWND)-1, 0, 0, 0, 0, SWP_NOMOVE |SWP_NOSIZE);
+		}
+		else {
+			CheckMenuItem(m, (UINT)IDM_VISIBLE, MF_BYCOMMAND|MF_UNCHECKED);
+			SetWindowPos(hwnd, (HWND)-2, 0, 0, 0, 0, SWP_NOMOVE |SWP_NOSIZE);
+		}
 	}
 }
