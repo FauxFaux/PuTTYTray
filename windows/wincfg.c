@@ -416,6 +416,51 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     c->generic.column = 2;
     ctrl_columns(s, 1, 100);
 
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: The Window/Hyperlinks panel.
+	 */
+	ctrl_settitle(b, "Window/Hyperlinks", "Options controlling behaviour of hyperlinks");
+	s = ctrl_getset(b, "Window/Hyperlinks", "general", "General options for hyperlinks");
+
+	ctrl_radiobuttons(s, "Underline hyperlinks:", NO_SHORTCUT, 1,
+			  HELPCTX(no_help),
+			  dlg_stdradiobutton_handler,
+			  I(offsetof(Config, url_underline)),
+			  "Always", NO_SHORTCUT, I(URLHACK_UNDERLINE_ALWAYS),
+			  "When hovered upon", NO_SHORTCUT, I(URLHACK_UNDERLINE_HOVER),
+			  "Never", NO_SHORTCUT, I(URLHACK_UNDERLINE_NEVER),
+			  NULL);
+
+	ctrl_checkbox(s, "Use ctrl+click to launch hyperlinks", 'l',
+		  HELPCTX(no_help),
+		  dlg_stdcheckbox_handler, I(offsetof(Config,url_ctrl_click)));
+
+	s = ctrl_getset(b, "Window/Hyperlinks", "browser", "Browser application");
+
+	ctrl_checkbox(s, "Use the default browser", 'b',
+		  HELPCTX(no_help),
+		  dlg_stdcheckbox_handler, I(offsetof(Config,url_defbrowser)));
+
+	ctrl_filesel(s, "or specify an application to open hyperlinks with:", 's',
+		"Application (*.exe)\0*.exe\0All files (*.*)\0*.*\0\0", TRUE,
+		"Select executable to open hyperlinks with", HELPCTX(no_help),
+		 dlg_stdfilesel_handler, I(offsetof(Config, url_browser)));
+
+	s = ctrl_getset(b, "Window/Hyperlinks", "regexp", "Regular expression");
+
+	ctrl_checkbox(s, "Use the default regular expression", 'r',
+		  HELPCTX(no_help),
+		  dlg_stdcheckbox_handler, I(offsetof(Config,url_defregex)));
+
+	ctrl_editbox(s, "or specify your own:", NO_SHORTCUT, 100,
+		 HELPCTX(no_help),
+		 dlg_stdeditbox_handler, I(offsetof(Config,url_regex)),
+		 I(sizeof(((Config *)0)->url_regex)));
+
+	ctrl_text(s, "The single white space will be cropped in front of the link, if exists.",
+		  HELPCTX(no_help));
+
     /*
      * Windows supports a local-command proxy. This also means we
      * must adjust the text on the `Telnet command' control.

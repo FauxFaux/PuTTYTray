@@ -154,6 +154,7 @@ foreach $i (@prognames) {
     } elsif ($j !~ /\./) {
       $file = "$j.c";
       $file = "$j.m" unless &findfile($file);
+      $file = "$j.cpp" unless &findfile($file);
       $depends{$j} = [$file];
       push @scanlist, $file;
     }
