@@ -276,51 +276,7 @@ struct terminal_tag {
     struct bidi_cache_entry *pre_bidi_cache, *post_bidi_cache;
     int bidi_cache_size;
 
-    /*
-     * We copy a bunch of stuff out of the Conf structure into local
-     * fields in the Terminal structure, to avoid the repeated
-     * tree234 lookups which would be involved in fetching them from
-     * the former every time.
-     */
-    int ansi_colour;
-    char *answerback;
-    int answerbacklen;
-    int arabicshaping;
-    int beep;
-    int bellovl;
-    int bellovl_n;
-    int bellovl_s;
-    int bellovl_t;
-    int bidi;
-    int bksp_is_delete;
-    int blink_cur;
-    int blinktext;
-    int cjk_ambig_wide;
-    int conf_height;
-    int conf_width;
-    int crhaslf;
-    int erase_to_scrollback;
-    int funky_type;
-    int lfhascr;
-    int logflush;
-    int logtype;
-    int mouse_override;
-    int nethack_keypad;
-    int no_alt_screen;
-    int no_applic_c;
-    int no_applic_k;
-    int no_dbackspace;
-    int no_mouse_rep;
-    int no_remote_charset;
-    int no_remote_resize;
-    int no_remote_wintitle;
-    int rawcnp;
-    int rect_select;
-    int remote_qtitle_action;
-    int rxvt_homeend;
-    int scroll_on_disp;
-    int scroll_on_key;
-    int xterm_256_colour;
+    int url_update;
 };
 
 #define in_utf(term) ((term)->utf || (term)->ucsdata->line_codepage==CP_UTF8)
