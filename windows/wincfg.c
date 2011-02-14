@@ -404,6 +404,12 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     ctrl_columns(s, 1, 100);
 
 	/*
+	 * HACK: PuttyTray / Transparency
+	 */
+	s = ctrl_getset(b, "Window", "main", "Window transparency options");
+    ctrl_editbox(s, "Opacity (50-255)", 't', 30, HELPCTX(no_help), dlg_stdeditbox_handler, I(offsetof(Config,transparency)), I(-1));
+
+	/*
 	 * HACK: PuttyTray / Nutty
 	 * Hyperlink stuff: The Window/Hyperlinks panel.
 	 */

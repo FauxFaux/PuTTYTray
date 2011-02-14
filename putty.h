@@ -676,6 +676,11 @@ struct config_tag {
 	int tray_restore;
 
 	/*
+	 * HACK: PuttyTray / Transparency
+	 */
+	int transparency;
+
+	/*
 	 * HACK: PuttyTray / Session Icon
 	 */
 	char win_icon[256];
