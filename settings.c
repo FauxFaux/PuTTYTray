@@ -809,7 +809,7 @@ void load_open_settings(void *sesskey, Config *cfg)
 		    / 1000
 #endif
 	;
-    gppi(sesskey, "ScrollbackLines", 200, &cfg->savelines);
+    gppi(sesskey, "ScrollbackLines", 1000, &cfg->savelines); // HACK: PuttyTray - more is better
     gppi(sesskey, "DECOriginMode", 0, &cfg->dec_om);
     gppi(sesskey, "AutoWrapMode", 1, &cfg->wrap_mode);
     gppi(sesskey, "LFImpliesCR", 0, &cfg->lfhascr);
