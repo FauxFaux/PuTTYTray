@@ -2681,13 +2681,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		if ((!term->cfg.url_ctrl_click || urlhack_is_ctrl_pressed()) &&
 			urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y)) {
 				if (urlhack_cursor_is_hand == 0) {
-					SetClassLong(hwnd, GCL_HCURSOR, LoadCursor(NULL, IDC_HAND));
+					SetClassLongPtr(hwnd, GCLP_HCURSOR, LoadCursor(NULL, MAKEINTRESOURCE(IDC_HAND)));
 					urlhack_cursor_is_hand = 1;
 					term_update(term); // Force the terminal to update, otherwise the underline will not show (bug somewhere, this is an ugly fix)
 				}
 		}
 		else if (urlhack_cursor_is_hand == 1) {
-			SetClassLong(hwnd, GCL_HCURSOR, LoadCursor(NULL, IDC_IBEAM));
+			SetClassLongPtr(hwnd, GCLP_HCURSOR, LoadCursor(NULL, MAKEINTRESOURCE(IDC_IBEAM)));
 			urlhack_cursor_is_hand = 0;
 			term_update(term); // Force the terminal to update, see above
 		}
