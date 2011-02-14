@@ -359,7 +359,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     ctrl_checkbox(s, "Window closes on ALT-F4", '4',
 		  HELPCTX(behaviour_altf4),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_f4)));
-    ctrl_checkbox(s, "System menu appears on ALT-Space", 'y',
+    ctrl_checkbox(s, "System menu appears on ALT-Space", 'm',
 		  HELPCTX(behaviour_altspace),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_space)));
     ctrl_checkbox(s, "System menu appears on ALT alone", 'l',
