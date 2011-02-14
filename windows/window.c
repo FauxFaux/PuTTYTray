@@ -214,6 +214,11 @@ static UINT wm_mousewheel = WM_MOUSEWHEEL;
      ((wch) >= 0xFE00 && (wch) <= 0xFE0F)) /* VARIATION SELECTOR 1-16 */
 
 /*
+ * HACK: PuttyTray / Reconnect
+ */
+static time_t last_reconnect = 0;
+
+/*
  * HACK: PuttyTray / Transparency
  */ 
 BOOL MakeWindowTransparent(HWND hWnd, int factor);
@@ -1118,18 +1123,35 @@ void connection_fatal(void *frontend, char *fmt, ...)
     va_list ap;
     char *stuff, morestuff[100];
 
-    va_start(ap, fmt);
-    stuff = dupvprintf(fmt, ap);
-    va_end(ap);
-    sprintf(morestuff, "%.70s Fatal Error", appname);
-    MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
-    sfree(stuff);
+	/*
+	 * HACK: PuTTYTray / Reconnect on connection failure
+	 */
+	if (cfg.failure_reconnect) {
+		time_t tnow = time(NULL);
+		close_session();
+
+		if(last_reconnect && (tnow - last_reconnect) < 5) {
+			Sleep(5000);
+		}
+
+		last_reconnect = tnow;
+		logevent(NULL, "Lost connection, reconnecting...");
+		term_pwron(term, FALSE);
+		start_backend();
+	} else {
+		va_start(ap, fmt);
+		stuff = dupvprintf(fmt, ap);
+		va_end(ap);
+		sprintf(morestuff, "%.70s Fatal Error", appname);
+		MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
+		sfree(stuff);
 
     if (conf_get_int(conf, CONF_close_on_exit) == FORCE_ON)
 	PostQuitMessage(1);
     else {
 	must_close_session = TRUE;
     }
+	}
 }
 
 /*
@@ -3225,7 +3247,43 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	if (process_clipdata((HGLOBAL)lParam, wParam))
 	    term_do_paste(term);
 	return 0;
-      default:
+	/*
+	 * HACK: PuttyTray / Reconnect
+	 */
+	case WM_POWERBROADCAST:
+		if(cfg.wakeup_reconnect) {
+			switch(wParam) {
+				case PBT_APMRESUMESUSPEND:
+				case PBT_APMRESUMEAUTOMATIC:
+				case PBT_APMRESUMECRITICAL:
+				case PBT_APMQUERYSUSPENDFAILED:
+					if(session_closed && !back) {
+						time_t tnow = time(NULL);
+						
+						if(last_reconnect && (tnow - last_reconnect) < 5) {
+							Sleep(1000);
+						}
+
+						last_reconnect = tnow;
+						logevent(NULL, "Woken up from suspend, reconnecting...");
+						term_pwron(term, FALSE);
+						start_backend();
+					}
+					break;
+				case PBT_APMSUSPEND:
+					if(!session_closed && back) {
+						logevent(NULL, "Suspend detected, disconnecting cleanly...");
+						close_session();
+					}
+					break;
+			}
+		}
+		break;
+	/*
+	 * END HACKS: PuttyTray / Trayicon & Reconnect
+	 */
+
+	default:
 	if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
 	    int shift_pressed=0, control_pressed=0;
 

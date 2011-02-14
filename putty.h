@@ -854,6 +854,8 @@ void cleanup_exit(int);
     X(INT, NONE, crhaslf) \
     X(STR, NONE, winclass) \
     X(INT, NONE, transparency) \
+    X(INT, NONE, failure_reconnect) \
+    X(INT, NONE, wakeup_reconnect) \
 
 /* Now define the actual enum of option keywords using that macro. */
 #define CONF_ENUM_DEF(valtype, keytype, keyword) CONF_ ## keyword,

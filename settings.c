@@ -513,6 +513,8 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "ApplicationKeypad", conf_get_int(conf, CONF_app_keypad));
     write_setting_i(sesskey, "NetHackKeypad", conf_get_int(conf, CONF_nethack_keypad));
     write_setting_i(sesskey, "Transparency", conf_get_int(conf, CONF_transparency);
+    write_setting_i(sesskey, "WakeupReconnect", conf_get_int(conf, CONF_wakeup_reconnect);
+    write_setting_i(sesskey, "FailureReconnect", conf_get_int(conf, CONF_failure_reconnect);
     write_setting_i(sesskey, "AltF4", conf_get_int(conf, CONF_alt_f4));
     write_setting_i(sesskey, "AltSpace", conf_get_int(conf, CONF_alt_space));
     write_setting_i(sesskey, "AltOnly", conf_get_int(conf, CONF_alt_only));
@@ -806,6 +808,8 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "ApplicationKeypad", 0, conf, CONF_app_keypad);
     gppi(sesskey, "NetHackKeypad", 0, conf, CONF_nethack_keypad);
     gppi(sesskey, "Transparency", 255, conf, CONF_transparency);
+    gppi(sesskey, "WakeupReconnect", 0, conf, CONF_wakeup_reconnect);
+    gppi(sesskey, "FailureReconnect", 0, conf, CONF_failure_reconnect);
     gppi(sesskey, "AltF4", 1, conf, CONF_alt_f4);
     gppi(sesskey, "AltSpace", 0, conf, CONF_alt_space);
     gppi(sesskey, "AltOnly", 0, conf, CONF_alt_only);
