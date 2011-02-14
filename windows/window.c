@@ -244,6 +244,11 @@ void tray_updatemenu(BOOL disableMenuItems);
 #define WM_NOTIFY_PUTTYTRAY (WM_USER + 1983)
 
 /*
+ * HACK: PuttyTray / Reconnect
+ */
+static time_t last_reconnect = 0;
+
+/*
  * HACK: PuttyTray / Nutty
  */ 
 static int urlhack_cursor_is_hand = 0;
@@ -1225,18 +1230,35 @@ void connection_fatal(void *frontend, char *fmt, ...)
     va_list ap;
     char *stuff, morestuff[100];
 
-    va_start(ap, fmt);
-    stuff = dupvprintf(fmt, ap);
-    va_end(ap);
-    sprintf(morestuff, "%.70s Fatal Error", appname);
-    MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
-    sfree(stuff);
+	/*
+	 * HACK: PuTTYTray / Reconnect on connection failure
+	 */
+	if (cfg.failure_reconnect) {
+		time_t tnow = time(NULL);
+		close_session();
 
-    if (cfg.close_on_exit == FORCE_ON)
-	PostQuitMessage(1);
-    else {
-	must_close_session = TRUE;
-    }
+		if(last_reconnect && (tnow - last_reconnect) < 5) {
+			Sleep(5000);
+		}
+
+		last_reconnect = tnow;
+		logevent(NULL, "Lost connection, reconnecting...");
+		term_pwron(term, FALSE);
+		start_backend();
+	} else {
+		va_start(ap, fmt);
+		stuff = dupvprintf(fmt, ap);
+		va_end(ap);
+		sprintf(morestuff, "%.70s Fatal Error", appname);
+		MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
+		sfree(stuff);
+
+		if (cfg.close_on_exit == FORCE_ON)
+		PostQuitMessage(1);
+		else {
+		must_close_session = TRUE;
+		}
+	}
 }
 
 /*
@@ -3451,6 +3473,38 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		}
 		break;
 
+	/*
+	 * HACK: PuttyTray / Reconnect
+	 */
+	case WM_POWERBROADCAST:
+		if(cfg.wakeup_reconnect) {
+			switch(wParam) {
+				case PBT_APMRESUMESUSPEND:
+				case PBT_APMRESUMEAUTOMATIC:
+				case PBT_APMRESUMECRITICAL:
+				case PBT_APMQUERYSUSPENDFAILED:
+					if(session_closed && !back) {
+						time_t tnow = time(NULL);
+						
+						if(last_reconnect && (tnow - last_reconnect) < 5) {
+							Sleep(1000);
+						}
+
+						last_reconnect = tnow;
+						logevent(NULL, "Woken up from suspend, reconnecting...");
+						term_pwron(term, FALSE);
+						start_backend();
+					}
+					break;
+				case PBT_APMSUSPEND:
+					if(!session_closed && back) {
+						logevent(NULL, "Suspend detected, disconnecting cleanly...");
+						close_session();
+					}
+					break;
+			}
+		}
+		break;
 	/*
 	 * END HACKS: PuttyTray / Trayicon & Reconnect
 	 */
