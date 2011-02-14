@@ -679,6 +679,12 @@ struct config_tag {
 	 * HACK: PuttyTray / Transparency
 	 */
 	int transparency;
+	
+	/*
+	 * HACK: PuttyTray / Reconnect
+	 */
+	int wakeup_reconnect;
+	int failure_reconnect;
 
 	/*
 	 * HACK: PuttyTray / Session Icon
