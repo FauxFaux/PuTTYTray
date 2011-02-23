@@ -4712,7 +4712,7 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 		urlhack_reset();
 
 		for (i = 0; i < term->rows; i++) {
-			termline *lp = scrlineptr(term->disptop + i);
+			termline *lp = lineptr(term->disptop + i);
 
 			for (j = 0; j < term->cols; j++) {
 				urlhack_putchar((char)(lp->chars[j].chr & CHAR_MASK));
