@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <fcntl.h>
+#include <utmp.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -376,6 +377,26 @@ setup_child(pid_t *pid, const char *term, const char *attr, char *const *argv)
     perror(shell);
     exit(111);
     /*NOTREACHED*/ }
+  default: { // Parent process.
+      fcntl(master, F_SETFL, O_NONBLOCK);
+      struct utmp ut;
+      memset(&ut, 0, sizeof ut);
+      ut.ut_type = USER_PROCESS;
+      ut.ut_pid = (long int)*pid;
+      ut.ut_time = time(0);
+      char *dev = ptsname(master);
+      if (dev) {
+        if (!strncmp(dev, "/dev/", 5))
+          dev += 5;
+        strlcpy(ut.ut_line, dev, sizeof ut.ut_line);
+        if (!strncmp(dev, "tty", 3))
+          dev += 3;
+        strlcpy(ut.ut_id, dev, sizeof ut.ut_id);
+      }
+      strlcpy(ut.ut_user, getlogin() ?: "?", sizeof ut.ut_user);
+      gethostname(ut.ut_host, sizeof ut.ut_host);
+      login(&ut);
+    }
   }
   DBUG_PRINT("startup", ("forkpty:pid=%ld:master=%d:ttyname=%s",
     (long int)*pid, master, ttyname));
