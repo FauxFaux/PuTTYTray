@@ -3594,10 +3594,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 				   control_pressed, is_alt_pressed());
 		    } /* else: not sure when this can fail */
 		} else {
-		    /* trigger a scroll */
-		    term_scroll(term, 0,
-				b == MBT_WHEEL_UP ?
-				-term->rows / 2 : term->rows / 2);
+			if (control_pressed) {
+				cfg.font.height += MBT_WHEEL_UP == b ? 1 : -1;
+
+				// short version of IDM_RECONF's reconfig:
+				term_size(term, cfg.height, cfg.width, cfg.savelines);
+				reset_window(2);
+			} else {
+				/* trigger a scroll */
+				term_scroll(term, 0,
+					b == MBT_WHEEL_UP ?
+					-term->rows / 2 : term->rows / 2);
+			}
 		}
 	    }
 	    return 0;
