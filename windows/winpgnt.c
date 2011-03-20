@@ -2139,7 +2139,21 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	    else
 		command = "";
 	    break;
-	} else {
+	} else 
+        // GD: Adding a new option -x <add-passphrase>
+        //     to add individual plaintext passphrases to the internal list
+        //     to avoid user prompting.
+        if (!strcmp(argv[i], "-x"))
+        {
+            char *p;
+            i++;                        // Next argument is a passphrase
+            // Yes - no error checks since git4win is the only process using it
+            p = (char*)calloc(1, strlen(argv[i])+1);
+            memcpy(p, argv[i], strlen(argv[i]));
+            addpos234(passphrases, p, 0);
+        // GD: End of modification
+    } else
+    {
 	    add_keyfile(filename_from_str(argv[i]));
 	    added_keys = TRUE;
 	}

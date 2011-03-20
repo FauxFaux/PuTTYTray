@@ -135,7 +135,11 @@ int verify_ssh_host_key(void *frontend, char *host, int port, char *keytype,
     GetConsoleMode(hin, &savemode);
     SetConsoleMode(hin, (savemode | ENABLE_ECHO_INPUT |
 			 ENABLE_PROCESSED_INPUT | ENABLE_LINE_INPUT));
+#if 1  /* GD: Modification to always store the key */
+    line[0] = 'y';
+#else
     ReadFile(hin, line, sizeof(line) - 1, &i, NULL);
+#endif
     SetConsoleMode(hin, savemode);
 
     if (line[0] != '\0' && line[0] != '\r' && line[0] != '\n') {
