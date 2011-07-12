@@ -6,6 +6,4 @@
 #include <stdio.h>
 #include "putty.h"
 
-Backend *backends[] = {
-    NULL
-};
+Backend *backends[] = {NULL};

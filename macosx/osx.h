@@ -28,7 +28,7 @@
  * is an implementation detail of osxsel.m and ideally should not
  * be visible at all outside it.)
  */
-void osxsel_init(void);		       /* call this to kick things off */
-void osxsel_process_results(void);     /* call this on receipt of a netevent */
+void osxsel_init(void);            /* call this to kick things off */
+void osxsel_process_results(void); /* call this on receipt of a netevent */
 
 #endif
