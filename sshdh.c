@@ -51,6 +51,7 @@ static const unsigned char G[] = {2};
 static const struct ssh_kex ssh_diffiehellman_group1_sha1 = {
     "diffie-hellman-group1-sha1",
     "group1",
+    KEXTYPE_DH,
     P1,
     G,
     lenof(P1),
@@ -66,6 +67,7 @@ const struct ssh_kexes ssh_diffiehellman_group1 = {
 static const struct ssh_kex ssh_diffiehellman_group14_sha1 = {
     "diffie-hellman-group14-sha1",
     "group14",
+    KEXTYPE_DH,
     P14,
     G,
     lenof(P14),
@@ -81,6 +83,7 @@ const struct ssh_kexes ssh_diffiehellman_group14 = {
 static const struct ssh_kex ssh_diffiehellman_gex_sha256 = {
     "diffie-hellman-group-exchange-sha256",
     NULL,
+    KEXTYPE_DH,
     NULL,
     NULL,
     0,
@@ -88,7 +91,14 @@ static const struct ssh_kex ssh_diffiehellman_gex_sha256 = {
     &ssh_sha256};
 
 static const struct ssh_kex ssh_diffiehellman_gex_sha1 = {
-    "diffie-hellman-group-exchange-sha1", NULL, NULL, NULL, 0, 0, &ssh_sha1};
+    "diffie-hellman-group-exchange-sha1",
+    NULL,
+    KEXTYPE_DH,
+    NULL,
+    NULL,
+    0,
+    0,
+    &ssh_sha1};
 
 static const struct ssh_kex *const gex_list[] = {&ssh_diffiehellman_gex_sha256,
                                                  &ssh_diffiehellman_gex_sha1};

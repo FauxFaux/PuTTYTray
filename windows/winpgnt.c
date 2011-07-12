@@ -19,6 +19,10 @@
 
 #ifndef NO_SECURITY
 #include <aclapi.h>
+#ifdef DEBUG_IPC
+#define _WIN32_WINNT 0x0500 /* for ConvertSidToStringSid */
+#include <sddl.h>
+#endif
 #endif
 
 #define IDI_MAINICON 200
@@ -113,15 +117,17 @@ static tree234 *rsakeys, *ssh2keys;
 
 static int has_security;
 #ifndef NO_SECURITY
-typedef DWORD(WINAPI *gsi_fn_t)(HANDLE,
-                                SE_OBJECT_TYPE,
-                                SECURITY_INFORMATION,
-                                PSID *,
-                                PSID *,
-                                PACL *,
-                                PACL *,
-                                PSECURITY_DESCRIPTOR *);
-static gsi_fn_t getsecurityinfo;
+DECL_WINDOWS_FUNCTION(extern,
+                      DWORD,
+                      GetSecurityInfo,
+                      (HANDLE,
+                       SE_OBJECT_TYPE,
+                       SECURITY_INFORMATION,
+                       PSID *,
+                       PSID *,
+                       PACL *,
+                       PACL *,
+                       PSECURITY_DESCRIPTOR *));
 #endif
 
 /*
@@ -1848,8 +1854,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     void *p;
     HANDLE filemap;
 #ifndef NO_SECURITY
-    HANDLE proc;
-    PSID mapowner, procowner;
+    PSID mapowner, ourself;
     PSECURITY_DESCRIPTOR psd1 = NULL, psd2 = NULL;
 #endif
     int ret = 0;
@@ -1871,45 +1876,37 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
 #ifndef NO_SECURITY
       int rc;
       if (has_security) {
-        if ((proc = OpenProcess(
-                 MAXIMUM_ALLOWED, FALSE, GetCurrentProcessId())) == NULL) {
+        if ((ourself = get_user_sid()) == NULL) {
 #ifdef DEBUG_IPC
-          debug(("couldn't get handle for process\n"));
+          debug(("couldn't get user SID\n"));
 #endif
           return 0;
         }
-        if (getsecurityinfo(proc,
-                            SE_KERNEL_OBJECT,
-                            OWNER_SECURITY_INFORMATION,
-                            &procowner,
-                            NULL,
-                            NULL,
-                            NULL,
-                            &psd2) != ERROR_SUCCESS) {
-#ifdef DEBUG_IPC
-          debug(("couldn't get owner info for process\n"));
-#endif
-          CloseHandle(proc);
-          return 0; /* unable to get security info */
-        }
-        CloseHandle(proc);
-        if ((rc = getsecurityinfo(filemap,
-                                  SE_KERNEL_OBJECT,
-                                  OWNER_SECURITY_INFORMATION,
-                                  &mapowner,
-                                  NULL,
-                                  NULL,
-                                  NULL,
-                                  &psd1) != ERROR_SUCCESS)) {
+
+        if ((rc = p_GetSecurityInfo(filemap,
+                                    SE_KERNEL_OBJECT,
+                                    OWNER_SECURITY_INFORMATION,
+                                    &mapowner,
+                                    NULL,
+                                    NULL,
+                                    NULL,
+                                    &psd1) != ERROR_SUCCESS)) {
 #ifdef DEBUG_IPC
           debug(("couldn't get owner info for filemap: %d\n", rc));
 #endif
           return 0;
         }
 #ifdef DEBUG_IPC
-        debug(("got security stuff\n"));
+        {
+          LPTSTR ours, theirs;
+          ConvertSidToStringSid(mapowner, &theirs);
+          ConvertSidToStringSid(ourself, &ours);
+          debug(("got both sids: ours=%s theirs=%s\n", ours, theirs));
+          LocalFree(ours);
+          LocalFree(theirs);
+        }
 #endif
-        if (!EqualSid(mapowner, procowner))
+        if (!EqualSid(mapowner, ourself))
           return 0; /* security ID mismatch! */
 #ifdef DEBUG_IPC
         debug(("security stuff matched\n"));
@@ -2008,9 +2005,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     /*
      * Attempt to get the security API we need.
      */
-    advapi = LoadLibrary("ADVAPI32.DLL");
-    getsecurityinfo = (gsi_fn_t)GetProcAddress(advapi, "GetSecurityInfo");
-    if (!getsecurityinfo) {
+    if (!init_advapi()) {
       MessageBox(NULL,
                  "Unable to access security APIs. Pageant will\n"
                  "not run, in case it causes a security breach.",
@@ -2041,7 +2036,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   {
     char b[2048], *p, *q, *r;
     FILE *fp;
-    GetModuleFileName(NULL, b, sizeof(b) - 1);
+    GetModuleFileName(NULL, b, sizeof(b) - 16);
     r = b;
     p = strrchr(b, '\\');
     if (p && p >= r)

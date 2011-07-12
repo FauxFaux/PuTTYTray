@@ -80,7 +80,7 @@ struct pty_tag {
   int master_fd, slave_fd;
   void *frontend;
   char name[FILENAME_MAX];
-  int child_pid;
+  pid_t child_pid;
   int term_width, term_height;
   int child_dead, finished;
   int exit_code;
@@ -137,7 +137,7 @@ static int pty_compare_by_pid(void *av, void *bv)
 
 static int pty_find_by_pid(void *av, void *bv)
 {
-  int a = *(int *)av;
+  pid_t a = *(pid_t *)av;
   Pty b = (Pty)bv;
 
   if (a < b->child_pid)
@@ -167,7 +167,8 @@ static tree234 *ptys_by_pid = NULL;
 static Pty single_pty = NULL;
 
 #ifndef OMIT_UTMP
-static int pty_utmp_helper_pid, pty_utmp_helper_pipe;
+static pid_t pty_utmp_helper_pid;
+static int pty_utmp_helper_pipe;
 static int pty_stamped_utmp;
 static struct utmpx utmp_entry;
 #endif
@@ -259,7 +260,8 @@ static void cleanup_utmp(void)
 
 static void sigchld_handler(int signum)
 {
-  write(pty_signal_pipe[1], "x", 1);
+  if (write(pty_signal_pipe[1], "x", 1) <= 0)
+    /* not much we can do about it */;
 }
 
 #ifndef OMIT_UTMP
@@ -357,8 +359,10 @@ got_one:
     /*
      * Set the pty master into non-blocking mode.
      */
-    int i = 1;
-    ioctl(pty->master_fd, FIONBIO, &i);
+    int fl;
+    fl = fcntl(pty->master_fd, F_GETFL);
+    if (fl != -1 && !(fl & O_NONBLOCK))
+      fcntl(pty->master_fd, F_SETFL, fl | O_NONBLOCK);
   }
 
   if (!ptys_by_fd)
@@ -629,16 +633,16 @@ int pty_select_result(int fd, int event)
 
   if (fd == pty_signal_pipe[0]) {
     pid_t pid;
-    int ipid;
     int status;
     char c[1];
 
-    read(pty_signal_pipe[0], c, 1); /* ignore its value; it'll be `x' */
+    if (read(pty_signal_pipe[0], c, 1) <= 0)
+      /* ignore error */;
+    /* ignore its value; it'll be `x' */
 
     do {
       pid = waitpid(-1, &status, WNOHANG);
 
-      ipid = pid;
       pty = find234(ptys_by_pid, &pid, pty_find_by_pid);
 
       if (pty)
@@ -832,14 +836,15 @@ static const char *pty_init(void *frontend,
     }
 
     /*
-     * SIGINT and SIGQUIT may have been set to ignored by our
-     * parent, particularly by things like sh -c 'pterm &' and
-     * some window managers. SIGCHLD, meanwhile, was blocked
-     * during pt_main() startup. Reverse all this for our child
-     * process.
+     * SIGINT, SIGQUIT and SIGPIPE may have been set to ignored by
+     * our parent, particularly by things like sh -c 'pterm &' and
+     * some window or session managers. SIGCHLD, meanwhile, was
+     * blocked during pt_main() startup. Reverse all this for our
+     * child process.
      */
     putty_signal(SIGINT, SIG_DFL);
     putty_signal(SIGQUIT, SIG_DFL);
+    putty_signal(SIGPIPE, SIG_DFL);
     block_signal(SIGCHLD, 0);
     if (pty_argv)
       execvp(pty_argv[0], pty_argv);
@@ -1094,4 +1099,6 @@ Backend pty_backend = {pty_init,
                        pty_provide_logctx,
                        pty_unthrottle,
                        pty_cfg_info,
-                       1};
+                       "pty",
+                       -1,
+                       0};

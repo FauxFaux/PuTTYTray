@@ -221,7 +221,7 @@ void MD5Simple(void const *p, unsigned len, unsigned char output[16])
 
 void *hmacmd5_make_context(void)
 {
-  return snewn(2, struct MD5Context);
+  return snewn(3, struct MD5Context);
 }
 
 void hmacmd5_free_context(void *handle)
@@ -256,6 +256,39 @@ static void hmacmd5_key_16(void *handle, unsigned char *key)
   hmacmd5_key(handle, key, 16);
 }
 
+static void hmacmd5_start(void *handle)
+{
+  struct MD5Context *keys = (struct MD5Context *)handle;
+
+  keys[2] = keys[0]; /* structure copy */
+}
+
+static void hmacmd5_bytes(void *handle, unsigned char const *blk, int len)
+{
+  struct MD5Context *keys = (struct MD5Context *)handle;
+  MD5Update(&keys[2], blk, len);
+}
+
+static void hmacmd5_genresult(void *handle, unsigned char *hmac)
+{
+  struct MD5Context *keys = (struct MD5Context *)handle;
+  struct MD5Context s;
+  unsigned char intermediate[16];
+
+  s = keys[2]; /* structure copy */
+  MD5Final(intermediate, &s);
+  s = keys[1]; /* structure copy */
+  MD5Update(&s, intermediate, 16);
+  MD5Final(hmac, &s);
+}
+
+static int hmacmd5_verresult(void *handle, unsigned char const *hmac)
+{
+  unsigned char correct[16];
+  hmacmd5_genresult(handle, correct);
+  return !memcmp(correct, hmac, 16);
+}
+
 static void hmacmd5_do_hmac_internal(void *handle,
                                      unsigned char const *blk,
                                      int len,
@@ -263,18 +296,11 @@ static void hmacmd5_do_hmac_internal(void *handle,
                                      int len2,
                                      unsigned char *hmac)
 {
-  struct MD5Context *keys = (struct MD5Context *)handle;
-  struct MD5Context s;
-  unsigned char intermediate[16];
-
-  s = keys[0]; /* structure copy */
-  MD5Update(&s, blk, len);
+  hmacmd5_start(handle);
+  hmacmd5_bytes(handle, blk, len);
   if (blk2)
-    MD5Update(&s, blk2, len2);
-  MD5Final(intermediate, &s);
-  s = keys[1]; /* structure copy */
-  MD5Update(&s, intermediate, 16);
-  MD5Final(hmac, &s);
+    hmacmd5_bytes(handle, blk2, len2);
+  hmacmd5_genresult(handle, hmac);
 }
 
 void hmacmd5_do_hmac(void *handle,
@@ -324,6 +350,10 @@ const struct ssh_mac ssh_hmac_md5 = {hmacmd5_make_context,
                                      hmacmd5_key_16,
                                      hmacmd5_generate,
                                      hmacmd5_verify,
+                                     hmacmd5_start,
+                                     hmacmd5_bytes,
+                                     hmacmd5_genresult,
+                                     hmacmd5_verresult,
                                      "hmac-md5",
                                      16,
                                      "HMAC-MD5"};
