@@ -38,7 +38,7 @@ int localproxy_gotdata(struct handle *h, void *data, int len)
   } else if (len == 0) {
     return plug_closing(ps->plug, NULL, 0, 0);
   } else {
-    return plug_receive(ps->plug, 1, data, len);
+    return plug_receive(ps->plug, 0, data, len);
   }
 }
 
@@ -208,6 +208,8 @@ Socket platform_new_connection(SockAddr addr,
                 NULL,
                 &si,
                 &pi);
+
+  sfree(cmd);
 
   CloseHandle(cmd_from_us);
   CloseHandle(cmd_to_us);

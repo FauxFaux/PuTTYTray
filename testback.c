@@ -71,6 +71,8 @@ Backend null_backend = {null_init,
                         null_provide_logctx,
                         null_unthrottle,
                         null_cfg_info,
+                        "null",
+                        -1,
                         0};
 
 Backend loop_backend = {loop_init,
@@ -89,6 +91,8 @@ Backend loop_backend = {loop_init,
                         null_provide_logctx,
                         null_unthrottle,
                         null_cfg_info,
+                        "loop",
+                        -1,
                         0};
 
 struct loop_state {

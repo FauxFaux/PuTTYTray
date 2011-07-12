@@ -1051,7 +1051,7 @@ int decode_codepage(char *cp_name)
     d = cp_name;
     if (tolower(d[0]) == 'c' && tolower(d[1]) == 'p')
       d += 2;
-    if (tolower(d[0]) == 'i' && tolower(d[1]) == 'b' && tolower(d[1]) == 'm')
+    if (tolower(d[0]) == 'i' && tolower(d[1]) == 'b' && tolower(d[2]) == 'm')
       d += 3;
     for (s = d; *s >= '0' && *s <= '9'; s++)
       ;

@@ -61,6 +61,7 @@
 #define WM_IGNORE_CLIP (WM_APP + 2)
 #define WM_FULLSCR_ON_MAX (WM_APP + 3)
 #define WM_AGENT_CALLBACK (WM_APP + 4)
+#define WM_GOT_CLIPDATA (WM_APP + 6)
 
 /* Needed for Chinese support and apparently not always defined. */
 #ifndef VK_PROCESSKEY
@@ -95,11 +96,12 @@ static int is_full_screen(void);
 static void make_full_screen(void);
 static void clear_full_screen(void);
 static void flip_full_screen(void);
+static int process_clipdata(HGLOBAL clipdata, int unicode);
 
 /* Window layout information */
 static void reset_window(int);
 static int extra_width, extra_height;
-static int font_width, font_height, font_dualwidth;
+static int font_width, font_height, font_dualwidth, font_varpitch;
 static int offset_width, offset_height;
 static int was_zoomed = 0;
 static int prev_rows, prev_cols;
@@ -110,7 +112,6 @@ static LPARAM pend_netevent_lParam = 0;
 static void enact_pending_netevent(void);
 static void flash_window(int mode);
 static void sys_cursor_update(void);
-static int is_shift_pressed(void);
 static int get_fullscreen_rect(RECT *ss);
 
 static int caret_x = -1, caret_y = -1;
@@ -128,6 +129,9 @@ static int reconfiguring = FALSE;
 static const struct telnet_special *specials = NULL;
 static HMENU specials_menu = NULL;
 static int n_specials = 0;
+
+static wchar_t *clipboard_contents;
+static size_t clipboard_length;
 
 #define TIMING_TIMER_ID 1234
 static long timing_next_time;
@@ -221,12 +225,7 @@ static void start_backend(void)
    * Select protocol. This is farmed out into a table in a
    * separate file to enable an ssh-free variant.
    */
-  back = NULL;
-  for (i = 0; backends[i].backend != NULL; i++)
-    if (backends[i].protocol == cfg.protocol) {
-      back = backends[i].backend;
-      break;
-    }
+  back = backend_from_proto(cfg.protocol);
   if (back == NULL) {
     char *str = dupprintf("%s Internal Error", appname);
     MessageBox(NULL,
@@ -328,12 +327,22 @@ static void close_session(void)
                IDM_RESTART,
                "&Restart Session");
   }
+
+  /*
+   * Unset the 'must_close_session' flag, or else we'll come
+   * straight back here the next time we go round the main message
+   * loop - which, worse still, will be immediately (without
+   * blocking) because we've just triggered a WM_SETTEXT by the
+   * window title change above.
+   */
+  must_close_session = FALSE;
 }
 
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
   WNDCLASS wndclass;
   MSG msg;
+  HRESULT hr;
   int guess_width, guess_height;
 
   hinst = inst;
@@ -373,6 +382,20 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   init_flashwindow();
 
   /*
+   * Initialize COM.
+   */
+  hr = CoInitialize(NULL);
+  if (hr != S_OK && hr != S_FALSE) {
+    char *str = dupprintf("%s Fatal Error", appname);
+    MessageBox(NULL,
+               "Failed to initialize COM subsystem",
+               str,
+               MB_OK | MB_ICONEXCLAMATION);
+    sfree(str);
+    return 1;
+  }
+
+  /*
    * Process the command line.
    */
   {
@@ -386,13 +409,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     default_protocol = be_default_protocol;
     /* Find the appropriate default port. */
     {
-      int i;
+      Backend *b = backend_from_proto(default_protocol);
       default_port = 0; /* illegal */
-      for (i = 0; backends[i].backend != NULL; i++)
-        if (backends[i].protocol == default_protocol) {
-          default_port = backends[i].backend->default_port;
-          break;
-        }
+      if (b)
+        default_port = b->default_port;
     }
     cfg.logtype = LGTYP_NONE;
 
@@ -402,14 +422,21 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     /*
      * Process a couple of command-line options which are more
-     * easily dealt with before the line is broken up into
-     * words. These are the soon-to-be-defunct @sessionname and
-     * the internal-use-only &sharedmemoryhandle, neither of
-     * which are combined with anything else.
+     * easily dealt with before the line is broken up into words.
+     * These are the old-fashioned but convenient @sessionname and
+     * the internal-use-only &sharedmemoryhandle, neither of which
+     * are combined with anything else.
      */
     while (*p && isspace(*p))
       p++;
     if (*p == '@') {
+      /*
+       * An initial @ means that the whole of the rest of the
+       * command line should be treated as the name of a saved
+       * session, with _no quoting or escaping_. This makes it a
+       * very convenient means of automated saved-session
+       * launching, via IDM_SAVEDSESS or Windows 7 jump lists.
+       */
       int i = strlen(p);
       while (i > 1 && isspace(p[i - 1]))
         i--;
@@ -621,14 +648,6 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
       }
       cfg.host[p1] = '\0';
     }
-  }
-
-  /* Check for invalid Port number (i.e. zero) */
-  if (cfg.port == 0) {
-    char *str = dupprintf("%s Internal Error", appname);
-    MessageBox(NULL, "Invalid Port Number", str, MB_OK | MB_ICONEXCLAMATION);
-    sfree(str);
-    cleanup_exit(1);
   }
 
   if (!prev) {
@@ -913,6 +932,9 @@ void cleanup_exit(int code)
   }
   shutdown_help();
 
+  /* Clean up COM. */
+  CoUninitialize();
+
   exit(code);
 }
 
@@ -958,6 +980,8 @@ static void update_savedsess_menu(void)
                MF_ENABLED,
                IDM_SAVED_MIN + (i - 1) * MENU_SAVED_STEP,
                sesslist.sessions[i]);
+  if (sesslist.nsessions <= 1)
+    AppendMenu(savedsess_menu, MF_GRAYED, IDM_SAVED_MIN, "(No sessions)");
 }
 
 /*
@@ -1292,7 +1316,6 @@ static void exact_textout(HDC hdc,
   gcpr.lpGlyphs = (void *)buffer;
   gcpr.lpClass = (void *)classbuffer;
   gcpr.nGlyphs = cbCount;
-
   GetCharacterPlacementW(
       hdc, lpString, cbCount, 0, &gcpr, FLI_MASK | GCP_CLASSIN | GCP_DIACRITIC);
 
@@ -1325,20 +1348,7 @@ static void general_textout(HDC hdc,
                             int opaque)
 {
   int i, j, xp, xn;
-  RECT newrc;
-
-#ifdef FIXME_REMOVE_BEFORE_CHECKIN
-  int k;
-  debug(("general_textout: %d,%d", x, y));
-  for (k = 0; k < cbCount; k++)
-    debug((" U+%04X", lpString[k]));
-  debug(("\n           rect: [%d,%d %d,%d]",
-         lprc->left,
-         lprc->top,
-         lprc->right,
-         lprc->bottom));
-  debug(("\n"));
-#endif
+  int bkmode = 0, got_bkmode = FALSE;
 
   xp = xn = x;
 
@@ -1359,65 +1369,72 @@ static void general_textout(HDC hdc,
      * function.
      */
     if (rtl) {
-      newrc.left = lprc->left + xp - x;
-      newrc.right = lprc->left + xn - x;
-      newrc.top = lprc->top;
-      newrc.bottom = lprc->bottom;
-#ifdef FIXME_REMOVE_BEFORE_CHECKIN
-      {
-        int k;
-        debug(("  exact_textout: %d,%d", xp, y));
-        for (k = 0; k < j - i; k++)
-          debug((" U+%04X", lpString[i + k]));
-        debug(("\n           rect: [%d,%d %d,%d]\n",
-               newrc.left,
-               newrc.top,
-               newrc.right,
-               newrc.bottom));
-      }
-#endif
-      exact_textout(hdc, xp, y, &newrc, lpString + i, j - i, lpDx + i, opaque);
+      exact_textout(hdc,
+                    xp,
+                    y,
+                    lprc,
+                    lpString + i,
+                    j - i,
+                    font_varpitch ? NULL : lpDx + i,
+                    opaque);
     } else {
-#ifdef FIXME_REMOVE_BEFORE_CHECKIN
-      {
-        int k;
-        debug(("  ExtTextOut   : %d,%d", xp, y));
-        for (k = 0; k < j - i; k++)
-          debug((" U+%04X", lpString[i + k]));
-        debug(("\n           rect: [%d,%d %d,%d]\n",
-               newrc.left,
-               newrc.top,
-               newrc.right,
-               newrc.bottom));
-      }
-#endif
-      newrc.left = lprc->left + xp - x;
-      newrc.right = lprc->left + xn - x;
-      newrc.top = lprc->top;
-      newrc.bottom = lprc->bottom;
       ExtTextOutW(hdc,
                   xp,
                   y,
                   ETO_CLIPPED | (opaque ? ETO_OPAQUE : 0),
-                  &newrc,
+                  lprc,
                   lpString + i,
                   j - i,
-                  lpDx + i);
+                  font_varpitch ? NULL : lpDx + i);
     }
 
     i = j;
     xp = xn;
+
+    bkmode = GetBkMode(hdc);
+    got_bkmode = TRUE;
+    SetBkMode(hdc, TRANSPARENT);
+    opaque = FALSE;
   }
 
-#ifdef FIXME_REMOVE_BEFORE_CHECKIN
-  debug(("general_textout: done, xn=%d\n", xn));
-#endif
-  assert(xn - x == lprc->right - lprc->left);
+  if (got_bkmode)
+    SetBkMode(hdc, bkmode);
+}
+
+static int get_font_width(HDC hdc, const TEXTMETRIC *tm)
+{
+  int ret;
+  /* Note that the TMPF_FIXED_PITCH bit is defined upside down :-( */
+  if (!(tm->tmPitchAndFamily & TMPF_FIXED_PITCH)) {
+    ret = tm->tmAveCharWidth;
+  } else {
+#define FIRST '0'
+#define LAST '9'
+    ABCFLOAT widths[LAST - FIRST + 1];
+    int j;
+
+    font_varpitch = TRUE;
+    font_dualwidth = TRUE;
+    if (GetCharABCWidthsFloat(hdc, FIRST, LAST, widths)) {
+      ret = 0;
+      for (j = 0; j < lenof(widths); j++) {
+        int width =
+            (int)(0.5 + widths[j].abcfA + widths[j].abcfB + widths[j].abcfC);
+        if (ret < width)
+          ret = width;
+      }
+    } else {
+      ret = tm->tmMaxCharWidth;
+    }
+#undef FIRST
+#undef LAST
+  }
+  return ret;
 }
 
 /*
  * Initialise all the fonts we will need initially. There may be as many as
- * three or as few as one.  The other (poentially) twentyone fonts are done
+ * three or as few as one.  The other (potentially) twenty-one fonts are done
  * if/when they are needed.
  *
  * We also:
@@ -1490,11 +1507,18 @@ static void init_fonts(int pick_width, int pick_height)
 
   GetObject(fonts[FONT_NORMAL], sizeof(LOGFONT), &lfont);
 
+  /* Note that the TMPF_FIXED_PITCH bit is defined upside down :-( */
+  if (!(tm.tmPitchAndFamily & TMPF_FIXED_PITCH)) {
+    font_varpitch = FALSE;
+    font_dualwidth = (tm.tmAveCharWidth != tm.tmMaxCharWidth);
+  } else {
+    font_varpitch = TRUE;
+    font_dualwidth = TRUE;
+  }
   if (pick_width == 0 || pick_height == 0) {
     font_height = tm.tmHeight;
-    font_width = tm.tmAveCharWidth;
+    font_width = get_font_width(hdc, &tm);
   }
-  font_dualwidth = (tm.tmAveCharWidth != tm.tmMaxCharWidth);
 
 #ifdef RDB_DEBUG_PATCH
   debug(23,
@@ -1583,7 +1607,7 @@ static void init_fonts(int pick_width, int pick_height)
   for (i = 0; i < 3; i++) {
     if (fonts[i]) {
       if (SelectObject(hdc, fonts[i]) && GetTextMetrics(hdc, &tm))
-        fontsize[i] = tm.tmAveCharWidth + 256 * tm.tmHeight;
+        fontsize[i] = get_font_width(hdc, &tm) + 256 * tm.tmHeight;
       else
         fontsize[i] = -i;
     } else
@@ -1659,7 +1683,7 @@ static void another_font(int fontno)
                              OUT_DEFAULT_PRECIS,
                              CLIP_DEFAULT_PRECIS,
                              FONT_QUALITY(cfg.font_quality),
-                             FIXED_PITCH | FF_DONTCARE,
+                             DEFAULT_PITCH | FF_DONTCARE,
                              s);
 
   fontflag[fontno] = 1;
@@ -2032,17 +2056,6 @@ static int is_alt_pressed(void)
   return FALSE;
 }
 
-static int is_shift_pressed(void)
-{
-  BYTE keystate[256];
-  int r = GetKeyboardState(keystate);
-  if (!r)
-    return FALSE;
-  if (keystate[VK_SHIFT] & 0x80)
-    return TRUE;
-  return FALSE;
-}
-
 static int resizing;
 
 void notify_remote_exit(void *fe)
@@ -2089,6 +2102,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
   static int ignore_clip = FALSE;
   static int need_backend_resize = FALSE;
   static int fullscr_on_max = FALSE;
+  static int processed_resize = FALSE;
   static UINT last_mousemove = 0;
 
   switch (message) {
@@ -2177,7 +2191,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
         unsigned int sessno = ((lParam - IDM_SAVED_MIN) / MENU_SAVED_STEP) + 1;
         if (sessno < (unsigned)sesslist.nsessions) {
           char *session = sesslist.sessions[sessno];
-          /* XXX spaces? quotes? "-load"? */
           cl = dupprintf("putty @%s", session);
           inherit_handles = FALSE;
           freecl = TRUE;
@@ -2241,12 +2254,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
 
       {
         /* Disable full-screen if resizing forbidden */
-        HMENU m = GetSystemMenu(hwnd, FALSE);
-        EnableMenuItem(m,
-                       IDM_FULLSCREEN,
-                       MF_BYCOMMAND | (cfg.resize_action == RESIZE_DISABLED)
-                           ? MF_GRAYED
-                           : MF_ENABLED);
+        int i;
+        for (i = 0; i < lenof(popup_menus); i++)
+          EnableMenuItem(popup_menus[i].menu,
+                         IDM_FULLSCREEN,
+                         MF_BYCOMMAND | (cfg.resize_action == RESIZE_DISABLED)
+                             ? MF_GRAYED
+                             : MF_ENABLED);
         /* Gracefully unzoom if necessary */
         if (IsZoomed(hwnd) && (cfg.resize_action == RESIZE_DISABLED)) {
           ShowWindow(hwnd, SW_RESTORE);
@@ -2374,7 +2388,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       term_copyall(term);
       break;
     case IDM_PASTE:
-      term_do_paste(term);
+      request_paste(NULL);
       break;
     case IDM_CLRSB:
       term_clrsb(term);
@@ -2467,26 +2481,32 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       switch (message) {
       case WM_LBUTTONDOWN:
         button = MBT_LEFT;
+        wParam |= MK_LBUTTON;
         press = 1;
         break;
       case WM_MBUTTONDOWN:
         button = MBT_MIDDLE;
+        wParam |= MK_MBUTTON;
         press = 1;
         break;
       case WM_RBUTTONDOWN:
         button = MBT_RIGHT;
+        wParam |= MK_RBUTTON;
         press = 1;
         break;
       case WM_LBUTTONUP:
         button = MBT_LEFT;
+        wParam &= ~MK_LBUTTON;
         press = 0;
         break;
       case WM_MBUTTONUP:
         button = MBT_MIDDLE;
+        wParam &= ~MK_MBUTTON;
         press = 0;
         break;
       case WM_RBUTTONUP:
         button = MBT_RIGHT;
+        wParam &= ~MK_RBUTTON;
         press = 0;
         break;
       default:
@@ -2551,7 +2571,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
                    wParam & MK_SHIFT,
                    wParam & MK_CONTROL,
                    is_alt_pressed());
-        ReleaseCapture();
+        if (!(wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON)))
+          ReleaseCapture();
       }
     }
     return 0;
@@ -2771,7 +2792,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
      * 1) Keep the sizetip uptodate
      * 2) Make sure the window size is _stepped_ in units of the font size.
      */
-    if (cfg.resize_action != RESIZE_FONT && !is_alt_pressed()) {
+    if (cfg.resize_action == RESIZE_TERM ||
+        (cfg.resize_action == RESIZE_EITHER && !is_alt_pressed())) {
       int width, height, w, h, ew, eh;
       LPRECT r = (LPRECT)lParam;
 
@@ -2882,12 +2904,35 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       SetWindowText(hwnd, cfg.win_name_always ? window_name : icon_name);
     if (wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED)
       SetWindowText(hwnd, window_name);
-    if (wParam == SIZE_RESTORED)
+    if (wParam == SIZE_RESTORED) {
+      processed_resize = FALSE;
       clear_full_screen();
+      if (processed_resize) {
+        /*
+         * Inhibit normal processing of this WM_SIZE; a
+         * secondary one was triggered just now by
+         * clear_full_screen which contained the correct
+         * client area size.
+         */
+        return 0;
+      }
+    }
     if (wParam == SIZE_MAXIMIZED && fullscr_on_max) {
       fullscr_on_max = FALSE;
+      processed_resize = FALSE;
       make_full_screen();
+      if (processed_resize) {
+        /*
+         * Inhibit normal processing of this WM_SIZE; a
+         * secondary one was triggered just now by
+         * make_full_screen which contained the correct client
+         * area size.
+         */
+        return 0;
+      }
     }
+
+    processed_resize = TRUE;
 
     if (cfg.resize_action == RESIZE_DISABLED) {
       /* A resize, well it better be a minimize. */
@@ -2899,60 +2944,62 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       width = LOWORD(lParam);
       height = HIWORD(lParam);
 
-      if (!resizing) {
-        if (wParam == SIZE_MAXIMIZED && !was_zoomed) {
-          was_zoomed = 1;
-          prev_rows = term->rows;
-          prev_cols = term->cols;
-          if (cfg.resize_action == RESIZE_TERM) {
-            w = width / font_width;
-            if (w < 1)
-              w = 1;
-            h = height / font_height;
-            if (h < 1)
-              h = 1;
+      if (wParam == SIZE_MAXIMIZED && !was_zoomed) {
+        was_zoomed = 1;
+        prev_rows = term->rows;
+        prev_cols = term->cols;
+        if (cfg.resize_action == RESIZE_TERM) {
+          w = width / font_width;
+          if (w < 1)
+            w = 1;
+          h = height / font_height;
+          if (h < 1)
+            h = 1;
 
-            term_size(term, h, w, cfg.savelines);
-          }
-          reset_window(0);
-        } else if (wParam == SIZE_RESTORED && was_zoomed) {
-          was_zoomed = 0;
-          if (cfg.resize_action == RESIZE_TERM)
-            term_size(term, prev_rows, prev_cols, cfg.savelines);
-          if (cfg.resize_action != RESIZE_FONT)
-            reset_window(2);
-          else
-            reset_window(0);
+          term_size(term, h, w, cfg.savelines);
         }
-        /* This is an unexpected resize, these will normally happen
-         * if the window is too large. Probably either the user
-         * selected a huge font or the screen size has changed.
-         *
-         * This is also called with minimize.
-         */
-        else
-          reset_window(-1);
-      }
-
-      /*
-       * Don't call back->size in mid-resize. (To prevent
-       * massive numbers of resize events getting sent
-       * down the connection during an NT opaque drag.)
-       */
-      if (resizing) {
-        if (cfg.resize_action != RESIZE_FONT && !is_alt_pressed()) {
-          need_backend_resize = TRUE;
+        reset_window(0);
+      } else if (wParam == SIZE_RESTORED && was_zoomed) {
+        was_zoomed = 0;
+        if (cfg.resize_action == RESIZE_TERM) {
           w = (width - cfg.window_border * 2) / font_width;
           if (w < 1)
             w = 1;
           h = (height - cfg.window_border * 2) / font_height;
           if (h < 1)
             h = 1;
+          term_size(term, h, w, cfg.savelines);
+          reset_window(2);
+        } else if (cfg.resize_action != RESIZE_FONT)
+          reset_window(2);
+        else
+          reset_window(0);
+      } else if (wParam == SIZE_MINIMIZED) {
+        /* do nothing */
+      } else if (cfg.resize_action == RESIZE_TERM ||
+                 (cfg.resize_action == RESIZE_EITHER && !is_alt_pressed())) {
+        w = (width - cfg.window_border * 2) / font_width;
+        if (w < 1)
+          w = 1;
+        h = (height - cfg.window_border * 2) / font_height;
+        if (h < 1)
+          h = 1;
 
+        if (resizing) {
+          /*
+           * Don't call back->size in mid-resize. (To
+           * prevent massive numbers of resize events
+           * getting sent down the connection during an NT
+           * opaque drag.)
+           */
+          need_backend_resize = TRUE;
           cfg.height = h;
           cfg.width = w;
-        } else
-          reset_window(0);
+        } else {
+          term_size(term, h, w, cfg.savelines);
+        }
+      } else {
+        reset_window(0);
       }
     }
     sys_cursor_update();
@@ -3160,6 +3207,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     sfree(c);
   }
     return 0;
+  case WM_GOT_CLIPDATA:
+    if (process_clipdata((HGLOBAL)lParam, wParam))
+      term_do_paste(term);
+    return 0;
   default:
     if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
       int shift_pressed = 0, control_pressed = 0;
@@ -3192,25 +3243,32 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
           break;
 
         if (send_raw_mouse && !(cfg.mouse_override && shift_pressed)) {
-          /* send a mouse-down followed by a mouse up */
-          term_mouse(term,
-                     b,
-                     translate_button(b),
-                     MA_CLICK,
-                     TO_CHR_X(X_POS(lParam)),
-                     TO_CHR_Y(Y_POS(lParam)),
-                     shift_pressed,
-                     control_pressed,
-                     is_alt_pressed());
-          term_mouse(term,
-                     b,
-                     translate_button(b),
-                     MA_RELEASE,
-                     TO_CHR_X(X_POS(lParam)),
-                     TO_CHR_Y(Y_POS(lParam)),
-                     shift_pressed,
-                     control_pressed,
-                     is_alt_pressed());
+          /* Mouse wheel position is in screen coordinates for
+           * some reason */
+          POINT p;
+          p.x = X_POS(lParam);
+          p.y = Y_POS(lParam);
+          if (ScreenToClient(hwnd, &p)) {
+            /* send a mouse-down followed by a mouse up */
+            term_mouse(term,
+                       b,
+                       translate_button(b),
+                       MA_CLICK,
+                       TO_CHR_X(p.x),
+                       TO_CHR_Y(p.y),
+                       shift_pressed,
+                       control_pressed,
+                       is_alt_pressed());
+            term_mouse(term,
+                       b,
+                       translate_button(b),
+                       MA_RELEASE,
+                       TO_CHR_X(p.x),
+                       TO_CHR_Y(p.y),
+                       shift_pressed,
+                       control_pressed,
+                       is_alt_pressed());
+          } /* else: not sure when this can fail */
         } else {
           /* trigger a scroll */
           term_scroll(
@@ -3307,7 +3365,11 @@ void do_text_internal(Context ctx,
   int force_manual_underline = 0;
   int fnt_width, char_width;
   int text_adjust = 0;
-  static int *IpDx = 0, IpDxLEN = 0;
+  int xoffset = 0;
+  int maxlen, remaining, opaque;
+  static int *lpDx = NULL;
+  static int lpDx_len = 0;
+  int *lpDx_maybe;
 
   lattr &= LATTR_MODE;
 
@@ -3315,17 +3377,6 @@ void do_text_internal(Context ctx,
 
   if (attr & ATTR_WIDE)
     char_width *= 2;
-
-  if (len > IpDxLEN || IpDx[0] != char_width) {
-    int i;
-    if (len > IpDxLEN) {
-      sfree(IpDx);
-      IpDx = snewn(len + 16, int);
-      IpDxLEN = (len + 16);
-    }
-    for (i = 0; i < IpDxLEN; i++)
-      IpDx[i] = char_width;
-  }
 
   /* Only want the left half of double width lines */
   if (lattr != LATTR_NORM && x * 2 >= term->cols)
@@ -3451,145 +3502,195 @@ void do_text_internal(Context ctx,
   if (line_box.right > font_width * term->cols + offset_width)
     line_box.right = font_width * term->cols + offset_width;
 
-  /* We're using a private area for direct to font. (512 chars.) */
-  if (ucsdata.dbcs_screenfont && (text[0] & CSET_MASK) == CSET_ACP) {
-    /* Ho Hum, dbcs fonts are a PITA! */
-    /* To display on W9x I have to convert to UCS */
-    static wchar_t *uni_buf = 0;
-    static int uni_len = 0;
-    int nlen, mptr;
-    if (len > uni_len) {
-      sfree(uni_buf);
-      uni_len = len;
-      uni_buf = snewn(uni_len, wchar_t);
-    }
+  if (font_varpitch) {
+    /*
+     * If we're using a variable-pitch font, we unconditionally
+     * draw the glyphs one at a time and centre them in their
+     * character cells (which means in particular that we must
+     * disable the lpDx mechanism). This gives slightly odd but
+     * generally reasonable results.
+     */
+    xoffset = char_width / 2;
+    SetTextAlign(hdc, TA_TOP | TA_CENTER | TA_NOUPDATECP);
+    lpDx_maybe = NULL;
+    maxlen = 1;
+  } else {
+    /*
+     * In a fixed-pitch font, we draw the whole string in one go
+     * in the normal way.
+     */
+    xoffset = 0;
+    SetTextAlign(hdc, TA_TOP | TA_LEFT | TA_NOUPDATECP);
+    lpDx_maybe = lpDx;
+    maxlen = len;
+  }
 
-    for (nlen = mptr = 0; mptr < len; mptr++) {
-      uni_buf[nlen] = 0xFFFD;
-      if (IsDBCSLeadByteEx(ucsdata.font_codepage, (BYTE)text[mptr])) {
-        char dbcstext[2];
-        dbcstext[0] = text[mptr] & 0xFF;
-        dbcstext[1] = text[mptr + 1] & 0xFF;
-        IpDx[nlen] += char_width;
-        MultiByteToWideChar(ucsdata.font_codepage,
-                            MB_USEGLYPHCHARS,
-                            dbcstext,
-                            2,
-                            uni_buf + nlen,
-                            1);
-        mptr++;
-      } else {
-        char dbcstext[1];
-        dbcstext[0] = text[mptr] & 0xFF;
-        MultiByteToWideChar(ucsdata.font_codepage,
-                            MB_USEGLYPHCHARS,
-                            dbcstext,
-                            1,
-                            uni_buf + nlen,
-                            1);
+  opaque = TRUE; /* start by erasing the rectangle */
+  for (remaining = len; remaining > 0;
+       text += len, remaining -= len, x += char_width * len) {
+    len = (maxlen < remaining ? maxlen : remaining);
+
+    if (len > lpDx_len) {
+      if (len > lpDx_len) {
+        lpDx_len = len * 9 / 8 + 16;
+        lpDx = sresize(lpDx, lpDx_len, int);
       }
-      nlen++;
     }
-    if (nlen <= 0)
-      return; /* Eeek! */
+    {
+      int i;
+      for (i = 0; i < len; i++)
+        lpDx[i] = char_width;
+    }
 
-    ExtTextOutW(hdc,
-                x,
-                y - font_height * (lattr == LATTR_BOT) + text_adjust,
-                ETO_CLIPPED | ETO_OPAQUE,
-                &line_box,
-                uni_buf,
-                nlen,
-                IpDx);
-    if (bold_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
-      SetBkMode(hdc, TRANSPARENT);
+    /* We're using a private area for direct to font. (512 chars.) */
+    if (ucsdata.dbcs_screenfont && (text[0] & CSET_MASK) == CSET_ACP) {
+      /* Ho Hum, dbcs fonts are a PITA! */
+      /* To display on W9x I have to convert to UCS */
+      static wchar_t *uni_buf = 0;
+      static int uni_len = 0;
+      int nlen, mptr;
+      if (len > uni_len) {
+        sfree(uni_buf);
+        uni_len = len;
+        uni_buf = snewn(uni_len, wchar_t);
+      }
+
+      for (nlen = mptr = 0; mptr < len; mptr++) {
+        uni_buf[nlen] = 0xFFFD;
+        if (IsDBCSLeadByteEx(ucsdata.font_codepage, (BYTE)text[mptr])) {
+          char dbcstext[2];
+          dbcstext[0] = text[mptr] & 0xFF;
+          dbcstext[1] = text[mptr + 1] & 0xFF;
+          lpDx[nlen] += char_width;
+          MultiByteToWideChar(ucsdata.font_codepage,
+                              MB_USEGLYPHCHARS,
+                              dbcstext,
+                              2,
+                              uni_buf + nlen,
+                              1);
+          mptr++;
+        } else {
+          char dbcstext[1];
+          dbcstext[0] = text[mptr] & 0xFF;
+          MultiByteToWideChar(ucsdata.font_codepage,
+                              MB_USEGLYPHCHARS,
+                              dbcstext,
+                              1,
+                              uni_buf + nlen,
+                              1);
+        }
+        nlen++;
+      }
+      if (nlen <= 0)
+        return; /* Eeek! */
+
       ExtTextOutW(hdc,
-                  x - 1,
+                  x + xoffset,
                   y - font_height * (lattr == LATTR_BOT) + text_adjust,
-                  ETO_CLIPPED,
+                  ETO_CLIPPED | (opaque ? ETO_OPAQUE : 0),
                   &line_box,
                   uni_buf,
                   nlen,
-                  IpDx);
-    }
+                  lpDx_maybe);
+      if (bold_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
+        SetBkMode(hdc, TRANSPARENT);
+        ExtTextOutW(hdc,
+                    x + xoffset - 1,
+                    y - font_height * (lattr == LATTR_BOT) + text_adjust,
+                    ETO_CLIPPED,
+                    &line_box,
+                    uni_buf,
+                    nlen,
+                    lpDx_maybe);
+      }
 
-    IpDx[0] = -1;
-  } else if (DIRECT_FONT(text[0])) {
-    static char *directbuf = NULL;
-    static int directlen = 0;
-    int i;
-    if (len > directlen) {
-      directlen = len;
-      directbuf = sresize(directbuf, directlen, char);
-    }
+      lpDx[0] = -1;
+    } else if (DIRECT_FONT(text[0])) {
+      static char *directbuf = NULL;
+      static int directlen = 0;
+      int i;
+      if (len > directlen) {
+        directlen = len;
+        directbuf = sresize(directbuf, directlen, char);
+      }
 
-    for (i = 0; i < len; i++)
-      directbuf[i] = text[i] & 0xFF;
+      for (i = 0; i < len; i++)
+        directbuf[i] = text[i] & 0xFF;
 
-    ExtTextOut(hdc,
-               x,
-               y - font_height * (lattr == LATTR_BOT) + text_adjust,
-               ETO_CLIPPED | ETO_OPAQUE,
-               &line_box,
-               directbuf,
-               len,
-               IpDx);
-    if (bold_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
-      SetBkMode(hdc, TRANSPARENT);
-
-      /* GRR: This draws the character outside it's box and can leave
-       * 'droppings' even with the clip box! I suppose I could loop it
-       * one character at a time ... yuk.
-       *
-       * Or ... I could do a test print with "W", and use +1 or -1 for this
-       * shift depending on if the leftmost column is blank...
-       */
       ExtTextOut(hdc,
-                 x - 1,
+                 x + xoffset,
                  y - font_height * (lattr == LATTR_BOT) + text_adjust,
-                 ETO_CLIPPED,
+                 ETO_CLIPPED | (opaque ? ETO_OPAQUE : 0),
                  &line_box,
                  directbuf,
                  len,
-                 IpDx);
-    }
-  } else {
-    /* And 'normal' unicode characters */
-    static WCHAR *wbuf = NULL;
-    static int wlen = 0;
-    int i;
+                 lpDx_maybe);
+      if (bold_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
+        SetBkMode(hdc, TRANSPARENT);
 
-    if (wlen < len) {
-      sfree(wbuf);
-      wlen = len;
-      wbuf = snewn(wlen, WCHAR);
-    }
+        /* GRR: This draws the character outside its box and
+         * can leave 'droppings' even with the clip box! I
+         * suppose I could loop it one character at a time ...
+         * yuk.
+         *
+         * Or ... I could do a test print with "W", and use +1
+         * or -1 for this shift depending on if the leftmost
+         * column is blank...
+         */
+        ExtTextOut(hdc,
+                   x + xoffset - 1,
+                   y - font_height * (lattr == LATTR_BOT) + text_adjust,
+                   ETO_CLIPPED,
+                   &line_box,
+                   directbuf,
+                   len,
+                   lpDx_maybe);
+      }
+    } else {
+      /* And 'normal' unicode characters */
+      static WCHAR *wbuf = NULL;
+      static int wlen = 0;
+      int i;
 
-    for (i = 0; i < len; i++)
-      wbuf[i] = text[i];
+      if (wlen < len) {
+        sfree(wbuf);
+        wlen = len;
+        wbuf = snewn(wlen, WCHAR);
+      }
 
-    /* print Glyphs as they are, without Windows' Shaping*/
-    general_textout(hdc,
-                    x,
+      for (i = 0; i < len; i++)
+        wbuf[i] = text[i];
+
+      /* print Glyphs as they are, without Windows' Shaping*/
+      general_textout(hdc,
+                      x + xoffset,
+                      y - font_height * (lattr == LATTR_BOT) + text_adjust,
+                      &line_box,
+                      wbuf,
+                      len,
+                      lpDx,
+                      opaque && !(attr & TATTR_COMBINING));
+
+      /* And the shadow bold hack. */
+      if (bold_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
+        SetBkMode(hdc, TRANSPARENT);
+        ExtTextOutW(hdc,
+                    x + xoffset - 1,
                     y - font_height * (lattr == LATTR_BOT) + text_adjust,
+                    ETO_CLIPPED,
                     &line_box,
                     wbuf,
                     len,
-                    IpDx,
-                    !(attr & TATTR_COMBINING));
-
-    /* And the shadow bold hack. */
-    if (bold_mode == BOLD_SHADOW && (attr & ATTR_BOLD)) {
-      SetBkMode(hdc, TRANSPARENT);
-      ExtTextOutW(hdc,
-                  x - 1,
-                  y - font_height * (lattr == LATTR_BOT) + text_adjust,
-                  ETO_CLIPPED,
-                  &line_box,
-                  wbuf,
-                  len,
-                  IpDx);
+                    lpDx_maybe);
+      }
     }
+
+    /*
+     * If we're looping round again, stop erasing the background
+     * rectangle.
+     */
+    SetBkMode(hdc, TRANSPARENT);
+    opaque = FALSE;
   }
   if (lattr != LATTR_TOP && (force_manual_underline ||
                              (und_mode == UND_LINE && (attr & ATTR_UNDER)))) {
@@ -4020,8 +4121,12 @@ static int TranslateKey(UINT message,
       SendMessage(hwnd, WM_VSCROLL, SB_LINEDOWN, 0);
       return 0;
     }
+    if ((wParam == VK_PRIOR || wParam == VK_NEXT) && shift_state == 3) {
+      term_scroll_to_selection(term, (wParam == VK_PRIOR ? 0 : 1));
+      return 0;
+    }
     if (wParam == VK_INSERT && shift_state == 1) {
-      term_do_paste(term);
+      request_paste(NULL);
       return 0;
     }
     if (left_alt && wParam == VK_F4 && cfg.alt_f4) {
@@ -4219,7 +4324,7 @@ static int TranslateKey(UINT message,
       *p++ = 0x1F;
       return p - output;
     }
-    if (shift_state == 2 && wParam == 0xDF) {
+    if (shift_state == 2 && (wParam == 0xDF || wParam == 0xDC)) {
       *p++ = 0x1C;
       return p - output;
     }
@@ -4451,37 +4556,7 @@ static int TranslateKey(UINT message,
         break;
       }
       if (xkey) {
-        if (term->vt52_mode)
-          p += sprintf((char *)p, "\x1B%c", xkey);
-        else {
-          int app_flg = (term->app_cursor_keys && !cfg.no_applic_c);
-#if 0
-		    /*
-		     * RDB: VT100 & VT102 manuals both state the
-		     * app cursor keys only work if the app keypad
-		     * is on.
-		     * 
-		     * SGT: That may well be true, but xterm
-		     * disagrees and so does at least one
-		     * application, so I've #if'ed this out and the
-		     * behaviour is back to PuTTY's original: app
-		     * cursor and app keypad are independently
-		     * switchable modes. If anyone complains about
-		     * _this_ I'll have to put in a configurable
-		     * option.
-		     */
-		    if (!term->app_keypad_keys)
-			app_flg = 0;
-#endif
-          /* Useful mapping of Ctrl-arrows */
-          if (shift_state == 2)
-            app_flg = !app_flg;
-
-          if (app_flg)
-            p += sprintf((char *)p, "\x1BO%c", xkey);
-          else
-            p += sprintf((char *)p, "\x1B[%c", xkey);
-        }
+        p += format_arrow_key(p, term, xkey, shift_state);
         return p - output;
       }
     }
@@ -4663,16 +4738,6 @@ static int TranslateKey(UINT message,
     return 0;
 
   return -1;
-}
-
-void request_paste(void *frontend)
-{
-  /*
-   * In Windows, pasting is synchronous: we can read the
-   * clipboard with no difficulty, so request_paste() can just go
-   * ahead and paste.
-   */
-  term_do_paste(term);
 }
 
 void set_title(void *frontend, char *title)
@@ -5157,47 +5222,88 @@ void write_clip(
     SendMessage(hwnd, WM_IGNORE_CLIP, FALSE, 0);
 }
 
+static DWORD WINAPI clipboard_read_threadfunc(void *param)
+{
+  HWND hwnd = (HWND)param;
+  HGLOBAL clipdata;
+
+  if (OpenClipboard(NULL)) {
+    if ((clipdata = GetClipboardData(CF_UNICODETEXT))) {
+      SendMessage(hwnd, WM_GOT_CLIPDATA, (WPARAM)1, (LPARAM)clipdata);
+    } else if ((clipdata = GetClipboardData(CF_TEXT))) {
+      SendMessage(hwnd, WM_GOT_CLIPDATA, (WPARAM)0, (LPARAM)clipdata);
+    }
+    CloseClipboard();
+  }
+
+  return 0;
+}
+
+static int process_clipdata(HGLOBAL clipdata, int unicode)
+{
+  sfree(clipboard_contents);
+  clipboard_contents = NULL;
+  clipboard_length = 0;
+
+  if (unicode) {
+    wchar_t *p = GlobalLock(clipdata);
+    wchar_t *p2;
+
+    if (p) {
+      /* Unwilling to rely on Windows having wcslen() */
+      for (p2 = p; *p2; p2++)
+        ;
+      clipboard_length = p2 - p;
+      clipboard_contents = snewn(clipboard_length + 1, wchar_t);
+      memcpy(clipboard_contents, p, clipboard_length * sizeof(wchar_t));
+      clipboard_contents[clipboard_length] = L'\0';
+      return TRUE;
+    }
+  } else {
+    char *s = GlobalLock(clipdata);
+    int i;
+
+    if (s) {
+      i = MultiByteToWideChar(CP_ACP, 0, s, strlen(s) + 1, 0, 0);
+      clipboard_contents = snewn(i, wchar_t);
+      MultiByteToWideChar(CP_ACP, 0, s, strlen(s) + 1, clipboard_contents, i);
+      clipboard_length = i - 1;
+      clipboard_contents[clipboard_length] = L'\0';
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+void request_paste(void *frontend)
+{
+  /*
+   * I always thought pasting was synchronous in Windows; the
+   * clipboard access functions certainly _look_ synchronous,
+   * unlike the X ones. But in fact it seems that in some
+   * situations the contents of the clipboard might not be
+   * immediately available, and the clipboard-reading functions
+   * may block. This leads to trouble if the application
+   * delivering the clipboard data has to get hold of it by -
+   * for example - talking over a network connection which is
+   * forwarded through this very PuTTY.
+   *
+   * Hence, we spawn a subthread to read the clipboard, and do
+   * our paste when it's finished. The thread will send a
+   * message back to our main window when it terminates, and
+   * that tells us it's OK to paste.
+   */
+  DWORD in_threadid; /* required for Win9x */
+  CreateThread(NULL, 0, clipboard_read_threadfunc, hwnd, 0, &in_threadid);
+}
+
 void get_clip(void *frontend, wchar_t **p, int *len)
 {
-  static HGLOBAL clipdata = NULL;
-  static wchar_t *converted = 0;
-  wchar_t *p2;
-
-  if (converted) {
-    sfree(converted);
-    converted = 0;
+  if (p) {
+    *p = clipboard_contents;
+    *len = clipboard_length;
   }
-  if (!p) {
-    if (clipdata)
-      GlobalUnlock(clipdata);
-    clipdata = NULL;
-    return;
-  } else if (OpenClipboard(NULL)) {
-    if ((clipdata = GetClipboardData(CF_UNICODETEXT))) {
-      CloseClipboard();
-      *p = GlobalLock(clipdata);
-      if (*p) {
-        for (p2 = *p; *p2; p2++)
-          ;
-        *len = p2 - *p;
-        return;
-      }
-    } else if ((clipdata = GetClipboardData(CF_TEXT))) {
-      char *s;
-      int i;
-      CloseClipboard();
-      s = GlobalLock(clipdata);
-      i = MultiByteToWideChar(CP_ACP, 0, s, strlen(s) + 1, 0, 0);
-      *p = converted = snewn(i, wchar_t);
-      MultiByteToWideChar(CP_ACP, 0, s, strlen(s) + 1, converted, i);
-      *len = i - 1;
-      return;
-    } else
-      CloseClipboard();
-  }
-
-  *p = NULL;
-  *len = 0;
 }
 
 #if 0
@@ -5255,16 +5361,12 @@ void modalfatalbox(char *fmt, ...)
   cleanup_exit(1);
 }
 
-typedef BOOL(WINAPI *p_FlashWindowEx_t)(PFLASHWINFO);
-static p_FlashWindowEx_t p_FlashWindowEx = NULL;
+DECL_WINDOWS_FUNCTION(static, BOOL, FlashWindowEx, (PFLASHWINFO));
 
 static void init_flashwindow(void)
 {
-  HMODULE user32_module = LoadLibrary("USER32.DLL");
-  if (user32_module) {
-    p_FlashWindowEx =
-        (p_FlashWindowEx_t)GetProcAddress(user32_module, "FlashWindowEx");
-  }
+  HMODULE user32_module = load_system32_dll("user32.dll");
+  GET_WINDOWS_FUNCTION(user32_module, FlashWindowEx);
 }
 
 static BOOL flash_window_ex(DWORD dwFlags, UINT uCount, DWORD dwTimeout)
@@ -5576,8 +5678,12 @@ static void make_full_screen()
 
   reset_window(0);
 
-  /* Tick the menu item in the System menu. */
-  CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_FULLSCREEN, MF_CHECKED);
+  /* Tick the menu item in the System and context menus. */
+  {
+    int i;
+    for (i = 0; i < lenof(popup_menus); i++)
+      CheckMenuItem(popup_menus[i].menu, IDM_FULLSCREEN, MF_CHECKED);
+  }
 }
 
 /*
@@ -5609,8 +5715,12 @@ static void clear_full_screen()
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
   }
 
-  /* Untick the menu item in the System menu. */
-  CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_FULLSCREEN, MF_UNCHECKED);
+  /* Untick the menu item in the System and context menus. */
+  {
+    int i;
+    for (i = 0; i < lenof(popup_menus); i++)
+      CheckMenuItem(popup_menus[i].menu, IDM_FULLSCREEN, MF_UNCHECKED);
+  }
 }
 
 /*
