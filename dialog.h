@@ -32,6 +32,7 @@ enum {
     CTRL_CHECKBOX,		       /* checkbox (contains own label) */
     CTRL_BUTTON,		       /* simple push button (no label) */
     CTRL_LISTBOX,		       /* label plus list box */
+    CTRL_TREESELECT,		       /* session selection tree */
     CTRL_COLUMNS,		       /* divide window into columns */
     CTRL_FILESELECT,		       /* label plus filename selector */
     CTRL_FONTSELECT,		       /* label plus font selector */
@@ -72,6 +73,25 @@ PREFIX intorptr I(int i) { intorptr ret; ret.i = i; return ret; }
 PREFIX intorptr P(void *p) { intorptr ret; ret.p = p; return ret; }
 #undef PREFIX
 #endif
+
+struct treeitem {
+    struct treeitem *parent;
+    struct treeitem *sibling;
+    struct treeitem *child;
+    void *item;
+    char *name;
+    int index;
+};
+
+typedef int iterate_func(struct treeitem *node, void *opaque);
+
+int treeselect_iterate(struct treeitem *tree, 
+                       iterate_func *filter, 
+                       iterate_func *iter, 
+                       void *opaque);
+void treeselect_free(union control *ctrl);
+struct treeitem *treeselect_new(union control *ctrl, char *name, struct treeitem *parent, int is_leaf);
+void treeselect_remove(struct treeitem **tree, iterate_func *filter, void *opaque);
 
 /*
  * Each control has an `int' field specifying which columns it
@@ -354,6 +374,26 @@ union control {
     } listbox;
     struct {
 	STANDARD_PREFIX;
+	char shortcut;		       /* keyboard shortcut */
+	/*
+	 * Height of the tree selector, in approximate number of lines.
+	 * If this is zero, the list is a drop-down list.
+	 */
+	int height;		       /* height in lines */
+	/*
+	 * Percentage of the dialog-box width used by the tree selector.
+	 * If this is set to 100, the label is on its own line;
+	 * otherwise the label is on the same line as the box
+	 * itself. Setting this to anything other than 100 is not
+	 * guaranteed to work on a _non_-drop-down list, so don't
+	 * try it!
+	 */
+	int percentwidth;
+	struct treeitem *tree;
+	int index;
+    } treeselect;
+    struct {
+	STANDARD_PREFIX;
 	char shortcut;
 	/*
 	 * `filter' dictates what type of files will be selected by
@@ -517,6 +557,9 @@ union control *ctrl_pushbutton(struct controlset *,char *label,char shortcut,
 union control *ctrl_listbox(struct controlset *,char *label,char shortcut,
 			    intorptr helpctx,
 			    handler_fn handler, intorptr context);
+union control *ctrl_treeselect(struct controlset *s,char *label,char shortcut,
+                               intorptr helpctx, handler_fn handler,
+                               intorptr context);
 union control *ctrl_droplist(struct controlset *, char *label, char shortcut,
 			     int percentage, intorptr helpctx,
 			     handler_fn handler, intorptr context);
@@ -570,6 +613,13 @@ int dlg_listbox_getid(union control *ctrl, void *dlg, int index);
 int dlg_listbox_index(union control *ctrl, void *dlg);
 int dlg_listbox_issel(union control *ctrl, void *dlg, int index);
 void dlg_listbox_select(union control *ctrl, void *dlg, int index);
+
+void dlg_treeselect_clear(union control *ctrl, void *dlg);
+void dlg_treeselect_del(union control *ctrl, void *dlg, void *item);
+void dlg_treeselect_add(union control *ctrl, void *dlg, char const *text);
+int dlg_treeselect_index(union control *ctrl, void *dlg);
+void dlg_treeselect_select(union control *ctrl, void *dlg, int index);
+
 void dlg_text_set(union control *ctrl, void *dlg, char const *text);
 void dlg_filesel_set(union control *ctrl, void *dlg, Filename *fn);
 Filename *dlg_filesel_get(union control *ctrl, void *dlg);

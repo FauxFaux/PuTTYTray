@@ -785,6 +785,32 @@ void listbox(struct ctlpos *cp, char *stext,
 	  WS_EX_CLIENTEDGE, "", lid);
 }
 
+HWND treeselect(struct ctlpos *cp, char *stext,
+	     int sid, int lid, int lines)
+{
+    RECT r;
+
+    if (stext != NULL) {
+	r.left = GAPBETWEEN;
+	r.top = cp->ypos;
+	r.right = cp->width;
+	r.bottom = STATICHEIGHT;
+	cp->ypos += r.bottom + GAPWITHIN;
+	doctl(cp, r, "STATIC", WS_CHILD | WS_VISIBLE, 0, stext, sid);
+    }
+
+    r.left = GAPBETWEEN;
+    r.top = cp->ypos;
+    r.right = cp->width;
+    r.bottom = LISTHEIGHT + (lines - 1) * LISTINCREMENT;
+    cp->ypos += r.bottom + GAPBETWEEN;
+    return doctl(cp, r, "SysTreeView32",
+		WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL |
+		TVS_HASLINES | TVS_DISABLEDRAGDROP | TVS_HASBUTTONS
+		| TVS_LINESATROOT | TVS_SHOWSELALWAYS | TVS_SINGLEEXPAND,
+		WS_EX_CLIENTEDGE, "", lid);
+}
+
 /*
  * A tab-control substitute when a real tab control is unavailable.
  */
@@ -1660,6 +1686,15 @@ void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
 	    }
 	    sfree(escaped);
 	    break;
+	  case CTRL_TREESELECT:
+	    num_ids = 2;
+	    escaped = shortcut_escape(ctrl->treeselect.label,
+                                  ctrl->treeselect.shortcut);
+	    shortcuts[nshortcuts++] = ctrl->treeselect.shortcut;
+	    treeselect(&pos, escaped, base_id, base_id+1,
+                   ctrl->treeselect.height);
+	    sfree(escaped);
+	    break;
 	  case CTRL_FILESELECT:
 	    num_ids = 3;
 	    escaped = shortcut_escape(ctrl->fileselect.label,
@@ -1768,7 +1803,8 @@ int winctrl_handle_command(struct dlgparam *dp, UINT msg,
     if (draglistmsg == WM_NULL)
 	draglistmsg = RegisterWindowMessage (DRAGLISTMSGSTRING);
 
-    if (msg != draglistmsg && msg != WM_COMMAND && msg != WM_DRAWITEM)
+    /* need to accept WM_NOTIFY for the TreeView control */
+    if (msg != draglistmsg && msg != WM_COMMAND && msg != WM_DRAWITEM && msg != WM_NOTIFY)
 	return 0;
 
     /*
@@ -1922,6 +1958,20 @@ int winctrl_handle_command(struct dlgparam *dp, UINT msg,
 	    } else if (msg == WM_COMMAND && HIWORD(wParam) == LBN_SELCHANGE) {
 		ctrl->generic.handler(ctrl, dp, dp->data, EVENT_SELCHANGE);
 	    }
+	}
+	break;
+      case CTRL_TREESELECT:
+	if (msg == WM_NOTIFY && ((LPNMHDR)lParam)->code == NM_KILLFOCUS)
+	    winctrl_set_focus(ctrl, dp, ((LPNMHDR)lParam)->code == NM_KILLFOCUS);
+	if (msg == WM_NOTIFY && ((LPNMHDR)lParam)->code == NM_DBLCLK) {
+		SetCapture(dp->hwnd);
+		ctrl->generic.handler(ctrl, dp, dp->data, EVENT_ACTION);
+	} else if (msg == WM_NOTIFY && ((LPNMHDR)lParam)->code == TVN_SELCHANGED) {
+		ctrl->generic.handler(ctrl, dp, dp->data, EVENT_SELCHANGE);
+	} else if (msg == WM_NOTIFY && ((LPNMHDR)lParam)->code == TVN_DELETEITEM) {
+		// item was deleted
+		TVITEM *oItem = &((LPNMTREEVIEW)lParam)->itemOld;
+		dlg_treeselect_del(ctrl, dp, oItem->hItem);
 	}
 	break;
       case CTRL_FILESELECT:
@@ -2266,6 +2316,190 @@ void dlg_listbox_select(union control *ctrl, void *dlg, int index)
     SendDlgItemMessage(dp->hwnd, c->base_id+1, msg, index, 0);
 }
 
+/* treeselect helpers */
+struct get_selection_info {
+    int index;
+    HWND hwnd;
+    int id;
+    TVITEM *item;
+};
+
+static int get_selection_index(struct treeitem *node, void *opaque)
+{
+    struct get_selection_info *info = (struct get_selection_info *)opaque;
+    TV_ITEM item;
+
+    item.mask = TVIF_STATE | TVIF_PARAM | TVIF_HANDLE;
+    item.stateMask = TVIS_SELECTED;
+    item.state = 0;
+    item.hItem = (HTREEITEM)node->item;
+
+    SendDlgItemMessage(info->hwnd, info->id, TVM_GETITEM, 0, (LPARAM)&item);
+
+    if (item.state & TVIS_SELECTED) {
+
+        info->index = item.lParam;
+        return 0;
+    }
+
+    return 1;
+}
+
+static int set_selection_by_index(struct treeitem *node, void *opaque)
+{
+    struct get_selection_info *info = (struct get_selection_info *)opaque;
+    struct treeitem *parent = NULL;
+
+    if (info->index == node->index) {
+
+        if (parent = node->parent) do {
+
+            SendDlgItemMessage(info->hwnd, info->id, TVM_EXPAND, (WPARAM)TVE_TOGGLE, 
+                (LPARAM)parent->item);
+        } while (parent = parent->parent);
+
+        SendDlgItemMessage(info->hwnd, info->id, TVM_SELECTITEM, (WPARAM)(TVGN_CARET), (LPARAM)node->item);
+        return 0;
+    }
+
+    return 1;
+}
+
+static int find_node_by_item(struct treeitem *node, void *opaque)
+{
+    if (node->item == opaque)
+        return 1;
+
+    return 0;
+}
+
+void dlg_treeselect_clear(union control *ctrl, void *dlg)
+{
+    struct dlgparam *dp = (struct dlgparam *)dlg;
+    struct winctrl *c = dlg_findbyctrl(dp, ctrl);
+
+    assert(c && (c->ctrl->generic.type == CTRL_TREESELECT));
+    SendDlgItemMessage(dp->hwnd, c->base_id+1, TVM_DELETEITEM, 0, (LPARAM)TVI_ROOT);
+
+    /* free the whole tree */
+    treeselect_free(ctrl);
+}
+
+void dlg_treeselect_del(union control *ctrl, void *dlg, void *item)
+{
+    struct dlgparam *dp = (struct dlgparam *)dlg;
+    struct winctrl *c = dlg_findbyctrl(dp, ctrl);
+
+    assert(c && (c->ctrl->generic.type == CTRL_TREESELECT));
+
+    treeselect_remove(&(c->ctrl->treeselect.tree), find_node_by_item, item);
+}
+
+void dlg_treeselect_add(union control *ctrl, void *dlg, char const *text)
+{
+    struct dlgparam *dp = (struct dlgparam *)dlg;
+    struct winctrl *c = dlg_findbyctrl(dp, ctrl);
+    char *p = NULL;
+    char *path = NULL;
+    char *np = NULL;
+    TVINSERTSTRUCT ins;
+    struct treeitem **t = NULL;
+    struct treeitem *parent = NULL;
+
+    assert(c && (c->ctrl->generic.type == CTRL_TREESELECT));
+
+    path = strdup(text);
+    for (p = path, t = &c->ctrl->treeselect.tree, parent = NULL; 
+         p && (((unsigned int)(p - path)) < strlen(text));
+         p = np) {
+
+        memset(&ins, 0, sizeof(TVINSERTSTRUCT));
+
+        np = strchr(p, '/');
+        if (np) {
+
+            *np = '\0';
+            np += 1;
+        }
+
+        while (*t) {
+
+            if (0 == strcmp((*t)->name, p)) 
+                break;
+
+            t = &((*t)->sibling);
+        }
+
+        if (!(*t) || !np) {
+
+            if (!(*t)) {
+                /* allocate an item */
+                (*t) = treeselect_new(c->ctrl, p, parent, NULL == np);
+            }
+
+#if _WIN32_IE >= 0x0400 && defined NONAMELESSUNION
+#define INSITEM DUMMYUNIONNAME.item
+#else
+#define INSITEM item
+#endif
+            ins.INSITEM.mask = TVIF_TEXT | TVIF_PARAM;
+            ins.INSITEM.pszText = (char *)((*t)->name);
+            ins.INSITEM.cchTextMax = strlen((*t)->name) + 1;
+            ins.INSITEM.lParam = (LPARAM)(*t)->index;
+
+            if (!(*t)->item) {
+
+                ins.hParent = (parent ? (HTREEITEM)parent->item : TVI_ROOT);
+                ins.hInsertAfter = TVI_SORT;
+
+                (*t)->item = (void *)SendDlgItemMessage(dp->hwnd, c->base_id+1, TVM_INSERTITEM, 0, (LPARAM)&ins);
+            }
+            else {
+
+                ins.INSITEM.mask |= TVIF_HANDLE;
+                ins.INSITEM.hItem = (HTREEITEM)((*t)->item);
+                SendDlgItemMessage(dp->hwnd, c->base_id+1, TVM_SETITEM, 0, (LPARAM)&ins.INSITEM);
+            }
+#undef INSITEM
+        }
+
+        parent = *t;
+        t = &((*t)->child);
+    }
+
+    if (path)
+            free(path);
+}
+
+int dlg_treeselect_index(union control *ctrl, void *dlg)
+{
+    struct dlgparam *dp = (struct dlgparam *)dlg;
+    struct winctrl *c = dlg_findbyctrl(dp, ctrl);
+    struct get_selection_info info = {0, dp->hwnd, c->base_id + 1, NULL};
+
+    assert(c && (c->ctrl->generic.type == CTRL_TREESELECT));
+
+    treeselect_iterate(c->ctrl->treeselect.tree, 
+                       NULL, 
+                       get_selection_index, 
+                       (void *)&info);
+    return info.index;
+}
+
+void dlg_treeselect_select(union control *ctrl, void *dlg, int index)
+{
+    struct dlgparam *dp = (struct dlgparam *)dlg;
+    struct winctrl *c = dlg_findbyctrl(dp, ctrl);
+    struct get_selection_info info = {index, dp->hwnd, c->base_id + 1, NULL};
+
+    assert(c && (c->ctrl->generic.type == CTRL_TREESELECT));
+
+    treeselect_iterate(c->ctrl->treeselect.tree, 
+                       NULL, 
+                       set_selection_by_index, 
+                       (void *)&info);
+}
+
 void dlg_text_set(union control *ctrl, void *dlg, char const *text)
 {
     struct dlgparam *dp = (struct dlgparam *)dlg;
@@ -2316,6 +2550,10 @@ void dlg_label_change(union control *ctrl, void *dlg, char const *text)
 	break;
       case CTRL_LISTBOX:
 	escaped = shortcut_escape(text, ctrl->listbox.shortcut);
+	id = c->base_id;
+	break;
+      case CTRL_TREESELECT:
+	escaped = shortcut_escape(text, ctrl->treeselect.shortcut);
 	id = c->base_id;
 	break;
       case CTRL_FILESELECT:
@@ -2397,7 +2635,8 @@ void dlg_update_start(union control *ctrl, void *dlg)
 {
     struct dlgparam *dp = (struct dlgparam *)dlg;
     struct winctrl *c = dlg_findbyctrl(dp, ctrl);
-    if (c && c->ctrl->generic.type == CTRL_LISTBOX) {
+    if (c && ((c->ctrl->generic.type == CTRL_LISTBOX)
+	        || (c->ctrl->generic.type == CTRL_TREESELECT))) {
 	SendDlgItemMessage(dp->hwnd, c->base_id+1, WM_SETREDRAW, FALSE, 0);
     }
 }
@@ -2406,7 +2645,8 @@ void dlg_update_done(union control *ctrl, void *dlg)
 {
     struct dlgparam *dp = (struct dlgparam *)dlg;
     struct winctrl *c = dlg_findbyctrl(dp, ctrl);
-    if (c && c->ctrl->generic.type == CTRL_LISTBOX) {
+    if (c && ((c->ctrl->generic.type == CTRL_LISTBOX)
+	        || (c->ctrl->generic.type == CTRL_TREESELECT))) {
 	HWND hw = GetDlgItem(dp->hwnd, c->base_id+1);
 	SendMessage(hw, WM_SETREDRAW, TRUE, 0);
 	InvalidateRect(hw, NULL, TRUE);

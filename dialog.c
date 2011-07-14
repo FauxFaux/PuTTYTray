@@ -360,6 +360,21 @@ union control *ctrl_listbox(struct controlset *s,char *label,char shortcut,
     return c;
 }
 
+union control *ctrl_treeselect(struct controlset *s,char *label,char shortcut,
+			    intorptr helpctx, handler_fn handler,
+			    intorptr context)
+{
+    union control *c = ctrl_new(s, CTRL_TREESELECT, helpctx, handler, context);
+    c->treeselect.label = label ? dupstr(label) : NULL;
+    c->treeselect.shortcut = shortcut;
+    c->treeselect.height = 5;	       /* *shrug* a plausible default */
+    c->treeselect.percentwidth = 100;
+    c->treeselect.tree = NULL;
+    c->treeselect.index = 0;
+
+    return c;
+}
+
 union control *ctrl_droplist(struct controlset *s, char *label, char shortcut,
 			     int percentage, intorptr helpctx,
 			     handler_fn handler, intorptr context)
@@ -440,6 +455,94 @@ union control *ctrl_checkbox(struct controlset *s, char *label, char shortcut,
     return c;
 }
 
+int treeselect_iterate(struct treeitem *tree, iterate_func *filter, iterate_func *iter, void *opaque)
+{
+    struct treeitem *node, *next;
+    int rc = 1;
+
+    if (!tree)
+        return 0;
+
+    for (node = tree, next = node->sibling; node; node = next, next = node ? node->sibling : NULL) {
+
+        if (node->child)
+            if (!treeselect_iterate(node->child, filter, iter, opaque))
+                break;
+
+        if (!filter || filter(node, opaque)) {
+
+            rc = iter(node, opaque);
+            if (!rc)
+                break;
+        }
+    }
+
+    return rc;
+}
+
+static int treeselect_free_node(struct treeitem *node, void *opaque)
+{
+    if (node) {
+
+        if (node->name) 
+            sfree(node->name);
+
+        sfree(node);
+    }
+
+    return 1;
+}
+
+void treeselect_free(union control *ctrl)
+{
+    treeselect_iterate(ctrl->treeselect.tree, NULL, treeselect_free_node, NULL);
+    ctrl->treeselect.tree = NULL;
+    ctrl->treeselect.index = 0;
+}
+
+struct treeitem *treeselect_new(union control *ctrl, char *name, struct treeitem *parent, int is_leaf)
+{
+    struct treeitem *tmp = NULL;
+
+    tmp = snew(struct treeitem);
+    memset(tmp, 0, sizeof(struct treeitem));
+
+    tmp->parent = parent;
+    tmp->name = strdup(name);
+    tmp->index = (is_leaf ? ctrl->treeselect.index++ : -1);
+
+    return tmp;
+}
+
+void treeselect_remove(struct treeitem **tree, iterate_func *filter, void *opaque)
+{
+    struct treeitem **prev, *node, *next;
+    int rc = 1;
+
+    if (!tree || !filter)
+        return;
+
+    for (prev = tree, node = *tree, next = node->sibling; 
+         node; 
+         prev = &((*prev)->sibling), node = next, next = node ? node->sibling : NULL) {
+
+        if (node->child)
+            treeselect_remove(&(node->child), filter, opaque);
+
+        if (filter(node, opaque)) {
+
+            if (node->parent && (node->parent->child == node)) {
+
+                node->parent->child = node->sibling;
+            }
+
+            (*prev) = next;
+            node->sibling = NULL;
+            treeselect_iterate(node, NULL, treeselect_free_node, NULL);
+        }
+    }
+}
+
 void ctrl_free(union control *ctrl)
 {
     int i;
@@ -458,6 +561,9 @@ void ctrl_free(union control *ctrl)
 	break;
       case CTRL_LISTBOX:
 	sfree(ctrl->listbox.percentages);
+	break;
+      case CTRL_TREESELECT:
+	treeselect_free(ctrl);
 	break;
       case CTRL_FILESELECT:
 	sfree(ctrl->fileselect.title);

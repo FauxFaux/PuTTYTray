@@ -570,7 +570,11 @@ static int CALLBACK GenericMainDlgProc(HWND hwnd, UINT msg,
 	    SetFocus(((LPNMHDR) lParam)->hwndFrom);	/* ensure focus stays */
 	    return 0;
 	}
-	break;
+	/* fallthrough - if this WM_NOTIFY did not originate with the 
+	 * configuration tree, it might be related to the session list
+	 * tree select control. Pass it to winctrl_handle_command which
+	 * will ignore it if it isn't related.
+	 */
       case WM_COMMAND:
       case WM_DRAWITEM:
       default:			       /* also handle drag list msg here */
