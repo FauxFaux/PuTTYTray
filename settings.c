@@ -927,11 +927,28 @@ void load_open_settings(void *sesskey, Conf *conf)
 
     for (i = 0; i < 22; i++) {
 	static const char *const defaults[] = {
-	    "187,187,187", "255,255,255", "0,0,0", "85,85,85", "0,0,0",
-	    "0,255,0", "0,0,0", "85,85,85", "187,0,0", "255,85,85",
-	    "0,187,0", "85,255,85", "187,187,0", "255,255,85", "0,0,187",
-	    "85,85,255", "187,0,187", "255,85,255", "0,187,187",
-	    "85,255,255", "187,187,187", "255,255,255"
+            "0,0,0",        /* Default Foreground */
+            "0,0,0",        /* Default Bold Foreground */
+            "255,255,255",  /* Default Background */
+            "255,255,255",  /* Default Bold Background */
+            "0,0,0",        /* Cursor Text */
+            "0,80,0",       /* Cursor Colour */
+            "0,0,0",        /* ANSI Black */
+            "47,47,47",     /* ANSI Black Bold */
+            "156,29,29",    /* ANSI Red */
+            "205,87,87",    /* ANSI Red Bold */
+            "108,148,70",   /* ANSI Green */
+            "143,195,91",   /* ANSI Green Bold */
+            "172,154,71",   /* ANSI Yellow */
+            "209,196,94",   /* ANSI Yellow Bold */
+            "51,87,134",    /* ANSI Blue */
+            "92,129,169",   /* ANSI Blue Bold */
+            "143,100,150",  /* ANSI Magenta */
+            "188,149,183",  /* ANSI Magenta Bold */
+            "72,103,104",   /* ANSI Cyan */
+            "118,203,203",  /* ANSI Cyan Bold */
+            "224,220,220",  /* ANSI White */
+            "238,238,236"   /* ANSI White Bold */
 	};
 	char buf[20], *buf2;
 	int c0, c1, c2;
