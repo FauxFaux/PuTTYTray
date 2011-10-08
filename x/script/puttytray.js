@@ -21,7 +21,7 @@ var PuTTYTray = {
 			// Preload IE fix image
 			if ((browser.isIE5x || browser.isIE6x) && document.images) {
 				var preloadImage = new Image();
-				preloadImage.src = 'g/logo.gif';
+				preloadImage.src = 'g/logo.png';
 			}
 		}.bind(this));
 
@@ -135,7 +135,7 @@ var PuTTYTray = {
 	{
 		if ($('downloadframe')) {
 			var downloadFrame = $('downloadframe');
-			downloadFrame.setAttribute('src', 'g/nothing.gif');
+			downloadFrame.setAttribute('src', 'g/nothing.png');
 			downloadFrame.setAttribute('src', 'download/putty.exe'); 
 		} else {
 			var downloadFrame = document.createElement('iframe');
@@ -161,7 +161,7 @@ var PuTTYTray = {
 	{
 		$('icon').ieDragFixed = true;
 		$('icon').style.filter = '';
-		$('icon').style.background = 'url(g/logo.gif)';
+		$('icon').style.background = 'url(g/logo.png)';
 	}
 }
 
