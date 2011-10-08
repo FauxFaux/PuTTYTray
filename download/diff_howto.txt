@@ -1,0 +1,22 @@
+1. Run `patch -p 1 -d putty-src-0.59 < putty.diff` from the parent directory 
+
+2. Load the putty-src-0.59/WINDOWS/MSVC/PUTTY.DSW project file in MSVC 
+
+3. Drag and drop the following files in the putty-src-0.59/WINDOWS folder into the following filters in putty:
+
+Headers:
+-- PickIconDialog.h
+-- urlhack.h
+
+Source Files:
+-- PickIconDialog.c
+-- urlhack.cpp
+
+re_lib: (right click PuTTY, and "Add" > "New Filter"
+-- re_lib/regexp.h
+-- re_lib/regmagic.h
+-- re_lib/regexp.cpp
+
+4. [Optional] Disable _CRT_SECURE_NO_DEPRECATE warnings by right-clicking putty, Properties > Configuration Properties > C/C++ > Command Line and add /D "_CRT_SECURE_NO_DEPRECATE" to "Additional options"
+
+5. Build > Build putty
