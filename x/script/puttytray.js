@@ -18,11 +18,6 @@ var PuTTYTray = {
 			// Initialize UI elements
 			PuTTYTray.uiStart();
 			
-			// Load text
-			if (document.location.toString().indexOf('haan') == -1 || document.location.toString().indexOf('eu') == -1) {
-				this.showInfo();
-			}
-			
 			// Preload IE fix image
 			if ((browser.isIE5x || browser.isIE6x) && document.images) {
 				var preloadImage = new Image();
@@ -130,22 +125,6 @@ var PuTTYTray = {
 				});
 			}
 		});
-	},
-
-
-	/*
-	 * Show additional info
-	 */
-	showInfo: function()
-	{
-		var infoDiv  = document.createElement('a');
-		var infoSpan = document.createElement('span');
-		var infoText = document.createTextNode(warnText);
-		infoDiv.setAttribute('id', 'info');
-		infoDiv.setAttribute('href', 'http://www.xs4all.nl/~whaa/putty/'); 
-		infoSpan.appendChild(infoText);
-		infoDiv.appendChild(infoSpan);
-		document.body.insertBefore(infoDiv, $('wrap'));
 	},
 
 
