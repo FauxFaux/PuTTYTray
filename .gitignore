@@ -1,0 +1,10 @@
+windows/MSVC
+windows/DEVCPP
+Makefile*
+charset/sbcsdat.c
+*.obj
+*.exe
+*.rsp
+*.res
+*.map
+*.pdb
