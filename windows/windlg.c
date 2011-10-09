@@ -194,10 +194,6 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 
     switch (msg) {
       case WM_INITDIALOG:
-	str = dupprintf("About %s", appname);
-	SetWindowText(hwnd, str);
-	sfree(str);
-	SetDlgItemText(hwnd, IDA_TEXT1, appname);
 	SetDlgItemText(hwnd, IDA_VERSION, ver);
 	return 1;
       case WM_COMMAND:
@@ -217,7 +213,7 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 	  case IDA_WEB:
 	    /* Load web browser */
 	    ShellExecute(hwnd, "open",
-			 "http://www.chiark.greenend.org.uk/~sgtatham/putty/",
+			 "http://puttytray.goeswhere.com/",
 			 0, 0, SW_SHOWDEFAULT);
 	    return 0;
 	}
