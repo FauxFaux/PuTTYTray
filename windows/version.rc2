@@ -53,13 +53,21 @@
 #ifdef MODIFIED
 #define BINARY_VERSION 0,0,0,0
 #else
+#ifdef SVN_REV1
+#define BINARY_VERSION BASE_VERSION,SVN_REV1,SVN_REV2
+#else
 #define BINARY_VERSION BASE_VERSION,SVN_REV,0
+#endif
 #endif
 
 #elif defined RELEASE
 
 #define VERSION_TEXT "Release " STR(RELEASE)
+#ifdef SVN_REV1
+#define BINARY_VERSION BASE_VERSION,SVN_REV1,0
+#else
 #define BINARY_VERSION BASE_VERSION,0,0
+#endif
 
 #elif defined PRERELEASE
 
@@ -72,7 +80,11 @@
 #ifdef MODIFIED
 #define BINARY_VERSION 0,0,0,0
 #else
+#ifdef SVN_REV1
+#define BINARY_VERSION BASE_VERSION,SVN_REV1,SVN_REV2
+#else
 #define BINARY_VERSION BASE_VERSION,SVN_REV,0
+#endif
 #endif
 
 #else
