@@ -260,17 +260,27 @@ void urlhack_go_find_me_some_hyperlinks(int screen_width)
 
 	while (regexec(urlhack_rx, text_pos) == 1) {
 		char* start_pos = *urlhack_rx->startp[0] == ' ' ? urlhack_rx->startp[0] + 1: urlhack_rx->startp[0];
+		char* end_pos = urlhack_rx->endp[0];
+		int max_brackets = 0;
+		for (char *c = start_pos; c < end_pos; ++c) {
+			switch (*c) {
+				case '(': ++max_brackets; break;
+				case ')': --max_brackets; break;
+			}
+		}
+		while (max_brackets --> 0 && *end_pos == ')')
+			++end_pos;
 
 		int x0 = (start_pos - text) % screen_width;
 		int y0 = (start_pos - text) / screen_width;
-		int x1 = (urlhack_rx->endp[0] - text) % screen_width;
-		int y1 = (urlhack_rx->endp[0] - text) / screen_width;
+		int x1 = (end_pos - text) % screen_width;
+		int y1 = (end_pos - text) / screen_width;
 
 		if (x0 >= screen_width) x0 = screen_width - 1;
 		if (x1 >= screen_width) x1 = screen_width - 1;
 
 		urlhack_add_link_region(x0, y0, x1, y1);
 
-		text_pos = urlhack_rx->endp[0] + 1;
+		text_pos = end_pos + 1;
 	}
 }
