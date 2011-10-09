@@ -20,15 +20,21 @@
 	</div>
 	
 	<div id="content">
-		<p id="foreword">
+		<div id="foreword">
 			<span class="quote">
 				PuTTY is a free implementation of Telnet and SSH for Win32 and 
 				Unix platforms, along with an <code>xterm</code> terminal
 				emulator.
 			</span>	
-			PuTTY Tray is an improved version of PuTTY (Win32). It features some cosmetic
-			changes, and a number of addons to make it more useful and much more fun to use.
-		</p>
+			<p>
+			PuTTY Tray is an improved version of <a href="http://www.chiark.greenend.org.uk/~sgtatham/putty/">PuTTY</a>.
+				It features some cosmetic changes, and a number of addons to make it more useful and much more fun to use.
+			</p>
+			<p>
+				Originally compiled by <a href="http://haanstra.eu/putty/">Barry Haanstra</a>,
+				now maintained by <a href="http://blog.prelode.com/">Chris West (Faux)</a>.
+			</p>
+		</div>
 		
 		<ul id="navigation">
 			<li id="nav_features"><a href="#features" onclick="return false;"><span>Features</span></a></li>
@@ -50,12 +56,23 @@
 					<li>Blinks tray icon when a bell signal is received</li>
 					<li>Configurable window transparency</li>
 					<li>URL hyperlinking</li>
-					<li>Portability: <em>optionally</em> stores session configuration in files (for example: on a USB drive) like <a href="http://socialistsushi.com/portaputty">portaPuTTY</a></li>
+					<li>Portability: <em>optionally</em> stores session configuration in files (for example: on a USB drive) like <a href="http://code.google.com/p/portaputty/">portaPuTTY</a></li>
 					<li>Easy access to the 'always on top' setting (in the system menu)</li>
 					<li>Reconnects when your PC wakes up from stand-by</li>
 					<li>Attempts to reconnect when the connection fails</li>
 				</ul>
 				
+				<br />
+				<br />
+				<h2>Update: 0.61-t004</h2>
+				
+				<ul>
+					<li class="update">New: Now built against PuTTy 0.61, getting features like Windows 7 Jumplist support</li>
+					<li class="update">New: Ctrl+mousewheel zoom support</li>
+					<li class="update">Fixed: Build script generator (<span style="font-family: monospace">mkfiles.pl</span>) now works as expected</li>
+				</ul>
+			
+				<br />
 				<br />
 				<h2>Update: 0.60 (r3)</h2>
 				
@@ -80,32 +97,20 @@
 			<div id="content_download" style="display:none">
 				<h2><a id="download">Download</a></h2>
 
-				<p>The current version is 0.60 (r3).<br />
-				Last update: November 25th, 2007.
+				<p>The current version is 0.61-t003.<br />
+				Last update: 12th September, 2011.
 				</p>
 
-				<ul>
-					<li class="update">Please note: I have decided to stop development of the PuTTY Tray patch, and I have no plans to resume it at any point in the future.</li>
-				</ul>
-				
 				<p>
 				PuTTY Tray:</p>
 				<ul>
 					<li>
-						<a href="download/putty.exe">putty.exe</a> (644kB)<br />
-						<span style="font-size: 80%; color: #AAAAAA;">MD5 (putty.exe) = f33f8bcdd0e5ce9552f12c79be908bc5</span>
+						<a href="http://b.goeswhere.com/putty-tray-v003/putty.exe">putty.exe</a> (<strong>x64 only</strong>)<br />
+						<span style="font-size: 80%; color: #AAAAAA;">SHA1 / GPG (putty.exe) = 
+							<a href="http://git.goeswhere.com/?p=putty.git;a=tag;h=refs/tags/p0.61-t003">0e590a7792045230271b5a08bca54751f46c7bc2</a></span>
 					</li>
 				</ul>
-				
-				<p>Pagant with improved looks (built on 0.59 code, no file support).<br />
-				</p>
-				<ul>
-					<li>
-						<a href="download/pageant.exe">pageant.exe</a> (272kB)
-					</li>
-				</ul>
-				<br />
-				
+			
 				<p>If you are looking for the original version of PuTTY:</p>
 				<ul>
 					<li><a href="http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html">PuTTY download page</a></li>
@@ -115,22 +120,13 @@
 			<div id="content_authors" style="display:none">
 				<h2><a id="authors">Authors</a></h2>
 				
-				<p>PuTTY Tray is a combination of the best SSH client and some of the best patches
-				written for it.<br />
-				It started out as a simple trayicon patch, created after I 
-				<a href="http://www.chiark.greenend.org.uk/~sgtatham/putty/wishlist/system-tray.html">read that this feature
-				would never make it into the 'standard' PuTTY</a>.</p>
-				
-				<p>After a while I started merging it with other patches, to create the ultimate PuTTY.
-				Because I could never have created PuTTY Tray as it is today without these patches, I would like to thank:</p>
-				
 				<ul>
+					<li><a href="http://haanstra.eu/putty/">Barry Haanstra</a>, for the original compilation of PuTTyTray, and this website</li>
 					<li><a href="http://www.everaldo.com/crystal/">Everaldo</a>, for making the beautiful Crystal SVG icon set from which I derived the PuTTY Tray icon</li>
 					<li>Samuli Gröhn, for making the <a href="http://www.groehn.net/nutty/">NuTTY hyperlink patch</a></li>
 					<li>Jakub Kotrla because he invented the <a href="http://jakub.kotrla.net/putty/">PuTTY File patch</a></li>
 					<li><a href="http://www.warp13.co.uk/putty.py">warp13.co.uk</a>, for the reconnect patch</li>
 					<li><a href="http://putty.dwalin.ru/">dwalin.ru</a>, for parts of the TuTTY session icon code</li>
-					<li>All the people who are sending me emails with great suggestions</li>
 				</ul>
 				
 				<p><strong>Please note:</strong><br/>If this software does not work as expected, eats your PC or kills your cat,
@@ -142,32 +138,27 @@
 
 			<div id="content_source" style="display:none">
 				<h2><a id="source">Source</a></h2>
-				
-				<p><strong>PuTTY Tray patch:</strong><br />
+				<p><strong><a href="https://github.com/FauxFaux/PuTTyTray">github</a></strong><br />
+				<p>
+					The project is maintained at <a href="https://github.com/FauxFaux/PuTTyTray">Faux' PuTTyTray github</a>.
+					Please feel free to use the fork, pull request and <a href="https://github.com/FauxFaux/PuTTyTray/issues">issues</a> 
+					features of <a href="https://github.com/">github</a>.
+				</p>
+
+				<p><strong>Barry's original PuTTY Tray patch:</strong><br />
 				</p>
 				<ul>
-					<li><a href="download/putty.diff">putty.diff</a></li>
+					<li><a href="download/putty.diff">putty 0.60 (r3).diff</a></li>
 				</ul>
 				
 				<p>
-				For all of you who have been waiting for the source: the new 0.60 (r3) diff is available now. I advise you to read every line twice, then make it better and send to code back to me <img src="./g/smiles/smilevague.png" alt="" />.<br />
+					The original patch for "PuttyTray 0.60 (r3)", as released by Barry Haanstra.
+					This is maintained for historical reasons only, please develop against github.
 				</p>
-				
-				<p><strong>Please note:</strong><br />
-				I get a lot of email about the diff not working. You should apply it only to the 0.60 release source, then add the extra .c and .h files to the Visual Studio project.
-				You also need to set up the regex stuff for the hyperlink patch.<br />
-				I recently got a nice email from Edward Z. Yang. He told me how he got the diff working: <a href="download/diff_howto.txt">read here</a>.<br />
-				</p>
-				
-				<p>
-				Icon and dialog resources are NOT included in the diff. If you want to use the icon, rip it from my executable or use the one available in SVG format.
-				You can find it below.<br />
-				Also, please stop mailing me about releasing the entire Visual Studio project, you cannot have it. The diff is all you need.
-				</p>
-				
+
 				<p><strong>The icon:</strong><br />
-				I created the high color icon using the Crystal SVG files found in
-				the KDE repository. It's a mixture of 2 existing icons, and you all know the result:<br />
+				Barry created the high color icon using the Crystal SVG files found in
+				the KDE repository. It's a mixture of 2 existing icons.<br />
 				</p>
 				<ul>
 					<li><a href="download/puttytray.svg">PuTTY Tray Icon</a> (SVG)</li>
