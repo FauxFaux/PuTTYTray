@@ -3698,6 +3698,7 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
     static int *lpDx = NULL;
     static int lpDx_len = 0;
     int *lpDx_maybe;
+    int origX, origY;
 
     lattr &= LATTR_MODE;
 
@@ -3714,6 +3715,9 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
     y *= font_height;
     x += offset_width;
     y += offset_height;
+
+    origX = x;
+    origY = y;
 
     if ((attr & TATTR_ACTCURS) && (cfg.cursor_type == 0 || term->big_cursor)) {
 	attr &= ~(ATTR_REVERSE|ATTR_BLINK|ATTR_COLOURS);
@@ -3997,8 +4001,8 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
 	    dec = dec * 2 - font_height;
 
 	oldpen = SelectObject(hdc, CreatePen(PS_SOLID, 0, fg));
-	MoveToEx(hdc, x, y + dec, NULL);
-	LineTo(hdc, x + len * char_width, y + dec);
+	MoveToEx(hdc, origX, origY + dec, NULL);
+	LineTo(hdc, origX + len * char_width, origY + dec);
 	oldpen = SelectObject(hdc, oldpen);
 	DeleteObject(oldpen);
     }
