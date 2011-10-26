@@ -52,6 +52,8 @@ const char *const ttymodes[] = {
     "CS8",	"PARENB",   "PARODD",	NULL
 };
 
+const char* urlhack_default_regex = "((((https?|ftp):\\/\\/)|www\\.)(([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)|localhost|([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\.(com|net|org|info|biz|gov|name|edu|[a-zA-Z][a-zA-Z]))(:[0-9]+)?((\\/|\\?)[^ \"]*[^ ,;\\.:\">)])?)|(spotify:[^ ]+:[^ ]+)";
+
 /*
  * Convenience functions to access the backends[] array
  * (which is only present in tools that manage settings).
