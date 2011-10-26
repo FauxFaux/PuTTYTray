@@ -2854,7 +2854,7 @@ int do_config_box(const char *title, Conf *conf, int midsession,
 
     ctrlbox = ctrl_new_box();
     protocol = conf_get_int(conf, CONF_protocol);
-    setup_config_box(ctrlbox, midsession, protocol, protcfginfo);
+    setup_config_box(ctrlbox, midsession, protocol, protcfginfo, -1);
     unix_setup_config_box(ctrlbox, midsession, protocol);
     gtk_setup_config_box(ctrlbox, midsession, window);
 

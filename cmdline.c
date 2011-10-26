@@ -221,7 +221,8 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
 	RETURN(1);
 	UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
 	SAVEABLE(0);
-	default_protocol = cfg->protocol = PROT_ADB;
+	default_protocol = PROT_ADB;
+	conf_set_int(conf, CONF_protocol, default_protocol);
     }    
     if (!strcmp(p, "-serial")) {
 	RETURN(1);
