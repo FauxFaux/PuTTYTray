@@ -5903,7 +5903,7 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 		}
 		else {
 			termline *urldata = scrlineptr(region.y0);
-			int linklen, pos = region.x0, row = region.y0;
+			int linklen, row = region.y0;
 
 			linklen = (term->cols - region.x0) +
 				((region.y1 - region.y0 - 1) * term->cols) + region.x1 + 1;

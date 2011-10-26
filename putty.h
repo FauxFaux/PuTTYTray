@@ -716,6 +716,9 @@ struct config_tag {
 	int url_underline;
 	int url_defbrowser;
 	int url_defregex;
+#ifndef MAX_PATH
+#	define MAX_PATH 260
+#endif
 	char url_browser[MAX_PATH];
 	char url_regex[1024];
 

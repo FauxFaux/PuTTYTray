@@ -14,8 +14,8 @@ typedef struct { int x0, y0, x1, y1; } text_region;
 extern "C" {
 #endif
 
-const char* urlhack_default_regex;
-int urlhack_mouse_old_x, urlhack_mouse_old_y, urlhack_current_region;
+extern const char* urlhack_default_regex;
+extern int urlhack_mouse_old_x, urlhack_mouse_old_y, urlhack_current_region;
 
 void urlhack_reset();
 void urlhack_go_find_me_some_hyperlinks(int screen_width);
@@ -30,6 +30,7 @@ void urlhack_add_link_region(int x0, int y0, int x1, int y1);
 void urlhack_launch_url(const char* app, const char *url);
 int urlhack_is_ctrl_pressed();
 void urlhack_set_regular_expression(const char* expression);
+void rtfm(const char *error);
 
 #ifdef __cplusplus
 }

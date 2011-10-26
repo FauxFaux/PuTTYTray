@@ -2859,7 +2859,7 @@ int do_config_box(const char *title, Config *cfg, int midsession,
     window = gtk_dialog_new();
 
     ctrlbox = ctrl_new_box();
-    setup_config_box(ctrlbox, midsession, cfg->protocol, protcfginfo);
+    setup_config_box(ctrlbox, midsession, cfg->protocol, protcfginfo, -1);
     unix_setup_config_box(ctrlbox, midsession, cfg->protocol);
     gtk_setup_config_box(ctrlbox, midsession, window);
 
