@@ -1004,8 +1004,6 @@ if (defined $makefiles{'gtk'}) {
     "ULDFLAGS = \$(LDFLAGS)\n".
     "ifeq (,\$(findstring NO_GSSAPI,\$(COMPAT)))\n".
     "ifeq (,\$(findstring STATIC_GSSAPI,\$(COMPAT)))\n".
-    "XLDFLAGS+= -ldl\n".
-    "ULDFLAGS+= -ldl\n".
     "else\n".
     "CFLAGS+= -DNO_LIBDL \$(shell \$(KRB5CONFIG) --cflags gssapi)\n".
     "XLDFLAGS+= \$(shell \$(KRB5CONFIG) --libs gssapi)\n".
@@ -1079,6 +1077,8 @@ if (defined $makefiles{'unix'}) {
 	       (join " ", map {"-I$dirpfx$_"} @srcdirs)).
 		 " -D _FILE_OFFSET_BITS=64\n".
     "ULDFLAGS = \$(LDFLAGS)\n".
+    "XLDFLAGS+= -ldl\n".
+    "ULDFLAGS+= -ldl\n".
     "INSTALL=install\n".
     "INSTALL_PROGRAM=\$(INSTALL)\n".
     "INSTALL_DATA=\$(INSTALL)\n".

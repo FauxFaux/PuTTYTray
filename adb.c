@@ -192,8 +192,18 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
     }
 
 	/* send initial data to adb server */
-	
-	sprintf_s(sendhost,512,"%04xhost:%s",strlen(host)+5,host);
+#if _MSC_VER
+	sprintf_s
+#else
+	snprintf
+#endif
+	(sendhost, 512, 
+#if _MSC_VER	
+	"%04xhost:%s"
+#else	
+	"%04zxhost:%s"
+#endif
+	, strlen(host)+5, host);
 
 	sk_write(adb->s,sendhost,strlen(host)+9);
 	sk_flush(adb->s);

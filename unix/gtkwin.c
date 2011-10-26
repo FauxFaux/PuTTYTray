@@ -3411,7 +3411,7 @@ static void update_savedsess_menu(GtkMenuItem *menuitem, gpointer data)
     gtk_container_foreach(GTK_CONTAINER(inst->sessionsmenu),
 			  (GtkCallback)gtk_widget_destroy, NULL);
 
-    get_sesslist(&sesslist, TRUE);
+    get_sesslist(&sesslist, TRUE, -1);
     /* skip sesslist.sessions[0] == Default Settings */
     for (i = 1; i < sesslist.nsessions; i++) {
 	GtkWidget *menuitem =
@@ -3434,7 +3434,7 @@ static void update_savedsess_menu(GtkMenuItem *menuitem, gpointer data)
 	gtk_container_add(GTK_CONTAINER(inst->sessionsmenu), menuitem);
 	gtk_widget_show(menuitem);
     }
-    get_sesslist(&sesslist, FALSE); /* free up */
+    get_sesslist(&sesslist, FALSE, -1); /* free up */
 }
 
 void set_window_icon(GtkWidget *window, const char *const *const *icon,
