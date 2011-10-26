@@ -21,6 +21,7 @@ void urlhack_add_link_region(int x0, int y0, int x1, int y1);
 void urlhack_launch_url(const char* app, const char *url);
 int urlhack_is_ctrl_pressed();
 void urlhack_set_regular_expression(const char* expression);
+void rtfm(const char *error);
 
 void urlhack_init();
 void urlhack_cleanup();
