@@ -12,7 +12,7 @@ extern int urlhack_mouse_old_x = -1, urlhack_mouse_old_y = -1, urlhack_current_r
 static std::vector<text_region> link_regions;
 static std::string browser_app;
 
-extern const char* urlhack_default_regex = "(((https?|ftp):\\/\\/)|www\\.)(([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)|localhost|([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\.(com|net|org|info|biz|gov|name|edu|[a-zA-Z][a-zA-Z]))(:[0-9]+)?((\\/|\\?)[^ \"]*[^ ,;\\.:\">)])?";
+extern const char* urlhack_default_regex = "((((https?|ftp):\\/\\/)|www\\.)(([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)|localhost|([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\.(com|net|org|info|biz|gov|name|edu|[a-zA-Z][a-zA-Z]))(:[0-9]+)?((\\/|\\?)[^ \"]*[^ ,;\\.:\">)])?)|(spotify:[^ ]+:[^ ]+)";
 
 
 void urlhack_clear_link_regions()
@@ -112,6 +112,11 @@ void urlhack_launch_url(const char* app, const char *url)
 	}
 
 	if (browser_app.size() == 0) {
+		// first let the OS try...
+		if (reinterpret_cast<long>(ShellExecute(NULL, NULL, url, NULL, NULL, SW_SHOWNORMAL)) > 32) {
+			return;
+		}
+
 		// Find out the default app
 		HKEY key;
 		DWORD dwValue;
