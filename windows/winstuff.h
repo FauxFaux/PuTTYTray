@@ -553,3 +553,5 @@ int remove_from_jumplist_registry(const char *item);
 char *get_jumplist_registry_entries(void);
 
 #endif
+
+GLOBAL char base_path[_MAX_PATH];

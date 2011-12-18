@@ -1404,6 +1404,11 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     hwnd = NULL;
 
     /*
+     * Set base_path
+     */
+    _getcwd(base_path, _MAX_PATH);
+
+    /*
      * See if we can find our Help file.
      */
     init_help();

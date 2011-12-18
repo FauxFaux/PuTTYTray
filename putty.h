@@ -137,6 +137,22 @@ typedef struct terminal_tag Terminal;
 #define ATTR_DEFBG   (258 << ATTR_BGSHIFT)
 #define ATTR_DEFAULT (ATTR_DEFFG | ATTR_DEFBG)
 
+/*
+ * HACK: PuttyTray / Nutty
+ * Hyperlink stuff: define
+ */
+#define CHAR_MASK    0x000000FFUL
+
+/*
+ * HACK: PuttyTray / Nutty
+ * Hyperlink stuff: Underline settings
+ */
+enum {
+	URLHACK_UNDERLINE_ALWAYS,
+	URLHACK_UNDERLINE_HOVER,
+	URLHACK_UNDERLINE_NEVER
+};
+
 struct sesslist {
     int nsessions;
     char **sessions;
@@ -667,6 +683,23 @@ struct config_tag {
     int shadowboldoffset;
     int crhaslf;
     char winclass[256];
+    /*
+     * HACK: PuttyTray / Nutty
+     * Hyperlink stuff: Underline settings
+     */
+    int url_ctrl_click;
+    int url_underline;
+    int url_defbrowser;
+    int url_defregex;
+    char url_browser[MAX_PATH];
+    char url_regex[1024];
+
+    /*
+     * HACK: PuttyTray / Reconnect
+     */
+    int wakeup_reconnect;
+    int failure_reconnect;
+
 };
 
 /*

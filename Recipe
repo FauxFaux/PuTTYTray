@@ -274,7 +274,7 @@ SFTP     = sftp int64 logging
 # Pageant or PuTTYgen).
 MISC     = timing misc version settings tree234 proxy
 WINMISC  = MISC winstore winnet winhandl cmdline windefs winmisc winproxy
-         + wintime
+         + wintime dirent urlhack regexp
 UXMISC   = MISC uxstore uxsel uxnet cmdline uxmisc uxproxy time
 OSXMISC  = MISC uxstore uxsel osxsel uxnet uxmisc uxproxy time
 
@@ -283,7 +283,7 @@ CHARSET  = sbcsdat slookup sbcs utf8 toucs fromucs xenc mimeenc macenc localenc
 
 # Standard libraries.
 LIBS     = advapi32.lib user32.lib gdi32.lib comctl32.lib comdlg32.lib
-         + shell32.lib winmm.lib imm32.lib winspool.lib ole32.lib
+         + shell32.lib winmm.lib imm32.lib winspool.lib ole32.lib shlwapi.lib
 
 # Network backend sets. This also brings in the relevant attachment
 # to proxy.c depending on whether we're crypto-avoidant or not.
@@ -315,22 +315,22 @@ psftp    : [C] psftp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
 
 pageant  : [G] winpgnt sshrsa sshpubk sshdes sshbn sshmd5 version tree234
          + misc sshaes sshsha winpgntc sshdss sshsh256 sshsh512 winutils
-         + winmisc winhelp pageant.res LIBS
+         + winmisc winstore winjump dirent winhelp pageant.res LIBS
 
 puttygen : [G] winpgen sshrsag sshdssg sshprime sshdes sshbn sshmd5 version
-         + sshrand winnoise sshsha winstore misc winctrls sshrsa sshdss winmisc
+         + sshrand winnoise sshsha winstore misc winctrls sshrsa sshdss winmisc winstore dirent
          + sshpubk sshaes sshsh256 sshsh512 import winutils puttygen.res
-	 + tree234 notiming winhelp winnojmp LIBS wintime
+         + tree234 notiming winhelp winnojmp LIBS wintime
 
 pterm    : [X] GTKTERM uxmisc misc ldisc settings uxpty uxsel BE_NONE uxstore
          + uxsignal CHARSET cmdline uxpterm version time xpmpterm xpmptcfg
-	 + nogss
+         + nogss
 putty    : [X] GTKTERM uxmisc misc ldisc settings uxsel U_BE_ALL uxstore
          + uxsignal CHARSET uxputty NONSSH UXSSH UXMISC ux_x11 xpmputty
          + xpmpucfg
 puttytel : [X] GTKTERM uxmisc misc ldisc settings uxsel U_BE_NOSSH
-	 + uxstore uxsignal CHARSET uxputty NONSSH UXMISC xpmputty xpmpucfg
-	 + nogss
+         + uxstore uxsignal CHARSET uxputty NONSSH UXMISC xpmputty xpmpucfg
+         + nogss
 
 plink    : [U] uxplink uxcons NONSSH UXSSH U_BE_ALL logging UXMISC uxsignal
          + ux_x11

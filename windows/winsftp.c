@@ -715,6 +715,11 @@ int main(int argc, char *argv[])
 {
     int ret;
 
+    /*
+     * Set base_path
+     */
+    _getcwd(base_path, _MAX_PATH);
+
     ret = psftp_main(argc, argv);
 
     return ret;

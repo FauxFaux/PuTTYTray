@@ -14,6 +14,8 @@
 #include "ssh.h"
 #include "misc.h"
 #include "tree234.h"
+#include "storage.h"
+#include "dirent.h"
 
 #include <shellapi.h>
 
@@ -68,6 +70,8 @@ static filereq *keypath = NULL;
 #define IDM_SESSIONS_MAX  0x2000
 #define PUTTY_REGKEY      "Software\\SimonTatham\\PuTTY\\Sessions"
 #define PUTTY_DEFAULT     "Default%20Settings"
+#define PUTTY_DEFAULT2    "Default Settings"
+#define PUTTY_PORTABLE    TRUE
 static int initial_menuitems_count;
 
 /*
@@ -1638,14 +1642,17 @@ static void update_sessions(void)
     HKEY hkey;
     TCHAR buf[MAX_PATH + 1];
     MENUITEMINFO mii;
+    DIR *dp;
 
     int index_key, index_menu;
 
     if (!putty_path)
 	return;
 
+    if (!PUTTY_PORTABLE) {
     if(ERROR_SUCCESS != RegOpenKey(HKEY_CURRENT_USER, PUTTY_REGKEY, &hkey))
 	return;
+    }
 
     for(num_entries = GetMenuItemCount(session_menu);
 	num_entries > initial_menuitems_count;
@@ -1655,6 +1662,7 @@ static void update_sessions(void)
     index_key = 0;
     index_menu = 0;
 
+    if (!PUTTY_PORTABLE) {
     while(ERROR_SUCCESS == RegEnumKey(hkey, index_key, buf, MAX_PATH)) {
 	TCHAR session_name[MAX_PATH + 1];
 	unmungestr(buf, session_name, MAX_PATH);
@@ -1673,6 +1681,26 @@ static void update_sessions(void)
     }
 
     RegCloseKey(hkey);
+    }
+
+    dp = enum_settings_start();
+    while(enum_settings_next(dp, buf, MAX_PATH)) {
+	TCHAR session_name[MAX_PATH + 1];
+	unmungestr(buf, session_name, MAX_PATH);
+	if(strcmp(buf, PUTTY_DEFAULT) != 0 && strcmp(buf, PUTTY_DEFAULT2) != 0) {
+	    memset(&mii, 0, sizeof(mii));
+	    mii.cbSize = sizeof(mii);
+	    mii.fMask = MIIM_TYPE | MIIM_STATE | MIIM_ID;
+	    mii.fType = MFT_STRING;
+	    mii.fState = MFS_ENABLED;
+	    mii.wID = (index_menu * 16) + IDM_SESSIONS_BASE;
+	    mii.dwTypeData = session_name;
+	    InsertMenuItem(session_menu, index_menu, TRUE, &mii);
+	    index_menu++;
+	}
+	index_key++;
+    }
+    enum_settings_finish(dp);
 
     if(index_menu == 0) {
 	mii.cbSize = sizeof(mii);
@@ -2011,6 +2039,11 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     hinst = inst;
     hwnd = NULL;
+
+    /*
+     * Set base_path
+     */
+    _getcwd(base_path, _MAX_PATH);
 
     /*
      * Determine whether we're an NT system (should have security

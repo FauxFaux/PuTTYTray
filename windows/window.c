@@ -9,6 +9,12 @@
 #include <time.h>
 #include <limits.h>
 #include <assert.h>
+#include <direct.h>
+
+/*
+ * HACK: PuttyTray / Nutty
+ */
+#include "urlhack.h"
 
 #ifndef NO_MULTIMON
 #define COMPILE_MULTIMON_STUBS
@@ -202,6 +208,17 @@ static int compose_state = 0;
 
 static UINT wm_mousewheel = WM_MOUSEWHEEL;
 
+/*
+ * HACK: PuttyTray / Reconnect
+ */
+static time_t last_reconnect = 0;
+
+/*
+ * HACK: PuttyTray / Nutty
+ */ 
+static int urlhack_cursor_is_hand = 0;
+
+
 /* Dummy routine, only required in plink. */
 void ldisc_update(void *frontend, int echo, int edit)
 {
@@ -375,6 +392,16 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	sfree(str);
 	return 1;
     }
+
+    /*
+     * Set base_path
+     */
+    _getcwd(base_path, _MAX_PATH);
+
+    /*
+     * Set base_path
+     */
+    _getcwd(base_path, _MAX_PATH);
 
     /*
      * Process the command line.
@@ -806,6 +833,14 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     start_backend();
 
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Set the regular expression
+	 */
+	if (term->cfg.url_defregex == 0) {
+		urlhack_set_regular_expression(term->cfg.url_regex);
+	}
+
     /*
      * Set up the initial input locale.
      */
@@ -1079,18 +1114,35 @@ void connection_fatal(void *frontend, char *fmt, ...)
     va_list ap;
     char *stuff, morestuff[100];
 
-    va_start(ap, fmt);
-    stuff = dupvprintf(fmt, ap);
-    va_end(ap);
-    sprintf(morestuff, "%.70s Fatal Error", appname);
-    MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
-    sfree(stuff);
+	/*
+	 * HACK: PuTTYTray / Reconnect on connection failure
+	 */
+	if (cfg.failure_reconnect) {
+		time_t tnow = time(NULL);
+		close_session();
+  
+		if(last_reconnect && (tnow - last_reconnect) < 5) {
+			Sleep(5000);
+		}
 
-    if (cfg.close_on_exit == FORCE_ON)
-	PostQuitMessage(1);
-    else {
-	must_close_session = TRUE;
-    }
+		last_reconnect = tnow;
+		logevent(NULL, "Lost connection, reconnecting...");
+		term_pwron(term, FALSE);
+		start_backend();
+	} else {
+		va_start(ap, fmt);
+		stuff = dupvprintf(fmt, ap);
+		va_end(ap);
+		sprintf(morestuff, "%.70s Fatal Error", appname);
+		MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
+		sfree(stuff);
+
+		if (cfg.close_on_exit == FORCE_ON)
+		PostQuitMessage(1);
+		else {
+		must_close_session = TRUE;
+		}
+	}
 }
 
 /*
@@ -1994,6 +2046,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
     static int fullscr_on_max = FALSE;
     static int processed_resize = FALSE;
     static UINT last_mousemove = 0;
+    
+	/*
+	 * HACK: PuttyTray / Nutty
+	 */ 
+	POINT cursor_pt;
 
     switch (message) {
       case WM_TIMER:
@@ -2180,6 +2237,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		/* Pass new config data to the back end */
 		if (back)
 		    back->reconfig(backhandle, &cfg);
+
+		/*
+		 * HACK: PuttyTray / Nutty
+		 * Reconfigure
+		 */
+		if (cfg.url_defregex == 0) {
+			urlhack_set_regular_expression(cfg.url_regex);
+		}
+		term->url_update = TRUE;
+		term_update(term);
 
 		/* Screen size changed ? */
 		if (cfg.height != prev_cfg.height ||
@@ -2479,6 +2546,37 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	 * number noise.
 	 */
 	noise_ultralight(lParam);
+	
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Change cursor type if hovering over link
+	 */ 
+	if (urlhack_mouse_old_x != TO_CHR_X(X_POS(lParam)) || urlhack_mouse_old_y != TO_CHR_Y(Y_POS(lParam))) {
+		urlhack_mouse_old_x = TO_CHR_X(X_POS(lParam));
+		urlhack_mouse_old_y = TO_CHR_Y(Y_POS(lParam));
+
+		if ((!term->cfg.url_ctrl_click || urlhack_is_ctrl_pressed()) &&
+			urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y)) {
+				if (urlhack_cursor_is_hand == 0) {
+					SetClassLong(hwnd, GCL_HCURSOR, LoadCursor(NULL, IDC_HAND));
+					urlhack_cursor_is_hand = 1;
+					term_update(term); // Force the terminal to update, otherwise the underline will not show (bug somewhere, this is an ugly fix)
+				}
+		}
+		else if (urlhack_cursor_is_hand == 1) {
+			SetClassLong(hwnd, GCL_HCURSOR, LoadCursor(NULL, IDC_IBEAM));
+			urlhack_cursor_is_hand = 0;
+			term_update(term); // Force the terminal to update, see above
+		}
+
+		// If mouse jumps from one link directly into another, we need a forced terminal update too
+		if (urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y) != urlhack_current_region) {
+			urlhack_current_region = urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y);
+			term_update(term);
+		}
+
+	}
+	/* HACK: PuttyTray / Nutty : END */
 
 	if (wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON) &&
 	    GetCapture() == hwnd) {
@@ -2918,10 +3016,37 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    }
 	}
 	return FALSE;
-      case WM_KEYDOWN:
-      case WM_SYSKEYDOWN:
-      case WM_KEYUP:
-      case WM_SYSKEYUP:
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Change cursor if we are in ctrl+click link mode
+	 *
+	 * WARNING: Spans over multiple CASEs
+	 */
+	case WM_KEYDOWN:
+		if (wParam == VK_CONTROL && term->cfg.url_ctrl_click) {
+			GetCursorPos(&cursor_pt);
+			ScreenToClient(hwnd, &cursor_pt);
+
+			if (urlhack_is_in_link_region(TO_CHR_X(cursor_pt.x), TO_CHR_Y(cursor_pt.y))) {
+				SetCursor(LoadCursor(NULL, IDC_HAND));
+				term_update(term);
+			}
+		
+			goto KEY_END;
+		}	
+
+	case WM_KEYUP:
+		if (wParam == VK_CONTROL && term->cfg.url_ctrl_click) {
+			SetCursor(LoadCursor(NULL, IDC_IBEAM));
+			term_update(term);
+		
+			goto KEY_END;
+		}
+	KEY_END:
+
+	case WM_SYSKEYDOWN:
+	case WM_SYSKEYUP:
+	/* HACK: PuttyTray / Nutty : END */
 	/*
 	 * Add the scan code and keypress timing to the random
 	 * number noise.
@@ -3080,6 +3205,43 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	if (process_clipdata((HGLOBAL)lParam, wParam))
 	    term_do_paste(term);
 	return 0;
+	
+	/*
+	 * HACK: PuttyTray / Reconnect
+	 */
+	case WM_POWERBROADCAST:
+		if(cfg.wakeup_reconnect) {
+			switch(wParam) {
+				case PBT_APMRESUMESUSPEND:
+				case PBT_APMRESUMEAUTOMATIC:
+				case PBT_APMRESUMECRITICAL:
+				case PBT_APMQUERYSUSPENDFAILED:
+					if(session_closed && !back) {
+						time_t tnow = time(NULL);
+						
+						if(last_reconnect && (tnow - last_reconnect) < 5) {
+							Sleep(1000);
+						}
+
+						last_reconnect = tnow;
+						logevent(NULL, "Woken up from suspend, reconnecting...");
+						term_pwron(term, FALSE);
+						start_backend();
+					}
+					break;
+				case PBT_APMSUSPEND:
+					if(!session_closed && back) {
+						logevent(NULL, "Suspend detected, disconnecting cleanly...");
+						close_session();
+					}
+					break;
+			}
+		}
+		break;
+	/*
+	 * END HACKS: PuttyTray / Trayicon & Reconnect
+	 */
+	
       default:
 	if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
 	    int shift_pressed=0, control_pressed=0;
