@@ -29,7 +29,7 @@ FontSpec platform_default_fontspec(const char *name)
 		ret.charset = ANSI_CHARSET;
 		ret.height = 10;
     } else if (!strcmp(name, "FontUnicode")) {
-		strcpy(ret.name, "Dotum");
+		strcpy(ret.name, "µ¸¿òÃ¼");
 		ret.isbold = 0;
 		ret.charset = HANGEUL_CHARSET;
 		ret.height = 10;
