@@ -514,6 +514,12 @@ void save_open_settings(void *sesskey, Config *cfg)
     write_setting_i(sesskey, "TermWidth", cfg->width);
     write_setting_i(sesskey, "TermHeight", cfg->height);
     write_setting_fontspec(sesskey, "Font", cfg->font);
+
+	//Add Unicode Font Set
+	write_setting_i(sesskey, "UseFontUnicode", cfg->use_font_unicode);
+	write_setting_fontspec(sesskey, "FontUnicode", cfg->font_unicode);
+	write_setting_i(sesskey, "FontUnicodeAdjustment", cfg->font_unicode_adj);
+	
     write_setting_i(sesskey, "FontQuality", cfg->font_quality);
     write_setting_i(sesskey, "FontVTMode", cfg->vtmode);
     write_setting_i(sesskey, "UseSystemColours", cfg->system_colour);
@@ -812,7 +818,7 @@ void load_open_settings(void *sesskey, Config *cfg)
 	 * HACK: PuttyTray / Transparency
 	 * Save transparency settings
 	 */
-	gppi(sesskey, "Transparency", 255, &cfg->transparency);
+	gppi(sesskey, "Transparency", 230, &cfg->transparency);
 
 	/*
 	 * HACK: PuttyTray / PuTTY File

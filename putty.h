@@ -615,6 +615,12 @@ struct config_tag {
     int win_name_always;
     int width, height;
     FontSpec font;
+
+	//Add Unicode Font Setting
+	int use_font_unicode;
+	FontSpec font_unicode;
+	int font_unicode_adj;
+
     int font_quality;
     Filename logfilename;
     int logtype;

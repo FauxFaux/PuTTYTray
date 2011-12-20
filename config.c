@@ -1656,6 +1656,17 @@ void setup_config_box(struct controlbox *b, int midsession,
 		 HELPCTX(appearance_font),
 		 dlg_stdfontsel_handler, I(offsetof(Config, font)));
 
+	//Add Unicode Font Setting
+	ctrl_checkbox(s, "Use separated unicode font", 'f',
+		 HELPCTX(no_help),
+		 dlg_stdcheckbox_handler, I(offsetof(Config, use_font_unicode)));
+	ctrl_fontsel(s, "Font for unicode characters", 's',
+		 HELPCTX(no_help),
+		 dlg_stdfontsel_handler, I(offsetof(Config, font_unicode)));
+	ctrl_editbox(s, "Adjustment of unicode font (px)", 'a', 20,
+		 HELPCTX(no_help),
+		 dlg_stdeditbox_handler, I(offsetof(Config, font_unicode_adj)), I(-1));
+
     s = ctrl_getset(b, "Window/Appearance", "mouse",
 		    "Adjust the use of the mouse pointer");
     ctrl_checkbox(s, "Hide mouse pointer when typing in window", 'p',

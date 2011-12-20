@@ -1613,6 +1613,15 @@ static void init_fonts(int pick_width, int pick_height)
 			   FIXED_PITCH | FF_DONTCARE, cfg.font.name)
 
     f(FONT_NORMAL, cfg.font.charset, fw_dontcare, FALSE);
+	
+	//Add Unicode Font Set
+	if (cfg.use_font_unicode)
+		fonts[FONT_UNICODE] = CreateFont (font_height, font_width, 0, 0, fw_dontcare, FALSE, FALSE, FALSE, \
+		cfg.font_unicode.charset, OUT_DEFAULT_PRECIS, \
+		CLIP_DEFAULT_PRECIS, FONT_QUALITY(cfg.font_quality), \
+		FIXED_PITCH | FF_DONTCARE, cfg.font_unicode.name);
+	else
+		fonts[FONT_UNICODE] = NULL;
 
     if (bold_mode == BOLD_FONT) {
         f(FONT_BOLD, cfg.font.charset, fw_bold, FALSE);
@@ -3958,6 +3967,12 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
 
             for (i = 0; i < len; i++)
                 wbuf[i] = text[i];
+
+			//Add Unicode Font Set
+			if (cfg.use_font_unicode) {
+				SelectObject(hdc, fonts[FONT_UNICODE]);
+				text_adjust = cfg.font_unicode_adj;
+			}
 
             /* print Glyphs as they are, without Windows' Shaping*/
             general_textout(hdc, x + xoffset,
