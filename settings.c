@@ -953,11 +953,17 @@ void load_open_settings(void *sesskey, Config *cfg)
 	}
     }
     /*
-     * The empty default for LineCodePage will be converted later
-     * into a plausible default for the locale.
+     * The empty default for LineCodePage will be converted UTF-8
      */
-    gpps(sesskey, "LineCodePage", "", cfg->line_codepage,
-	 sizeof(cfg->line_codepage));
+	if(strcmp(cfg->line_codepage, "") == 0){
+		strcpy(cfg->line_codepage, "UTF-8");
+		gpps(sesskey, "LineCodePage", "UTF-8", cfg->line_codepage,
+		sizeof(cfg->line_codepage));
+	} else {
+		gpps(sesskey, "LineCodePage", "", cfg->line_codepage,
+		sizeof(cfg->line_codepage));
+	}
+
     gppi(sesskey, "CJKAmbigWide", 0, &cfg->cjk_ambig_wide);
     gppi(sesskey, "UTF8Override", 1, &cfg->utf8_override);
     gpps(sesskey, "Printer", "", cfg->printer, sizeof(cfg->printer));
