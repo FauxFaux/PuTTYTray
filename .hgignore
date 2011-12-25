@@ -1,0 +1,8 @@
+syntax: glob
+*.obj
+windows/MSVC/*/Release
+windows/MSVC/*/Debug
+*.suo
+*.sdf
+*.opensdf
+*.vcxproj.user
