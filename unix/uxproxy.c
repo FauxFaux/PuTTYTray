@@ -209,7 +209,7 @@ static int localproxy_select_result(int fd, int event)
 	} else if (ret == 0) {
 	    return plug_closing(s->plug, NULL, 0, 0);
 	} else {
-	    return plug_receive(s->plug, 1, buf, ret);
+	    return plug_receive(s->plug, 0, buf, ret);
 	}
     } else if (event == 2) {
 	assert(fd == s->to_cmd);
@@ -285,6 +285,8 @@ Socket platform_new_connection(SockAddr addr, char *hostname,
 	execl("/bin/sh", "sh", "-c", cmd, (void *)NULL);
 	_exit(255);
     }
+
+    sfree(cmd);
 
     close(to_cmd_pipe[0]);
     close(from_cmd_pipe[1]);

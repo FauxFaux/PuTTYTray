@@ -649,6 +649,7 @@ int do_config(void)
     dp.wintitle = dupprintf("%s Configuration", appname);
     dp.errtitle = dupprintf("%s Error", appname);
     dp.data = &cfg;
+    dlg_auto_set_fixed_pitch_flag(&dp);
     dp.shortcuts['g'] = TRUE;	       /* the treeview: `Cate&gory' */
 
     ret =
@@ -682,6 +683,7 @@ int do_reconfig(HWND hwnd, int protcfginfo)
     dp.wintitle = dupprintf("%s Reconfiguration", appname);
     dp.errtitle = dupprintf("%s Error", appname);
     dp.data = &cfg;
+    dlg_auto_set_fixed_pitch_flag(&dp);
     dp.shortcuts['g'] = TRUE;	       /* the treeview: `Cate&gory' */
 
     ret = SaneDialogBox(hinst, MAKEINTRESOURCE(IDD_MAINBOX), NULL,
@@ -786,7 +788,7 @@ int verify_ssh_host_key(void *frontend, char *host, int port, char *keytype,
 
     if (ret == 0)		       /* success - key matched OK */
 	return 1;
-    if (ret == 2) {		       /* key was different */
+    else if (ret == 2) {	       /* key was different */
 	int mbret;
 	char *text = dupprintf(wrongmsg, appname, keytype, fingerprint,
 			       appname);
@@ -802,9 +804,7 @@ int verify_ssh_host_key(void *frontend, char *host, int port, char *keytype,
 	    return 1;
 	} else if (mbret == IDNO)
 	    return 1;
-        return 0;
-    }
-    if (ret == 1) {		       /* key was absent */
+    } else if (ret == 1) {	       /* key was absent */
 	int mbret;
 	char *text = dupprintf(absentmsg, keytype, fingerprint, appname);
 	char *caption = dupprintf(mbtitle, appname);
@@ -819,8 +819,8 @@ int verify_ssh_host_key(void *frontend, char *host, int port, char *keytype,
 	    return 1;
 	} else if (mbret == IDNO)
 	    return 1;
-        return 0;
     }
+    return 0;	/* abandon the connection */
 }
 
 /*

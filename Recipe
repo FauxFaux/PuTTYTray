@@ -18,15 +18,14 @@
 !makefile borland windows/Makefile.bor
 !makefile lcc windows/Makefile.lcc
 !makefile gtk unix/Makefile.gtk
+!makefile unix unix/Makefile.ux
 !makefile ac unix/Makefile.in
-!makefile mpw mac/Makefile.mpw
 !makefile osx macosx/Makefile
 !makefile devcppproj windows/DEVCPP
 # Source directories.
 !srcdir charset/
 !srcdir windows/
 !srcdir unix/
-!srcdir mac/
 !srcdir macosx/
 
 # Help text added to the top of each Makefile, with /D converted
@@ -94,6 +93,14 @@
 #      Disables PuTTY's ability to make IPv6 connections, enabling
 #      it to compile under development environments which do not
 #      support IPv6 in their header files.
+#
+#  - COMPAT=/DNO_GSSAPI
+#      Disables PuTTY's ability to use GSSAPI functions for
+#      authentication and key exchange.
+#
+#  - COMPAT=/DSTATIC_GSSAPI
+#      Causes PuTTY to try to link statically against the GSSAPI
+#      library instead of the default of doing it at run time.
 #
 #  - COMPAT=/DMSVC4 (Windows only)
 #  - RCFL=/DMSVC4
@@ -166,6 +173,7 @@ version.o: FORCE
 # Add VER to Windows resource targets, and force them to be rebuilt every
 # time, on the assumption that they will contain version information.
 !begin vc vars
+CFLAGS = $(CFLAGS) /DHAS_GSSAPI /DSECURITY_WIN32
 RCFLAGS = $(RCFLAGS) $(VER)
 !end
 !begin cygwin vars
@@ -190,6 +198,7 @@ RCFLAGS += $(VER)
 # `make install' target for Unix.
 !begin gtk
 install:
+	mkdir -p $(DESTDIR)$(bindir) $(DESTDIR)$(man1dir)
 	$(INSTALL_PROGRAM) -m 755 plink $(DESTDIR)$(bindir)/plink
 	$(INSTALL_PROGRAM) -m 755 pscp $(DESTDIR)$(bindir)/pscp
 	$(INSTALL_PROGRAM) -m 755 psftp $(DESTDIR)$(bindir)/psftp
@@ -240,11 +249,11 @@ TERMINAL = terminal wcwidth ldiscucs logging tree234 minibidi
 
 # GUI front end and terminal emulator (putty, puttytel).
 GUITERM  = TERMINAL window windlg winctrls sizetip winucs winprint
-         + winutils wincfg sercfg winhelp
+         + winutils wincfg sercfg winhelp winjump
 
 # Same thing on Unix.
 UXTERM   = TERMINAL uxcfg sercfg uxucs uxprint timing
-GTKTERM  = UXTERM gtkwin gtkcfg gtkdlg gtkcols xkeysym
+GTKTERM  = UXTERM gtkwin gtkcfg gtkdlg gtkfont gtkcols xkeysym
 OSXTERM  = UXTERM osxwin osxdlg osxctrls
 
 # Non-SSH back ends (putty, puttytel, plink).
@@ -254,9 +263,9 @@ NONSSH   = telnet raw rlogin ldisc pinger
 SSH      = ssh sshcrc sshdes sshmd5 sshrsa sshrand sshsha sshblowf
          + sshdh sshcrcda sshpubk sshzlib sshdss x11fwd portfwd
          + sshaes sshsh256 sshsh512 sshbn wildcard pinger ssharcf
-WINSSH   = SSH winnoise winpgntc
-UXSSH    = SSH uxnoise uxagentc
-MACSSH   = SSH macnoise
+         + sshgssc pgssapi
+WINSSH   = SSH winnoise winpgntc wingss
+UXSSH    = SSH uxnoise uxagentc uxgss
 
 # SFTP implementation (pscp, psftp).
 SFTP     = sftp int64 logging
@@ -268,14 +277,13 @@ WINMISC  = MISC winstore winnet winhandl cmdline windefs winmisc winproxy
          + wintime
 UXMISC   = MISC uxstore uxsel uxnet cmdline uxmisc uxproxy time
 OSXMISC  = MISC uxstore uxsel osxsel uxnet uxmisc uxproxy time
-MACMISC  = MISC macstore macnet mtcpnet otnet macmisc macabout pproxy
 
 # Character set library, for use in pterm.
 CHARSET  = sbcsdat slookup sbcs utf8 toucs fromucs xenc mimeenc macenc localenc
 
 # Standard libraries.
 LIBS     = advapi32.lib user32.lib gdi32.lib comctl32.lib comdlg32.lib
-         + shell32.lib winmm.lib imm32.lib winspool.lib
+         + shell32.lib winmm.lib imm32.lib winspool.lib ole32.lib
 
 # Network backend sets. This also brings in the relevant attachment
 # to proxy.c depending on whether we're crypto-avoidant or not.
@@ -294,54 +302,46 @@ U_BE_NOSSH = be_nos_s uxser nocproxy
 # Definitions of actual programs. The program name, followed by a
 # colon, followed by a list of objects. Also in the list may be the
 # keywords [G] for Windows GUI app, [C] for Console app, [X] for
-# X/GTK Unix app, [U] for command-line Unix app, [M] for Macintosh app.
+# X/GTK Unix app, [U] for command-line Unix app.
 
-putty    : [G] GUITERM NONSSH WINSSH W_BE_ALL WINMISC putty.res LIBS
-puttytel : [G] GUITERM NONSSH W_BE_NOSSH WINMISC puttytel.res LIBS
+putty    : [G] GUITERM NONSSH WINSSH W_BE_ALL WINMISC winx11 putty.res LIBS
+puttytel : [G] GUITERM NONSSH W_BE_NOSSH WINMISC puttytel.res nogss LIBS
 plink    : [C] winplink wincons NONSSH WINSSH W_BE_ALL logging WINMISC
-         + plink.res LIBS
+         + winx11 plink.res winnojmp LIBS
 pscp     : [C] pscp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
-         + pscp.res LIBS
+         + pscp.res winnojmp LIBS
 psftp    : [C] psftp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
-         + psftp.res LIBS
+         + psftp.res winnojmp LIBS
 
 pageant  : [G] winpgnt sshrsa sshpubk sshdes sshbn sshmd5 version tree234
-         + misc sshaes sshsha winpgntc sshdss sshsh512 winutils winmisc
-         + winhelp pageant.res LIBS
+         + misc sshaes sshsha winpgntc sshdss sshsh256 sshsh512 winutils
+         + winmisc winhelp pageant.res LIBS
 
 puttygen : [G] winpgen sshrsag sshdssg sshprime sshdes sshbn sshmd5 version
          + sshrand winnoise sshsha winstore misc winctrls sshrsa sshdss winmisc
-         + sshpubk sshaes sshsh512 import winutils puttygen.res tree234
-	 + notiming winhelp LIBS wintime
+         + sshpubk sshaes sshsh256 sshsh512 import winutils puttygen.res
+	 + tree234 notiming winhelp winnojmp LIBS wintime
 
 pterm    : [X] GTKTERM uxmisc misc ldisc settings uxpty uxsel BE_NONE uxstore
          + uxsignal CHARSET cmdline uxpterm version time xpmpterm xpmptcfg
+	 + nogss
 putty    : [X] GTKTERM uxmisc misc ldisc settings uxsel U_BE_ALL uxstore
          + uxsignal CHARSET uxputty NONSSH UXSSH UXMISC ux_x11 xpmputty
          + xpmpucfg
 puttytel : [X] GTKTERM uxmisc misc ldisc settings uxsel U_BE_NOSSH
 	 + uxstore uxsignal CHARSET uxputty NONSSH UXMISC xpmputty xpmpucfg
+	 + nogss
 
 plink    : [U] uxplink uxcons NONSSH UXSSH U_BE_ALL logging UXMISC uxsignal
          + ux_x11
 
 puttygen : [U] cmdgen sshrsag sshdssg sshprime sshdes sshbn sshmd5 version
          + sshrand uxnoise sshsha misc sshrsa sshdss uxcons uxstore uxmisc
-         + sshpubk sshaes sshsh512 import puttygen.res time tree234 uxgen
-         + notiming
+         + sshpubk sshaes sshsh256 sshsh512 import puttygen.res time tree234
+	 + uxgen notiming
 
 pscp     : [U] pscp uxsftp uxcons UXSSH BE_SSH SFTP wildcard UXMISC
 psftp    : [U] psftp uxsftp uxcons UXSSH BE_SSH SFTP wildcard UXMISC
-
-PuTTY    : [M] terminal wcwidth ldiscucs logging BE_ALL mac macdlg macevlog
-         + macterm macucs mac_res.rsrc testback NONSSH MACSSH MACMISC CHARSET
-         + stricmp vsnprint dialog config macctrls minibidi
-PuTTYtel : [M] terminal wcwidth ldiscucs logging BE_NOSSH mac macdlg
-	 + macevlog macterm macucs mac_res.rsrc testback NONSSH MACMISC
-	 + CHARSET stricmp vsnprint dialog config macctrls minibidi
-PuTTYgen : [M] macpgen sshrsag sshdssg sshprime sshdes sshbn sshmd5 version
-         + sshrand macnoise sshsha macstore misc sshrsa sshdss macmisc sshpubk
-         + sshaes sshsh512 import macpgen.rsrc macpgkey macabout
 
 PuTTY    : [MX] osxmain OSXTERM OSXMISC CHARSET U_BE_ALL NONSSH UXSSH
          + ux_x11 uxpty uxsignal testback putty.icns info.plist

@@ -50,6 +50,8 @@ static void source(char *src);
 static void rsource(char *src);
 static void sink(char *targ, char *src);
 
+const char *const appname = "PSCP";
+
 /*
  * The maximum amount of queued data we accept before we stop and
  * wait for the server to process some.
@@ -176,15 +178,10 @@ int from_backend(void *frontend, int is_stderr, const char *data, int datalen)
      */
     if (is_stderr) {
 	if (len > 0)
-	    fwrite(data, 1, len, stderr);
+	    if (fwrite(data, 1, len, stderr) < len)
+		/* oh well */;
 	return 0;
     }
-
-    /*
-     * If this is before the real session begins, just return.
-     */
-    if (!outptr)
-	return 0;
 
     if ((outlen > 0) && (len > 0)) {
 	unsigned used = outlen;
@@ -258,8 +255,14 @@ static int ssh_scp_recv(unsigned char *buf, int len)
 static void ssh_scp_init(void)
 {
     while (!back->sendok(backhandle)) {
-	if (ssh_sftp_loop_iteration() < 0)
+        if (back->exitcode(backhandle) >= 0) {
+            errs++;
+            return;
+        }
+	if (ssh_sftp_loop_iteration() < 0) {
+            errs++;
 	    return;		       /* doom */
+        }
     }
 
     /* Work out which backend we ended up using. */
@@ -424,6 +427,7 @@ static void do_cmd(char *host, char *user, char *cmd)
     cfg.x11_forward = 0;
     cfg.agentfwd = 0;
     cfg.portfwd[0] = cfg.portfwd[1] = '\0';
+    cfg.ssh_simple = TRUE;
 
     /*
      * Set up main and possibly fallback command depending on
@@ -472,7 +476,7 @@ static void do_cmd(char *host, char *user, char *cmd)
     back->provide_logctx(backhandle, logctx);
     console_provide_logctx(logctx);
     ssh_scp_init();
-    if (verbose && realhost != NULL)
+    if (verbose && realhost != NULL && errs == 0)
 	tell_user(stderr, "Connected to %s\n", realhost);
     sfree(realhost);
 }
@@ -2090,7 +2094,7 @@ static void get_dir_list(int argc, char *argv[])
     host = src;
     src = colon(src);
     if (src == NULL)
-	bump("Local to local copy not supported");
+	bump("Local file listing not supported");
     *src++ = '\0';
     if (*src == '\0')
 	src = ".";

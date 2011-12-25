@@ -33,20 +33,17 @@ void cleanup_exit(int code)
 
 Backend *select_backend(Config *cfg)
 {
-    int i;
-    Backend *back = NULL;
-    for (i = 0; backends[i].backend != NULL; i++)
-	if (backends[i].protocol == cfg->protocol) {
-	    back = backends[i].backend;
-	    break;
-	}
+    Backend *back = backend_from_proto(cfg->protocol);
     assert(back != NULL);
     return back;
 }
 
 int cfgbox(Config *cfg)
 {
-    return do_config_box("PuTTY Configuration", cfg, 0, 0);
+    char *title = dupcat(appname, " Configuration", NULL);
+    int ret = do_config_box(title, cfg, 0, 0);
+    sfree(title);
+    return ret;
 }
 
 static int got_host = 0;
@@ -111,14 +108,12 @@ int process_nonoption_arg(char *arg, Config *cfg, int *allow_launch)
 
 char *make_default_wintitle(char *hostname)
 {
-    return dupcat(hostname, " - PuTTY", NULL);
+    return dupcat(hostname, " - ", appname, NULL);
 }
 
 /*
  * X11-forwarding-related things suitable for Gtk app.
  */
-
-const char platform_x11_best_transport[] = "unix";
 
 char *platform_get_x_display(void) {
     const char *display;
@@ -137,13 +132,10 @@ int main(int argc, char **argv)
     default_protocol = be_default_protocol;
     /* Find the appropriate default port. */
     {
-	int i;
+	Backend *b = backend_from_proto(default_protocol);
 	default_port = 0; /* illegal */
-	for (i = 0; backends[i].backend != NULL; i++)
-	    if (backends[i].protocol == default_protocol) {
-		default_port = backends[i].backend->default_port;
-		break;
-	    }
+	if (b)
+	    default_port = b->default_port;
     }
     return pt_main(argc, argv);
 }

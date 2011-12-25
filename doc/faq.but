@@ -1,4 +1,4 @@
-\define{versionidfaq} \versionid $Id$
+\define{versionidfaq} \versionid $Id: faq.but 8733 2009-11-01 22:06:05Z jacob $
 
 \A{faq} PuTTY \i{FAQ}
 
@@ -161,7 +161,7 @@ completely is the wrong solution and we will not do it.
 
 If you have host keys available in the common \i\c{known_hosts} format,
 we have a script called 
-\W{http://www.tartarus.org/~simon-anonsvn/viewcvs.cgi/putty/contrib/kh2reg.py?view=markup}\c{kh2reg.py}
+\W{http://svn.tartarus.org/sgt/putty/contrib/kh2reg.py?view=markup}\c{kh2reg.py}
 to convert them to a Windows .REG file, which can be installed ahead of
 time by double-clicking or using \c{REGEDIT}.
 
@@ -208,22 +208,30 @@ seems to be working so far.
 \S{faq-ports-general}{Question} What ports of PuTTY exist?
 
 Currently, release versions of PuTTY tools only run on full Win32
-systems and Unix. \q{Win32} includes Windows 95, 98, and ME, and it
-includes Windows NT, Windows 2000 and Windows XP.
+systems and Unix. \q{\i{Win32}} includes versions of Windows from
+Windows 95 onwards (as opposed to the 16-bit Windows 3.1; see
+\k{faq-win31}), up to and including Windows 7; and we know of no
+reason why PuTTY should not continue to work on future versions
+of Windows.
 
-In the development code, a partial port to the Mac OS (see
-\k{faq-mac-port}) is under way.
+The Windows executables we provide are for the 32-bit \q{\i{x86}}
+processor architecture, but they should work fine on 64-bit
+processors that are backward-compatible with that architecture.
+(We used to also provide executables for Windows for the Alpha
+processor, but stopped after 0.58 due to lack of interest.)
 
-Currently PuTTY does \e{not} run on Windows CE (see \k{faq-wince}),
-and it does not quite run on the Win32s environment under Windows
-3.1 (see \k{faq-win31}).
+In the development code, partial ports to the Mac OSes exist (see
+\k{faq-mac-port}).
+
+Currently PuTTY does \e{not} run on Windows CE (see \k{faq-wince}).
 
 We do not have release-quality ports for any other systems at the
 present time. If anyone told you we had an EPOC port, or an iPaq port,
 or any other port of PuTTY, they were mistaken. We don't.
 
 There are some third-party ports to various platforms, mentioned
-on the Links page of our website.
+on the 
+\W{http://www.chiark.greenend.org.uk/~sgtatham/putty/links.html}{Links page of our website}.
 
 \S{faq-unix}{Question} \I{Unix version}Is there a port to Unix?
 
@@ -231,7 +239,9 @@ As of 0.54, there are Unix ports of most of the traditional PuTTY
 tools, and also one entirely new application.
 
 If you look at the source release, you should find a \c{unix}
-subdirectory containing \c{Makefile.gtk}, which should build you Unix
+subdirectory. There are a couple of ways of building it,
+including the usual \c{configure}/\c{make}; see the file \c{README}
+in the source distribution. This should build you Unix
 ports of Plink, PuTTY itself, PuTTYgen, PSCP, PSFTP, and also
 \i\c{pterm} - an \cw{xterm}-type program which supports the same
 terminal emulation as PuTTY. We do not yet have a Unix port of
@@ -314,9 +324,22 @@ even on systems the developers \e{do} already know how to program
 for, it might be a long time before any of us get round to learning
 a new system and doing the port for that.
 
-However, some of the work has been done by other people, and a beta
-port of PuTTY for the Nokia 9200 Communicator series is available
-from \W{http://s2putty.sourceforge.net/}\cw{http://s2putty.sourceforge.net/}
+However, some of the work has been done by other people; see the
+\W{http://www.chiark.greenend.org.uk/~sgtatham/putty/links.html}{Links page of our website}
+for various third-party ports.
+
+\S{faq-iphone}{Question} Will there be a port to the iPhone?
+
+We have no plans to write such a port ourselves; none of us has an
+iPhone, and developing and publishing applications for it looks
+awkward and expensive. Such a port would probably depend upon the
+stalled Mac OS X port (see \k{faq-mac-port}).
+
+However, there is a third-party SSH client for the iPhone and
+iPod\_Touch called \W{http://www.instantcocoa.com/products/pTerm/}{pTerm},
+which is apparently based on PuTTY. (This is nothing to do with our
+similarly-named \c{pterm}, which is a standalone terminal emulator for
+Unix systems; see \k{faq-unix}.)
 
 \H{faq-embedding} Embedding PuTTY in other programs
 
@@ -329,6 +352,9 @@ has taken the time to do it.
 
 Most of the code cleanup work would be a good thing to happen in
 general, so if anyone feels like helping, we wouldn't say no.
+
+See also
+\W{http://www.chiark.greenend.org.uk/~sgtatham/putty/wishlist/dll-frontend.html}{the wishlist entry}.
 
 \S{faq-vb}{Question} Is the SSH or Telnet code available as a Visual
 Basic component?
@@ -383,10 +409,9 @@ while host keys are stored under \c{SshHostKeys}.
 
 PuTTY also requires a random number seed file, to improve the
 unpredictability of randomly chosen data needed as part of the SSH
-cryptography. This is stored by default in a file called \i\c{PUTTY.RND}
-in your Windows home directory (\c{%HOMEDRIVE%\\%HOMEPATH%}), or in
-the actual Windows directory (such as \c{C:\\WINDOWS}) if the home
-directory doesn't exist, for example if you're using Win95. If you
+cryptography. This is stored by default in a file called \i\c{PUTTY.RND};
+this is stored by default in the \q{Application Data} directory,
+or failing that, one of a number of fallback locations. If you
 want to change the location of the random number seed file, you can
 put your chosen pathname in the Registry, at
 
@@ -1133,8 +1158,9 @@ link to you at all.
 If you have software based on PuTTY, or specifically designed to
 interoperate with PuTTY, or in some other way of genuine interest to
 PuTTY users, then we will probably be happy to add a link to you on
-our Links page. And if you're running a mirror of the PuTTY web
-site, we're \e{definitely} interested.
+our Links page. And if you're running a particularly valuable mirror
+of the PuTTY web site, we might be interested in linking to you from
+our Mirrors page.
 
 \S{faq-sourceforge}{Question} Why don't you move PuTTY to
 SourceForge?
@@ -1191,11 +1217,8 @@ asking for any.
 Having said all that, if you still really \e{want} to give us money,
 we won't argue :-) The easiest way for us to accept donations is if
 you send money to \cw{<anakin@pobox.com>} using PayPal
-(\W{http://www.paypal.com/}\cw{www.paypal.com}). Alternatively, if
-you don't trust PayPal, you could donate through e-gold
-(\W{http://www.e-gold.com}\cw{www.e-gold.com}): deposit your
-donation in account number 174769, then send us e-mail to let us
-know you've done so (otherwise we might not notice for months!).
+(\W{http://www.paypal.com/}\cw{www.paypal.com}). If you don't like
+PayPal, talk to us; we can probably arrange some alternative means.
 
 Small donations (tens of dollars or tens of euros) will probably be
 spent on beer or curry, which helps motivate our volunteer team to
@@ -1400,11 +1423,12 @@ and pay any costs, we can't provide this.
 \H{faq-misc} Miscellaneous questions
 
 \S{faq-openssh}{Question} Is PuTTY a port of \i{OpenSSH}, or based on
-OpenSSH?
+OpenSSH or OpenSSL?
 
 No, it isn't. PuTTY is almost completely composed of code written
 from scratch for PuTTY. The only code we share with OpenSSH is the
-detector for SSH-1 CRC compensation attacks, written by CORE SDI S.A.
+detector for SSH-1 CRC compensation attacks, written by CORE SDI
+S.A; we share no code at all with OpenSSL.
 
 \S{faq-sillyputty}{Question} Where can I buy silly putty?
 

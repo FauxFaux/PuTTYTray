@@ -28,10 +28,21 @@
 
 #include "putty.h"
 #include "terminal.h"
+#include "gtkfont.h"
 
 #define CAT2(x,y) x ## y
 #define CAT(x,y) CAT2(x,y)
 #define ASSERT(x) enum {CAT(assertion_,__LINE__) = 1 / (x)}
+
+#if GTK_CHECK_VERSION(2,0,0)
+ASSERT(sizeof(long) <= sizeof(gsize));
+#define LONG_TO_GPOINTER(l) GSIZE_TO_POINTER(l)
+#define GPOINTER_TO_LONG(p) GPOINTER_TO_SIZE(p)
+#else /* Gtk 1.2 */
+ASSERT(sizeof(long) <= sizeof(gpointer));
+#define LONG_TO_GPOINTER(l) ((gpointer)(long)(l))
+#define GPOINTER_TO_LONG(p) ((long)(p))
+#endif
 
 /* Colours come in two flavours: configurable, and xterm-extended. */
 #define NCFGCOLOURS (lenof(((Config *)0)->colours))
@@ -58,11 +69,7 @@ struct gui_data {
 	*restartitem;
     GtkWidget *sessionsmenu;
     GdkPixmap *pixmap;
-    GdkFont *fonts[4];                 /* normal, bold, wide, widebold */
-    struct {
-	int charset;
-	int is_wide;
-    } fontinfo[4];
+    unifont *fonts[4];                 /* normal, bold, wide, widebold */
     int xpos, ypos, gotpos, gravity;
     GdkCursor *rawcursor, *textcursor, *blankcursor, *waitcursor, *currcursor;
     GdkColor cols[NALLCOLOURS];
@@ -78,6 +85,7 @@ struct gui_data {
     int mouseptr_visible;
     int busy_status;
     guint term_paste_idle_id;
+    guint term_exit_idle_id;
     int alt_keycode;
     int alt_digits;
     char wintitle[sizeof(((Config *)0)->wintitle)];
@@ -137,7 +145,7 @@ FontSpec platform_default_fontspec(const char *name)
 {
     FontSpec ret;
     if (!strcmp(name, "Font"))
-	strcpy(ret.name, "fixed");
+	strcpy(ret.name, "server:fixed");
     else
 	*ret.name = '\0';
     return ret;
@@ -169,14 +177,9 @@ int platform_default_i(const char *name, int def)
     return def;
 }
 
+/* Dummy routine, only required in plink. */
 void ldisc_update(void *frontend, int echo, int edit)
 {
-    /*
-     * This is a stub in pterm. If I ever produce a Unix
-     * command-line ssh/telnet/rlogin client (i.e. a port of plink)
-     * then it will require some termios manoeuvring analogous to
-     * that in the Windows plink.c, but here it's meaningless.
-     */
 }
 
 char *get_ttymode(void *frontend, const char *mode)
@@ -327,7 +330,7 @@ void set_zoomed(void *frontend, int zoomed)
      */
 #if GTK_CHECK_VERSION(2,0,0)
     struct gui_data *inst = (struct gui_data *)frontend;
-    if (iconic)
+    if (zoomed)
 	gtk_window_maximize(GTK_WINDOW(inst->window));
     else
 	gtk_window_unmaximize(GTK_WINDOW(inst->window));
@@ -503,9 +506,9 @@ gint expose_area(GtkWidget *widget, GdkEventExpose *event, gpointer data)
 gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 {
     struct gui_data *inst = (struct gui_data *)data;
-    char output[32];
+    char output[256];
     wchar_t ucsoutput[2];
-    int ucsval, start, end, special, use_ucsoutput;
+    int ucsval, start, end, special, output_charset, use_ucsoutput;
 
     /* Remember the timestamp. */
     inst->input_event_time = event->time;
@@ -513,6 +516,7 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
     /* By default, nothing is generated. */
     end = start = 0;
     special = use_ucsoutput = FALSE;
+    output_charset = CS_ISO8859_1;
 
     /*
      * If Alt is being released after typing an Alt+numberpad
@@ -531,6 +535,11 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 #ifdef KEY_DEBUGGING
 	printf("Alt key up, keycode = %d\n", inst->alt_keycode);
 #endif
+	/*
+	 * FIXME: we might usefully try to do something clever here
+	 * about interpreting the generated key code in a way that's
+	 * appropriate to the line code page.
+	 */
 	output[0] = inst->alt_keycode;
 	end = 1;
 	goto done;
@@ -638,15 +647,57 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 
 	/* ALT+things gives leading Escape. */
 	output[0] = '\033';
-	strncpy(output+1, event->string, 31);
-	if (!*event->string &&
+#if !GTK_CHECK_VERSION(2,0,0)
+	/*
+	 * In vanilla X, and hence also GDK 1.2, the string received
+	 * as part of a keyboard event is assumed to be in
+	 * ISO-8859-1. (Seems woefully shortsighted in i18n terms,
+	 * but it's true: see the man page for XLookupString(3) for
+	 * confirmation.)
+	 */
+	output_charset = CS_ISO8859_1;
+	strncpy(output+1, event->string, lenof(output)-1);
+#else
+	/*
+	 * GDK 2.0 arranges to have done some translation for us: in
+	 * GDK 2.0, event->string is encoded in the current locale.
+	 *
+	 * (However, it's also deprecated; we really ought to be
+	 * using a GTKIMContext.)
+	 *
+	 * So we use the standard C library function mbstowcs() to
+	 * convert from the current locale into Unicode; from there
+	 * we can convert to whatever PuTTY is currently working in.
+	 * (In fact I convert straight back to UTF-8 from
+	 * wide-character Unicode, for the sake of simplicity: that
+	 * way we can still use exactly the same code to manipulate
+	 * the string, such as prefixing ESC.)
+	 */
+	output_charset = CS_UTF8;
+	{
+	    wchar_t widedata[32], *wp;
+	    int wlen;
+	    int ulen;
+
+	    wlen = mb_to_wc(DEFAULT_CODEPAGE, 0,
+			    event->string, strlen(event->string),
+			    widedata, lenof(widedata)-1);
+
+	    wp = widedata;
+	    ulen = charset_from_unicode(&wp, &wlen, output+1, lenof(output)-2,
+					CS_UTF8, NULL, NULL, 0);
+	    output[1+ulen] = '\0';
+	}
+#endif
+
+	if (!output[1] &&
 	    (ucsval = keysym_to_unicode(event->keyval)) >= 0) {
 	    ucsoutput[0] = '\033';
 	    ucsoutput[1] = ucsval;
 	    use_ucsoutput = TRUE;
 	    end = 2;
 	} else {
-	    output[31] = '\0';
+	    output[lenof(output)-1] = '\0';
 	    end = strlen(output);
 	}
 	if (event->state & GDK_MOD1_MASK) {
@@ -656,7 +707,7 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 	    start = 1;
 
 	/* Control-` is the same as Control-\ (unless gtk has a better idea) */
-	if (!event->string[0] && event->keyval == '`' &&
+	if (!output[1] && event->keyval == '`' &&
 	    (event->state & GDK_CONTROL_MASK)) {
 	    output[1] = '\x1C';
 	    use_ucsoutput = FALSE;
@@ -681,7 +732,7 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 	}
 
 	/* Control-2, Control-Space and Control-@ are NUL */
-	if (!event->string[0] &&
+	if (!output[1] &&
 	    (event->keyval == ' ' || event->keyval == '2' ||
 	     event->keyval == '@') &&
 	    (event->state & (GDK_SHIFT_MASK |
@@ -692,10 +743,11 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 	}
 
 	/* Control-Shift-Space is 160 (ISO8859 nonbreaking space) */
-	if (!event->string[0] && event->keyval == ' ' &&
+	if (!output[1] && event->keyval == ' ' &&
 	    (event->state & (GDK_SHIFT_MASK | GDK_CONTROL_MASK)) ==
 	    (GDK_SHIFT_MASK | GDK_CONTROL_MASK)) {
 	    output[1] = '\240';
+	    output_charset = CS_ISO8859_1;
 	    use_ucsoutput = FALSE;
 	    end = 2;
 	}
@@ -722,6 +774,13 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 	    (event->keyval == GDK_Tab && (event->state & GDK_SHIFT_MASK))) {
 	    end = 1 + sprintf(output+1, "\033[Z");
 	    use_ucsoutput = FALSE;
+	}
+	/* And normal Tab is Tab, if the keymap hasn't already told us.
+	 * (Curiously, at least one version of the MacOS 10.5 X server
+	 * doesn't translate Tab for us. */
+	if (event->keyval == GDK_Tab && end <= 1) {
+	    output[1] = '\t';
+	    end = 2;
 	}
 
 	/*
@@ -1003,19 +1062,8 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 	      case GDK_Begin: case GDK_KP_Begin: xkey = 'G'; break;
 	    }
 	    if (xkey) {
-		/*
-		 * The arrow keys normally do ESC [ A and so on. In
-		 * app cursor keys mode they do ESC O A instead.
-		 * Ctrl toggles the two modes.
-		 */
-		if (inst->term->vt52_mode) {
-		    end = 1 + sprintf(output+1, "\033%c", xkey);
-		} else if (!inst->term->app_cursor_keys ^
-			   !(event->state & GDK_CONTROL_MASK)) {
-		    end = 1 + sprintf(output+1, "\033O%c", xkey);
-		} else {		    
-		    end = 1 + sprintf(output+1, "\033[%c", xkey);
-		}
+		end = 1 + format_arrow_key(output+1, inst->term, xkey,
+					   event->state & GDK_CONTROL_MASK);
 		use_ucsoutput = FALSE;
 		goto done;
 	    }
@@ -1044,20 +1092,8 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 		ldisc_send(inst->ldisc, output+start, -2, 1);
 	} else if (!inst->direct_to_font) {
 	    if (!use_ucsoutput) {
-		/*
-		 * The stuff we've just generated is assumed to be
-		 * ISO-8859-1! This sounds insane, but `man
-		 * XLookupString' agrees: strings of this type
-		 * returned from the X server are hardcoded to
-		 * 8859-1. Strictly speaking we should be doing
-		 * this using some sort of GtkIMContext, which (if
-		 * we're lucky) would give us our data directly in
-		 * Unicode; but that's not supported in GTK 1.2 as
-		 * far as I can tell, and it's poorly documented
-		 * even in 2.0, so it'll have to wait.
-		 */
 		if (inst->ldisc)
-		    lpage_send(inst->ldisc, CS_ISO8859_1, output+start,
+		    lpage_send(inst->ldisc, output_charset, output+start,
 			       end-start, 1);
 	    } else {
 		/*
@@ -1083,45 +1119,46 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
     return TRUE;
 }
 
-gint button_event(GtkWidget *widget, GdkEventButton *event, gpointer data)
+gboolean button_internal(struct gui_data *inst, guint32 timestamp,
+			 GdkEventType type, guint ebutton, guint state,
+			 gdouble ex, gdouble ey)
 {
-    struct gui_data *inst = (struct gui_data *)data;
     int shift, ctrl, alt, x, y, button, act;
 
     /* Remember the timestamp. */
-    inst->input_event_time = event->time;
+    inst->input_event_time = timestamp;
 
     show_mouseptr(inst, 1);
 
-    if (event->button == 4 && event->type == GDK_BUTTON_PRESS) {
+    if (ebutton == 4 && type == GDK_BUTTON_PRESS) {
 	term_scroll(inst->term, 0, -5);
 	return TRUE;
     }
-    if (event->button == 5 && event->type == GDK_BUTTON_PRESS) {
+    if (ebutton == 5 && type == GDK_BUTTON_PRESS) {
 	term_scroll(inst->term, 0, +5);
 	return TRUE;
     }
 
-    shift = event->state & GDK_SHIFT_MASK;
-    ctrl = event->state & GDK_CONTROL_MASK;
-    alt = event->state & GDK_MOD1_MASK;
+    shift = state & GDK_SHIFT_MASK;
+    ctrl = state & GDK_CONTROL_MASK;
+    alt = state & GDK_MOD1_MASK;
 
-    if (event->button == 3 && ctrl) {
+    if (ebutton == 3 && ctrl) {
 	gtk_menu_popup(GTK_MENU(inst->menu), NULL, NULL, NULL, NULL,
-		       event->button, event->time);
+		       ebutton, timestamp);
 	return TRUE;
     }
 
-    if (event->button == 1)
+    if (ebutton == 1)
 	button = MBT_LEFT;
-    else if (event->button == 2)
+    else if (ebutton == 2)
 	button = MBT_MIDDLE;
-    else if (event->button == 3)
+    else if (ebutton == 3)
 	button = MBT_RIGHT;
     else
 	return FALSE;		       /* don't even know what button! */
 
-    switch (event->type) {
+    switch (type) {
       case GDK_BUTTON_PRESS: act = MA_CLICK; break;
       case GDK_BUTTON_RELEASE: act = MA_RELEASE; break;
       case GDK_2BUTTON_PRESS: act = MA_2CLK; break;
@@ -1133,14 +1170,44 @@ gint button_event(GtkWidget *widget, GdkEventButton *event, gpointer data)
 	act != MA_CLICK && act != MA_RELEASE)
 	return TRUE;		       /* we ignore these in raw mouse mode */
 
-    x = (event->x - inst->cfg.window_border) / inst->font_width;
-    y = (event->y - inst->cfg.window_border) / inst->font_height;
+    x = (ex - inst->cfg.window_border) / inst->font_width;
+    y = (ey - inst->cfg.window_border) / inst->font_height;
 
     term_mouse(inst->term, button, translate_button(button), act,
 	       x, y, shift, ctrl, alt);
 
     return TRUE;
 }
+
+gboolean button_event(GtkWidget *widget, GdkEventButton *event, gpointer data)
+{
+    struct gui_data *inst = (struct gui_data *)data;
+    return button_internal(inst, event->time, event->type, event->button,
+			   event->state, event->x, event->y);
+}
+
+#if GTK_CHECK_VERSION(2,0,0)
+/*
+ * In GTK 2, mouse wheel events have become a new type of event.
+ * This handler translates them back into button-4 and button-5
+ * presses so that I don't have to change my old code too much :-)
+ */
+gboolean scroll_event(GtkWidget *widget, GdkEventScroll *event, gpointer data)
+{
+    struct gui_data *inst = (struct gui_data *)data;
+    guint button;
+
+    if (event->direction == GDK_SCROLL_UP)
+	button = 4;
+    else if (event->direction == GDK_SCROLL_DOWN)
+	button = 5;
+    else
+	return FALSE;
+
+    return button_internal(inst, event->time, GDK_BUTTON_PRESS,
+			   button, event->state, event->x, event->y);
+}
+#endif
 
 gint motion_event(GtkWidget *widget, GdkEventMotion *event, gpointer data)
 {
@@ -1185,9 +1252,9 @@ void frontend_keypress(void *handle)
 	exit(0);
 }
 
-void notify_remote_exit(void *frontend)
+static gint idle_exit_func(gpointer data)
 {
-    struct gui_data *inst = (struct gui_data *)frontend;
+    struct gui_data *inst = (struct gui_data *)data;
     int exitcode;
 
     if (!inst->exited &&
@@ -1207,20 +1274,30 @@ void notify_remote_exit(void *frontend)
             term_provide_resize_fn(inst->term, NULL, NULL);
 	    update_specials_menu(inst);
 	}
-	gtk_widget_show(inst->restartitem);
+	gtk_widget_set_sensitive(inst->restartitem, TRUE);
     }
+
+    gtk_idle_remove(inst->term_exit_idle_id);
+    return TRUE;
+}
+
+void notify_remote_exit(void *frontend)
+{
+    struct gui_data *inst = (struct gui_data *)frontend;
+
+    inst->term_exit_idle_id = gtk_idle_add(idle_exit_func, inst);
 }
 
 static gint timer_trigger(gpointer data)
 {
-    long now = GPOINTER_TO_INT(data);
+    long now = GPOINTER_TO_LONG(data);
     long next;
     long ticks;
 
     if (run_timers(now, &next)) {
 	ticks = next - GETTICKCOUNT();
 	timer_id = gtk_timeout_add(ticks > 0 ? ticks : 1, timer_trigger,
-				   GINT_TO_POINTER(next));
+				   LONG_TO_GPOINTER(next));
     }
 
     /*
@@ -1242,7 +1319,7 @@ void timer_change_notify(long next)
 	ticks = 1;		       /* just in case */
 
     timer_id = gtk_timeout_add(ticks, timer_trigger,
-			       GINT_TO_POINTER(next));
+			       LONG_TO_GPOINTER(next));
 }
 
 void fd_input_func(gpointer data, gint sourcefd, GdkInputCondition condition)
@@ -1346,17 +1423,29 @@ void request_resize(void *frontend, int w, int h)
      */
 #if GTK_CHECK_VERSION(2,0,0)
     gtk_widget_set_size_request(inst->area, area_x, area_y);
-#else
-    gtk_widget_set_usize(inst->area, area_x, area_y);
-    gtk_drawing_area_size(GTK_DRAWING_AREA(inst->area), area_x, area_y);
-#endif
-
-    gtk_container_dequeue_resize_handler(GTK_CONTAINER(inst->window));
-
-#if GTK_CHECK_VERSION(2,0,0)
     gtk_window_resize(GTK_WINDOW(inst->window),
 		      area_x + offset_x, area_y + offset_y);
 #else
+    gtk_widget_set_usize(inst->area, area_x, area_y);
+    gtk_drawing_area_size(GTK_DRAWING_AREA(inst->area), area_x, area_y);
+    /*
+     * I can no longer remember what this call to
+     * gtk_container_dequeue_resize_handler is for. It was
+     * introduced in r3092 with no comment, and the commit log
+     * message was uninformative. I'm _guessing_ its purpose is to
+     * prevent gratuitous resize processing on the window given
+     * that we're about to resize it anyway, but I have no idea
+     * why that's so incredibly vital.
+     * 
+     * I've tried removing the call, and nothing seems to go
+     * wrong. I've backtracked to r3092 and tried removing the
+     * call there, and still nothing goes wrong. So I'm going to
+     * adopt the working hypothesis that it's superfluous; I won't
+     * actually remove it from the GTK 1.2 code, but I won't
+     * attempt to replicate its functionality in the GTK 2 code
+     * above.
+     */
+    gtk_container_dequeue_resize_handler(GTK_CONTAINER(inst->window));
     gdk_window_resize(inst->window->window,
 		      area_x + offset_x, area_y + offset_y);
 #endif
@@ -1455,7 +1544,7 @@ void palette_reset(void *frontend)
     /* Since Default Background may have changed, ensure that space
      * between text area and window border is refreshed. */
     set_window_background(inst);
-    if (inst->area) {
+    if (inst->area && inst->area->window) {
 	draw_backing_rect(inst);
 	gtk_widget_queue_draw(inst->area);
     }
@@ -1582,6 +1671,9 @@ void write_clip(void *frontend, wchar_t * data, int *attr, int len, int must_des
 
     if (gtk_selection_owner_set(inst->area, GDK_SELECTION_PRIMARY,
 				inst->input_event_time)) {
+#if GTK_CHECK_VERSION(2,0,0)
+	gtk_selection_clear_targets(inst->area, GDK_SELECTION_PRIMARY);
+#endif
 	gtk_selection_add_target(inst->area, GDK_SELECTION_PRIMARY,
 				 GDK_SELECTION_TYPE_STRING, 1);
 	if (inst->pasteout_data_ctext)
@@ -1877,6 +1969,8 @@ int char_width(Context ctx, int uc)
      * Under X, any fixed-width font really _is_ fixed-width.
      * Double-width characters will be dealt with using a separate
      * font. For the moment we can simply return 1.
+     * 
+     * FIXME: but is that also true of Pango?
      */
     return 1;
 }
@@ -1917,7 +2011,7 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
     struct gui_data *inst = dctx->inst;
     GdkGC *gc = dctx->gc;
     int ncombining, combining;
-    int nfg, nbg, t, fontid, shadow, rlen, widefactor;
+    int nfg, nbg, t, fontid, shadow, rlen, widefactor, bold;
     int monochrome = gtk_widget_get_visual(inst->area)->depth == 1;
 
     if (attr & TATTR_COMBINING) {
@@ -1956,10 +2050,27 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
     }
 
     if ((attr & ATTR_BOLD) && !inst->cfg.bold_colour) {
-	if (inst->fonts[fontid | 1])
-	    fontid |= 1;
-	else
-	    shadow = 1;
+	bold = 1;
+	fontid |= 1;
+    } else {
+	bold = 0;
+    }
+
+    if (!inst->fonts[fontid]) {
+	int i;
+	/*
+	 * Fall back through font ids with subsets of this one's
+	 * set bits, in order.
+	 */
+	for (i = fontid; i-- > 0 ;) {
+	    if (i & ~fontid)
+		continue;	       /* some other bit is set */
+	    if (inst->fonts[i]) {
+		fontid = i;
+		break;
+	    }
+	}
+	assert(inst->fonts[fontid]);   /* we should at least have hit zero */
     }
 
     if ((lattr & LATTR_MODE) != LATTR_NORM) {
@@ -1990,82 +2101,27 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
 
     gdk_gc_set_foreground(gc, &inst->cols[nfg]);
     {
-	GdkWChar *gwcs;
 	gchar *gcs;
-	wchar_t *wcs;
-	int i;
 
-	wcs = snewn(len*ncombining+1, wchar_t);
-	for (i = 0; i < len*ncombining; i++) {
-	    wcs[i] = text[i];
-	}
+	/*
+	 * FIXME: this length is hardwired on the assumption that
+	 * conversions from wide to multibyte characters will
+	 * never generate more than 10 bytes for a single wide
+	 * character.
+	 */
+	gcs = snewn(len*10+1, gchar);
 
-	if (inst->fonts[fontid] == NULL && (fontid & 2)) {
-	    /*
-	     * We've been given ATTR_WIDE, but have no wide font.
-	     * Fall back to the non-wide font.
-	     */
-	    fontid &= ~2;
-	}
-
-	if (inst->fonts[fontid] == NULL) {
-	    /*
-	     * The font for this contingency does not exist. So we
-	     * display nothing at all; such is life.
-	     */
-	} else if (inst->fontinfo[fontid].is_wide) {
-	    /*
-	     * At least one version of gdk_draw_text_wc() has a
-	     * weird bug whereby it reads `len' elements of the
-	     * input string, but only draws `len/2'. Hence I'm
-	     * going to make its input array twice as long as it
-	     * theoretically needs to be, and pass in twice the
-	     * actual number of characters. If a fixed gdk actually
-	     * takes the doubled length seriously, then (a) the
-	     * array will stand scrutiny up to the full length, (b)
-	     * the spare elements of the array are full of zeroes
-	     * which will probably be an empty glyph in the font,
-	     * and (c) the clip rectangle should prevent it causing
-	     * trouble anyway.
-	     */
-	    gwcs = snewn(len*2+1, GdkWChar);
-	    memset(gwcs, 0, sizeof(GdkWChar) * (len*2+1));
-	    /*
-	     * FIXME: when we have a wide-char equivalent of
-	     * from_unicode, use it instead of this.
-	     */
-	    for (combining = 0; combining < ncombining; combining++) {
-		for (i = 0; i <= len; i++)
-		    gwcs[i] = wcs[i + combining];
-		gdk_draw_text_wc(inst->pixmap, inst->fonts[fontid], gc,
-				 x*inst->font_width+inst->cfg.window_border,
-				 y*inst->font_height+inst->cfg.window_border+inst->fonts[0]->ascent,
-				 gwcs, len*2);
-		if (shadow)
-		    gdk_draw_text_wc(inst->pixmap, inst->fonts[fontid], gc,
-				     x*inst->font_width+inst->cfg.window_border+inst->cfg.shadowboldoffset,
-				     y*inst->font_height+inst->cfg.window_border+inst->fonts[0]->ascent,
-				     gwcs, len*2);
-	    }
-	    sfree(gwcs);
-	} else {
-	    gcs = snewn(len+1, gchar);
-	    for (combining = 0; combining < ncombining; combining++) {
-		wc_to_mb(inst->fontinfo[fontid].charset, 0,
-			 wcs + combining, len, gcs, len, ".", NULL, NULL);
-		gdk_draw_text(inst->pixmap, inst->fonts[fontid], gc,
+	for (combining = 0; combining < ncombining; combining++) {
+	    int mblen = wc_to_mb(inst->fonts[fontid]->real_charset, 0,
+				 text + combining, len, gcs, len*10+1, ".",
+				 NULL, NULL);
+	    unifont_draw_text(inst->pixmap, gc, inst->fonts[fontid],
 			      x*inst->font_width+inst->cfg.window_border,
 			      y*inst->font_height+inst->cfg.window_border+inst->fonts[0]->ascent,
-			      gcs, len);
-		if (shadow)
-		    gdk_draw_text(inst->pixmap, inst->fonts[fontid], gc,
-				  x*inst->font_width+inst->cfg.window_border+inst->cfg.shadowboldoffset,
-				  y*inst->font_height+inst->cfg.window_border+inst->fonts[0]->ascent,
-				  gcs, len);
-	    }
-	    sfree(gcs);
+			      gcs, mblen, widefactor > 1, bold, inst->font_width);
 	}
-	sfree(wcs);
+
+	sfree(gcs);
     }
 
     if (attr & ATTR_UNDER) {
@@ -2285,8 +2341,11 @@ GdkCursor *make_mouse_ptr(struct gui_data *inst, int cursor_val)
 	return NULL;
     }
 
-    if (cursor_val >= 0 && !cursor_font)
+    if (cursor_val >= 0 && !cursor_font) {
 	cursor_font = gdk_font_load("cursor");
+	if (cursor_font)
+	    gdk_font_ref(cursor_font);
+    }
 
     /*
      * Get the text extent of the cursor in question. We use the
@@ -2627,75 +2686,12 @@ int do_cmdline(int argc, char **argv, int do_everything, int *allow_launch,
     return err;
 }
 
-/*
- * This function retrieves the character set encoding of a font. It
- * returns the character set without the X11 hack (in case the user
- * asks to use the font's own encoding).
- */
-static int set_font_info(struct gui_data *inst, int fontid)
-{
-    GdkFont *font = inst->fonts[fontid];
-    XFontStruct *xfs = GDK_FONT_XFONT(font);
-    Display *disp = GDK_FONT_XDISPLAY(font);
-    Atom charset_registry, charset_encoding;
-    unsigned long registry_ret, encoding_ret;
-    int retval = CS_NONE;
-
-    charset_registry = XInternAtom(disp, "CHARSET_REGISTRY", False);
-    charset_encoding = XInternAtom(disp, "CHARSET_ENCODING", False);
-    inst->fontinfo[fontid].charset = CS_NONE;
-    inst->fontinfo[fontid].is_wide = 0;
-    if (XGetFontProperty(xfs, charset_registry, &registry_ret) &&
-	XGetFontProperty(xfs, charset_encoding, &encoding_ret)) {
-	char *reg, *enc;
-	reg = XGetAtomName(disp, (Atom)registry_ret);
-	enc = XGetAtomName(disp, (Atom)encoding_ret);
-	if (reg && enc) {
-	    char *encoding = dupcat(reg, "-", enc, NULL);
-	    retval = inst->fontinfo[fontid].charset =
-		charset_from_xenc(encoding);
-	    /* FIXME: when libcharset supports wide encodings fix this. */
-	    if (!strcasecmp(encoding, "iso10646-1")) {
-		inst->fontinfo[fontid].is_wide = 1;
-		retval = CS_UTF8;
-	    }
-
-	    /*
-	     * Hack for X line-drawing characters: if the primary
-	     * font is encoded as ISO-8859-anything, and has valid
-	     * glyphs in the first 32 char positions, it is assumed
-	     * that those glyphs are the VT100 line-drawing
-	     * character set.
-	     * 
-	     * Actually, we'll hack even harder by only checking
-	     * position 0x19 (vertical line, VT100 linedrawing
-	     * `x'). Then we can check it easily by seeing if the
-	     * ascent and descent differ.
-	     */
-	    if (inst->fontinfo[fontid].charset == CS_ISO8859_1) {
-		int lb, rb, wid, asc, desc;
-		gchar text[2];
-
-		text[1] = '\0';
-		text[0] = '\x12';
-		gdk_string_extents(inst->fonts[fontid], text,
-				   &lb, &rb, &wid, &asc, &desc);
-		if (asc != desc)
-		    inst->fontinfo[fontid].charset = CS_ISO8859_1_X11;
-	    }
-
-	    sfree(encoding);
-	}
-    }
-
-    return retval;
-}
-
 int uxsel_input_add(int fd, int rwx) {
     int flags = 0;
     if (rwx & 1) flags |= GDK_INPUT_READ;
     if (rwx & 2) flags |= GDK_INPUT_WRITE;
     if (rwx & 4) flags |= GDK_INPUT_EXCEPTION;
+    assert(flags);
     return gdk_input_add(fd, flags, fd_input_func, NULL);
 }
 
@@ -2703,158 +2699,75 @@ void uxsel_input_remove(int id) {
     gdk_input_remove(id);
 }
 
-char *guess_derived_font_name(GdkFont *font, int bold, int wide)
-{
-    XFontStruct *xfs = GDK_FONT_XFONT(font);
-    Display *disp = GDK_FONT_XDISPLAY(font);
-    Atom fontprop = XInternAtom(disp, "FONT", False);
-    unsigned long ret;
-    if (XGetFontProperty(xfs, fontprop, &ret)) {
-	char *name = XGetAtomName(disp, (Atom)ret);
-	if (name && name[0] == '-') {
-	    char *strings[13];
-	    char *dupname, *extrafree = NULL, *ret;
-	    char *p, *q;
-	    int nstr;
-
-	    p = q = dupname = dupstr(name); /* skip initial minus */
-	    nstr = 0;
-
-	    while (*p && nstr < lenof(strings)) {
-		if (*p == '-') {
-		    *p = '\0';
-		    strings[nstr++] = p+1;
-		}
-		p++;
-	    }
-
-	    if (nstr < lenof(strings))
-		return NULL;	       /* XLFD was malformed */
-
-	    if (bold)
-		strings[2] = "bold";
-
-	    if (wide) {
-		/* 4 is `wideness', which obviously may have changed. */
-		/* 5 is additional style, which may be e.g. `ja' or `ko'. */
-		strings[4] = strings[5] = "*";
-		strings[11] = extrafree = dupprintf("%d", 2*atoi(strings[11]));
-	    }
-
-	    ret = dupcat("-", strings[ 0], "-", strings[ 1], "-", strings[ 2],
-			 "-", strings[ 3], "-", strings[ 4], "-", strings[ 5],
-			 "-", strings[ 6], "-", strings[ 7], "-", strings[ 8],
-			 "-", strings[ 9], "-", strings[10], "-", strings[11],
-			 "-", strings[12], NULL);
-	    sfree(extrafree);
-	    sfree(dupname);
-
-	    return ret;
-	}
-    }
-    return NULL;
-}
-
 void setup_fonts_ucs(struct gui_data *inst)
 {
-    int font_charset;
-    char *name;
-    int guessed;
-
     if (inst->fonts[0])
-        gdk_font_unref(inst->fonts[0]);
+        unifont_destroy(inst->fonts[0]);
     if (inst->fonts[1])
-        gdk_font_unref(inst->fonts[1]);
+        unifont_destroy(inst->fonts[1]);
     if (inst->fonts[2])
-        gdk_font_unref(inst->fonts[2]);
+        unifont_destroy(inst->fonts[2]);
     if (inst->fonts[3])
-        gdk_font_unref(inst->fonts[3]);
+        unifont_destroy(inst->fonts[3]);
 
-    inst->fonts[0] = gdk_font_load(inst->cfg.font.name);
+    inst->fonts[0] = unifont_create(inst->area, inst->cfg.font.name,
+				    FALSE, FALSE,
+				    inst->cfg.shadowboldoffset,
+				    inst->cfg.shadowbold);
     if (!inst->fonts[0]) {
 	fprintf(stderr, "%s: unable to load font \"%s\"\n", appname,
 		inst->cfg.font.name);
 	exit(1);
     }
-    font_charset = set_font_info(inst, 0);
 
-    if (inst->cfg.shadowbold) {
+    if (inst->cfg.shadowbold || !inst->cfg.boldfont.name[0]) {
 	inst->fonts[1] = NULL;
     } else {
-	if (inst->cfg.boldfont.name[0]) {
-	    name = inst->cfg.boldfont.name;
-	    guessed = FALSE;
-	} else {
-	    name = guess_derived_font_name(inst->fonts[0], TRUE, FALSE);
-	    guessed = TRUE;
-	}
-	inst->fonts[1] = name ? gdk_font_load(name) : NULL;
-	if (inst->fonts[1]) {
-	    set_font_info(inst, 1);
-	} else if (!guessed) {
+	inst->fonts[1] = unifont_create(inst->area, inst->cfg.boldfont.name,
+					FALSE, TRUE,
+					inst->cfg.shadowboldoffset,
+					inst->cfg.shadowbold);
+	if (!inst->fonts[1]) {
 	    fprintf(stderr, "%s: unable to load bold font \"%s\"\n", appname,
 		    inst->cfg.boldfont.name);
 	    exit(1);
 	}
-	if (guessed)
-	    sfree(name);
     }
 
     if (inst->cfg.widefont.name[0]) {
-	name = inst->cfg.widefont.name;
-	guessed = FALSE;
-    } else {
-	name = guess_derived_font_name(inst->fonts[0], FALSE, TRUE);
-	guessed = TRUE;
-    }
-    inst->fonts[2] = name ? gdk_font_load(name) : NULL;
-    if (inst->fonts[2]) {
-	set_font_info(inst, 2);
-    } else if (!guessed) {
-	fprintf(stderr, "%s: unable to load wide font \"%s\"\n", appname,
-		inst->cfg.widefont.name);
-	exit(1);
-    }
-    if (guessed)
-	sfree(name);
-
-    if (inst->cfg.shadowbold) {
-	inst->fonts[3] = NULL;
-    } else {
-	if (inst->cfg.wideboldfont.name[0]) {
-	    name = inst->cfg.wideboldfont.name;
-	    guessed = FALSE;
-	} else {
-	    /*
-	     * Here we have some choices. We can widen the bold font,
-	     * bolden the wide font, or widen and bolden the standard
-	     * font. Try them all, in that order!
-	     */
-	    if (inst->cfg.widefont.name[0])
-		name = guess_derived_font_name(inst->fonts[2], TRUE, FALSE);
-	    else if (inst->cfg.boldfont.name[0])
-		name = guess_derived_font_name(inst->fonts[1], FALSE, TRUE);
-	    else
-		name = guess_derived_font_name(inst->fonts[0], TRUE, TRUE);
-	    guessed = TRUE;
-	}
-	inst->fonts[3] = name ? gdk_font_load(name) : NULL;
-	if (inst->fonts[3]) {
-	    set_font_info(inst, 3);
-	} else if (!guessed) {
-	    fprintf(stderr, "%s: unable to load wide/bold font \"%s\"\n", appname,
-		    inst->cfg.wideboldfont.name);
+	inst->fonts[2] = unifont_create(inst->area, inst->cfg.widefont.name,
+					TRUE, FALSE,
+					inst->cfg.shadowboldoffset,
+					inst->cfg.shadowbold);
+	if (!inst->fonts[2]) {
+	    fprintf(stderr, "%s: unable to load wide font \"%s\"\n", appname,
+		    inst->cfg.widefont.name);
 	    exit(1);
 	}
-	if (guessed)
-	    sfree(name);
+    } else {
+	inst->fonts[2] = NULL;
     }
 
-    inst->font_width = gdk_char_width(inst->fonts[0], ' ');
-    inst->font_height = inst->fonts[0]->ascent + inst->fonts[0]->descent;
+    if (inst->cfg.shadowbold || !inst->cfg.wideboldfont.name[0]) {
+	inst->fonts[3] = NULL;
+    } else {
+	inst->fonts[3] = unifont_create(inst->area,
+					inst->cfg.wideboldfont.name, TRUE,
+					TRUE, inst->cfg.shadowboldoffset,
+					inst->cfg.shadowbold);
+	if (!inst->fonts[3]) {
+	    fprintf(stderr, "%s: unable to load wide bold font \"%s\"\n", appname,
+		    inst->cfg.boldfont.name);
+	    exit(1);
+	}
+    }
+
+    inst->font_width = inst->fonts[0]->width;
+    inst->font_height = inst->fonts[0]->height;
 
     inst->direct_to_font = init_ucs(&inst->ucsdata, inst->cfg.line_codepage,
-				    inst->cfg.utf8_override, font_charset,
+				    inst->cfg.utf8_override,
+				    inst->fonts[0]->public_charset,
 				    inst->cfg.vtmode);
 }
 
@@ -3285,6 +3198,7 @@ static void update_savedsess_menu(GtkMenuItem *menuitem, gpointer data)
 			  (GtkCallback)gtk_widget_destroy, NULL);
 
     get_sesslist(&sesslist, TRUE);
+    /* skip sesslist.sessions[0] == Default Settings */
     for (i = 1; i < sesslist.nsessions; i++) {
 	GtkWidget *menuitem =
 	    gtk_menu_item_new_with_label(sesslist.sessions[i]);
@@ -3298,6 +3212,13 @@ static void update_savedsess_menu(GtkMenuItem *menuitem, gpointer data)
 	gtk_signal_connect(GTK_OBJECT(menuitem), "destroy",
 			   GTK_SIGNAL_FUNC(saved_session_freedata),
 			   inst);
+    }
+    if (sesslist.nsessions <= 1) {
+	GtkWidget *menuitem =
+	    gtk_menu_item_new_with_label("(No sessions)");
+	gtk_widget_set_sensitive(menuitem, FALSE);
+	gtk_container_add(GTK_CONTAINER(inst->sessionsmenu), menuitem);
+	gtk_widget_show(menuitem);
     }
     get_sesslist(&sesslist, FALSE); /* free up */
 }
@@ -3438,7 +3359,7 @@ static void start_backend(struct gui_data *inst)
 	ldisc_create(&inst->cfg, inst->term, inst->back, inst->backhandle,
 		     inst);
 
-    gtk_widget_hide(inst->restartitem);
+    gtk_widget_set_sensitive(inst->restartitem, FALSE);
 }
 
 int pt_main(int argc, char **argv)
@@ -3503,10 +3424,15 @@ int pt_main(int argc, char **argv)
     if (!utf8_string_atom)
         utf8_string_atom = gdk_atom_intern("UTF8_STRING", FALSE);
 
+    inst->area = gtk_drawing_area_new();
+
     setup_fonts_ucs(inst);
     init_cutbuffers();
 
     inst->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    if (inst->cfg.winclass[0])
+        gtk_window_set_wmclass(GTK_WINDOW(inst->window),
+                               inst->cfg.winclass, inst->cfg.winclass);
 
     /*
      * Set up the colour map.
@@ -3516,7 +3442,6 @@ int pt_main(int argc, char **argv)
     inst->width = inst->cfg.width;
     inst->height = inst->cfg.height;
 
-    inst->area = gtk_drawing_area_new();
     gtk_drawing_area_size(GTK_DRAWING_AREA(inst->area),
 			  inst->font_width * inst->cfg.width + 2*inst->cfg.window_border,
 			  inst->font_height * inst->cfg.height + 2*inst->cfg.window_border);
@@ -3575,6 +3500,10 @@ int pt_main(int argc, char **argv)
 		       GTK_SIGNAL_FUNC(button_event), inst);
     gtk_signal_connect(GTK_OBJECT(inst->area), "button_release_event",
 		       GTK_SIGNAL_FUNC(button_event), inst);
+#if GTK_CHECK_VERSION(2,0,0)
+    gtk_signal_connect(GTK_OBJECT(inst->area), "scroll_event",
+		       GTK_SIGNAL_FUNC(scroll_event), inst);
+#endif
     gtk_signal_connect(GTK_OBJECT(inst->area), "motion_notify_event",
 		       GTK_SIGNAL_FUNC(motion_event), inst);
     gtk_signal_connect(GTK_OBJECT(inst->area), "selection_received",
@@ -3611,20 +3540,34 @@ int pt_main(int argc, char **argv)
 
 	inst->menu = gtk_menu_new();
 
-#define MKMENUITEM(title, func) do { \
-    menuitem = title ? gtk_menu_item_new_with_label(title) : \
-    gtk_menu_item_new(); \
-    gtk_container_add(GTK_CONTAINER(inst->menu), menuitem); \
-    gtk_widget_show(menuitem); \
-    if (func != NULL) \
-	gtk_signal_connect(GTK_OBJECT(menuitem), "activate", \
-			       GTK_SIGNAL_FUNC(func), inst); \
-} while (0)
+#define MKMENUITEM(title, func) do                                      \
+        {                                                               \
+            menuitem = gtk_menu_item_new_with_label(title);             \
+            gtk_container_add(GTK_CONTAINER(inst->menu), menuitem);     \
+            gtk_widget_show(menuitem);                                  \
+            gtk_signal_connect(GTK_OBJECT(menuitem), "activate",        \
+                               GTK_SIGNAL_FUNC(func), inst);            \
+        } while (0)
+
+#define MKSUBMENU(title) do                                             \
+        {                                                               \
+            menuitem = gtk_menu_item_new_with_label(title);             \
+            gtk_container_add(GTK_CONTAINER(inst->menu), menuitem);     \
+            gtk_widget_show(menuitem);                                  \
+        } while (0)
+
+#define MKSEP() do                                                      \
+        {                                                               \
+            menuitem = gtk_menu_item_new();                             \
+            gtk_container_add(GTK_CONTAINER(inst->menu), menuitem);     \
+            gtk_widget_show(menuitem);                                  \
+        } while (0)
+
 	if (new_session)
-	    MKMENUITEM("New Session", new_session_menuitem);
+	    MKMENUITEM("New Session...", new_session_menuitem);
         MKMENUITEM("Restart Session", restart_session_menuitem);
 	inst->restartitem = menuitem;
-	gtk_widget_hide(inst->restartitem);
+	gtk_widget_set_sensitive(inst->restartitem, FALSE);
         MKMENUITEM("Duplicate Session", dup_session_menuitem);
 	if (saved_sessions) {
 	    inst->sessionsmenu = gtk_menu_new();
@@ -3634,27 +3577,29 @@ int pt_main(int argc, char **argv)
 	    gtk_menu_item_set_submenu(GTK_MENU_ITEM(menuitem),
 				      inst->sessionsmenu);
 	}
-	MKMENUITEM(NULL, NULL);
-        MKMENUITEM("Change Settings", change_settings_menuitem);
-	MKMENUITEM(NULL, NULL);
+	MKSEP();
+        MKMENUITEM("Change Settings...", change_settings_menuitem);
+	MKSEP();
 	if (use_event_log)
 	    MKMENUITEM("Event Log", event_log_menuitem);
-	MKMENUITEM("Special Commands", NULL);
+	MKSUBMENU("Special Commands");
 	inst->specialsmenu = gtk_menu_new();
 	gtk_menu_item_set_submenu(GTK_MENU_ITEM(menuitem), inst->specialsmenu);
 	inst->specialsitem1 = menuitem;
-	MKMENUITEM(NULL, NULL);
+	MKSEP();
 	inst->specialsitem2 = menuitem;
 	gtk_widget_hide(inst->specialsitem1);
 	gtk_widget_hide(inst->specialsitem2);
 	MKMENUITEM("Clear Scrollback", clear_scrollback_menuitem);
 	MKMENUITEM("Reset Terminal", reset_terminal_menuitem);
 	MKMENUITEM("Copy All", copy_all_menuitem);
-	MKMENUITEM(NULL, NULL);
+	MKSEP();
 	s = dupcat("About ", appname, NULL);
 	MKMENUITEM(s, about_menuitem);
 	sfree(s);
 #undef MKMENUITEM
+#undef MKSUBMENU
+#undef MKSEP
     }
 
     inst->textcursor = make_mouse_ptr(inst, GDK_XTERM);

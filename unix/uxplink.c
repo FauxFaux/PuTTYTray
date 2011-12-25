@@ -27,14 +27,19 @@
 
 void *logctx;
 
+static struct termios orig_termios;
+
 void fatalbox(char *p, ...)
 {
+    struct termios cf;
     va_list ap;
+    premsg(&cf);
     fprintf(stderr, "FATAL ERROR: ");
     va_start(ap, p);
     vfprintf(stderr, p, ap);
     va_end(ap);
     fputc('\n', stderr);
+    postmsg(&cf);
     if (logctx) {
         log_free(logctx);
         logctx = NULL;
@@ -43,12 +48,15 @@ void fatalbox(char *p, ...)
 }
 void modalfatalbox(char *p, ...)
 {
+    struct termios cf;
     va_list ap;
+    premsg(&cf);
     fprintf(stderr, "FATAL ERROR: ");
     va_start(ap, p);
     vfprintf(stderr, p, ap);
     va_end(ap);
     fputc('\n', stderr);
+    postmsg(&cf);
     if (logctx) {
         log_free(logctx);
         logctx = NULL;
@@ -57,12 +65,15 @@ void modalfatalbox(char *p, ...)
 }
 void connection_fatal(void *frontend, char *p, ...)
 {
+    struct termios cf;
     va_list ap;
+    premsg(&cf);
     fprintf(stderr, "FATAL ERROR: ");
     va_start(ap, p);
     vfprintf(stderr, p, ap);
     va_end(ap);
     fputc('\n', stderr);
+    postmsg(&cf);
     if (logctx) {
         log_free(logctx);
         logctx = NULL;
@@ -71,17 +82,19 @@ void connection_fatal(void *frontend, char *p, ...)
 }
 void cmdline_error(char *p, ...)
 {
+    struct termios cf;
     va_list ap;
+    premsg(&cf);
     fprintf(stderr, "plink: ");
     va_start(ap, p);
     vfprintf(stderr, p, ap);
     va_end(ap);
     fputc('\n', stderr);
+    postmsg(&cf);
     exit(1);
 }
 
-static int local_tty = 0; /* do we have a local tty? */
-static struct termios orig_termios;
+static int local_tty = FALSE; /* do we have a local tty? */
 
 static Backend *back;
 static void *backhandle;
@@ -94,8 +107,8 @@ char *platform_default_s(const char *name)
 {
     if (!strcmp(name, "TermType"))
 	return dupstr(getenv("TERM"));
-    if (!strcmp(name, "UserName"))
-	return get_username();
+     if (!strcmp(name, "UserName"))
+ 	return get_username();
     if (!strcmp(name, "SerialLine"))
 	return dupstr("/dev/ttyS0");
     return NULL;
@@ -106,7 +119,7 @@ int platform_default_i(const char *name, int def)
     if (!strcmp(name, "TermWidth") ||
 	!strcmp(name, "TermHeight")) {
 	struct winsize size;
-	if (ioctl(0, TIOCGWINSZ, (void *)&size) >= 0)
+	if (ioctl(STDIN_FILENO, TIOCGWINSZ, (void *)&size) >= 0)
 	    return (!strcmp(name, "TermWidth") ? size.ws_col : size.ws_row);
     }
     return def;
@@ -180,7 +193,7 @@ void ldisc_update(void *frontend, int echo, int edit)
      */
     mode.c_iflag = (mode.c_iflag | INPCK | PARMRK) & ~IGNPAR;
 
-    tcsetattr(0, TCSANOW, &mode);
+    tcsetattr(STDIN_FILENO, TCSANOW, &mode);
 }
 
 /* Helper function to extract a special character from a termios. */
@@ -366,48 +379,49 @@ char *get_ttymode(void *frontend, const char *mode)
 void cleanup_termios(void)
 {
     if (local_tty)
-	tcsetattr(0, TCSANOW, &orig_termios);
+	tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
 }
 
 bufchain stdout_data, stderr_data;
 
-void try_output(int is_stderr)
+int try_output(int is_stderr)
 {
     bufchain *chain = (is_stderr ? &stderr_data : &stdout_data);
-    int fd = (is_stderr ? 2 : 1);
+    int fd = (is_stderr ? STDERR_FILENO : STDOUT_FILENO);
     void *senddata;
-    int sendlen, ret;
+    int sendlen, ret, fl;
 
     if (bufchain_size(chain) == 0)
-        return;
+        return bufchain_size(&stdout_data) + bufchain_size(&stderr_data);
 
-    bufchain_prefix(chain, &senddata, &sendlen);
-    ret = write(fd, senddata, sendlen);
-    if (ret > 0)
-	bufchain_consume(chain, ret);
-    else if (ret < 0) {
+    fl = fcntl(fd, F_GETFL);
+    if (fl != -1 && !(fl & O_NONBLOCK))
+	fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+    do {
+	bufchain_prefix(chain, &senddata, &sendlen);
+	ret = write(fd, senddata, sendlen);
+	if (ret > 0)
+	    bufchain_consume(chain, ret);
+    } while (ret == sendlen && bufchain_size(chain) != 0);
+    if (fl != -1 && !(fl & O_NONBLOCK))
+	fcntl(fd, F_SETFL, fl);
+    if (ret < 0 && errno != EAGAIN) {
 	perror(is_stderr ? "stderr: write" : "stdout: write");
 	exit(1);
     }
+    return bufchain_size(&stdout_data) + bufchain_size(&stderr_data);
 }
 
 int from_backend(void *frontend_handle, int is_stderr,
 		 const char *data, int len)
 {
-    int osize, esize;
-
     if (is_stderr) {
 	bufchain_add(&stderr_data, data, len);
-	try_output(1);
+	return try_output(TRUE);
     } else {
 	bufchain_add(&stdout_data, data, len);
-	try_output(0);
+	return try_output(FALSE);
     }
-
-    osize = bufchain_size(&stdout_data);
-    esize = bufchain_size(&stderr_data);
-
-    return osize + esize;
 }
 
 int from_backend_untrusted(void *frontend_handle, const char *data, int len)
@@ -499,7 +513,8 @@ int signalpipe[2];
 
 void sigwinch(int signum)
 {
-    write(signalpipe[1], "x", 1);
+    if (write(signalpipe[1], "x", 1) <= 0)
+	/* not much we can do about it */;
 }
 
 /*
@@ -523,7 +538,7 @@ static void usage(void)
     printf("  -pgpfp    print PGP key fingerprints and exit\n");
     printf("  -v        show verbose messages\n");
     printf("  -load sessname  Load settings from saved session\n");
-    printf("  -ssh -telnet -rlogin -raw\n");
+    printf("  -ssh -telnet -rlogin -raw -serial\n");
     printf("            force use of a particular protocol\n");
     printf("  -P port   connect to specified port\n");
     printf("  -l user   connect with specified username\n");
@@ -550,6 +565,8 @@ static void usage(void)
     printf("  -N        don't start a shell/command (SSH-2 only)\n");
     printf("  -nc host:port\n");
     printf("            open tunnel in place of session (SSH-2 only)\n");
+    printf("  -sercfg configuration-string (e.g. 19200,8,n,1,X)\n");
+    printf("            Specify the serial configuration (serial only)\n");
     exit(1);
 }
 
@@ -570,7 +587,7 @@ int main(int argc, char **argv)
     int exitcode;
     int errors;
     int use_subsystem = 0;
-    void *ldisc;
+    int got_host = FALSE;
     long now;
 
     fdlist = NULL;
@@ -582,7 +599,9 @@ int main(int argc, char **argv)
     default_protocol = PROT_SSH;
     default_port = 22;
 
-    flags = FLAG_STDERR;
+    flags = FLAG_STDERR | FLAG_STDERR_TTY;
+
+    stderr_tty_init();
     /*
      * Process the command line.
      */
@@ -596,15 +615,11 @@ int main(int argc, char **argv)
 	 * Override the default protocol if PLINK_PROTOCOL is set.
 	 */
 	char *p = getenv("PLINK_PROTOCOL");
-	int i;
 	if (p) {
-	    for (i = 0; backends[i].backend != NULL; i++) {
-		if (!strcmp(backends[i].name, p)) {
-		    default_protocol = cfg.protocol = backends[i].protocol;
-		    default_port = cfg.port =
-			backends[i].backend->default_port;
-		    break;
-		}
+	    const Backend *b = backend_from_name(p);
+	    if (b) {
+		default_protocol = cfg.protocol = b->protocol;
+		default_port = cfg.port = b->default_port;
 	    }
 	}
     }
@@ -645,7 +660,7 @@ int main(int argc, char **argv)
 		errors = 1;
 	    }
 	} else if (*p) {
-	    if (!cfg_launchable(&cfg)) {
+	    if (!cfg_launchable(&cfg) || !(got_host || loaded_session)) {
 		char *q = p;
 
 		/*
@@ -672,6 +687,7 @@ int main(int argc, char **argv)
 			cfg.port = -1;
 		    strncpy(cfg.host, q, sizeof(cfg.host) - 1);
 		    cfg.host[sizeof(cfg.host) - 1] = '\0';
+		    got_host = TRUE;
 		} else {
 		    char *r, *user, *host;
 		    /*
@@ -681,19 +697,14 @@ int main(int argc, char **argv)
 		     */
 		    r = strchr(p, ',');
 		    if (r) {
-			int i, j;
-			for (i = 0; backends[i].backend != NULL; i++) {
-			    j = strlen(backends[i].name);
-			    if (j == r - p &&
-				!memcmp(backends[i].name, p, j)) {
-				default_protocol = cfg.protocol =
-				    backends[i].protocol;
-				portnumber =
-				    backends[i].backend->default_port;
-				p = r + 1;
-				break;
-			    }
+			const Backend *b;
+			*r = '\0';
+			b = backend_from_name(p);
+			if (b) {
+			    default_protocol = cfg.protocol = b->protocol;
+			    portnumber = b->default_port;
 			}
+			p = r + 1;
 		    }
 
 		    /*
@@ -725,8 +736,10 @@ int main(int argc, char **argv)
 			    strncpy(cfg.host, host, sizeof(cfg.host) - 1);
 			    cfg.host[sizeof(cfg.host) - 1] = '\0';
 			    cfg.port = default_port;
+			    got_host = TRUE;
 			} else {
 			    cfg = cfg2;
+			    loaded_session = TRUE;
 			}
 		    }
 
@@ -773,7 +786,7 @@ int main(int argc, char **argv)
     if (errors)
 	return 1;
 
-    if (!cfg_launchable(&cfg)) {
+    if (!cfg_launchable(&cfg) || !(got_host || loaded_session)) {
 	usage();
     }
 
@@ -836,19 +849,11 @@ int main(int argc, char **argv)
      * Select protocol. This is farmed out into a table in a
      * separate file to enable an ssh-free variant.
      */
-    {
-	int i;
-	back = NULL;
-	for (i = 0; backends[i].backend != NULL; i++)
-	    if (backends[i].protocol == cfg.protocol) {
-		back = backends[i].backend;
-		break;
-	    }
-	if (back == NULL) {
-	    fprintf(stderr,
-		    "Internal fault: Unsupported protocol found\n");
-	    return 1;
-	}
+    back = backend_from_proto(cfg.protocol);
+    if (back == NULL) {
+	fprintf(stderr,
+		"Internal fault: Unsupported protocol found\n");
+	return 1;
     }
 
     /*
@@ -870,6 +875,14 @@ int main(int argc, char **argv)
     uxsel_init();
 
     /*
+     * Unix Plink doesn't provide any way to add forwardings after the
+     * connection is set up, so if there are none now, we can safely set
+     * the "simple" flag.
+     */
+    if (cfg.protocol == PROT_SSH && !cfg.x11_forward &&	!cfg.agentfwd &&
+	cfg.portfwd[0] == '\0' && cfg.portfwd[1] == '\0')
+	cfg.ssh_simple = TRUE;
+    /*
      * Start up the connection.
      */
     logctx = log_init(NULL, &cfg);
@@ -887,7 +900,7 @@ int main(int argc, char **argv)
 	    return 1;
 	}
 	back->provide_logctx(backhandle, logctx);
-	ldisc = ldisc_create(&cfg, NULL, back, backhandle, NULL);
+	ldisc_create(&cfg, NULL, back, backhandle, NULL);
 	sfree(realhost);
     }
     connopen = 1;
@@ -897,7 +910,7 @@ int main(int argc, char **argv)
      * fails, because we know we aren't necessarily running in a
      * console.
      */
-    local_tty = (tcgetattr(0, &orig_termios) == 0);
+    local_tty = (tcgetattr(STDIN_FILENO, &orig_termios) == 0);
     atexit(cleanup_termios);
     ldisc_update(NULL, 1, 1);
     sending = FALSE;
@@ -921,17 +934,17 @@ int main(int argc, char **argv)
 	    back->sendok(backhandle) &&
 	    back->sendbuffer(backhandle) < MAX_STDIN_BACKLOG) {
 	    /* If we're OK to send, then try to read from stdin. */
-	    FD_SET_MAX(0, maxfd, rset);
+	    FD_SET_MAX(STDIN_FILENO, maxfd, rset);
 	}
 
 	if (bufchain_size(&stdout_data) > 0) {
 	    /* If we have data for stdout, try to write to stdout. */
-	    FD_SET_MAX(1, maxfd, wset);
+	    FD_SET_MAX(STDOUT_FILENO, maxfd, wset);
 	}
 
 	if (bufchain_size(&stderr_data) > 0) {
 	    /* If we have data for stderr, try to write to stderr. */
-	    FD_SET_MAX(2, maxfd, wset);
+	    FD_SET_MAX(STDERR_FILENO, maxfd, wset);
 	}
 
 	/* Count the currently active fds. */
@@ -1023,17 +1036,19 @@ int main(int argc, char **argv)
 	if (FD_ISSET(signalpipe[0], &rset)) {
 	    char c[1];
 	    struct winsize size;
-	    read(signalpipe[0], c, 1); /* ignore its value; it'll be `x' */
+	    if (read(signalpipe[0], c, 1) <= 0)
+		/* ignore error */;
+	    /* ignore its value; it'll be `x' */
 	    if (ioctl(0, TIOCGWINSZ, (void *)&size) >= 0)
 		back->size(backhandle, size.ws_col, size.ws_row);
 	}
 
-	if (FD_ISSET(0, &rset)) {
+	if (FD_ISSET(STDIN_FILENO, &rset)) {
 	    char buf[4096];
 	    int ret;
 
 	    if (connopen && back->connected(backhandle)) {
-		ret = read(0, buf, sizeof(buf));
+		ret = read(STDIN_FILENO, buf, sizeof(buf));
 		if (ret < 0) {
 		    perror("stdin: read");
 		    exit(1);
@@ -1049,12 +1064,12 @@ int main(int argc, char **argv)
 	    }
 	}
 
-	if (FD_ISSET(1, &wset)) {
-	    try_output(0);
+	if (FD_ISSET(STDOUT_FILENO, &wset)) {
+	    back->unthrottle(backhandle, try_output(FALSE));
 	}
 
-	if (FD_ISSET(2, &wset)) {
-	    try_output(1);
+	if (FD_ISSET(STDERR_FILENO, &wset)) {
+	    back->unthrottle(backhandle, try_output(TRUE));
 	}
 
 	if ((!connopen || !back->connected(backhandle)) &&

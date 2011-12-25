@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-# $Id$
+# $Id: kh2reg.py 8519 2009-04-26 23:44:28Z jacob $
 # Convert OpenSSH known_hosts and known_hosts2 files to "new format" PuTTY
 # host keys.
 #   usage:
@@ -128,10 +128,17 @@ for line in fileinput.input(args):
                 sys.stderr.write("Skipping wildcard host pattern '%s'\n"
                                  % host)
                 continue
+            elif re.match (r"\|", host):
+                sys.stderr.write("Skipping hashed hostname '%s'\n" % host)
+                continue
             else:
-                # Slightly bizarre key format: 'type@port:hostname'
-                # As far as I know, the input never specifies a port.
-                port = 22
+                m = re.match (r"\[([^]]*)\]:(\d*)$", host)
+                if m:
+                    (host, port) = m.group(1,2)
+                    port = int(port)
+                else:
+                    port = 22
+                # Slightly bizarre output key format: 'type@port:hostname'
                 # XXX: does PuTTY do anything useful with literal IP[v4]s?
                 key = keytype + ("@%d:%s" % (port, host))
                 value = string.join (map (longtohex, magicnumbers), ',')

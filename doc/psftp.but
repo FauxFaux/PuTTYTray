@@ -1,4 +1,4 @@
-\define{versionidpsftp} \versionid $Id$
+\define{versionidpsftp} \versionid $Id: psftp.but 8325 2008-11-24 18:19:55Z jacob $
 
 \C{psftp} Using \i{PSFTP} to transfer files securely
 
@@ -143,6 +143,9 @@ Once you have started your PSFTP session, you will see a \c{psftp>}
 prompt. You can now type commands to perform file-transfer
 functions. This section lists all the available commands.
 
+Any line starting with a \cw{#} will be treated as a \i{comment}
+and ignored.
+
 \S{psftp-quoting} \I{quoting, in PSFTP}General quoting rules for PSFTP commands
 
 Most PSFTP commands are considered by the PSFTP command interpreter
@@ -228,6 +231,8 @@ commands (except \c{help} and \c{quit}).
 
 To create a connection, type \c{open host.name}, or if you need to
 specify a user name as well you can type \c{open user@host.name}.
+You can optionally specify a port as well:
+\c{open user@host.name 22}.
 
 Once you have issued this command, you will not be able to issue it
 again, \e{even} if the command fails (for example, if you mistype

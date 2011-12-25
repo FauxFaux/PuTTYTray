@@ -1223,6 +1223,8 @@ static void power_on(Terminal *term, int clear)
     term->erase_char = term->basic_erase_char;
     term->alt_which = 0;
     term_print_finish(term);
+    term->xterm_mouse = 0;
+    set_raw_mouse_mode(term->frontend, FALSE);
     {
 	int i;
 	for (i = 0; i < 256; i++)
@@ -1448,7 +1450,7 @@ Terminal *term_init(Config *mycfg, struct unicode_data *ucsdata,
     term->vt52_mode = FALSE;
     term->cr_lf_return = FALSE;
     term->seen_disp_event = FALSE;
-    term->xterm_mouse = term->mouse_is_down = FALSE;
+    term->mouse_is_down = FALSE;
     term->reset_132 = FALSE;
     term->cblinker = term->tblinker = 0;
     term->has_focus = 1;
@@ -1612,6 +1614,8 @@ void term_size(Terminal *term, int newrows, int newcols, int newsavelines)
 	    addpos234(term->screen, line, 0);
 	    term->curs.y += 1;
 	    term->savecurs.y += 1;
+	    term->alt_y += 1;
+	    term->alt_savecurs.y += 1;
 	} else {
 	    /* Add a new blank line at the bottom of the screen. */
 	    line = newline(term, newcols, FALSE);
@@ -1632,6 +1636,8 @@ void term_size(Terminal *term, int newrows, int newcols, int newsavelines)
 	    term->tempsblines += 1;
 	    term->curs.y -= 1;
 	    term->savecurs.y -= 1;
+	    term->alt_y -= 1;
+	    term->alt_savecurs.y -= 1;
 	}
 	term->rows -= 1;
     }
@@ -1691,12 +1697,26 @@ void term_size(Terminal *term, int newrows, int newcols, int newsavelines)
 	term->savecurs.y = 0;
     if (term->savecurs.y >= newrows)
 	term->savecurs.y = newrows - 1;
+    if (term->savecurs.x >= newcols)
+	term->savecurs.x = newcols - 1;
+    if (term->alt_savecurs.y < 0)
+	term->alt_savecurs.y = 0;
+    if (term->alt_savecurs.y >= newrows)
+	term->alt_savecurs.y = newrows - 1;
+    if (term->alt_savecurs.x >= newcols)
+	term->alt_savecurs.x = newcols - 1;
     if (term->curs.y < 0)
 	term->curs.y = 0;
     if (term->curs.y >= newrows)
 	term->curs.y = newrows - 1;
     if (term->curs.x >= newcols)
 	term->curs.x = newcols - 1;
+    if (term->alt_y < 0)
+	term->alt_y = 0;
+    if (term->alt_y >= newrows)
+	term->alt_y = newrows - 1;
+    if (term->alt_x >= newcols)
+	term->alt_x = newcols - 1;
     term->alt_x = term->alt_y = 0;
     term->wrapnext = term->alt_wnext = FALSE;
 
@@ -1869,13 +1889,18 @@ static void check_selection(Terminal *term, pos from, pos to)
 static void scroll(Terminal *term, int topline, int botline, int lines, int sb)
 {
     termline *line;
-    int i, seltop, olddisptop, shift;
+    int i, seltop;
+#ifdef OPTIMISE_SCROLL
+    int olddisptop, shift;
+#endif /* OPTIMISE_SCROLL */
 
     if (topline != 0 || term->alt_which != 0)
 	sb = FALSE;
 
+#ifdef OPTIMISE_SCROLL
     olddisptop = term->disptop;
     shift = lines;
+#endif /* OPTIMISE_SCROLL */
     if (lines < 0) {
 	while (lines < 0) {
 	    line = delpos234(term->screen, botline);
@@ -2365,11 +2390,11 @@ static void toggle_mode(Terminal *term, int mode, int query, int state)
 	    swap_screen(term, term->cfg.no_alt_screen ? 0 : state, FALSE, FALSE);
 	    term->disptop = 0;
 	    break;
-	  case 1000:		       /* xterm mouse 1 */
+	  case 1000:		       /* xterm mouse 1 (normal) */
 	    term->xterm_mouse = state ? 1 : 0;
 	    set_raw_mouse_mode(term->frontend, state);
 	    break;
-	  case 1002:		       /* xterm mouse 2 */
+	  case 1002:		       /* xterm mouse 2 (inc. button drags) */
 	    term->xterm_mouse = state ? 2 : 0;
 	    set_raw_mouse_mode(term->frontend, state);
 	    break;
@@ -2850,6 +2875,13 @@ static void term_out(Terminal *term)
 		term->wrapnext = FALSE;
 		seen_disp_event(term);
 		term->paste_hold = 0;
+
+        if (term->cfg.crhaslf) {  
+		  if (term->curs.y == term->marg_b)
+		    scroll(term, term->marg_t, term->marg_b, 1, TRUE);
+		  else if (term->curs.y < term->rows - 1)
+		    term->curs.y++;
+        }
 		if (term->logctx)
 		    logtraffic(term->logctx, (unsigned char) c, LGTYP_ASCII);
 		break;
@@ -3263,8 +3295,8 @@ static void term_out(Terminal *term)
 		    }
 		    term->termstate = SEEN_CSI;
 		} else if (c == ';') {
-		    if (++term->esc_nargs <= ARGS_MAX)
-			term->esc_args[term->esc_nargs - 1] = ARG_DEFAULT;
+		    if (term->esc_nargs < ARGS_MAX)
+			term->esc_args[term->esc_nargs++] = ARG_DEFAULT;
 		    term->termstate = SEEN_CSI;
 		} else if (c < '@') {
 		    if (term->esc_query)
@@ -3751,7 +3783,7 @@ static void term_out(Terminal *term)
 				if (term->ldisc)
 				    ldisc_send(term->ldisc,
 					       is_iconic(term->frontend) ?
-					       "\033[1t" : "\033[2t", 4, 0);
+					       "\033[2t" : "\033[1t", 4, 0);
 				break;
 			      case 13:
 				if (term->ldisc) {
@@ -3763,7 +3795,7 @@ static void term_out(Terminal *term)
 			      case 14:
 				if (term->ldisc) {
 				    get_window_pixels(term->frontend, &x, &y);
-				    len = sprintf(buf, "\033[4;%d;%dt", x, y);
+				    len = sprintf(buf, "\033[4;%d;%dt", y, x);
 				    ldisc_send(term->ldisc, buf, len, 0);
 				}
 				break;
@@ -4743,7 +4775,6 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	termchar *lchars;
 	int dirty_line, dirty_run, selected;
 	unsigned long attr = 0, cset = 0;
-	int updated_line = 0;
 	int start = 0;
 	int ccount = 0;
 	int last_run_dirty = 0;
@@ -4941,8 +4972,6 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 		    if (attr & (TATTR_ACTCURS | TATTR_PASCURS))
 			do_cursor(ctx, start, i, ch, ccount, attr,
 				  ldata->lattr);
-
-		    updated_line = 1;
 		}
 		start = j;
 		ccount = 0;
@@ -5027,8 +5056,6 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	    if (attr & (TATTR_ACTCURS | TATTR_PASCURS))
 		do_cursor(ctx, start, i, ch, ccount, attr,
 			  ldata->lattr);
-
-	    updated_line = 1;
 	}
 
 	unlineptr(ldata);
@@ -5107,6 +5134,31 @@ void term_scroll(Terminal *term, int rel, int where)
 	scroll_display(term, 0, term->rows - 1, shift);
 #endif /* OPTIMISE_SCROLL */
     term_update(term);
+}
+
+/*
+ * Scroll the scrollback to centre it on the beginning or end of the
+ * current selection, if any.
+ */
+void term_scroll_to_selection(Terminal *term, int which_end)
+{
+    pos target;
+    int y;
+    int sbtop = -sblines(term);
+
+    if (term->selstate != SELECTED)
+	return;
+    if (which_end)
+	target = term->selend;
+    else
+	target = term->selstart;
+
+    y = target.y - term->rows/2;
+    if (y < sbtop)
+	y = sbtop;
+    else if (y > 0)
+	y = 0;
+    term_scroll(term, -1, y);
 }
 
 /*
@@ -5199,7 +5251,7 @@ static void clipme(Terminal *term, pos top, pos bottom, int rect, int desel)
 	    sprintf(cbuf, "<U+%04x>", (ldata[top.x] & 0xFFFF));
 #else
 	    wchar_t cbuf[16], *p;
-	    int set, c;
+	    int c;
 	    int x = top.x;
 
 	    if (ldata->chars[x].chr == UCSWIDE) {
@@ -5233,10 +5285,18 @@ static void clipme(Terminal *term, pos top, pos bottom, int rect, int desel)
 		    break;
 		}
 
-		set = (uc & CSET_MASK);
 		c = (uc & ~CSET_MASK);
-		cbuf[0] = uc;
-		cbuf[1] = 0;
+#ifdef PLATFORM_IS_UTF16
+		if (uc > 0x10000 && uc < 0x110000) {
+		    cbuf[0] = 0xD800 | ((uc - 0x10000) >> 10);
+		    cbuf[1] = 0xDC00 | ((uc - 0x10000) & 0x3FF);
+		    cbuf[2] = 0;
+		} else
+#endif
+		{
+		    cbuf[0] = uc;
+		    cbuf[1] = 0;
+		}
 
 		if (DIRECT_FONT(uc)) {
 		    if (c >= ' ' && c != 0x7F) {
@@ -5808,6 +5868,42 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
     term_update(term);
 }
 
+int format_arrow_key(char *buf, Terminal *term, int xkey, int ctrl)
+{
+    char *p = buf;
+
+    if (term->vt52_mode)
+	p += sprintf((char *) p, "\x1B%c", xkey);
+    else {
+	int app_flg = (term->app_cursor_keys && !term->cfg.no_applic_c);
+#if 0
+	/*
+	 * RDB: VT100 & VT102 manuals both state the app cursor
+	 * keys only work if the app keypad is on.
+	 *
+	 * SGT: That may well be true, but xterm disagrees and so
+	 * does at least one application, so I've #if'ed this out
+	 * and the behaviour is back to PuTTY's original: app
+	 * cursor and app keypad are independently switchable
+	 * modes. If anyone complains about _this_ I'll have to
+	 * put in a configurable option.
+	 */
+	if (!term->app_keypad_keys)
+	    app_flg = 0;
+#endif
+	/* Useful mapping of Ctrl-arrows */
+	if (ctrl)
+	    app_flg = !app_flg;
+
+	if (app_flg)
+	    p += sprintf((char *) p, "\x1BO%c", xkey);
+	else
+	    p += sprintf((char *) p, "\x1B[%c", xkey);
+    }
+
+    return p - buf;
+}
+
 void term_key(Terminal *term, Key_Sym keysym, wchar_t *text, size_t tlen,
 	      unsigned int modifiers, unsigned int flags)
 {
@@ -5915,7 +6011,7 @@ void term_key(Terminal *term, Key_Sym keysym, wchar_t *text, size_t tlen,
 		if (modifiers & PKM_CONTROL)
 		    c &= 0x1f;
 		else if (modifiers & PKM_SHIFT)
-		    c = toupper(c);
+			c = toupper((unsigned char)c);
 	    }
 	    *p++ = c;
 	    goto done;
@@ -6184,20 +6280,7 @@ void term_key(Terminal *term, Key_Sym keysym, wchar_t *text, size_t tlen,
 	  case PK_REST:  xkey = 'G'; break; /* centre key on number pad */
 	  default: xkey = 0; break; /* else gcc warns `enum value not used' */
 	}
-	if (term->vt52_mode)
-	    p += sprintf((char *) p, "\x1B%c", xkey);
-	else {
-	    int app_flg = (term->app_cursor_keys && !term->cfg.no_applic_c);
-
-	    /* Useful mapping of Ctrl-arrows */
-	    if (modifiers == PKM_CONTROL)
-		app_flg = !app_flg;
-
-	    if (app_flg)
-		p += sprintf((char *) p, "\x1BO%c", xkey);
-	    else
-		p += sprintf((char *) p, "\x1B[%c", xkey);
-	}
+	p += format_arrow_key(p, term, xkey, modifiers == PKM_CONTROL);
 	goto done;
     }
 
@@ -6398,6 +6481,7 @@ char *term_get_ttymode(Terminal *term, const char *mode)
 	val = term->cfg.bksp_is_delete ? "^?" : "^H";
     }
     /* FIXME: perhaps we should set ONLCR based on cfg.lfhascr as well? */
+    /* FIXME: or ECHO and friends based on local echo state? */
     return dupstr(val);
 }
 

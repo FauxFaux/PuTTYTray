@@ -1,4 +1,4 @@
-\define{versionidplink} \versionid $Id$
+\define{versionidplink} \versionid $Id: plink.but 9202 2011-07-12 18:26:18Z simon $
 
 \C{plink} Using the command-line connection tool \i{Plink}
 
@@ -43,7 +43,7 @@ use Plink:
 
 \c Z:\sysosd>plink
 \c PuTTY Link: command-line connection utility
-\c Release 0.60
+\c Release 0.61
 \c Usage: plink [options] [user@]host [command]
 \c        ("host" can also be a PuTTY saved session name)
 \c Options:
@@ -51,7 +51,7 @@ use Plink:
 \c   -pgpfp    print PGP key fingerprints and exit
 \c   -v        show verbose messages
 \c   -load sessname  Load settings from saved session
-\c   -ssh -telnet -rlogin -raw
+\c   -ssh -telnet -rlogin -raw -serial
 \c             force use of a particular protocol
 \c   -P port   connect to specified port
 \c   -l user   connect with specified username
@@ -78,6 +78,8 @@ use Plink:
 \c   -N        don't start a shell/command (SSH-2 only)
 \c   -nc host:port
 \c             open tunnel in place of session (SSH-2 only)
+\c   -sercfg configuration-string (e.g. 19200,8,n,1,X)
+\c             Specify the serial configuration (serial only)
 
 Once this works, you are ready to use Plink.
 

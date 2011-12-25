@@ -129,8 +129,50 @@ static const char *serial_configure(Serial serial, Config *cfg)
 #ifdef B115200
     CHECKBAUD(115200);
 #endif
+#ifdef B153600
+    CHECKBAUD(153600);
+#endif
 #ifdef B230400
     CHECKBAUD(230400);
+#endif
+#ifdef B307200
+    CHECKBAUD(307200);
+#endif
+#ifdef B460800
+    CHECKBAUD(460800);
+#endif
+#ifdef B500000
+    CHECKBAUD(500000);
+#endif
+#ifdef B576000
+    CHECKBAUD(576000);
+#endif
+#ifdef B921600
+    CHECKBAUD(921600);
+#endif
+#ifdef B1000000
+    CHECKBAUD(1000000);
+#endif
+#ifdef B1152000
+    CHECKBAUD(1152000);
+#endif
+#ifdef B1500000
+    CHECKBAUD(1500000);
+#endif
+#ifdef B2000000
+    CHECKBAUD(2000000);
+#endif
+#ifdef B2500000
+    CHECKBAUD(2500000);
+#endif
+#ifdef B3000000
+    CHECKBAUD(3000000);
+#endif
+#ifdef B3500000
+    CHECKBAUD(3500000);
+#endif
+#ifdef B4000000
+    CHECKBAUD(4000000);
 #endif
 #undef CHECKBAUD
 #undef SETBAUD
@@ -310,13 +352,11 @@ static void serial_free(void *handle)
 static void serial_reconfig(void *handle, Config *cfg)
 {
     Serial serial = (Serial) handle;
-    const char *err;
-
-    err = serial_configure(serial, cfg);
 
     /*
-     * FIXME: what should we do if err returns something?
+     * FIXME: what should we do if this returns an error?
      */
+    serial_configure(serial, cfg);
 }
 
 static int serial_select_result(int fd, int event)
@@ -342,6 +382,14 @@ static int serial_select_result(int fd, int event)
 	     */
 	    finished = TRUE;
 	} else if (ret < 0) {
+#ifdef EAGAIN
+	    if (errno == EAGAIN)
+		return 1;	       /* spurious */
+#endif
+#ifdef EWOULDBLOCK
+	    if (errno == EWOULDBLOCK)
+		return 1;	       /* spurious */
+#endif
 	    perror("read serial port");
 	    exit(1);
 	} else if (ret > 0) {
@@ -536,5 +584,7 @@ Backend serial_backend = {
     serial_provide_logctx,
     serial_unthrottle,
     serial_cfg_info,
-    1
+    "serial",
+    PROT_SERIAL,
+    0
 };

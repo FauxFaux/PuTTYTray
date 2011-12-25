@@ -1,4 +1,4 @@
-\define{versionidconfig} \versionid $Id$
+\define{versionidconfig} \versionid $Id: config.but 9063 2010-12-29 14:11:25Z simon $
 
 \C{config} Configuring PuTTY
 
@@ -60,13 +60,6 @@ PuTTY needs to start exactly the session you want.
 you want them saved. Then come back to the Session panel. Select the
 \q{\i{Default Settings}} entry in the saved sessions list, with a single
 click. Then press the \q{Save} button.
-
-\lcont{
-Note that PuTTY does not allow you to save a host name into the
-Default Settings entry. This ensures that when PuTTY is started up,
-the host name box is always empty, so a user can always just type in
-a host name and connect.
-}
 
 If there is a specific host you want to store the details of how to
 connect to, you should create a saved session, which will be
@@ -374,6 +367,19 @@ option, and things might go back to normal:
 \c First line of text
 \c Second line
 \c Third line
+
+\S{config-lfcr} \q{Implicit LF in every CR}
+
+\cfg{winhelp-topic}{terminal.crhaslf}
+
+Most servers send two control characters, \i{CR} and \i{LF}, to start a
+\i{new line} of the screen. The CR character makes the cursor return to the
+left-hand side of the screen. The LF character makes the cursor move
+one line down (and might make the screen scroll).
+
+Some servers only send CR, and so the newly 
+written line is overwritten by the following line. This option causes 
+a line feed so that all lines are displayed.
 
 \S{config-erase} \q{Use \i{background colour} to erase screen}
 
@@ -945,7 +951,7 @@ configuration
 
 PuTTY has the ability to change its character set configuration in
 response to commands from the server. Some programs send these
-commands unexpectedly or inconveniently. In particular, \I{BitchX} (an
+commands unexpectedly or inconveniently. In particular, \i{BitchX} (an
 IRC client) seems to have a habit of reconfiguring the character set
 to something other than the user intended.
 
@@ -1024,7 +1030,9 @@ the terminal will stay the same, and the \i{font size} will change.
 
 \b \q{Change font size when maximised}: when the window is resized,
 the number of rows and columns will change, \e{except} when the window
-is \i{maximise}d (or restored), when the font size will change.
+is \i{maximise}d (or restored), when the font size will change. (In
+this mode, holding down the Alt key while resizing will also cause the
+font size to change.)
 
 \b \q{Forbid resizing completely}: the terminal will refuse to be
 resized at all.
@@ -1088,10 +1096,15 @@ works in any of the cursor modes.
 \cfg{winhelp-topic}{appearance.font}
 
 This option allows you to choose what font, in what \I{font size}size,
-the PuTTY terminal window uses to display the text in the session. You
-will be offered a choice from all the fixed-width fonts installed on the
-system. (VT100-style terminal handling can only deal with fixed-width
-fonts.)
+the PuTTY terminal window uses to display the text in the session.
+
+By default, you will be offered a choice from all the fixed-width
+fonts installed on the system, since VT100-style terminal handling
+expects a fixed-width font. If you tick the box marked \q{Allow
+selection of variable-pitch fonts}, however, PuTTY will offer
+variable-width fonts as well: if you select one of these, the font
+will be coerced into fixed-size character cells, which will probably
+not look very good (but can work OK with some fonts).
 
 \S{config-mouseptr} \q{Hide \i{mouse pointer} when typing in window}
 
@@ -1234,13 +1247,17 @@ the character set understood by PuTTY.
 
 During an interactive session, PuTTY receives a stream of 8-bit
 bytes from the server, and in order to display them on the screen it
-needs to know what character set to interpret them in.
+needs to know what character set to interpret them in. Similarly,
+PuTTY needs to know how to translate your keystrokes into the encoding
+the server expects. Unfortunately, there is no satisfactory
+mechanism for PuTTY and the server to communicate this information,
+so it must usually be manually configured.
 
-There are a lot of character sets to choose from. The \q{Received
-data assumed to be in which character set} option lets you select
-one. By default PuTTY will attempt to choose a character set that is
-right for your \i{locale} as reported by Windows; if it gets it wrong,
-you can select a different one using this control.
+There are a lot of character sets to choose from. The \q{Remote
+character set} option lets you select one. By default PuTTY will
+attempt to choose a character set that is right for your \i{locale} as
+reported by Windows; if it gets it wrong, you can select a different
+one using this control.
 
 A few notable character sets are:
 
@@ -1257,9 +1274,10 @@ Euro symbol.
 line-drawing characters, you can select \q{\i{CP437}}.
 
 \b PuTTY also supports \i{Unicode} mode, in which the data coming from
-the server is interpreted as being in the \i{UTF-8} encoding of Unicode.
-If you select \q{UTF-8} as a character set you can use this mode.
-Not all server-side applications will support it.
+the server is interpreted as being in the \i{UTF-8} encoding of Unicode,
+and keystrokes are sent UTF-8 encoded. If you select \q{UTF-8} as a
+character set you can use this mode. Not all server-side applications
+will support it.
 
 If you need support for a numeric \i{code page} which is not listed in
 the drop-down list, such as code page 866, then you can try entering
@@ -1694,8 +1712,13 @@ TCP keepalives are disabled by default.
 \cfg{winhelp-topic}{connection.ipversion}
 
 This option allows the user to select between the old and new
-Internet protocols and addressing schemes (\i{IPv4} and \i{IPv6}). The
-default setting is \q{Auto}, which means PuTTY will do something
+Internet protocols and addressing schemes (\i{IPv4} and \i{IPv6}).
+The selected protocol will be used for most outgoing network
+connections (including connections to \I{proxy}proxies); however,
+tunnels have their own configuration, for which see
+\k{config-ssh-portfwd-address-family}.
+
+The default setting is \q{Auto}, which means PuTTY will do something
 sensible and try to guess which protocol you wanted. (If you specify
 a literal \i{Internet address}, it will use whichever protocol that
 address implies. If you provide a \i{hostname}, it will see what kinds
@@ -1704,6 +1727,54 @@ IPv6 address available, and fall back to IPv4 if not.)
 
 If you need to force PuTTY to use a particular protocol, you can
 explicitly set this to \q{IPv4} or \q{IPv6}.
+
+\S{config-loghost} \I{logical host name}\q{Logical name of remote host}
+
+\cfg{winhelp-topic}{connection.loghost}
+
+This allows you to tell PuTTY that the host it will really end up
+connecting to is different from where it thinks it is making a
+network connection.
+
+You might use this, for instance, if you had set up an SSH port
+forwarding in one PuTTY session so that connections to some
+arbitrary port (say, \cw{localhost} port 10022) were forwarded to a
+second machine's SSH port (say, \cw{foovax} port 22), and then
+started a second PuTTY connecting to the forwarded port.
+
+In normal usage, the second PuTTY will access the host key cache
+under the host name and port it actually connected to (i.e.
+\cw{localhost} port 10022 in this example). Using the logical host
+name option, however, you can configure the second PuTTY to cache
+the host key under the name of the host \e{you} know that it's
+\e{really} going to end up talking to (here \c{foovax}).
+
+This can be useful if you expect to connect to the same actual
+server through many different channels (perhaps because your port
+forwarding arrangements keep changing): by consistently setting the
+logical host name, you can arrange that PuTTY will not keep asking
+you to reconfirm its host key. Conversely, if you expect to use the
+same local port number for port forwardings to lots of different
+servers, you probably didn't want any particular server's host key
+cached under that local port number.
+
+If you just enter a host name for this option, PuTTY will cache the
+SSH host key under the default SSH port for that host, irrespective
+of the port you really connected to (since the typical scenario is
+like the above example: you connect to a silly real port number and
+your connection ends up forwarded to the normal port-22 SSH server
+of some other machine). To override this, you can append a port
+number to the logical host name, separated by a colon. E.g. entering
+\cq{foovax:2200} as the logical host name will cause the host key to
+be cached as if you had connected to port 2200 of \c{foovax}.
+
+If you provide a host name using this option, it is also displayed
+in other locations which contain the remote host name, such as the
+default window title and the default SSH password prompt. This
+reflects the fact that this is the host you're \e{really} connecting
+to, which is more important than the mere means you happen to be
+using to contact that host. (This applies even if you're using a
+protocol other than SSH.)
 
 \H{config-data} The Data panel
 
@@ -1723,6 +1794,24 @@ specify what user name you want to log in as, without having to type
 it explicitly every time. (Some Telnet servers don't support this.)
 
 In this box you can type that user name.
+
+\S{config-username-from-env} Use of system username
+
+\cfg{winhelp-topic}{connection.usernamefromenv}
+
+When the previous box (\k{config-username}) is left blank, by default,
+PuTTY will prompt for a username at the time you make a connection.
+
+In some environments, such as the networks of large organisations
+implementing \i{single sign-on}, a more sensible default may be to use
+the name of the user logged in to the local operating system (if any);
+this is particularly likely to be useful with \i{GSSAPI} authentication
+(see \k{config-ssh-auth-gssapi}). This control allows you to change
+the default behaviour.
+
+The current system username is displayed in the dialog as a
+convenience. It is not saved in the configuration; if a saved session
+is later used by a different user, that user's name will be used.
 
 \S{config-termtype} \q{\ii{Terminal-type} string}
 
@@ -1807,6 +1896,11 @@ of proxy in order to make its network connections. The settings in
 this panel affect the primary network connection forming your PuTTY
 session, and also any extra connections made as a result of SSH \i{port
 forwarding} (see \k{using-port-forwarding}).
+
+Note that unlike some software (such as web browsers), PuTTY does not
+attempt to automatically determine whether to use a proxy and (if so)
+which one to use for a given destination. If you need to use a proxy,
+it must always be explicitly configured.
 
 \S{config-proxy-type} Setting the proxy type
 
@@ -2282,6 +2376,10 @@ exchange; the server can avoid groups known to be weak, and possibly
 invent new ones over time, without any changes required to PuTTY's
 configuration. We recommend use of this method, if possible.
 
+In addition, PuTTY supports \i{RSA key exchange}, which requires much less
+computational effort on the part of the client, and somewhat less on
+the part of the server, than Diffie-Hellman key exchange.
+
 If the first algorithm PuTTY finds is below the \q{warn below here}
 line, you will see a warning box when you make the connection, similar
 to that for cipher selection (see \k{config-ssh-encryption}).
@@ -2376,6 +2474,21 @@ unwanted username prompts, you could try checking this option.
 This option only affects SSH-2 connections. SSH-1 connections always
 require an authentication step.
 
+\S{config-ssh-banner} \q{Display pre-authentication banner}
+
+\cfg{winhelp-topic}{ssh.auth.banner}
+
+SSH-2 servers can provide a message for clients to display to the
+prospective user before the user logs in; this is sometimes known as a
+pre-authentication \q{\i{banner}}. Typically this is used to provide
+information about the server and legal notices.
+
+By default, PuTTY displays this message before prompting for a
+password or similar credentials (although, unfortunately, not before
+prompting for a login name, due to the nature of the protocol design).
+By unchecking this option, display of the banner can be suppressed
+entirely.
+
 \S{config-ssh-tryagent} \q{Attempt authentication using Pageant}
 
 \cfg{winhelp-topic}{ssh.auth.pageant}
@@ -2404,11 +2517,12 @@ forms of simple \I{challenge/response authentication}challenge/response
 authentication available in SSH protocol version 1 only. You might use
 them if you were using \i{S/Key} \i{one-time passwords}, for example,
 or if you had a physical \i{security token} that generated responses
-to authentication challenges.
+to authentication challenges.  They can even be used to prompt for
+simple passwords.
 
 With this switch enabled, PuTTY will attempt these forms of
 authentication if the server is willing to try them. You will be
-presented with a challenge string (which will be different every
+presented with a challenge string (which may be different every
 time) and must supply the correct response in order to log in. If
 your server supports this, you should talk to your system
 administrator about precisely what form these challenges and
@@ -2480,6 +2594,76 @@ If a key file is specified here, and \i{Pageant} is running (see
 \k{pageant}), PuTTY will first try asking Pageant to authenticate with
 that key, and ignore any other keys Pageant may have. If that fails,
 PuTTY will ask for a passphrase as normal.
+
+\H{config-ssh-auth-gssapi} The \i{GSSAPI} panel
+
+\cfg{winhelp-topic}{ssh.auth.gssapi}
+
+The \q{GSSAPI} subpanel of the \q{Auth} panel controls the use of
+GSSAPI authentication. This is a mechanism which delegates the
+authentication exchange to a library elsewhere on the client
+machine, which in principle can authenticate in many different ways
+but in practice is usually used with the \i{Kerberos} \i{single sign-on}
+protocol.
+
+GSSAPI is only available in the SSH-2 protocol.
+
+The topmost control on the GSSAPI subpanel is the checkbox labelled
+\q{Attempt GSSAPI authentication}. If this is disabled, GSSAPI will
+not be attempted at all and the rest of this panel is unused. If it
+is enabled, GSSAPI authentication will be attempted, and (typically)
+if your client machine has valid Kerberos credentials loaded, then
+PuTTY should be able to authenticate automatically to servers that
+support Kerberos logins.
+
+\S{config-ssh-auth-gssapi-delegation} \q{Allow GSSAPI credential
+delegation}
+
+\cfg{winhelp-topic}{ssh.auth.gssapi.delegation}
+
+\i{GSSAPI credential delegation} is a mechanism for passing on your
+Kerberos (or other) identity to the session on the SSH server. If
+you enable this option, then not only will PuTTY be able to log in
+automatically to a server that accepts your Kerberos credentials,
+but also you will be able to connect out from that server to other
+Kerberos-supporting services and use the same credentials just as
+automatically.
+
+(This option is the Kerberos analogue of SSH agent forwarding; see
+\k{pageant-forward} for some information on that.)
+
+Note that, like SSH agent forwarding, there is a security
+implication in the use of this option: the administrator of the
+server you connect to, or anyone else who has cracked the
+administrator account on that server, could fake your identity when
+connecting to further Kerberos-supporting services. However,
+Kerberos sites are typically run by a central authority, so the
+administrator of one server is likely to already have access to the
+other services too; so this would typically be less of a risk than
+SSH agent forwarding.
+
+\S{config-ssh-auth-gssapi-libraries} Preference order for GSSAPI
+libraries
+
+\cfg{winhelp-topic}{ssh.auth.gssapi.libraries}
+
+GSSAPI is a mechanism which allows more than one authentication
+method to be accessed through the same interface. Therefore, more
+than one authentication library may exist on your system which can
+be accessed using GSSAPI.
+
+PuTTY contains native support for a few well-known such libraries,
+and will look for all of them on your system and use whichever it
+finds. If more than one exists on your system and you need to use a
+specific one, you can adjust the order in which it will search using
+this preference list control.
+
+One of the options in the preference list is to use a user-specified
+GSSAPI library. If the library you want to use is not mentioned by
+name in PuTTY's list of options, you can enter its full pathname in
+the \q{User-supplied GSSAPI library path} field, and move the
+\q{User-supplied GSSAPI library} option in the preference list to
+make sure it is selected before anything else.
 
 \H{config-ssh-tty} The TTY panel
 
@@ -2654,6 +2838,27 @@ connections fail.
 PuTTY's default is \cw{MIT-MAGIC-COOKIE-1}. If you change it, you
 should be sure you know what you're doing.
 
+\S{config-ssh-xauthority} X authority file for local display
+
+\cfg{winhelp-topic}{ssh.tunnels.xauthority}
+
+If you are using X11 forwarding, the local X server to which your
+forwarded connections are eventually directed may itself require
+authorisation.
+
+Some Windows X servers do not require this: they do authorisation by
+simpler means, such as accepting any connection from the local
+machine but not from anywhere else. However, if your X server does
+require authorisation, then PuTTY needs to know what authorisation
+is required.
+
+One way in which this data might be made available is for the X
+server to store it somewhere in a file which has the same format
+as the Unix \c{.Xauthority} file. If this is how your Windows X
+server works, then you can tell PuTTY where to find this file by
+configuring this option. By default, PuTTY will not attempt to find
+any authorisation for your local display.
+
 \H{config-ssh-portfwd} \I{port forwarding}The Tunnels panel
 
 \cfg{winhelp-topic}{ssh.tunnels.portfwd}
@@ -2736,6 +2941,12 @@ that forwarding remain open. Similarly, changes to global settings
 such as \q{Local ports accept connections from other hosts} only take
 effect on new forwardings.
 
+If the connection you are forwarding over SSH is itself a second SSH
+connection made by another copy of PuTTY, you might find the
+\q{logical host name} configuration option useful to warn PuTTY of
+which host key it should be expecting. See \k{config-loghost} for
+details of this.
+
 \S{config-ssh-portfwd-localhost} Controlling the visibility of
 forwarded ports
 
@@ -2771,6 +2982,9 @@ incoming connections in both IPv4 and (if available) IPv6
 
 \b for a remote-to-local port forwarding, PuTTY will choose a
 sensible protocol for the outgoing connection.
+
+This overrides the general Internet protocol version preference
+on the Connection panel (see \k{config-address-family}).
 
 Note that some operating systems may listen for incoming connections
 in IPv4 even if you specifically asked for IPv6, because their IPv4
@@ -2828,9 +3042,6 @@ enabled when talking to a correct server, the session will succeed,
 but keepalives will not work and the session might be more
 vulnerable to eavesdroppers than it could be.
 
-This is an SSH-1-specific bug. No known SSH-2 server fails to deal
-with SSH-2 ignore messages.
-
 \S{config-ssh-bug-plainpw1} \q{Refuses all SSH-1 \i{password camouflage}}
 
 \cfg{winhelp-topic}{ssh.bugs.plainpw1}
@@ -2871,6 +3082,23 @@ server, the session will succeed, but of course RSA authentication
 will be impossible.
 
 This is an SSH-1-specific bug.
+
+\S{config-ssh-bug-ignore2} \q{Chokes on SSH-2 \i{ignore message}s}
+
+\cfg{winhelp-topic}{ssh.bugs.ignore2}
+
+An ignore message (SSH_MSG_IGNORE) is a message in the SSH protocol
+which can be sent from the client to the server, or from the server
+to the client, at any time. Either side is required to ignore the
+message whenever it receives it. PuTTY uses ignore messages in SSH-2
+to confuse the encrypted data stream and make it harder to
+cryptanalyse. It also uses ignore messages for connection
+\i{keepalives} (see \k{config-keepalive}).
+
+If it believes the server to have this bug, PuTTY will stop using
+ignore messages. If this bug is enabled when talking to a correct
+server, the session will succeed, but keepalives will not work and
+the session might be less cryptographically secure than it could be.
 
 \S{config-ssh-bug-hmac2} \q{Miscomputes SSH-2 HMAC keys}
 
@@ -2961,6 +3189,22 @@ the session should still function, but may be less secure than you
 would expect.
 
 This is an SSH-2-specific bug.
+
+\S{config-ssh-bug-maxpkt2} \q{Ignores SSH-2 \i{maximum packet size}}
+
+\cfg{winhelp-topic}{ssh.bugs.maxpkt2}
+
+When an SSH-2 channel is set up, each end announces the maximum size
+of data packet that it is willing to receive for that channel.  Some
+servers ignore PuTTY's announcement and send packets larger than PuTTY
+is willing to accept, causing it to report \q{Incoming packet was
+garbled on decryption}.
+
+If this bug is detected, PuTTY never allows the channel's
+\i{flow-control window} to grow large enough to allow the server to
+send an over-sized packet.  If this bug is enabled when talking to a
+correct server, the session will work correctly, but download
+performance will be less than it could be.
 
 \H{config-serial} The Serial panel
 

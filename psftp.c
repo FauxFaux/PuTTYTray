@@ -16,6 +16,8 @@
 #include "sftp.h"
 #include "int64.h"
 
+const char *const appname = "PSFTP";
+
 /*
  * Since SFTP is a request-response oriented protocol, it requires
  * no buffer management: when we send data, we stop and wait for an
@@ -411,14 +413,15 @@ int sftp_get_file(char *fname, char *outfname, int recurse, int restart)
     if (restart) {
 	char decbuf[30];
 	if (seek_file(file, uint64_make(0,0) , FROM_END) == -1) {
+	    close_wfile(file);
 	    printf("reget: cannot restart %s - file too large\n",
 		   outfname);
-	    	sftp_register(req = fxp_close_send(fh));
-		rreq = sftp_find_request(pktin = sftp_recv());
-		assert(rreq == req);
-		fxp_close_recv(pktin, rreq);
+	    sftp_register(req = fxp_close_send(fh));
+	    rreq = sftp_find_request(pktin = sftp_recv());
+	    assert(rreq == req);
+	    fxp_close_recv(pktin, rreq);
 		
-		return 0;
+	    return 0;
 	}
 	    
 	offset = get_file_posn(file);
@@ -643,6 +646,7 @@ int sftp_put_file(char *fname, char *outfname, int recurse, int restart)
     fh = fxp_open_recv(pktin, rreq);
 
     if (!fh) {
+	close_rfile(file);
 	printf("%s: open for write: %s\n", outfname, fxp_error());
 	return 0;
     }
@@ -658,10 +662,12 @@ int sftp_put_file(char *fname, char *outfname, int recurse, int restart)
 	ret = fxp_fstat_recv(pktin, rreq, &attrs);
 
 	if (!ret) {
+	    close_rfile(file);
 	    printf("read size of %s: %s\n", outfname, fxp_error());
 	    return 0;
 	}
 	if (!(attrs.flags & SSH_FILEXFER_ATTR_SIZE)) {
+	    close_rfile(file);
 	    printf("read size of %s: size was not given\n", outfname);
 	    return 0;
 	}
@@ -703,7 +709,7 @@ int sftp_put_file(char *fname, char *outfname, int recurse, int restart)
 	if (!xfer_done(xfer)) {
 	    pktin = sftp_recv();
 	    ret = xfer_upload_gotpkt(xfer, pktin);
-	    if (!ret) {
+	    if (ret <= 0 && !err) {
 		printf("error while writing: %s\n", fxp_error());
 		err = 1;
 	    }
@@ -2236,6 +2242,11 @@ struct sftp_command *sftp_getcmd(FILE *fp, int mode, int modeflags)
 	cmd->words = sresize(cmd->words, cmd->wordssize, char *);
 	cmd->words[0] = dupstr("!");
 	cmd->words[1] = dupstr(p+1);
+    } else if (*p == '#') {
+	/*
+	 * Special case: comment. Entire line is ignored.
+	 */
+	cmd->nwords = cmd->wordssize = 0;
     } else {
 
 	/*
@@ -2507,7 +2518,8 @@ int from_backend(void *frontend, int is_stderr, const char *data, int datalen)
      */
     if (is_stderr) {
 	if (len > 0)
-	    fwrite(data, 1, len, stderr);
+	    if (fwrite(data, 1, len, stderr) < len)
+		/* oh well */;
 	return 0;
     }
 
@@ -2752,6 +2764,7 @@ static int psftp_connect(char *userhost, char *user, int portnumber)
     cfg.x11_forward = 0;
     cfg.agentfwd = 0;
     cfg.portfwd[0] = cfg.portfwd[1] = '\0';
+    cfg.ssh_simple = TRUE;
 
     /* Set up subsystem name. */
     strcpy(cfg.remote_cmd, "sftp");
@@ -2793,6 +2806,8 @@ static int psftp_connect(char *userhost, char *user, int portnumber)
     back->provide_logctx(backhandle, logctx);
     console_provide_logctx(logctx);
     while (!back->sendok(backhandle)) {
+	if (back->exitcode(backhandle) >= 0)
+	    return 1;
 	if (ssh_sftp_loop_iteration() < 0) {
 	    fprintf(stderr, "ssh_init: error during SSH connection setup\n");
 	    return 1;
@@ -2827,7 +2842,6 @@ int psftp_main(int argc, char *argv[])
     int mode = 0;
     int modeflags = 0;
     char *batchfile = NULL;
-    int errors = 0;
 
     flags = FLAG_STDERR | FLAG_INTERACTIVE
 #ifdef FLAG_SYNCAGENT
@@ -2843,7 +2857,6 @@ int psftp_main(int argc, char *argv[])
     do_defaults(NULL, &cfg);
     loaded_session = FALSE;
 
-    errors = 0;
     for (i = 1; i < argc; i++) {
 	int ret;
 	if (argv[i][0] != '-') {

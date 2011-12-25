@@ -1,4 +1,4 @@
-\define{versionidusing} \versionid $Id$
+\define{versionidusing} \versionid $Id: using.but 9149 2011-04-08 15:52:02Z jacob $
 
 \C{using} Using PuTTY
 
@@ -55,10 +55,14 @@ PuTTY will \I{selecting lines}select a whole line or sequence of lines.
 
 If you want to select a \I{rectangular selection}rectangular region
 instead of selecting to the end of each line, you can do this by
-holding down Alt when you make your selection. (You can also
+holding down Alt when you make your selection. You can also
 configure rectangular selection to be the default, and then holding
-down Alt gives the normal behaviour instead. See
-\k{config-rectselect} for details.)
+down Alt gives the normal behaviour instead: see
+\k{config-rectselect} for details.
+
+(In some Unix environments, Alt+drag is intercepted by the window
+manager. Shift+Alt+drag should work for rectangular selection as
+well, so you could try that instead.)
 
 If you have a \i{middle mouse button}, then you can use it to
 \I{adjusting a selection}adjust an existing selection if you
@@ -338,7 +342,7 @@ doesn't, the manual for the \i{X server} should tell you what it
 does do.
 
 You should then tick the \q{Enable X11 forwarding} box in the
-Tunnels panel (see \k{config-ssh-x11}) before starting your SSH
+X11 panel (see \k{config-ssh-x11}) before starting your SSH
 session. The \i{\q{X display location}} box is blank by default, which
 means that PuTTY will try to use a sensible default such as \c{:0},
 which is the usual display location where your X server will be
@@ -361,11 +365,6 @@ point at display 10 or above on the SSH server machine itself:
 
 If this works, you should then be able to run X applications in the
 remote session and have them display their windows on your PC.
-
-Note that if your PC X server requires \I{X11 authentication}authentication
-to connect, then PuTTY cannot currently support it. If this is a problem for
-you, you should mail the PuTTY authors \#{FIXME} and give details
-(see \k{feedback}).
 
 For more options relating to X11 forwarding, see \k{config-ssh-x11}.
 
@@ -423,15 +422,17 @@ number on the \e{server} (note that most servers will not allow you
 to use \I{privileged port}port numbers under 1024 for this purpose).
 
 An alternative way to forward local connections to remote hosts is
-to use \I{dynamic port forwarding}dynamic SOCKS proxying. For
-this, you will need to select the \q{Dynamic} radio button instead
-of \q{Local}, and then you should not enter anything into the
-\q{Destination} box (it will be ignored). This will cause PuTTY to
-listen on the port you have specified, and provide a SOCKS proxy
-service to any programs which connect to that port. So, in
-particular, you can forward other PuTTY connections through it by
-setting up the Proxy control panel (see \k{config-proxy} for
-details).
+to use \I{dynamic port forwarding}dynamic SOCKS proxying. In this
+mode, PuTTY acts as a SOCKS server, which SOCKS-aware programs can
+connect to and open forwarded connections to the destination of their
+choice, so this can be an alternative to long lists of static
+forwardings. To use this mode, you will need to select the \q{Dynamic}
+radio button instead of \q{Local}, and then you should not enter
+anything into the \q{Destination} box (it will be ignored). PuTTY will
+then listen for SOCKS connections on the port you have specified.
+Most \i{web browsers} can be configured to connect to this SOCKS proxy
+service; also, you can forward other PuTTY connections through it by
+setting up the Proxy control panel (see \k{config-proxy} for details).
 
 The source port for a forwarded connection usually does not accept
 connections from any machine except the \I{localhost}SSH client or
@@ -466,6 +467,15 @@ theory but servers will not necessarily cooperate.
 (Note that if you're using Windows XP Service Pack 2, you may need
 to obtain a fix from Microsoft in order to use addresses like
 \cw{127.0.0.5} - see \k{faq-alternate-localhost}.)
+
+For more options relating to port forwarding, see
+\k{config-ssh-portfwd}.
+
+If the connection you are forwarding over SSH is itself a second SSH
+connection made by another copy of PuTTY, you might find the
+\q{logical host name} configuration option useful to warn PuTTY of
+which host key it should be expecting. See \k{config-loghost} for
+details of this.
 
 \H{using-rawprot} Making \i{raw TCP connections}
 
@@ -537,9 +547,9 @@ window}, or a \i{Windows shortcut}).
 
 \S{using-cmdline-session} Starting a session from the command line
 
-\I\c{-ssh}\I\c{-telnet}\I\c{-rlogin}\I\c{-raw}These options allow
-you to bypass the configuration window and launch straight into a
-session.
+\I\c{-ssh}\I\c{-telnet}\I\c{-rlogin}\I\c{-raw}\I\c{-serial}These
+options allow you to bypass the configuration window and launch
+straight into a session.
 
 To start a connection to a server called \c{host}:
 
@@ -552,9 +562,13 @@ default protocol (see \k{using-cmdline-protocol}).
 
 For telnet sessions, the following alternative syntax is supported
 (this makes PuTTY suitable for use as a URL handler for \i{telnet
-URLs} in web browsers):
+URLs} in \i{web browsers}):
 
 \c putty.exe telnet://host[:port]/
+
+To start a connection to a serial port, e.g. COM1:
+
+\c putty.exe -serial com1
 
 In order to start an existing saved session called \c{sessionname},
 use the \c{-load} option (described in \k{using-cmdline-load}).
@@ -605,7 +619,7 @@ must be the very first thing on the command line. This form of the
 option is deprecated.)
 
 \S2{using-cmdline-protocol} Selecting a protocol: \c{-ssh},
-\c{-telnet}, \c{-rlogin}, \c{-raw}
+\c{-telnet}, \c{-rlogin}, \c{-raw} \c{-serial}
 
 To choose which protocol you want to connect with, you can use one
 of these options:
@@ -617,6 +631,8 @@ of these options:
 \b \i\c{-rlogin} selects the Rlogin protocol.
 
 \b \i\c{-raw} selects the raw protocol.
+
+\b \i\c{-serial} selects a serial connection.
 
 These options are not available in the file transfer tools PSCP and
 PSFTP (which only work with the SSH protocol).
@@ -765,8 +781,7 @@ it off. These options are only meaningful if you are using SSH.
 For information on X11 forwarding, see \k{using-x-forwarding}.
 
 These options are equivalent to the X11 forwarding checkbox in the
-Tunnels panel of the PuTTY configuration box (see
-\k{config-ssh-x11}).
+X11 panel of the PuTTY configuration box (see \k{config-ssh-x11}).
 
 These options are not available in the file transfer tools PSCP and
 PSFTP.
@@ -868,7 +883,8 @@ PuTTY configuration box (see \k{config-ssh-prot}).
 \i{Internet protocol version}
 
 The \c{-4} and \c{-6} options force PuTTY to use the older Internet
-protocol \i{IPv4} or the newer \i{IPv6}.
+protocol \i{IPv4} or the newer \i{IPv6} for most outgoing
+connections.
 
 These options are equivalent to selecting your preferred Internet
 protocol version as \q{IPv4} or \q{IPv6} in the Connection panel of
@@ -887,8 +903,42 @@ This option is equivalent to the \q{Private key file for
 authentication} box in the Auth panel of the PuTTY configuration box
 (see \k{config-ssh-privkey}).
 
+\S2{using-cmdline-loghost} \i\c{-loghost}: specify a \i{logical host
+name}
+
+This option overrides PuTTY's normal SSH host key caching policy by
+telling it the name of the host you expect your connection to end up
+at (in cases where this differs from the location PuTTY thinks it's
+connecting to). It can be a plain host name, or a host name followed
+by a colon and a port number. See \k{config-loghost} for more detail
+on this.
+
 \S2{using-cmdline-pgpfp} \i\c{-pgpfp}: display \i{PGP key fingerprint}s
 
 This option causes the PuTTY tools not to run as normal, but instead
 to display the fingerprints of the PuTTY PGP Master Keys, in order to
 aid with \i{verifying new versions}. See \k{pgpkeys} for more information.
+
+\S2{using-cmdline-sercfg} \i\c{-sercfg}: specify serial port
+\i{configuration}
+
+This option specifies the configuration parameters for the serial
+port (baud rate, stop bits etc). Its argument is interpreted as a
+comma-separated list of configuration options, which can be as
+follows:
+
+\b Any single digit from 5 to 9 sets the number of data bits.
+
+\b \cq{1}, \cq{1.5} or \cq{2} sets the number of stop bits.
+
+\b Any other numeric string is interpreted as a baud rate.
+
+\b A single lower-case letter specifies the parity: \cq{n} for none,
+\cq{o} for odd, \cq{e} for even, \cq{m} for mark and \cq{s} for space.
+
+\b A single upper-case letter specifies the flow control: \cq{N} for
+none, \cq{X} for XON/XOFF, \cq{R} for RTS/CTS and \cq{D} for
+DSR/DTR.
+
+For example, \cq{-sercfg 19200,8,n,1,N} denotes a baud rate of
+19200, 8 data bits, no parity, 1 stop bit and no flow control.
