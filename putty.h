@@ -137,6 +137,30 @@ typedef struct terminal_tag Terminal;
 #define ATTR_DEFBG   (258 << ATTR_BGSHIFT)
 #define ATTR_DEFAULT (ATTR_DEFFG | ATTR_DEFBG)
 
+/*
+ * HACK: PuttyTray / Nutty
+ * Hyperlink stuff: define
+ */
+#define CHAR_MASK    0x000000FFUL
+
+/*
+ * HACK: PuttyTray / Nutty
+ * Hyperlink stuff: Underline settings
+ */
+enum {
+	URLHACK_UNDERLINE_ALWAYS,
+	URLHACK_UNDERLINE_HOVER,
+	URLHACK_UNDERLINE_NEVER
+};
+
+/*
+ * HACK: PuttyTray
+ * Tray options
+ */
+enum {
+    TRAY_NEVER, TRAY_NORMAL, TRAY_START, TRAY_ALWAYS
+};
+
 struct sesslist {
     int nsessions;
     char **sessions;
@@ -532,6 +556,9 @@ struct config_tag {
     int win_name_always;
     int width, height;
     FontSpec font;
+	int use_font_unicode;
+	FontSpec font_unicode;
+	int font_unicode_adj;
     int font_quality;
     Filename logfilename;
     int logtype;
@@ -598,6 +625,46 @@ struct config_tag {
     FontSpec widefont;
     FontSpec wideboldfont;
     int shadowboldoffset;
+
+	/*
+	 * HACK: PuttyTray / PuTTY File
+	 */
+	int session_storagetype;
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Underline settings
+	 */
+	int url_ctrl_click;
+	int url_underline;
+	int url_defbrowser;
+	int url_defregex;
+	char url_browser[MAX_PATH];
+	char url_regex[1024];
+
+	/*
+	 * HACK: PuttyTray
+	 */
+    int tray;
+	int start_tray;
+	int tray_restore;
+
+	/*
+	 * HACK: PuttyTray / Transparency
+	 */
+	int transparency;
+	int transparency_mode;
+	
+	/*
+	 * HACK: PuttyTray / Reconnect
+	 */
+	int wakeup_reconnect;
+	int failure_reconnect;
+
+	/*
+	 * HACK: PuttyTray / Session Icon
+	 */
+	char win_icon[256];
 };
 
 /*
@@ -698,8 +765,8 @@ int char_width(Context ctx, int uc);
 #ifdef OPTIMISE_SCROLL
 void do_scroll(Context, int, int, int);
 #endif
-void set_title(void *frontend, char *);
-void set_icon(void *frontend, char *);
+void set_title(void *frontend, wchar_t *);
+void set_icon(void *frontend, wchar_t *);
 void set_sbar(void *frontend, int, int, int);
 Context get_ctx(void *frontend);
 void free_ctx(Context);
@@ -750,7 +817,7 @@ void set_zoomed(void *frontend, int zoomed);
 int is_iconic(void *frontend);
 void get_window_pos(void *frontend, int *x, int *y);
 void get_window_pixels(void *frontend, int *x, int *y);
-char *get_window_title(void *frontend, int icon);
+wchar_t *get_window_title(void *frontend, int icon);
 /* Hint from backend to frontend about time-consuming operations.
  * Initial state is assumed to be BUSY_NOT. */
 enum {
@@ -781,9 +848,16 @@ char *save_settings(char *section, Config * cfg);
 void save_open_settings(void *sesskey, Config *cfg);
 void load_settings(char *section, Config * cfg);
 void load_open_settings(void *sesskey, Config *cfg);
-void get_sesslist(struct sesslist *, int allocate);
+int get_sesslist(struct sesslist *, int allocate, int storagetype); // HACK: PuTTYTray / PuTTY File - changed return type
 void do_defaults(char *, Config *);
 void registry_cleanup(void);
+
+/*
+ * HACK: PuttyTray / PuTTY File
+ * Quick hack to load defaults from file
+ */
+void do_defaults_file(char *, Config *);
+void load_settings_file(char *section, Config * cfg);
 
 /*
  * Functions used by settings.c to provide platform-specific
@@ -951,6 +1025,9 @@ extern char ver[];
 #ifndef CP_UTF8
 #define CP_UTF8 65001
 #endif
+#ifdef __cplusplus
+extern "C" {
+#endif
 /* void init_ucs(void); -- this is now in platform-specific headers */
 int is_dbcs_leadbyte(int codepage, char byte);
 int mb_to_wc(int codepage, int flags, char *mbstr, int mblen,
@@ -958,6 +1035,7 @@ int mb_to_wc(int codepage, int flags, char *mbstr, int mblen,
 int wc_to_mb(int codepage, int flags, wchar_t *wcstr, int wclen,
 	     char *mbstr, int mblen, char *defchr, int *defused,
 	     struct unicode_data *ucsdata);
+wchar_t *short_mb_to_wc(int codepage, int flags, char *mbstr, int mblen);
 wchar_t xlat_uskbd2cyrllic(int ch);
 int check_compose(int first, int second);
 int decode_codepage(char *cp_name);
@@ -972,6 +1050,9 @@ int mk_wcwidth(wchar_t ucs);
 int mk_wcswidth(const wchar_t *pwcs, size_t n);
 int mk_wcwidth_cjk(wchar_t ucs);
 int mk_wcswidth_cjk(const wchar_t *pwcs, size_t n);
+#ifdef __cplusplus
+}
+#endif
 
 /*
  * Exports from mscrypto.c

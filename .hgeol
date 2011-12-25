@@ -1,0 +1,8 @@
+[patterns]
+**.c = native
+**.txt = native
+**.vcproj = CRLF
+**.rc = CRLF
+Makefile = LF
+**.rc = BIN
+**.ico = BIN
