@@ -39,7 +39,7 @@
 
 /* We keep this around even for snapshots, for monotonicity of version
  * numbering. It needs to be kept up to date. NB _comma_-separated. */
-#define BASE_VERSION 0,61
+#define BASE_VERSION 0,62
 
 #if defined SNAPSHOT
 
@@ -60,6 +60,11 @@
 
 #define VERSION_TEXT "Release " STR(RELEASE)
 #define BINARY_VERSION BASE_VERSION,0,0
+
+#elif defined PRERELEASE
+
+#define VERSION_TEXT "Pre-release " STR(PRERELEASE) ":r" STR(SVN_REV);
+#define BINARY_VERSION BASE_VERSION,SVN_REV,0
 
 #elif defined SVN_REV
 
