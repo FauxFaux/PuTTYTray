@@ -26,8 +26,12 @@ char ctrlparse(char *s, char **next);
 
 char *dupstr(const char *s);
 char *dupcat(const char *s1, ...);
+wchar_t *dupwstr(const wchar_t *s);
+wchar_t *dupwcat(const wchar_t *s1, ...);
 char *dupprintf(const char *fmt, ...);
 char *dupvprintf(const char *fmt, va_list ap);
+wchar_t *dupwprintf(const wchar_t *fmt, ...);
+wchar_t *dupvwprintf(const wchar_t *fmt, va_list ap);
 
 char *fgetline(FILE *fp);
 

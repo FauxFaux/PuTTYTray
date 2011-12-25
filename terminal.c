@@ -11,6 +11,11 @@
 #include "putty.h"
 #include "terminal.h"
 
+/*
+ * HACK: PuttyTray / Nutty
+ */ 
+#include "urlhack.h"
+
 #define poslt(p1,p2) ( (p1).y < (p2).y || ( (p1).y == (p2).y && (p1).x < (p2).x ) )
 #define posle(p1,p2) ( (p1).y < (p2).y || ( (p1).y == (p2).y && (p1).x <= (p2).x ) )
 #define poseq(p1,p2) ( (p1).y == (p2).y && (p1).x == (p2).x )
@@ -1247,6 +1252,17 @@ static void power_on(Terminal *term, int clear)
     term->curs.x = 0;
     term_schedule_tblink(term);
     term_schedule_cblink(term);
+#ifdef ONTHESPOT
+    {
+	int cp = decode_codepage(term->cfg.line_codepage);
+	if (cp == CP_UTF8 || cp == 949)
+	    term->onthespot = 1;
+	else
+	    term->onthespot = 0;
+	term->onthespot_buf[0] = 0;
+	term->onthespot_buf[1] = 0;
+    }
+#endif
 }
 
 /*
@@ -1490,6 +1506,11 @@ Terminal *term_init(Config *mycfg, struct unicode_data *ucsdata,
 
     term->bidi_cache_size = 0;
     term->pre_bidi_cache = term->post_bidi_cache = NULL;
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 */
+	term->url_update = TRUE;
 
     /* FULL-TERMCHAR */
     term->basic_erase_char.chr = CSET_ASCII | ' ';
@@ -2450,21 +2471,26 @@ static void do_osc(Terminal *term)
 	    term->wordness[(unsigned char)
 		term->osc_string[term->osc_strlen]] = term->esc_args[0];
     } else {
-	term->osc_string[term->osc_strlen] = '\0';
-	switch (term->esc_args[0]) {
-	  case 0:
-	  case 1:
-	    if (!term->cfg.no_remote_wintitle)
-		set_icon(term->frontend, term->osc_string);
-	    if (term->esc_args[0] == 1)
-		break;
-	    /* fall through: parameter 0 means set both */
-	  case 2:
-	  case 21:
-	    if (!term->cfg.no_remote_wintitle)
-		set_title(term->frontend, term->osc_string);
-	    break;
-	}
+		wchar_t *osc_wstring;
+		term->osc_string[term->osc_strlen] = '\0';
+
+        osc_wstring = short_mb_to_wc(decode_codepage(term->cfg.line_codepage), 0, term->osc_string, term->osc_strlen);
+		
+		switch (term->esc_args[0]) {
+		  case 0:
+		  case 1:
+			if (!term->cfg.no_remote_wintitle)
+				set_icon(term->frontend, osc_wstring);
+			if (term->esc_args[0] == 1)
+			break;
+			/* fall through: parameter 0 means set both */
+		  case 2:
+		  case 21:
+			if (!term->cfg.no_remote_wintitle)
+				set_title(term->frontend, osc_wstring);
+			break;
+		}
+		sfree(osc_wstring);
     }
 }
 
@@ -3826,27 +3852,37 @@ static void term_out(Terminal *term)
 			      case 20:
 				if (term->ldisc &&
 				    term->cfg.remote_qtitle_action != TITLE_NONE) {
-				    if(term->cfg.remote_qtitle_action == TITLE_REAL)
-					p = get_window_title(term->frontend, TRUE);
-				    else
-					p = EMPTY_WINDOW_TITLE;
+                    p = NULL;
+                    if(term->cfg.remote_qtitle_action == TITLE_REAL) {
+                        wchar_t *wp = get_window_title(term->frontend, TRUE);
+                        p = snewn(101, char);
+                        memset(p, 0, sizeof(char) * 101);
+                        wc_to_mb(decode_codepage(term->cfg.line_codepage), 0, wp, wcslen(wp), p, 100, NULL, NULL, NULL);
+                    } else
+					    p = EMPTY_WINDOW_TITLE;
 				    len = strlen(p);
 				    ldisc_send(term->ldisc, "\033]L", 3, 0);
 				    ldisc_send(term->ldisc, p, len, 0);
 				    ldisc_send(term->ldisc, "\033\\", 2, 0);
+                    sfree(p);
 				}
 				break;
 			      case 21:
 				if (term->ldisc &&
 				    term->cfg.remote_qtitle_action != TITLE_NONE) {
-				    if(term->cfg.remote_qtitle_action == TITLE_REAL)
-					p = get_window_title(term->frontend, FALSE);
-				    else
-					p = EMPTY_WINDOW_TITLE;
+                    p = NULL;
+				    if(term->cfg.remote_qtitle_action == TITLE_REAL) {
+                        wchar_t *wp = get_window_title(term->frontend, FALSE);
+                        p = snewn(101, char);
+                        memset(p, 0, sizeof(char) * 101);
+                        wc_to_mb(decode_codepage(term->cfg.line_codepage), 0, wp, wcslen(wp), p, 100, NULL, NULL, NULL);
+                    } else
+					    p = EMPTY_WINDOW_TITLE;
 				    len = strlen(p);
 				    ldisc_send(term->ldisc, "\033]l", 3, 0);
 				    ldisc_send(term->ldisc, p, len, 0);
 				    ldisc_send(term->ldisc, "\033\\", 2, 0);
+                    sfree(p);
 				}
 				break;
 			    }
@@ -4670,6 +4706,7 @@ static termchar *term_bidi_line(Terminal *term, struct termline *ldata,
  */
 static void do_paint(Terminal *term, Context ctx, int may_optimise)
 {
+    static FILE *fp = NULL;
     int i, j, our_curs_y, our_curs_x;
     int rv, cursor;
     pos scrpos;
@@ -4679,6 +4716,49 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
     struct scrollregion *sr;
 #endif /* OPTIMISE_SCROLL */
     termchar *newline;
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Find visible hyperlinks
+	 *
+	 * TODO: We should find out somehow that the stuff on screen has changed since last
+	 *       paint. How to do it?
+	 */
+	int urlhack_underline_always = (term->cfg.url_underline == URLHACK_UNDERLINE_ALWAYS);
+
+	int urlhack_underline =
+		term->cfg.url_underline == URLHACK_UNDERLINE_ALWAYS ||
+		(term->cfg.url_underline == URLHACK_UNDERLINE_HOVER && (!term->cfg.url_ctrl_click || urlhack_is_ctrl_pressed())) ? 1 : 0;
+
+	int urlhack_is_link = 0, urlhack_hover_current = 0;
+	int urlhack_toggle_x = term->cols, urlhack_toggle_y = term->rows;
+	int urlhack_region_index = 0;
+	text_region urlhack_region;
+
+	if (term->url_update) {
+		urlhack_reset();
+
+		for (i = 0; i < term->rows; i++) {
+			termline *lp = scrlineptr(term->disptop + i);
+
+			for (j = 0; j < term->cols; j++) {
+				urlhack_putchar((wchar_t)(lp->chars[j].chr & 0xFFFF));
+			}
+
+			unlineptr(lp);
+		}
+
+		urlhack_go_find_me_some_hyperlinks(term->cols);
+	}
+	urlhack_region = urlhack_get_link_region(urlhack_region_index);
+	urlhack_toggle_x = urlhack_region.x0;
+	urlhack_toggle_y = urlhack_region.y0;
+
+	if (urlhack_underline_always)
+		urlhack_hover_current = 1;
+	else
+		urlhack_hover_current = urlhack_is_in_this_link_region(urlhack_region, urlhack_mouse_old_x, urlhack_mouse_old_y);
+	/* HACK: PuttyTray / Nutty : END */
 
     chlen = 1024;
     ch = snewn(chlen, wchar_t);
@@ -4780,6 +4860,7 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	int last_run_dirty = 0;
 	int laststart, dirtyrect;
 	int *backward;
+        int cursor_wide = 0;
 
 	scrpos.y = i + term->disptop;
 	ldata = lineptr(scrpos.y);
@@ -4799,6 +4880,9 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	 */
 	for (j = 0; j < term->cols; j++) {
 	    unsigned long tattr, tchar;
+#ifdef ONTHESPOT
+	    int j_offset = 0;
+#endif
 	    termchar *d = lchars + j;
 	    scrpos.x = backward ? backward[j] : j;
 
@@ -4832,6 +4916,47 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	    }
 	    if (j < term->cols-1 && d[1].chr == UCSWIDE)
 		tattr |= ATTR_WIDE;
+
+		/*
+		 * HACK: PuttyTray / Nutty
+		 * Hyperlink stuff: Underline link regions if user has configured us so
+		 */
+		if (urlhack_underline) {
+			if (j == urlhack_toggle_x && i == urlhack_toggle_y) {
+				urlhack_is_link = urlhack_is_link == 1 ? 0 : 1;
+
+				// Find next bound for the toggle
+				
+				if (urlhack_is_link == 1) {
+					urlhack_toggle_x = urlhack_region.x1;
+					urlhack_toggle_y = urlhack_region.y1;
+
+					if (urlhack_toggle_x == term->cols - 1) {
+						// Handle special case where link ends at the last char of the row
+						urlhack_toggle_y++;
+						urlhack_toggle_x = 0;
+					}
+				}
+				else {
+					urlhack_region = urlhack_get_link_region(++urlhack_region_index);
+
+					if (urlhack_underline_always)
+						urlhack_hover_current = 1;
+					else
+						urlhack_hover_current = urlhack_is_in_this_link_region(urlhack_region, urlhack_mouse_old_x, urlhack_mouse_old_y);
+
+					urlhack_toggle_x = urlhack_region.x0;
+					urlhack_toggle_y = urlhack_region.y0;
+				}
+			}
+
+			if (urlhack_is_link == 1 && urlhack_hover_current == 1) {	
+				tattr |= ATTR_UNDER;
+			}
+
+			term->url_update = 0;
+		}
+		/* HACK: PuttyTray / Nutty : END */
 
 	    /* Video reversing things */
 	    if (term->selstate == DRAGGING || term->selstate == SELECTED) {
@@ -4871,11 +4996,36 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 		term->curstype = cursor;
 		term->dispcursx = j;
 		term->dispcursy = i;
+                if (/*in_dbcs(term) &&*/ is_dbcs_leadbyte((term)->ucsdata->line_codepage, (unsigned char)tchar)) {
+		    cursor_wide = 1;
+		}
+#ifdef ONTHESPOT
+		if (term->onthespot && term->onthespot_buf[0]) {
+                    tchar = tchar & 0xffff0000 | term->onthespot_buf[0];
+		    tattr |= ATTR_INVALID;
+                }
+	    }
+	    /* Onthespot IMEs always process DBCS characters and cursors
+	     * are always wide while composing */
+	    else if (i == our_curs_y && j == our_curs_x + 1 &&
+			term->onthespot && term->onthespot_buf[0]) {
+	    	tattr |= cursor | ATTR_INVALID;
+		term->curstype = cursor;
+		j_offset = -1;
+#endif
+	    }
+	    else if (cursor_wide && i == our_curs_y && j == our_curs_x+1) {
+		tattr |= cursor;
+		term->curstype = cursor;
+		cursor_wide = 0;
 	    }
 
 	    /* FULL-TERMCHAR */
 	    newline[j].attr = tattr;
 	    newline[j].chr = tchar;
+#ifdef ONTHESPOT
+	    newline[j].offset = j_offset;
+#endif
 	    /* Combining characters are still read from lchars */
 	    newline[j].cc_next = 0;
 	}
@@ -4934,6 +5084,9 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	    tattr = newline[j].attr;
 	    tchar = newline[j].chr;
 
+            if (cursor_wide && i == our_curs_y && j == our_curs_x+1)
+                tattr = newline[j].attr = attr;
+
 	    if ((term->disptext[i]->chars[j].attr ^ tattr) & ATTR_WIDE)
 		dirty_line = TRUE;
 
@@ -4947,6 +5100,9 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	     * Separate out sequences of characters that have the
 	     * same CSET, if that CSET is a magic one.
 	     */
+#ifdef ONTHESPOT
+	    if (newline[j].offset == 0)
+#endif
 	    if (CSET_OF(tchar) != cset)
 		break_run = TRUE;
 
@@ -5121,6 +5277,11 @@ void term_scroll(Terminal *term, int rel, int where)
     int olddisptop = term->disptop;
     int shift;
 #endif /* OPTIMISE_SCROLL */
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 */
+	term->url_update = TRUE;
 
     term->disptop = (rel < 0 ? 0 : rel > 0 ? sbtop : term->disptop) + where;
     if (term->disptop < sbtop)
@@ -5686,7 +5847,7 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
     }
 
     selpoint.x = x;
-    unlineptr(ldata);
+    //unlineptr(ldata); // HACK: REMOVED FOR HYPERLINK STUFF
 
     /*
      * If we're in the middle of a selection operation, we ignore raw
@@ -5723,8 +5884,10 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 	    }
 	    switch (a) {
 	      case MA_DRAG:
-		if (term->xterm_mouse == 1)
-		    return;
+			if (term->xterm_mouse == 1) {// HACK: ADDED FOR hyperlink stuff
+				unlineptr(ldata); 
+				return;
+			}
 		encstate += 0x20;
 		break;
 	      case MA_RELEASE:
@@ -5732,8 +5895,10 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 		term->mouse_is_down = 0;
 		break;
 	      case MA_CLICK:
-		if (term->mouse_is_down == braw)
-		    return;
+			  if (term->mouse_is_down == braw) {// HACK: ADDED FOR hyperlink stuff
+				  unlineptr(ldata); 
+				  return;
+			  }
 		term->mouse_is_down = braw;
 		break;
 	      default: break;	       /* placate gcc warning about enum use */
@@ -5748,6 +5913,7 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 	    sprintf(abuf, "\033[M%c%c%c", encstate, c, r);
 	    ldisc_send(term->ldisc, abuf, 6, 0);
 	}
+	unlineptr(ldata); // HACK: ADDED FOR hyperlink stuff
 	return;
     }
 
@@ -5770,6 +5936,67 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 	term->seltype = default_seltype;
 	term->selanchor = selpoint;
 	term->selmode = SM_CHAR;
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Check whether the click coordinates are inside link
+	 * region, if so -> copy url to temporary buffer and launch it. Delete
+	 * the temporary buffer.
+	 */
+	} else if (bcooked == MBT_SELECT && a == MA_RELEASE && term->selstate == ABOUT_TO) {
+	deselect(term);
+	term->selstate = NO_SELECTION;
+
+	if ((!term->cfg.url_ctrl_click || (term->cfg.url_ctrl_click && urlhack_is_ctrl_pressed())) && urlhack_is_in_link_region(x, y)) {
+		int i;
+		wchar_t *linkbuf = NULL;
+        wchar_t *browser;
+		text_region region = urlhack_get_link_bounds(x, y);
+
+		if (region.y0 == region.y1) {
+			linkbuf = snewn(region.x1 - region.x0 + 2, wchar_t);
+			
+			for (i = region.x0; i < region.x1; i++) {
+                // TODO: why does chr have unnecessary bits?
+				linkbuf[i - region.x0] = (wchar_t)(ldata->chars[i].chr & CHAR_MASK);
+			}
+
+			linkbuf[i - region.x0] = '\0';
+		}
+		else {
+			termline *urldata = scrlineptr(region.y0);
+			int linklen, pos = region.x0, row = region.y0;
+
+			linklen = (term->cols - region.x0) +
+				((region.y1 - region.y0 - 1) * term->cols) + region.x1 + 1;
+
+			linkbuf = snewn(linklen, wchar_t);
+
+			for (i = region.x0; i < linklen + region.x0; i++) {
+				linkbuf[i - region.x0] = (wchar_t)(urldata->chars[i % term->cols].chr & CHAR_MASK);
+				
+				// Jump to next line?
+				if (((i + 1) % term->cols) == 0) {
+					row++;
+					urldata = lineptr(row);
+				}
+			}
+
+			linkbuf[linklen - 1] = '\0';
+			unlineptr(urldata);
+		}
+        if (!term->cfg.url_defbrowser) {
+            browser = short_mb_to_wc(decode_codepage(term->cfg.line_codepage), 0, term->cfg.url_browser, strlen(term->cfg.url_browser));
+        } else
+            browser = NULL;
+
+		urlhack_launch_url(browser, linkbuf);
+
+        sfree(browser);
+		sfree(linkbuf);
+	}
+	/* HACK: PuttyTray / Nutty : END */
+
     } else if (bcooked == MBT_SELECT && (a == MA_2CLK || a == MA_3CLK)) {
 	deselect(term);
 	term->selmode = (a == MA_2CLK ? SM_WORD : SM_LINE);
@@ -5780,8 +6007,10 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 	sel_spread(term);
     } else if ((bcooked == MBT_SELECT && a == MA_DRAG) ||
 	       (bcooked == MBT_EXTEND && a != MA_RELEASE)) {
-	if (term->selstate == ABOUT_TO && poseq(term->selanchor, selpoint))
-	    return;
+	if (term->selstate == ABOUT_TO && poseq(term->selanchor, selpoint)) { // HACK: ADDED FOR HYPERLINK STUFF
+		unlineptr(ldata);
+		return;
+	}
 	if (bcooked == MBT_EXTEND && a != MA_DRAG &&
 	    term->selstate == SELECTED) {
 	    if (term->seltype == LEXICOGRAPHIC) {
@@ -6417,6 +6646,11 @@ int term_data(Terminal *term, int is_stderr, const char *data, int len)
 	if (term->selstate != DRAGGING)
 	    term_out(term);
 	term->in_term_out = FALSE;
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 */
+	term->url_update = TRUE;
     }
 
     /*

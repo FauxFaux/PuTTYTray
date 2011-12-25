@@ -14,7 +14,7 @@
  * -----------------
  * Revision Details:    (Updated by Revision Control System)
  * -----------------
- *  $Date: 2011-05-07 19:57:19 +0900 (토, 07  5월 2011) $
+ *  $Date: 2006-11-18 15:10:48 +0000 (Sat, 18 Nov 2006) $
  *  $Author: simon $
  *  $Revision: 9169 $
  *

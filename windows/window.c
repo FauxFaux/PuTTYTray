@@ -1,4 +1,4 @@
-/*
+/*SA			
  * window.c - the PuTTY(tel) main program, which runs a PuTTY terminal
  * emulator and backend in a window.
  */
@@ -10,6 +10,11 @@
 #include <limits.h>
 #include <assert.h>
 
+/*
+ * HACK: PuttyTray / Nutty
+ */ 
+#include "urlhack.h"
+
 #ifndef NO_MULTIMON
 #define COMPILE_MULTIMON_STUBS
 #endif
@@ -19,12 +24,14 @@
 #include "terminal.h"
 #include "storage.h"
 #include "win_res.h"
+#include <objbase.h>
 
 #ifndef NO_MULTIMON
 #include <multimon.h>
 #endif
 
 #include <imm.h>
+#include <shellapi.h>
 #include <commctrl.h>
 #include <richedit.h>
 #include <mmsystem.h>
@@ -49,12 +56,25 @@
 #define IDM_PASTE     0x0190
 #define IDM_SPECIALSEP 0x0200
 
+/*
+ * HACK: PuttyTray
+ * Trayicon Menu addons
+ */
+#define IDM_VISIBLE 0x0240
+#define IDM_NEXTWINDOW 0x0250
+
+#define IDM_TRAYSEP 0x0210
+#define IDM_TRAYCLOSE 0x0220
+#define IDM_TRAYRESTORE 0x0230
+
 #define IDM_SPECIAL_MIN 0x0400
 #define IDM_SPECIAL_MAX 0x0800
 
 #define IDM_SAVED_MIN 0x1000
 #define IDM_SAVED_MAX 0x5000
+#define IDM_UNICODE	  0x2000
 #define MENU_SAVED_STEP 16
+
 /* Maximum number of sessions on saved-session submenu */
 #define MENU_SAVED_MAX ((IDM_SAVED_MAX-IDM_SAVED_MIN) / MENU_SAVED_STEP)
 
@@ -164,7 +184,8 @@ struct agent_callback {
 #define FONT_OEMUND 	0x22
 #define FONT_OEMBOLDUND 0x23
 
-#define FONT_MAXNO 	0x2F
+#define FONT_UNICODE	0x2F
+#define FONT_MAXNO 	0x30
 #define FONT_SHIFT	5
 static HFONT fonts[FONT_MAXNO];
 static LOGFONT lfont;
@@ -196,11 +217,67 @@ static int wheel_accumulator = 0;
 
 static int busy_status = BUSY_NOT;
 
-static char *window_name, *icon_name;
+static wchar_t *window_name, *icon_name;
 
 static int compose_state = 0;
 
 static UINT wm_mousewheel = WM_MOUSEWHEEL;
+
+/*
+ * HACK: PuttyTray
+ * Trayicon struct, Message ID and functions
+ */
+static NOTIFYICONDATAW puttyTray;
+static BOOL puttyTrayVisible;
+static BOOL puttyTrayFlash;
+static HICON puttyTrayFlashIcon;
+static BOOL windowMinimized = FALSE;
+BOOL taskbar_addicon(LPWSTR lpszTip, BOOL showIcon);
+void tray_updatemenu(BOOL disableMenuItems);
+#define WM_NOTIFY_PUTTYTRAY (WM_USER + 1983)
+
+/*
+ * HACK: PuttyTray / Reconnect
+ */
+static time_t last_reconnect = 0;
+
+/*
+ * HACK: PuttyTray / Nutty
+ */ 
+static int urlhack_cursor_is_hand = 0;
+
+/*
+ * HACK: PuttyTray / Always on top
+ */ 
+void MakeWindowOnTop(HWND hwnd);
+
+/*
+ * HACK: PuttyTray / Transparency
+ */ 
+BOOL MakeWindowTransparent(HWND hWnd, int factor);
+BOOL CALLBACK EnumWndProc(HWND hwnd, LPARAM lparam);
+HWND my_hwnd;
+typedef struct _FRIEND_WINDOW {
+	HWND hwnd;
+	int pid;
+} FRIEND_WINDOW;
+#define MAX_FRIENDS 100
+static FRIEND_WINDOW friend_windows[MAX_FRIENDS];
+static int num_friends;
+static HWND find_next_window(void);
+
+typedef DWORD (WINAPI *PSLWA)(HWND, DWORD, BYTE, DWORD);
+static PSLWA pSetLayeredWindowAttributes = NULL;
+static BOOL initialized = FALSE;
+#if !defined(WS_EX_LAYERED)
+	#define WS_EX_LAYERED	0x00080000
+#endif
+#if !defined(LWA_COLORKEY)
+	#define LWA_COLORKEY	0x00000001
+#endif
+#if !defined(LWA_ALPHA)
+	#define LWA_ALPHA	0x00000002
+#endif
 
 /* Dummy routine, only required in plink. */
 void ldisc_update(void *frontend, int echo, int edit)
@@ -216,6 +293,7 @@ static void start_backend(void)
 {
     const char *error;
     char msg[1024], *title;
+	wchar_t *wtitle;
     char *realhost;
     int i;
 
@@ -225,11 +303,11 @@ static void start_backend(void)
      */
     back = backend_from_proto(cfg.protocol);
     if (back == NULL) {
-	char *str = dupprintf("%s Internal Error", appname);
-	MessageBox(NULL, "Unsupported protocol number found",
-		   str, MB_OK | MB_ICONEXCLAMATION);
-	sfree(str);
-	cleanup_exit(1);
+	    char *str = dupprintf("%s Internal Error", appname);
+	    MessageBox(NULL, "Unsupported protocol number found",
+		       str, MB_OK | MB_ICONEXCLAMATION);
+	    sfree(str);
+	    cleanup_exit(1);
     }
 
     error = back->init(NULL, &backhandle, &cfg,
@@ -237,24 +315,26 @@ static void start_backend(void)
 		       cfg.tcp_keepalives);
     back->provide_logctx(backhandle, logctx);
     if (error) {
-	char *str = dupprintf("%s Error", appname);
-	sprintf(msg, "Unable to open connection to\n"
-		"%.800s\n" "%s", cfg_dest(&cfg), error);
-	MessageBox(NULL, msg, str, MB_ICONERROR | MB_OK);
-	sfree(str);
-	exit(0);
+	    char *str = dupprintf("%s Error", appname);
+	    sprintf(msg, "Unable to open connection to\n%.800s\n%s", cfg_dest(&cfg), error);
+	    MessageBox(NULL, msg, str, MB_ICONERROR | MB_OK);
+	    sfree(str);
+	    exit(0);
     }
     window_name = icon_name = NULL;
     if (*cfg.wintitle) {
-	title = cfg.wintitle;
+	    title = cfg.wintitle;
     } else {
-	sprintf(msg, "%s - %s", realhost, appname);
-	title = msg;
+	    sprintf(msg, "%s - %s", realhost, appname);
+        title = msg;
     }
     sfree(realhost);
-    set_title(NULL, title);
-    set_icon(NULL, title);
-
+    
+    wtitle = short_mb_to_wc(CP_ACP, 0, title, strlen(title));
+    set_title(NULL, wtitle);
+    set_icon(NULL, wtitle);
+    sfree(wtitle);
+    
     /*
      * Connect the terminal to the backend for resize purposes.
      */
@@ -283,12 +363,14 @@ static void start_backend(void)
 static void close_session(void)
 {
     char morestuff[100];
+    wchar_t morestuffW[200] = {0};
     int i;
 
     session_closed = TRUE;
     sprintf(morestuff, "%.70s (inactive)", appname);
-    set_icon(NULL, morestuff);
-    set_title(NULL, morestuff);
+	MultiByteToWideChar(CP_ACP, 0, morestuff, strlen(morestuff), morestuffW, 200);
+    set_icon(NULL, morestuffW);
+    set_title(NULL, morestuffW);
 
     if (ldisc) {
 	ldisc_free(ldisc);
@@ -324,10 +406,11 @@ static void close_session(void)
 
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
-    WNDCLASS wndclass;
+    WNDCLASSEX wndclass; //HACK: PuttyTray / Session Icon
     MSG msg;
     HRESULT hr;
     int guess_width, guess_height;
+    HACCEL hAccel;
 
     hinst = inst;
     hwnd = NULL;
@@ -411,7 +494,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	while (*p && isspace(*p))
 	    p++;
 	if (*p == '@') {
-            /*
+	    /*
              * An initial @ means that the whole of the rest of the
              * command line should be treated as the name of a saved
              * session, with _no quoting or escaping_. This makes it a
@@ -630,19 +713,33 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	}
     }
 
+    /*
+     * HACK: PuttyTray / Session Icon
+     *
+     * Changes below: wndclassEX and some additions for the 2 icon sizes
+     */ 
     if (!prev) {
+	wndclass.cbSize = sizeof(WNDCLASSEX);
 	wndclass.style = 0;
 	wndclass.lpfnWndProc = WndProc;
 	wndclass.cbClsExtra = 0;
 	wndclass.cbWndExtra = 0;
 	wndclass.hInstance = inst;
-	wndclass.hIcon = LoadIcon(inst, MAKEINTRESOURCE(IDI_MAINICON));
+
+	if (cfg.win_icon[0]) {
+	    wndclass.hIcon = extract_icon(cfg.win_icon, FALSE);
+	    wndclass.hIconSm = extract_icon(cfg.win_icon, TRUE);
+	} else {
+	    wndclass.hIcon = (HICON) LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED);
+	    wndclass.hIconSm = (HICON) LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
+	}
+
 	wndclass.hCursor = LoadCursor(NULL, IDC_IBEAM);
 	wndclass.hbrBackground = NULL;
 	wndclass.lpszMenuName = NULL;
 	wndclass.lpszClassName = appname;
 
-	RegisterClass(&wndclass);
+	RegisterClassEx(&wndclass);
     }
 
     memset(&ucsdata, 0, sizeof(ucsdata));
@@ -686,6 +783,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 			      winmode, CW_USEDEFAULT, CW_USEDEFAULT,
 			      guess_width, guess_height,
 			      NULL, NULL, inst, NULL);
+	my_hwnd = hwnd;
     }
 
     /*
@@ -723,10 +821,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
      */
     guess_width = extra_width + font_width * term->cols;
     guess_height = extra_height + font_height * term->rows;
-    SetWindowPos(hwnd, NULL, 0, 0, guess_width, guess_height,
-		 SWP_NOMOVE | SWP_NOREDRAW | SWP_NOZORDER);
+    SetWindowPos(hwnd, NULL, 0, 0, guess_width, guess_height, SWP_NOMOVE | SWP_NOREDRAW | SWP_NOZORDER);
 
-    /*
+	/*
      * Set up a caret bitmap, with no content.
      */
     {
@@ -774,7 +871,11 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	AppendMenu(popup_menus[CTXMENU].menu, MF_ENABLED, IDM_PASTE, "&Paste");
 
 	savedsess_menu = CreateMenu();
-	get_sesslist(&sesslist, TRUE);
+	/*
+	 * HACK: PuttyTray / PuTTY File
+	 * Added storagetype to get_sesslist
+	 */
+	get_sesslist(&sesslist, TRUE, cfg.session_storagetype);
 	update_savedsess_menu();
 
 	for (j = 0; j < lenof(popup_menus); j++) {
@@ -789,12 +890,25 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 		       "Sa&ved Sessions");
 	    AppendMenu(m, MF_ENABLED, IDM_RECONF, "Chan&ge Settings...");
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
+		AppendMenu(m, MF_ENABLED | (strncmp(cfg.line_codepage, "UTF-8", 6) ? 0 : MF_CHECKED), IDM_UNICODE, "&Unicode Mode");
+	    AppendMenu(m, MF_SEPARATOR, 0, 0);
 	    AppendMenu(m, MF_ENABLED, IDM_COPYALL, "C&opy All to Clipboard");
 	    AppendMenu(m, MF_ENABLED, IDM_CLRSB, "C&lear Scrollback");
 	    AppendMenu(m, MF_ENABLED, IDM_RESET, "Rese&t Terminal");
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
 	    AppendMenu(m, (cfg.resize_action == RESIZE_DISABLED) ?
 		       MF_GRAYED : MF_ENABLED, IDM_FULLSCREEN, "&Full Screen");
+
+		/*
+		 * HACK: PuttyTray / Always on top
+		 */
+		if (cfg.alwaysontop) {
+			AppendMenu(m, MF_ENABLED | MF_CHECKED, IDM_VISIBLE, "Alwa&ys on top");
+		} else {
+			AppendMenu(m, MF_ENABLED | MF_UNCHECKED, IDM_VISIBLE, "Alwa&ys on top");
+		}
+		AppendMenu(m, MF_ENABLED, IDM_NEXTWINDOW, "Next &Window\tCtrl+Tab");
+
 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
 	    if (has_help())
 		AppendMenu(m, MF_ENABLED, IDM_HELP, "&Help");
@@ -805,6 +919,42 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     }
 
     start_backend();
+
+	/*
+	 * HACK: PuttyTray
+	 * Init TrayIcon
+	 */
+	puttyTray.cbSize = sizeof(NOTIFYICONDATA); 
+	puttyTray.hWnd	= hwnd; 
+	puttyTray.uID	= 1983; 
+	puttyTray.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP; 
+	puttyTray.uCallbackMessage = WM_NOTIFY_PUTTYTRAY;
+	if (cfg.win_icon[0]) {
+		puttyTray.hIcon	= wndclass.hIconSm;
+	} else {
+		puttyTray.hIcon	= LoadImage(inst, MAKEINTRESOURCE(IDI_TRAYICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
+	}
+
+	/*
+	 * HACK: PuttyTray
+	 * Set trayicon menu properties
+	 */
+	{
+		MENUINFO mi;
+		memset(&mi, 0, sizeof(MENUINFO));
+		mi.cbSize = sizeof(MENUINFO);
+		mi.fMask = MIM_STYLE;
+		mi.dwStyle = MNS_NOCHECK | MNS_AUTODISMISS;
+		SetMenuInfo(popup_menus[CTXMENU].menu, &mi);
+	}
+		
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Set the regular expression
+	 */
+	if (term->cfg.url_defregex == 0) {
+		urlhack_set_regular_expression(term->cfg.url_regex);
+	}
 
     /*
      * Set up the initial input locale.
@@ -824,10 +974,35 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     logpal = NULL;
     init_palette();
 
-    term_set_focus(term, GetForegroundWindow() == hwnd);
-    UpdateWindow(hwnd);
+	/*
+	 * HACK: PuttyTray / Transparency
+	 */
+	if (cfg.transparency >= 50 && cfg.transparency < 255) {
+		MakeWindowTransparent(hwnd, cfg.transparency);
+	}
 
-    while (1) {
+	/*
+	 * HACK: PuttyTray
+	 * Finally show the window (or the trayicon)!
+	 */
+	puttyTrayVisible = FALSE;
+	
+	if (cfg.tray == TRAY_START || cfg.tray == TRAY_ALWAYS) {
+		taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
+	}
+	if (cfg.tray == TRAY_START) {
+		ShowWindow(hwnd, SW_HIDE);
+		windowMinimized = TRUE;
+	} else {
+		ShowWindow(hwnd, show);
+		SetForegroundWindow(hwnd);
+		term_set_focus(term, GetForegroundWindow() == hwnd);
+		UpdateWindow(hwnd);
+	}
+
+	hAccel = LoadAccelerators(inst, MAKEINTRESOURCE(IDR_ACCELERATOR1));
+
+	while (1) {
 	HANDLE *handles;
 	int nhandles, n;
 
@@ -845,19 +1020,21 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	    sfree(handles);
 
 	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-	    if (msg.message == WM_QUIT)
-		goto finished;	       /* two-level break */
+		if (!TranslateAccelerator(hwnd, hAccel, &msg)) {
+			if (msg.message == WM_QUIT)
+			goto finished;	       /* two-level break */
 
-	    if (!(IsWindow(logbox) && IsDialogMessage(logbox, &msg)))
-		DispatchMessage(&msg);
-	    /* Send the paste buffer if there's anything to send */
-	    term_paste(term);
-	    /* If there's nothing new in the queue then we can do everything
-	     * we've delayed, reading the socket, writing, and repainting
-	     * the window.
-	     */
-	    if (must_close_session)
-		close_session();
+			if (!(IsWindow(logbox) && IsDialogMessage(logbox, &msg)))
+			DispatchMessage(&msg);
+			/* Send the paste buffer if there's anything to send */
+			term_paste(term);
+			/* If there's nothing new in the queue then we can do everything
+			 * we've delayed, reading the socket, writing, and repainting
+			 * the window.
+			 */
+			if (must_close_session)
+			close_session();
+		}
 	}
 
 	/* The messages seem unreliable; especially if we're being tricky */
@@ -879,6 +1056,12 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
  */
 void cleanup_exit(int code)
 {
+	/* HACK: PuttyTray 
+	 * Remove trayicon on close 
+	 */
+	taskbar_addicon(L"", FALSE);
+	DestroyIcon(puttyTray.hIcon);
+
     /*
      * Clean up.
      */
@@ -943,6 +1126,7 @@ static void update_savedsess_menu(void)
 	AppendMenu(savedsess_menu, MF_ENABLED,
 		   IDM_SAVED_MIN + (i-1)*MENU_SAVED_STEP,
 		   sesslist.sessions[i]);
+
     if (sesslist.nsessions <= 1)
 	AppendMenu(savedsess_menu, MF_GRAYED, IDM_SAVED_MIN, "(No sessions)");
 }
@@ -1079,18 +1263,35 @@ void connection_fatal(void *frontend, char *fmt, ...)
     va_list ap;
     char *stuff, morestuff[100];
 
-    va_start(ap, fmt);
-    stuff = dupvprintf(fmt, ap);
-    va_end(ap);
-    sprintf(morestuff, "%.70s Fatal Error", appname);
-    MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
-    sfree(stuff);
+	/*
+	 * HACK: PuTTYTray / Reconnect on connection failure
+	 */
+	if (cfg.failure_reconnect) {
+		time_t tnow = time(NULL);
+		close_session();
 
-    if (cfg.close_on_exit == FORCE_ON)
-	PostQuitMessage(1);
-    else {
-	must_close_session = TRUE;
-    }
+		if(last_reconnect && (tnow - last_reconnect) < 5) {
+			Sleep(5000);
+		}
+
+		last_reconnect = tnow;
+		logevent(NULL, "Lost connection, reconnecting...");
+		term_pwron(term, FALSE);
+		start_backend();
+	} else {
+		va_start(ap, fmt);
+		stuff = dupvprintf(fmt, ap);
+		va_end(ap);
+		sprintf(morestuff, "%.70s Fatal Error", appname);
+		MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
+		sfree(stuff);
+
+		if (cfg.close_on_exit == FORCE_ON)
+		PostQuitMessage(1);
+		else {
+		must_close_session = TRUE;
+		}
+	}
 }
 
 /*
@@ -1269,6 +1470,7 @@ static void exact_textout(HDC hdc, int x, int y, CONST RECT *lprc,
     gcpr.lpGlyphs = (void *)buffer;
     gcpr.lpClass = (void *)classbuffer;
     gcpr.nGlyphs = cbCount;
+
     GetCharacterPlacementW(hdc, lpString, cbCount, 0, &gcpr,
 			   FLI_MASK | GCP_CLASSIN | GCP_DIACRITIC);
 
@@ -1323,7 +1525,7 @@ static void general_textout(HDC hdc, int x, int y, CONST RECT *lprc,
 	i = j;
 	xp = xn;
 
-        bkmode = GetBkMode(hdc);
+	bkmode = GetBkMode(hdc);
         got_bkmode = TRUE;
         SetBkMode(hdc, TRANSPARENT);
         opaque = FALSE;
@@ -1424,12 +1626,18 @@ static void init_fonts(int pick_width, int pick_height)
 			   FIXED_PITCH | FF_DONTCARE, cfg.font.name)
 
     f(FONT_NORMAL, cfg.font.charset, fw_dontcare, FALSE);
+	if (cfg.use_font_unicode)
+		fonts[FONT_UNICODE] = CreateFont (font_height, font_width, 0, 0, fw_dontcare, FALSE, FALSE, FALSE, \
+			cfg.font_unicode.charset, OUT_DEFAULT_PRECIS, \
+			CLIP_DEFAULT_PRECIS, FONT_QUALITY(cfg.font_quality), \
+			FIXED_PITCH | FF_DONTCARE, cfg.font_unicode.name);
+	else
+		fonts[FONT_UNICODE] = NULL;
 
     SelectObject(hdc, fonts[FONT_NORMAL]);
     GetTextMetrics(hdc, &tm);
 
     GetObject(fonts[FONT_NORMAL], sizeof(LOGFONT), &lfont);
-
     /* Note that the TMPF_FIXED_PITCH bit is defined upside down :-( */
     if (!(tm.tmPitchAndFamily & TMPF_FIXED_PITCH)) {
         font_varpitch = FALSE;
@@ -1438,9 +1646,10 @@ static void init_fonts(int pick_width, int pick_height)
         font_varpitch = TRUE;
         font_dualwidth = TRUE;
     }
+
     if (pick_width == 0 || pick_height == 0) {
 	font_height = tm.tmHeight;
-        font_width = get_font_width(hdc, &tm);
+	font_width = get_font_width(hdc, &tm);
     }
 
 #ifdef RDB_DEBUG_PATCH
@@ -1881,6 +2090,19 @@ static void set_input_locale(HKL kl)
 		  lbuf, sizeof(lbuf));
 
     kbd_codepage = atoi(lbuf);
+
+#ifdef ONTHESPOT
+    /* Korean IME doesn't need to show the external IME composing
+     * window and it can make users less intuitive to see what they
+     * are typing. */
+    if (kbd_codepage == 949 /* Korean */) {
+	term->onthespot = 1;
+	term->onthespot_buf[0] = 0;
+        term->onthespot_buf[1] = 0;
+    }
+    else
+	term->onthespot = 0;
+#endif
 }
 
 static void click(Mouse_Button b, int x, int y, int shift, int ctrl, int alt)
@@ -1989,11 +2211,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 				WPARAM wParam, LPARAM lParam)
 {
     HDC hdc;
+    HWND hNext;
+    static UINT msg_TaskbarCreated = -1;
     static int ignore_clip = FALSE;
     static int need_backend_resize = FALSE;
     static int fullscr_on_max = FALSE;
     static int processed_resize = FALSE;
     static UINT last_mousemove = 0;
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 */ 
+	POINT cursor_pt;
 
     switch (message) {
       case WM_TIMER:
@@ -2008,6 +2237,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	}
 	return 0;
       case WM_CREATE:
+        msg_TaskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
 	break;
       case WM_CLOSE:
 	{
@@ -2031,13 +2261,17 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	if ((HMENU)wParam == savedsess_menu) {
 	    /* About to pop up Saved Sessions sub-menu.
 	     * Refresh the session list. */
-	    get_sesslist(&sesslist, FALSE); /* free */
-	    get_sesslist(&sesslist, TRUE);
+		/*
+		 * HACK: PuttyTray / PuTTY File
+		 * Added storagetype to get_sesslist
+		 */
+	    get_sesslist(&sesslist, FALSE, cfg.session_storagetype); /* free */
+	    get_sesslist(&sesslist, TRUE, cfg.session_storagetype);
 	    update_savedsess_menu();
 	    return 0;
 	}
 	break;
-      case WM_COMMAND:
+	  case WM_COMMAND:
       case WM_SYSCOMMAND:
 	switch (wParam & ~0xF) {       /* low 4 bits reserved to Windows */
 	  case IDM_SHOWLOG:
@@ -2128,6 +2362,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		int init_lvl = 1;
 		int reconfig_result;
 
+		/*
+		 * HACK: PuttyTray / Session Icon
+		 */ 
+		HINSTANCE inst;
+		HICON hIcon;
+
 		if (reconfiguring)
 		    break;
 		else
@@ -2181,6 +2421,68 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		if (back)
 		    back->reconfig(backhandle, &cfg);
 
+		/*
+		 * HACK: PuttyTray / Transparency
+		 * Reconfigure
+		 */
+		if (cfg.transparency >= 50) {
+			if (cfg.transparency > 255) {
+				MakeWindowTransparent(hwnd, 255);
+			} else {
+				MakeWindowTransparent(hwnd, cfg.transparency);
+			}
+		} else {
+			MakeWindowTransparent(hwnd, 255);
+		}
+
+		/*
+		 * HACK: PuttyTray / Nutty
+		 * Reconfigure
+		 */
+		if (cfg.url_defregex == 0) {
+			urlhack_set_regular_expression(cfg.url_regex);
+		}
+		term->url_update = TRUE;
+		term_update(term);
+
+		/*
+		 * HACK: PuttyTray / Session Icon
+		 * Reconfigure
+		 */
+		if (cfg.win_icon[0]) {
+			hIcon = extract_icon(cfg.win_icon, TRUE);
+			DestroyIcon(puttyTray.hIcon);
+			puttyTray.hIcon = hIcon;
+			SetClassLong(hwnd, GCL_HICON, extract_icon(cfg.win_icon, FALSE));
+			SetClassLong(hwnd, GCL_HICONSM, (LONG)hIcon);
+		} else {
+			inst = GetWindowLong(hwnd, -6);
+			DestroyIcon(puttyTray.hIcon);
+			puttyTray.hIcon	= LoadImage(inst, MAKEINTRESOURCE(IDI_TRAYICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
+			SetClassLong(hwnd, GCL_HICON, (LONG)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED));
+			SetClassLong(hwnd, GCL_HICONSM, (LONG)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED));
+		}
+		if (puttyTrayVisible) {
+			taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
+		}
+
+		/*
+		 * HACK: PuttyTray
+		 * Reconfigure
+		 */
+		if (cfg.tray == TRAY_NORMAL || cfg.tray == TRAY_START) {
+			if (windowMinimized) {
+				ShowWindow(hwnd, SW_HIDE);
+				taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
+			} else {
+				taskbar_addicon(L"", FALSE);
+			}
+		} else if (cfg.tray == TRAY_ALWAYS) {
+			taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
+		} else {
+			taskbar_addicon(L"", FALSE);
+		}
+
 		/* Screen size changed ? */
 		if (cfg.height != prev_cfg.height ||
 		    cfg.width != prev_cfg.width ||
@@ -2197,17 +2499,22 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 			GetWindowLongPtr(hwnd, GWL_EXSTYLE);
 
 		    nexflag = exflag;
-		    if (cfg.alwaysontop != prev_cfg.alwaysontop) {
-			if (cfg.alwaysontop) {
-			    nexflag |= WS_EX_TOPMOST;
-			    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-					 SWP_NOMOVE | SWP_NOSIZE);
-			} else {
-			    nexflag &= ~(WS_EX_TOPMOST);
-			    SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
-					 SWP_NOMOVE | SWP_NOSIZE);
-			}
-		    }
+			//if (cfg.alwaysontop != prev_cfg.alwaysontop) { //HACK: PuttyTray / Always on top:
+				if (cfg.alwaysontop) {
+					nexflag |= WS_EX_TOPMOST;
+					SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+
+					//HACK: PuttyTray / Always on top:
+					CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_VISIBLE, MF_CHECKED);
+				} else {
+					nexflag &= ~(WS_EX_TOPMOST);
+					SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+
+					//HACK: PuttyTray / Always on top:
+					CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_VISIBLE, MF_UNCHECKED);
+				}
+		    //}
+
 		    if (cfg.sunken_edge)
 			nexflag |= WS_EX_CLIENTEDGE;
 		    else
@@ -2252,11 +2559,15 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    init_lvl = 2;
 		}
 
-		set_title(NULL, cfg.wintitle);
+		{ 
+		wchar_t wintitleW[512] = {0};
+		MultiByteToWideChar(decode_codepage(cfg.line_codepage), 0, cfg.wintitle, strlen(cfg.wintitle), wintitleW, 512);
+		set_title(NULL, wintitleW);
 		if (IsIconic(hwnd)) {
-		    SetWindowText(hwnd,
+		    SetWindowTextW(hwnd,
 				  cfg.win_name_always ? window_name :
 				  icon_name);
+		}
 		}
 
 		if (strcmp(cfg.font.name, prev_cfg.font.name) != 0 ||
@@ -2265,6 +2576,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    cfg.font.height != prev_cfg.font.height ||
 		    cfg.font.charset != prev_cfg.font.charset ||
 		    cfg.font_quality != prev_cfg.font_quality ||
+		    strcmp(cfg.font_unicode.name, prev_cfg.font_unicode.name) != 0 ||
+		    strcmp(cfg.line_codepage, prev_cfg.line_codepage) != 0 ||
+		    cfg.font_unicode.isbold != prev_cfg.font_unicode.isbold ||
+		    cfg.font_unicode.charset != prev_cfg.font_unicode.charset ||
 		    cfg.vtmode != prev_cfg.vtmode ||
 		    cfg.bold_colour != prev_cfg.bold_colour ||
 		    cfg.resize_action == RESIZE_DISABLED ||
@@ -2294,9 +2609,44 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	  case IDM_ABOUT:
 	    showabout(hwnd);
 	    break;
+	  case IDM_UNICODE:
+	    strncpy(cfg.line_codepage, strncmp(cfg.line_codepage, "UTF-8", 6) ? "UTF-8" : "CP949", 6);
+	    reset_window(2);
+	    CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_UNICODE, strcmp(cfg.line_codepage, "UTF-8") ? MF_UNCHECKED : MF_CHECKED);
+	    break;
+	  case IDM_NEXTWINDOW:
+		hNext = find_next_window();
+	    SetForegroundWindow(hNext);
+		break;
 	  case IDM_HELP:
 	    launch_help(hwnd, NULL);
 	    break;
+
+	  /*
+	   * HACK: PuttyTray / Always on top
+	   */
+	  case IDM_VISIBLE: 
+	  	MakeWindowOnTop(hwnd);
+		break ;
+
+	  /*
+	   * HACK: PuttyTray
+	   * Trayicon Menu addon click handlers
+	   */
+	  case IDM_TRAYRESTORE:
+	    ShowWindow(hwnd, SW_RESTORE);
+	    SetForegroundWindow(hwnd);
+	    windowMinimized = FALSE;
+
+	    // Remove icon
+	    if (cfg.tray != TRAY_ALWAYS) {
+	      taskbar_addicon(cfg.win_name_always ? window_name : icon_name, FALSE);
+	    }
+	    break;
+	  case IDM_TRAYCLOSE:
+	    SendMessage(hwnd, WM_CLOSE, NULL, NULL);
+	    break;
+
 	  case SC_MOUSEMENU:
 	    /*
 	     * We get this if the System menu has been activated
@@ -2480,6 +2830,37 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	 */
 	noise_ultralight(lParam);
 
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Change cursor type if hovering over link
+	 */ 
+	if (urlhack_mouse_old_x != TO_CHR_X(X_POS(lParam)) || urlhack_mouse_old_y != TO_CHR_Y(Y_POS(lParam))) {
+		urlhack_mouse_old_x = TO_CHR_X(X_POS(lParam));
+		urlhack_mouse_old_y = TO_CHR_Y(Y_POS(lParam));
+
+		if ((!term->cfg.url_ctrl_click || urlhack_is_ctrl_pressed()) &&
+			urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y)) {
+				if (urlhack_cursor_is_hand == 0) {
+					SetClassLong(hwnd, GCL_HCURSOR, LoadCursor(NULL, IDC_HAND));
+					urlhack_cursor_is_hand = 1;
+					term_update(term); // Force the terminal to update, otherwise the underline will not show (bug somewhere, this is an ugly fix)
+				}
+		}
+		else if (urlhack_cursor_is_hand == 1) {
+			SetClassLong(hwnd, GCL_HCURSOR, LoadCursor(NULL, IDC_IBEAM));
+			urlhack_cursor_is_hand = 0;
+			term_update(term); // Force the terminal to update, see above
+		}
+
+		// If mouse jumps from one link directly into another, we need a forced terminal update too
+		if (urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y) != urlhack_current_region) {
+			urlhack_current_region = urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y);
+			term_update(term);
+		}
+
+	}
+	/* HACK: PuttyTray / Nutty : END */
+
 	if (wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON) &&
 	    GetCapture() == hwnd) {
 	    Mouse_Button b;
@@ -2643,6 +3024,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	DestroyCaret();
 	caret_x = caret_y = -1;	       /* ensure caret is replaced next time */
 	term_update(term);
+#ifdef ONTHESPOT
+	term->onthespot_buf[0] = 0;
+#endif
 	break;
       case WM_ENTERSIZEMOVE:
 #ifdef RDB_DEBUG_PATCH
@@ -2669,7 +3053,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	 * 1) Keep the sizetip uptodate
 	 * 2) Make sure the window size is _stepped_ in units of the font size.
 	 */
-        if (cfg.resize_action == RESIZE_TERM ||
+	if (cfg.resize_action == RESIZE_TERM ||
             (cfg.resize_action == RESIZE_EITHER && !is_alt_pressed())) {
 	    int width, height, w, h, ew, eh;
 	    LPRECT r = (LPRECT) lParam;
@@ -2771,15 +3155,36 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		"...",
 	    LOWORD(lParam), HIWORD(lParam)));
 #endif
-	if (wParam == SIZE_MINIMIZED)
-	    SetWindowText(hwnd,
-			  cfg.win_name_always ? window_name : icon_name);
+
+	/*
+	 * HACK: PuttyTray
+	 * Addon to SIZE_MINIMIZED for adding/removing the trayicon
+	 */
+	if (wParam == SIZE_MINIMIZED) {
+
+		BYTE keys[256];
+		int control_pressed;
+		if (GetKeyboardState(keys)!=0) {
+			control_pressed=keys[VK_CONTROL]&0x80;
+		}
+
+		SetWindowTextW(hwnd, cfg.win_name_always ? window_name : icon_name);
+		
+		if (cfg.tray == TRAY_NORMAL || cfg.tray == TRAY_START || control_pressed > 0) {
+			taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
+			ShowWindow(hwnd, SW_HIDE);
+		}
+		windowMinimized = TRUE;
+	} else {
+		windowMinimized = FALSE;
+	}
+
 	if (wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED)
-	    SetWindowText(hwnd, window_name);
+	    SetWindowTextW(hwnd, window_name);
         if (wParam == SIZE_RESTORED) {
             processed_resize = FALSE;
             clear_full_screen();
-            if (processed_resize) {
+	    if (processed_resize) {
                 /*
                  * Inhibit normal processing of this WM_SIZE; a
                  * secondary one was triggered just now by
@@ -2791,9 +3196,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
         }
         if (wParam == SIZE_MAXIMIZED && fullscr_on_max) {
             fullscr_on_max = FALSE;
-            processed_resize = FALSE;
+	    processed_resize = FALSE;
             make_full_screen();
-            if (processed_resize) {
+	     if (processed_resize) {
                 /*
                  * Inhibit normal processing of this WM_SIZE; a
                  * secondary one was triggered just now by
@@ -2804,7 +3209,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
             }
         }
 
-        processed_resize = TRUE;
+	processed_resize = TRUE;
 
 	if (cfg.resize_action == RESIZE_DISABLED) {
 	    /* A resize, well it better be a minimize. */
@@ -2816,7 +3221,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    width = LOWORD(lParam);
 	    height = HIWORD(lParam);
 
-            if (wParam == SIZE_MAXIMIZED && !was_zoomed) {
+	    if (wParam == SIZE_MAXIMIZED && !was_zoomed) {
                 was_zoomed = 1;
                 prev_rows = term->rows;
                 prev_cols = term->cols;
@@ -2862,7 +3267,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    need_backend_resize = TRUE;
 		    cfg.height = h;
 		    cfg.width = w;
-                } else {
+	        } else {
                     term_size(term, h, w, cfg.savelines);
                 }
             } else {
@@ -2918,10 +3323,39 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    }
 	}
 	return FALSE;
-      case WM_KEYDOWN:
-      case WM_SYSKEYDOWN:
-      case WM_KEYUP:
-      case WM_SYSKEYUP:
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Change cursor if we are in ctrl+click link mode
+	 *
+	 * WARNING: Spans over multiple CASEs
+	 */
+	case WM_KEYDOWN:
+		if (wParam == VK_CONTROL && term->cfg.url_ctrl_click) {
+			GetCursorPos(&cursor_pt);
+			ScreenToClient(hwnd, &cursor_pt);
+
+			if (urlhack_is_in_link_region(TO_CHR_X(cursor_pt.x), TO_CHR_Y(cursor_pt.y))) {
+				SetCursor(LoadCursor(NULL, IDC_HAND));
+				term_update(term);
+			}
+		
+			goto KEY_END;
+		}	
+
+	case WM_KEYUP:
+		if (wParam == VK_CONTROL && term->cfg.url_ctrl_click) {
+			SetCursor(LoadCursor(NULL, IDC_IBEAM));
+			term_update(term);
+		
+			goto KEY_END;
+		}
+	KEY_END:
+
+	case WM_SYSKEYDOWN:
+	case WM_SYSKEYUP:
+	/* HACK: PuttyTray / Nutty : END */
+
 	/*
 	 * Add the scan code and keypress timing to the random
 	 * number noise.
@@ -2988,25 +3422,78 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
       case WM_IME_STARTCOMPOSITION:
 	{
 	    HIMC hImc = ImmGetContext(hwnd);
-	    ImmSetCompositionFont(hImc, &lfont);
+            LOGFONT lf_compose;
+#ifdef ONTHESPOT
+	    if (term->onthespot) {
+		COMPOSITIONFORM cf;
+		RECT rectWorkArea;
+
+		SystemParametersInfo(SPI_GETWORKAREA, 0,
+				     (void*)&rectWorkArea, 0);
+		cf.dwStyle = CFS_POINT;
+		cf.ptCurrentPos.x = 0; // drive out of screen
+		cf.ptCurrentPos.y = rectWorkArea.bottom+50;
+                GetObject(fonts[FONT_UNICODE], sizeof(LOGFONT), &lf_compose);
+                ImmSetCompositionFont(hImc, &lf_compose);
+		ImmSetCompositionWindow(hImc, &cf);
+		ImmReleaseContext(hwnd, hImc);
+		term->onthespot_buf[0] = 0;
+		return 0;
+	    }
+#endif
+            ImmSetCompositionFont(hImc, &lfont);
 	    ImmReleaseContext(hwnd, hImc);
 	}
 	break;
+#ifdef ONTHESPOT
+      case WM_IME_ENDCOMPOSITION:
+	term->onthespot_buf[0] = 0;
+	break;
+#endif
       case WM_IME_COMPOSITION:
 	{
-	    HIMC hIMC;
+	    HIMC hIMC = ImmGetContext(hwnd);
 	    int n;
 	    char *buff;
+            wchar_t *wbuff;
 
 	    if(osVersion.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS || 
 	        osVersion.dwPlatformId == VER_PLATFORM_WIN32s) break; /* no Unicode */
 
-	    if ((lParam & GCS_RESULTSTR) == 0) /* Composition unfinished. */
+            if (lParam & GCS_COMPSTR) { /* Composition unfinished. */
+#ifdef ONTHESPOT
+                // wParam only has DBCS characters, but we want unicode characters.
+                // So we call the unicode version.
+                n = ImmGetCompositionStringW(hIMC, GCS_COMPSTR, NULL, 0);
+		if (term->onthespot) {
+		    RECT invrect;
+                    HDC hdc;
+                    if (n > 0) {
+                        buff = snewn(n + 2, char);
+                        memset(buff, 0, n + 2);
+                        ImmGetCompositionStringW(hIMC, GCS_COMPSTR, buff, n);
+                        wbuff = (wchar_t*) buff;
+                        term->onthespot_buf[0] = wbuff[0];
+                        free(buff);
+                    }
+                    else
+                        term->onthespot_buf[0] = 0;
+
+		    invrect.left = caret_x;
+		    invrect.top = caret_y;
+		    invrect.right = caret_x + font_width * 2;
+		    invrect.bottom = caret_y + font_height;
+		    InvalidateRect(hwnd, &invrect, TRUE);
+		}
+#endif
 		break; /* fall back to DefWindowProc */
+            }
+#ifdef ONTHESPOT
+	    else
+		term->onthespot_buf[0] = 0;
+#endif
 
-	    hIMC = ImmGetContext(hwnd);
-	    n = ImmGetCompositionStringW(hIMC, GCS_RESULTSTR, NULL, 0);
-
+            n = ImmGetCompositionStringW(hIMC, GCS_RESULTSTR, NULL, 0);
 	    if (n > 0) {
 		int i;
 		buff = snewn(n, char);
@@ -3080,40 +3567,127 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	if (process_clipdata((HGLOBAL)lParam, wParam))
 	    term_do_paste(term);
 	return 0;
-      default:
-	if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
-	    int shift_pressed=0, control_pressed=0;
 
-	    if (message == WM_MOUSEWHEEL) {
-		wheel_accumulator += (short)HIWORD(wParam);
-		shift_pressed=LOWORD(wParam) & MK_SHIFT;
-		control_pressed=LOWORD(wParam) & MK_CONTROL;
-	    } else {
-		BYTE keys[256];
-		wheel_accumulator += (int)wParam;
-		if (GetKeyboardState(keys)!=0) {
-		    shift_pressed=keys[VK_SHIFT]&0x80;
-		    control_pressed=keys[VK_CONTROL]&0x80;
-		}
-	    }
+	/*
+	 * HACK: PuttyTray
+	 * Trayicon click handler
+	 */
+      case WM_NOTIFY_PUTTYTRAY:
+	  {
+	      UINT uID; 
+	      UINT uMouseMsg; 
 
-	    /* process events when the threshold is reached */
-	    while (abs(wheel_accumulator) >= WHEEL_DELTA) {
-		int b;
+	      uID = (UINT)wParam; 
+	      uMouseMsg = (UINT)lParam; 
 
-		/* reduce amount for next time */
-		if (wheel_accumulator > 0) {
-		    b = MBT_WHEEL_UP;
-		    wheel_accumulator -= WHEEL_DELTA;
-		} else if (wheel_accumulator < 0) {
-		    b = MBT_WHEEL_DOWN;
-		    wheel_accumulator += WHEEL_DELTA;
-		} else
-		    break;
+	      if (uID = 1983) {
+		  if (uMouseMsg == WM_LBUTTONDBLCLK || (cfg.tray_restore == TRUE && uMouseMsg == WM_LBUTTONUP)) {
+		      // Remove icon
+		      if (cfg.tray != TRAY_ALWAYS) {
+			  taskbar_addicon(cfg.win_name_always ? window_name : icon_name, FALSE);
+		      }
 
-		if (send_raw_mouse &&
-		    !(cfg.mouse_override && shift_pressed)) {
-		    /* Mouse wheel position is in screen coordinates for
+		      // Sleep a little while, otherwise the click event is sent to, for example, the Outlook 2003 Tray Icon, and it will also pop its menu.
+		      Sleep(100); 
+
+		      // If trayicon is always visible, the icon should also be able to hide the window
+		      if (windowMinimized) {
+			  ShowWindow(hwnd, SW_RESTORE);
+			  SetForegroundWindow(hwnd);
+			  windowMinimized = FALSE;
+		      } else {
+			  ShowWindow(hwnd, SW_MINIMIZE);
+			  windowMinimized = TRUE;
+		      }
+		  } else if (uMouseMsg == WM_RBUTTONUP) {
+		      POINT cursorpos;
+
+		      // Fix disappear bug
+		      SetForegroundWindow(hwnd);
+
+		      // Show popup
+		      show_mouseptr(1);	       /* make sure pointer is visible */
+		      GetCursorPos(&cursorpos);
+		      TrackPopupMenu(popup_menus[CTXMENU].menu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, cursorpos.x, cursorpos.y, 0, hwnd, NULL);
+		      PostMessage(hwnd, WM_NULL, 0, 0);
+		  }
+	      }
+	  }
+	  break;
+
+	/*
+	 * HACK: PuttyTray / Reconnect
+	 */
+      case WM_POWERBROADCAST:
+	  if(cfg.wakeup_reconnect) {
+	      switch(wParam) {
+	      case PBT_APMRESUMESUSPEND:
+	      case PBT_APMRESUMEAUTOMATIC:
+	      case PBT_APMRESUMECRITICAL:
+	      case PBT_APMQUERYSUSPENDFAILED:
+		  if(session_closed && !back) {
+		      time_t tnow = time(NULL);
+
+		      if(last_reconnect && (tnow - last_reconnect) < 5) {
+			  Sleep(1000);
+		      }
+
+		      last_reconnect = tnow;
+		      logevent(NULL, "Woken up from suspend, reconnecting...");
+		      term_pwron(term, FALSE);
+		      start_backend();
+		  }
+		  break;
+	      case PBT_APMSUSPEND:
+		  if(!session_closed && back) {
+		      logevent(NULL, "Suspend detected, disconnecting cleanly...");
+		      close_session();
+		  }
+		  break;
+	      }
+	  }
+	  break;
+	/*
+	 * END HACKS: PuttyTray / Trayicon & Reconnect
+	 */
+
+    default:
+        if (message == msg_TaskbarCreated) {
+            puttyTrayVisible = FALSE;
+            taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
+        } else if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
+            int shift_pressed=0, control_pressed=0;
+
+            if (message == WM_MOUSEWHEEL) {
+                wheel_accumulator += (short)HIWORD(wParam);
+                shift_pressed=LOWORD(wParam) & MK_SHIFT;
+                control_pressed=LOWORD(wParam) & MK_CONTROL;
+            } else {
+                BYTE keys[256];
+                wheel_accumulator += (int)wParam;
+                if (GetKeyboardState(keys)!=0) {
+                    shift_pressed=keys[VK_SHIFT]&0x80;
+                    control_pressed=keys[VK_CONTROL]&0x80;
+                }
+            }
+
+            /* process events when the threshold is reached */
+            while (abs(wheel_accumulator) >= WHEEL_DELTA) {
+                int b;
+
+                /* reduce amount for next time */
+                if (wheel_accumulator > 0) {
+                    b = MBT_WHEEL_UP;
+                    wheel_accumulator -= WHEEL_DELTA;
+                } else if (wheel_accumulator < 0) {
+                    b = MBT_WHEEL_DOWN;
+                    wheel_accumulator += WHEEL_DELTA;
+                } else
+                    break;
+
+                if (send_raw_mouse &&
+                    !(cfg.mouse_override && shift_pressed)) {
+                         /* Mouse wheel position is in screen coordinates for
 		     * some reason */
 		    POINT p;
 		    p.x = X_POS(lParam); p.y = Y_POS(lParam);
@@ -3129,15 +3703,15 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 				   TO_CHR_Y(p.y), shift_pressed,
 				   control_pressed, is_alt_pressed());
 		    } /* else: not sure when this can fail */
-		} else {
-		    /* trigger a scroll */
-		    term_scroll(term, 0,
-				b == MBT_WHEEL_UP ?
-				-term->rows / 2 : term->rows / 2);
-		}
-	    }
-	    return 0;
-	}
+                } else {
+                    /* trigger a scroll */
+                    term_scroll(term, 0,
+                        b == MBT_WHEEL_UP ?
+                        -term->rows / 2 : term->rows / 2);
+                }
+            }
+            return 0;
+        }
     }
 
     /*
@@ -3362,8 +3936,9 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
         SetTextAlign(hdc, TA_TOP | TA_CENTER | TA_NOUPDATECP);
         lpDx_maybe = NULL;
         maxlen = 1;
+
     } else {
-        /*
+	/*
          * In a fixed-pitch font, we draw the whole string in one go
          * in the normal way.
          */
@@ -3489,10 +4064,16 @@ void do_text_internal(Context ctx, int x, int y, wchar_t *text, int len,
             for (i = 0; i < len; i++)
                 wbuf[i] = text[i];
 
+	    /* IPUTTY PATCH: non-latin font replacing... */
+	    if (cfg.use_font_unicode) {
+		SelectObject(hdc, fonts[FONT_UNICODE]);
+		text_adjust = cfg.font_unicode_adj;
+	    }
+
             /* print Glyphs as they are, without Windows' Shaping*/
             general_textout(hdc, x + xoffset,
                             y - font_height * (lattr==LATTR_BOT) + text_adjust,
-                            &line_box, wbuf, len, lpDx,
+                            &line_box, (unsigned short *)wbuf, len, lpDx,
                             opaque && !(attr & TATTR_COMBINING));
 
             /* And the shadow bold hack. */
@@ -3954,7 +4535,66 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 	    term->app_keypad_keys ^= 1;
 	    return 0;
 	}
-
+	/* Bluehope , alt+[] to switch transparency between (50,cfg.transparency,255)
+	* alt+{} to change cfg.transparency in 5 step
+	*/
+	if (left_alt && wParam == VK_OEM_4){
+		if(0==shift_state){
+			cfg.transparency_mode--;
+			cfg.transparency_mode = max(0,cfg.transparency_mode);
+			switch (cfg.transparency_mode)
+			{
+			case 0:
+				MakeWindowTransparent(hwnd,50);
+				break;
+			case 1:
+				MakeWindowTransparent(hwnd,cfg.transparency);
+				break;
+			case 2:
+				MakeWindowTransparent(hwnd,255);
+				break;
+			default:
+				MakeWindowTransparent(hwnd,255);
+				break;
+			}
+		}
+		else if (1==shift_state)
+		{
+			cfg.transparency_mode = 1;
+			cfg.transparency-=5;
+			cfg.transparency = max(50,cfg.transparency);
+			MakeWindowTransparent(hwnd,cfg.transparency);
+		}
+		return -1;
+	}
+	if (left_alt && wParam == VK_OEM_6){
+		if(0==shift_state){
+			cfg.transparency_mode++;			
+			cfg.transparency_mode = min(2,cfg.transparency_mode);
+			switch (cfg.transparency_mode)
+			{
+			case 0:
+				MakeWindowTransparent(hwnd,50);
+				break;
+			case 1:
+				MakeWindowTransparent(hwnd,cfg.transparency);
+				break;
+			case 2:
+				MakeWindowTransparent(hwnd,255);
+				break;
+			default:
+				MakeWindowTransparent(hwnd,255);
+				break;
+			}
+		}else if (1==shift_state)
+		{
+			cfg.transparency_mode = 1;
+			cfg.transparency+=5;
+			cfg.transparency = min(255,cfg.transparency);
+			MakeWindowTransparent(hwnd,cfg.transparency);
+		}
+		return -1;
+	}
 	/* Nethack keypad */
 	if (cfg.nethack_keypad && !left_alt) {
 	    switch (wParam) {
@@ -4518,22 +5158,29 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
     return -1;
 }
 
-void set_title(void *frontend, char *title)
+void set_title(void *frontend, wchar_t *title)
 {
-    sfree(window_name);
-    window_name = snewn(1 + strlen(title), char);
-    strcpy(window_name, title);
-    if (cfg.win_name_always || !IsIconic(hwnd))
-	SetWindowText(hwnd, title);
+	int len = wcslen(title);
+	sfree(window_name);
+    window_name = snewn(1 + len, wchar_t);
+	wcscpy(window_name, title);
+
+	if (cfg.win_name_always || !IsIconic(hwnd))
+		SetWindowTextW(hwnd, title);
+	/*
+	 * HACK: Putty Tray
+	 * Change Trayicon Tooltip to window title
+	 */
+	taskbar_addicon(cfg.win_name_always ? window_name : icon_name, puttyTrayVisible);
 }
 
-void set_icon(void *frontend, char *title)
+void set_icon(void *frontend, wchar_t *title)
 {
     sfree(icon_name);
-    icon_name = snewn(1 + strlen(title), char);
-    strcpy(icon_name, title);
+    icon_name = snewn(1 + wcslen(title), wchar_t);
+    wcscpy(icon_name, title);
     if (!cfg.win_name_always && IsIconic(hwnd))
-	SetWindowText(hwnd, title);
+	SetWindowTextW(hwnd, title);
 }
 
 void set_sbar(void *frontend, int total, int start, int page)
@@ -5004,7 +5651,7 @@ static DWORD WINAPI clipboard_read_threadfunc(void *param)
 	}
 	CloseClipboard();
     }
-
+    
     return 0;
 }
 
@@ -5171,49 +5818,82 @@ static void flash_window_timer(void *ctx, long now)
 }
 
 /*
- * Manage window caption / taskbar flashing, if enabled.
- * 0 = stop, 1 = maintain, 2 = start
+* Manage window caption / taskbar flashing, if enabled.
+* 0 = stop, 1 = maintain, 2 = start
+*/
+/*
+ * HACK: PuttyTray
+ * REPLACED flash_window with flash_window from PuTTY 0.58. 
+ * The new version with FlashWindowEx is nice but where do I trigger the icon flash if I use it?
  */
 static void flash_window(int mode)
 {
-    if ((mode == 0) || (cfg.beep_ind == B_IND_DISABLED)) {
-	/* stop */
-	if (flashing) {
-	    flashing = 0;
-	    if (p_FlashWindowEx)
-		flash_window_ex(FLASHW_STOP, 0, 0);
-	    else
-		FlashWindow(hwnd, FALSE);
-	}
+	HINSTANCE inst;
 
-    } else if (mode == 2) {
-	/* start */
-	if (!flashing) {
-	    flashing = 1;
-	    if (p_FlashWindowEx) {
-		/* For so-called "steady" mode, we use uCount=2, which
-		 * seems to be the traditional number of flashes used
-		 * by user notifications (e.g., by Explorer).
-		 * uCount=0 appears to enable continuous flashing, per
-		 * "flashing" mode, although I haven't seen this
-		 * documented. */
-		flash_window_ex(FLASHW_ALL | FLASHW_TIMER,
-				(cfg.beep_ind == B_IND_FLASH ? 0 : 2),
-				0 /* system cursor blink rate */);
-		/* No need to schedule timer */
-	    } else {
-		FlashWindow(hwnd, TRUE);
-		next_flash = schedule_timer(450, flash_window_timer, hwnd);
-	    }
-	}
+	if ((mode == 0) || (cfg.beep_ind == B_IND_DISABLED)) {
+		/* stop */
+		if (flashing) {
+			FlashWindow(hwnd, FALSE);
+			flashing = 0;
 
-    } else if ((mode == 1) && (cfg.beep_ind == B_IND_FLASH)) {
-	/* maintain */
-	if (flashing && !p_FlashWindowEx) {
-	    FlashWindow(hwnd, TRUE);	/* toggle */
-	    next_flash = schedule_timer(450, flash_window_timer, hwnd);
+			/*
+			 * HACK: PuttyTray
+			 * Reset trayicon
+			 */
+			if (puttyTrayVisible) {
+				inst = GetWindowLong(hwnd, -6);
+
+				puttyTrayFlash = FALSE;
+				puttyTray.hIcon = puttyTrayFlashIcon;
+				taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
+			}
+
+			return;
+		}
+
+	} else if (mode == 2) {
+		/* start */
+		if (!flashing) {
+			flashing = 1;
+			FlashWindow(hwnd, TRUE);
+			next_flash = schedule_timer(450, flash_window_timer, hwnd);
+
+			/*
+			 * HACK: PuttyTray
+			 * Start flashing trayicon
+			 */
+			if (puttyTrayVisible) {
+				puttyTrayFlash = FALSE;
+			}
+		}
+
+	} else if ((mode == 1) && (cfg.beep_ind == B_IND_FLASH)) {
+		/* maintain */
+		if (flashing) {
+			FlashWindow(hwnd, TRUE);	/* toggle */
+			next_flash = schedule_timer(450, flash_window_timer, hwnd);
+
+			/*
+			 * HACK: PuttyTray
+			 * Make trayicon blink
+			 */
+			if (puttyTrayVisible) {
+				if (!puttyTrayFlash) {
+					puttyTrayFlash = TRUE;
+
+					puttyTrayFlashIcon = puttyTray.hIcon;
+					puttyTray.hIcon	= NULL;
+					taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
+				} else {
+					inst = GetWindowLong(hwnd, -6);
+					puttyTrayFlash = FALSE;
+
+					puttyTray.hIcon = puttyTrayFlashIcon;
+					taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
+				}
+			}
+		}
 	}
-    }
 }
 
 /*
@@ -5283,11 +5963,15 @@ void do_beep(void *frontend, int mode)
 void set_iconic(void *frontend, int iconic)
 {
     if (IsIconic(hwnd)) {
-	if (!iconic)
-	    ShowWindow(hwnd, SW_RESTORE);
+		if (!iconic) { // HACK: PuttyTray / added { to if structure
+			ShowWindow(hwnd, SW_RESTORE);
+			windowMinimized = FALSE; // HACK: PuttyTray
+		}
     } else {
-	if (iconic)
-	    ShowWindow(hwnd, SW_MINIMIZE);
+		if (iconic){
+			ShowWindow(hwnd, SW_MINIMIZE);
+			windowMinimized = TRUE; // HACK: PuTTYTray
+		}
     }
 }
 
@@ -5372,7 +6056,7 @@ void get_window_pixels(void *frontend, int *x, int *y)
 /*
  * Return the window or icon title.
  */
-char *get_window_title(void *frontend, int icon)
+wchar_t *get_window_title(void *frontend, int icon)
 {
     return icon ? icon_name : window_name;
 }
@@ -5544,4 +6228,193 @@ void agent_schedule_callback(void (*callback)(void *, void *, int),
     c->data = data;
     c->len = len;
     PostMessage(hwnd, WM_AGENT_CALLBACK, 0, (LPARAM)c);
+}
+
+/*
+ * HACK: PuttyTray
+ * Function to add icon to the taskbar's system tray
+ */
+BOOL taskbar_addicon(LPWSTR lpszTip, BOOL showIcon) 
+{ 
+    BOOL icon_result; 
+
+	if (showIcon) {
+		// Set Tooltip
+		if (lpszTip) {
+			wcsncpy(puttyTray.szTip, lpszTip, sizeof(puttyTray.szTip));
+		} else {
+			puttyTray.szTip[0] = (TCHAR)'\0'; 
+		}
+
+		// Set icon visibility
+		if (!puttyTrayVisible) {
+			tray_updatemenu(TRUE);
+			icon_result = Shell_NotifyIconW(NIM_ADD, &puttyTray);
+			puttyTrayVisible = TRUE;
+			return icon_result; 
+		} else {
+			icon_result = Shell_NotifyIconW(NIM_MODIFY, &puttyTray);
+			return icon_result; 
+		}
+	} else {
+		if (puttyTrayVisible) {
+			tray_updatemenu(FALSE);
+			icon_result = Shell_NotifyIconW(NIM_DELETE, &puttyTray);
+			puttyTrayVisible = FALSE;
+			return icon_result;
+		}
+	}
+
+    return TRUE; 
+}
+
+void tray_updatemenu(BOOL disableMenuItems)
+{
+	MENUITEMINFO mii;
+	memset(&mii, 0, sizeof(MENUITEMINFO));
+	mii.cbSize = sizeof(MENUITEMINFO);
+
+	if (disableMenuItems) {
+		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYSEP, MF_BYCOMMAND);
+		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, MF_BYCOMMAND);
+		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, MF_BYCOMMAND);
+		InsertMenu(popup_menus[CTXMENU].menu, -1, MF_BYPOSITION | MF_SEPARATOR, IDM_TRAYSEP, 0);
+		InsertMenu(popup_menus[CTXMENU].menu, -1, MF_BYPOSITION | MF_ENABLED, IDM_TRAYRESTORE, "&Restore Window");
+		InsertMenu(popup_menus[CTXMENU].menu, -1, MF_BYPOSITION | MF_ENABLED, IDM_TRAYCLOSE, "&Exit");
+
+		// Set X bitmap on close window menuitem
+		mii.fMask = MIIM_BITMAP;
+		mii.hbmpItem = HBMMENU_POPUP_CLOSE;
+		SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, FALSE, &mii);
+		
+		// Set restore icon on restore menuitem
+		mii.hbmpItem = HBMMENU_POPUP_RESTORE;
+		SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, FALSE, &mii);
+
+		mii.fMask = MIIM_STATE;
+		mii.fState = MFS_GRAYED;
+	} else {
+		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYSEP, MF_BYCOMMAND);
+		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, MF_BYCOMMAND);
+		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, MF_BYCOMMAND);
+		
+		mii.fMask = MIIM_STATE;
+		mii.fState = MFS_ENABLED;
+	}
+	
+	SetMenuItemInfo(popup_menus[CTXMENU].menu, specials_menu, FALSE, &mii);
+	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_PASTE, FALSE, &mii);
+	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_FULLSCREEN, FALSE, &mii);
+	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_RESET, FALSE, &mii);
+	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_CLRSB, FALSE, &mii);
+	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_COPYALL, FALSE, &mii);
+}
+
+
+/*
+ * HACK: PuttyTray / Transparency
+ * Function to set the window transparency
+ */ 
+BOOL MakeWindowTransparent(HWND hWnd, int factor)
+{
+	// First, see if we can get the API call we need. If we've tried once, we don't need to try again.
+	if (!initialized) {
+		HMODULE hDLL = LoadLibrary("user32");
+		pSetLayeredWindowAttributes = (PSLWA) GetProcAddress(hDLL, "SetLayeredWindowAttributes");
+		initialized = TRUE;
+	}
+	if (pSetLayeredWindowAttributes == NULL) {
+		return FALSE;
+	}
+
+	// Sanity checks
+	if (factor < 0) { return FALSE; }
+	if (factor > 255) { factor = 255; }
+
+	// Make the window transparent
+	if (factor < 255) {
+		// Windows need to be layered to be made transparent. This is done by modifying the extended style bits to contain WS_EX_LAYARED.
+		SetLastError(0);
+		SetWindowLong(hWnd, GWL_EXSTYLE, GetWindowLong(hWnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+		if (GetLastError()) {
+			return FALSE;
+		}
+
+		// Now, we need to set the 'layered window attributes'. This is where the alpha values get set. 
+		return pSetLayeredWindowAttributes (hWnd, RGB(255,255,255), factor, LWA_ALPHA);
+	
+	// Make the window opaque
+	} else {
+		SetWindowLong(hWnd, GWL_EXSTYLE, GetWindowLong(hWnd, GWL_EXSTYLE) & ~WS_EX_LAYERED);
+		return TRUE;
+	}
+}
+
+BOOL CALLBACK EnumWndProc(HWND hwnd, LPARAM lparam)
+{
+	char strClass[50] = {0};
+	int pid;
+	if (lparam == IDM_NEXTWINDOW) {
+		GetClassName(hwnd, strClass, 50);
+		if (strcmp(strClass, appname) == 0 && IsWindowVisible(hwnd)) {
+			if (num_friends == MAX_FRIENDS) // full....
+				return FALSE;
+			friend_windows[num_friends].hwnd = hwnd;
+			GetWindowThreadProcessId(hwnd, &pid);
+			friend_windows[num_friends].pid = pid;
+			num_friends++;
+		}
+	}
+	return TRUE;
+}
+
+static HWND find_next_window(void)
+{
+	int i, j;
+	FRIEND_WINDOW val;
+	num_friends = 0;
+	EnumWindows(EnumWndProc, IDM_NEXTWINDOW);
+	// Sort, because the retrieving order of EnumWindows is not defined.
+	for (i = 1; i < num_friends; i++) {
+		val = friend_windows[i];
+		j = i - 1;
+		// pid for each window is unique, because each process can only have
+		// at most one session window.
+		while (j >= 0 && friend_windows[j].pid > val.pid)
+		{
+			friend_windows[j + 1] = friend_windows[j];
+			j--;
+		}
+		friend_windows[j + 1] = val;
+	}
+	// Find the next window in the sorted array.
+	for (i = 0; i < num_friends; i++) {
+		if (friend_windows[i].hwnd == my_hwnd) {
+			if (i == num_friends - 1)
+				i = 0;
+			else
+				i += 1;
+			return friend_windows[i].hwnd;
+		}
+	}
+	return 0;
+}
+
+/*
+ * HACK: PuttyTray / Always on top
+ * Function to switch the window positioning to and from 'always on top'
+ */ 
+void MakeWindowOnTop(HWND hwnd) {
+	HMENU m;
+	if ((m = GetSystemMenu(hwnd, FALSE)) != NULL) {
+		DWORD fdwMenu = GetMenuState(m, (UINT)IDM_VISIBLE, MF_BYCOMMAND); 
+		if (!(fdwMenu & MF_CHECKED)) {
+			CheckMenuItem(m, (UINT)IDM_VISIBLE, MF_BYCOMMAND|MF_CHECKED);
+			SetWindowPos(hwnd, (HWND)-1, 0, 0, 0, 0, SWP_NOMOVE |SWP_NOSIZE);
+		}
+		else {
+			CheckMenuItem(m, (UINT)IDM_VISIBLE, MF_BYCOMMAND|MF_UNCHECKED);
+			SetWindowPos(hwnd, (HWND)-2, 0, 0, 0, 0, SWP_NOMOVE |SWP_NOSIZE);
+		}
+	}
 }

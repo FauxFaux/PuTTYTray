@@ -5,10 +5,15 @@
 #ifndef PUTTY_WINSTUFF_H
 #define PUTTY_WINSTUFF_H
 
+#ifndef SECURITY_WIN32
+#define SECURITY_WIN32
+#endif
+
 #ifndef AUTO_WINSOCK
 #include <winsock2.h>
 #endif
 #include <windows.h>
+#include <commdlg.h>
 #include <stdio.h>		       /* for FILENAME_MAX */
 
 #include "tree234.h"

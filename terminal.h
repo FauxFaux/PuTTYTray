@@ -40,7 +40,9 @@ struct termchar {
      */
     unsigned long chr;
     unsigned long attr;
-
+#ifdef ONTHESPOT
+    int offset;
+#endif
     /*
      * The cc_next field is used to link multiple termchars
      * together into a list, so as to fit more than one character
@@ -273,6 +275,18 @@ struct terminal_tag {
     int wcFromTo_size;
     struct bidi_cache_entry *pre_bidi_cache, *post_bidi_cache;
     int bidi_cache_size;
+
+#ifdef ONTHESPOT
+    /*
+     * These are stuff used by the on-the-spot IME support code.
+     */
+    int onthespot;
+    wchar_t onthespot_buf[2];
+#endif
+	/*
+	 * HACK: PuttyTray / Nutty
+	 */
+	int url_update;
 };
 
 #define in_utf(term) ((term)->utf || (term)->ucsdata->line_codepage==CP_UTF8)

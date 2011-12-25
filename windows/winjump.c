@@ -19,6 +19,7 @@
 
 #include <assert.h>
 
+#include <propidl.h>
 #include "putty.h"
 #include "storage.h"
 
