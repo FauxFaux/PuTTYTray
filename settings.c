@@ -835,7 +835,7 @@ void load_open_settings(void *sesskey, Config *cfg)
      * HACK: PuttyTray
      * Save tray settings
      */
-    gppi(sesskey, "Tray", 1, &cfg->tray);
+    gppi(sesskey, "Tray", TRAY_NEVER, &cfg->tray);
     gppi(sesskey, "StartTray", 0, &cfg->start_tray);
     gppi(sesskey, "TrayRestore", 0, &cfg->tray_restore);
 
@@ -989,7 +989,7 @@ void load_open_settings(void *sesskey, Config *cfg)
      * The empty default for LineCodePage will be converted later
      * into a plausible default for the locale.
      */
-    gpps(sesskey, "LineCodePage", "", cfg->line_codepage,
+    gpps(sesskey, "LineCodePage", "UTF-8", cfg->line_codepage,
 	 sizeof(cfg->line_codepage));
     gppi(sesskey, "CJKAmbigWide", 0, &cfg->cjk_ambig_wide);
     gppi(sesskey, "UTF8Override", 1, &cfg->utf8_override);

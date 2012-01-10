@@ -1553,7 +1553,7 @@ void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
 	 */ 
 	  case CTRL_ICON:
 	    num_ids = 1;
-	    staticicon(&pos, ctrl->icon.label, (char *) ATOFFSET(&cfg, ctrl->icon.context.i), base_id);
+	    staticicon(&pos, ctrl->icon.label, (char *) ATOFFSET(cfg, ctrl->icon.context.i), base_id);
 	    break;
 
 	  case CTRL_RADIO:
