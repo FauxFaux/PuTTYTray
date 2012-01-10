@@ -442,36 +442,36 @@ void save_open_settings(void *sesskey, Config *cfg)
     write_setting_i(sesskey, "ApplicationKeypad", cfg->app_keypad);
     write_setting_i(sesskey, "NetHackKeypad", cfg->nethack_keypad);
 
-	/*
-	 * HACK: PuttyTray / PuTTY File
-	 * Save storagetype
-	 */
+    /*
+     * HACK: PuttyTray / PuTTY File
+     * Save storagetype
+     */
     write_setting_i(sesskey, "StorageType", cfg->session_storagetype);
 
-	/*
-	 * HACK: PuttyTray
-	 * Save tray settings
-	 */
+    /*
+     * HACK: PuttyTray
+     * Save tray settings
+     */
     write_setting_i(sesskey, "Tray", cfg->tray);
-	write_setting_i(sesskey, "StartTray", cfg->start_tray);
-	write_setting_i(sesskey, "TrayRestore", cfg->tray_restore);
+    write_setting_i(sesskey, "StartTray", cfg->start_tray);
+    write_setting_i(sesskey, "TrayRestore", cfg->tray_restore);
 
-	/*
-	 * HACK: PuttyTray / Reconnect
-	 */
-	write_setting_i(sesskey, "WakeupReconnect", cfg->wakeup_reconnect);
-	write_setting_i(sesskey, "FailureReconnect", cfg->failure_reconnect);
+    /*
+     * HACK: PuttyTray / Reconnect
+     */
+    write_setting_i(sesskey, "WakeupReconnect", cfg->wakeup_reconnect);
+    write_setting_i(sesskey, "FailureReconnect", cfg->failure_reconnect);
 
-	/*
-	 * HACK: PuttyTray / Transparency
-	 * Save transparency settings
-	 */
+    /*
+     * HACK: PuttyTray / Transparency
+     * Save transparency settings
+     */
     write_setting_i(sesskey, "Transparency", cfg->transparency);
 
-	/*
-	 * HACK: PuttyTray / Session Icon
-	 */ 
-	write_setting_s(sesskey, "WindowIcon", cfg->win_icon);
+    /*
+     * HACK: PuttyTray / Session Icon
+     */ 
+    write_setting_s(sesskey, "WindowIcon", cfg->win_icon);
 
     write_setting_i(sesskey, "AltF4", cfg->alt_f4);
     write_setting_i(sesskey, "AltSpace", cfg->alt_space);
@@ -517,9 +517,14 @@ void save_open_settings(void *sesskey, Config *cfg)
     write_setting_i(sesskey, "TermWidth", cfg->width);
     write_setting_i(sesskey, "TermHeight", cfg->height);
     write_setting_fontspec(sesskey, "Font", cfg->font);
-	write_setting_i(sesskey, "UseFontUnicode", cfg->use_font_unicode);
-	write_setting_fontspec(sesskey, "FontUnicode", cfg->font_unicode);
-	write_setting_i(sesskey, "FontUnicodeAdjustment", cfg->font_unicode_adj);
+
+    /*
+     * HACK: iPuTTY
+     */
+    write_setting_i(sesskey, "UseFontUnicode", cfg->use_font_unicode);
+    write_setting_fontspec(sesskey, "FontUnicode", cfg->font_unicode);
+    write_setting_i(sesskey, "FontUnicodeAdjustment", cfg->font_unicode_adj);
+
     write_setting_i(sesskey, "FontQuality", cfg->font_quality);
     write_setting_i(sesskey, "FontVTMode", cfg->vtmode);
     write_setting_i(sesskey, "UseSystemColours", cfg->system_colour);
@@ -597,16 +602,16 @@ void save_open_settings(void *sesskey, Config *cfg)
     write_setting_i(sesskey, "SerialFlowControl", cfg->serflow);
     write_setting_s(sesskey, "WindowClass", cfg->winclass);
 
-	/*
-	 * HACK: PuttyTray / Nutty
-	 * Hyperlink stuff: Save hyperlink settings
-	 */
-	write_setting_i(sesskey, "HyperlinkUnderline", cfg->url_underline);
-	write_setting_i(sesskey, "HyperlinkUseCtrlClick", cfg->url_ctrl_click);
-	write_setting_i(sesskey, "HyperlinkBrowserUseDefault", cfg->url_defbrowser);
-	write_setting_s(sesskey, "HyperlinkBrowser", cfg->url_browser);
-	write_setting_i(sesskey, "HyperlinkRegularExpressionUseDefault", cfg->url_defregex);
-	write_setting_s(sesskey, "HyperlinkRegularExpression", cfg->url_regex);
+    /*
+     * HACK: PuttyTray / Nutty
+     * Hyperlink stuff: Save hyperlink settings
+     */
+    write_setting_i(sesskey, "HyperlinkUnderline", cfg->url_underline);
+    write_setting_i(sesskey, "HyperlinkUseCtrlClick", cfg->url_ctrl_click);
+    write_setting_i(sesskey, "HyperlinkBrowserUseDefault", cfg->url_defbrowser);
+    write_setting_s(sesskey, "HyperlinkBrowser", cfg->url_browser);
+    write_setting_i(sesskey, "HyperlinkRegularExpressionUseDefault", cfg->url_defregex);
+    write_setting_s(sesskey, "HyperlinkRegularExpression", cfg->url_regex);
 }
 
 void load_settings(char *section, Config * cfg)
@@ -628,13 +633,13 @@ void load_settings(char *section, Config * cfg)
 void load_settings_file(char *section, Config * cfg)
 {
     void *sesskey;
-	set_storagetype(1);
+    set_storagetype(1);
     sesskey = open_settings_r(section);
     load_open_settings(sesskey, cfg);
     close_settings_r(sesskey);
 
     if (cfg_launchable(cfg))
-        add_session_to_jumplist(section);
+	add_session_to_jumplist(section);
 }
 
 void load_open_settings(void *sesskey, Config *cfg)
@@ -820,37 +825,37 @@ void load_open_settings(void *sesskey, Config *cfg)
     gppi(sesskey, "ApplicationKeypad", 0, &cfg->app_keypad);
     gppi(sesskey, "NetHackKeypad", 0, &cfg->nethack_keypad);
 
-	/*
-	 * HACK: PuttyTray / PuTTY File
-	 * Save storagetype
-	 */
-	gppi(sesskey, "StorageType", 0, &cfg->session_storagetype);
+    /*
+     * HACK: PuttyTray / PuTTY File
+     * Save storagetype
+     */
+    gppi(sesskey, "StorageType", 0, &cfg->session_storagetype);
 
-	/*
-	 * HACK: PuttyTray
-	 * Save tray settings
-	 */
-	gppi(sesskey, "Tray", 1, &cfg->tray);
-	gppi(sesskey, "StartTray", 0, &cfg->start_tray);
-	gppi(sesskey, "TrayRestore", 0, &cfg->tray_restore);
+    /*
+     * HACK: PuttyTray
+     * Save tray settings
+     */
+    gppi(sesskey, "Tray", 1, &cfg->tray);
+    gppi(sesskey, "StartTray", 0, &cfg->start_tray);
+    gppi(sesskey, "TrayRestore", 0, &cfg->tray_restore);
 
-	/*
-	 * HACK: PuttyTray / Reconnect
-	 */
-	gppi(sesskey, "WakeupReconnect", 0, &cfg->wakeup_reconnect);
-	gppi(sesskey, "FailureReconnect", 0, &cfg->failure_reconnect);
+    /*
+     * HACK: PuttyTray / Reconnect
+     */
+    gppi(sesskey, "WakeupReconnect", 0, &cfg->wakeup_reconnect);
+    gppi(sesskey, "FailureReconnect", 0, &cfg->failure_reconnect);
 
-	/*
-	 * HACK: PuttyTray / Transparency
-	 * Save transparency settings
-	 */
-	gppi(sesskey, "Transparency", 220, &cfg->transparency);
-	gppi(sesskey, "TransparencyMode", 1, &cfg->transparency_mode);
+    /*
+     * HACK: PuttyTray / Transparency
+     * Save transparency settings
+     */
+    gppi(sesskey, "Transparency", 220, &cfg->transparency);
+    gppi(sesskey, "TransparencyMode", 1, &cfg->transparency_mode);
 
-	/*
-	 * HACK: PuttyTray / Session Icon
-	 */
-	gpps(sesskey, "WindowIcon", "", cfg->win_icon, sizeof(cfg->win_icon));
+    /*
+     * HACK: PuttyTray / Session Icon
+     */
+    gpps(sesskey, "WindowIcon", "", cfg->win_icon, sizeof(cfg->win_icon));
 
     gppi(sesskey, "AltF4", 1, &cfg->alt_f4);
     gppi(sesskey, "AltSpace", 0, &cfg->alt_space);
@@ -908,21 +913,24 @@ void load_open_settings(void *sesskey, Config *cfg)
     gppi(sesskey, "TermWidth", 80, &cfg->width);
     gppi(sesskey, "TermHeight", 24, &cfg->height);
     gppfont(sesskey, "Font", &cfg->font);
-	gppi(sesskey, "UseFontUnicode", 1, &cfg->use_font_unicode);
-	gppfont(sesskey, "FontUnicode", &cfg->font_unicode);
-	gppi(sesskey, "FontUnicodeAdjustment", 0, &cfg->font_unicode_adj);
+    /*
+     * HACK: iPuTTY
+     */
+    gppi(sesskey, "UseFontUnicode", 1, &cfg->use_font_unicode);
+    gppfont(sesskey, "FontUnicode", &cfg->font_unicode);
+    gppi(sesskey, "FontUnicodeAdjustment", 0, &cfg->font_unicode_adj);
 
-	/*
-	 * HACK: PuttyTray / Vista
-	 * Check windows version and set default font quality to 'cleartype' if this is Windows Vista
-	 */
-	if (versioninfo.dwMajorVersion >= 6) {
-		gppi(sesskey, "FontQuality", FQ_CLEARTYPE, &cfg->font_quality);
-	} else {
-		gppi(sesskey, "FontQuality", FQ_DEFAULT, &cfg->font_quality);
-	}
-    
-	gppi(sesskey, "FontVTMode", VT_UNICODE, (int *) &cfg->vtmode);
+    /*
+     * HACK: PuttyTray / Vista
+     * Check windows version and set default font quality to 'cleartype' if this is Windows Vista
+     */
+    if (versioninfo.dwMajorVersion >= 6) {
+	gppi(sesskey, "FontQuality", FQ_CLEARTYPE, &cfg->font_quality);
+    } else {
+	gppi(sesskey, "FontQuality", FQ_DEFAULT, &cfg->font_quality);
+    }
+
+    gppi(sesskey, "FontVTMode", VT_UNICODE, (int *) &cfg->vtmode);
     gppi(sesskey, "UseSystemColours", 0, &cfg->system_colour);
     gppi(sesskey, "TryPalette", 0, &cfg->try_palette);
     gppi(sesskey, "ANSIColour", 1, &cfg->ansi_colour);
@@ -1039,16 +1047,16 @@ void load_open_settings(void *sesskey, Config *cfg)
     gppi(sesskey, "SerialFlowControl", SER_FLOW_XONXOFF, &cfg->serflow);
     gpps(sesskey, "WindowClass", "", cfg->winclass, sizeof(cfg->winclass));
 
-	/*
-	 * HACK: PuttyTray / Nutty
-	 * Hyperlink stuff: Save hyperlink settings
-	 */
-	gppi(sesskey, "HyperlinkUnderline", 1, &cfg->url_underline);
-	gppi(sesskey, "HyperlinkUseCtrlClick", 0, &cfg->url_ctrl_click);
-	gppi(sesskey, "HyperlinkBrowserUseDefault", 1, &cfg->url_defbrowser);
-	gpps(sesskey, "HyperlinkBrowser", "", cfg->url_browser, sizeof(cfg->url_browser));
-	gppi(sesskey, "HyperlinkRegularExpressionUseDefault", 1, &cfg->url_defregex);
-	gpps(sesskey, "HyperlinkRegularExpression", urlhack_default_regex, cfg->url_regex, sizeof(cfg->url_regex));
+    /*
+     * HACK: PuttyTray / Nutty
+     * Hyperlink stuff: Save hyperlink settings
+     */
+    gppi(sesskey, "HyperlinkUnderline", 1, &cfg->url_underline);
+    gppi(sesskey, "HyperlinkUseCtrlClick", 0, &cfg->url_ctrl_click);
+    gppi(sesskey, "HyperlinkBrowserUseDefault", 1, &cfg->url_defbrowser);
+    gpps(sesskey, "HyperlinkBrowser", "", cfg->url_browser, sizeof(cfg->url_browser));
+    gppi(sesskey, "HyperlinkRegularExpressionUseDefault", 1, &cfg->url_defregex);
+    gpps(sesskey, "HyperlinkRegularExpression", urlhack_default_regex, cfg->url_regex, sizeof(cfg->url_regex));
 }
 
 void do_defaults(char *session, Config * cfg)
@@ -1205,3 +1213,5 @@ int get_sesslist(struct sesslist *list, int allocate, int storagetype) // HACK: 
 	 */
 	return storagetype;
 }
+
+// vim: ts=8 sts=4 sw=4 noet cino=\:2\=2(0u0

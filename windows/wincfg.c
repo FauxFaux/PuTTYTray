@@ -209,13 +209,25 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		  HELPCTX(appearance_border),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,sunken_edge)));
 
+    s = ctrl_getset(b, "Window/Appearance", "font",
+		    "Font settings");
+    /*
+     * HACK: iPuTTY
+     */
+    ctrl_checkbox(s, "Use separated unicode font", 'f',
+		  HELPCTX(no_help),
+		  dlg_stdcheckbox_handler, I(offsetof(Config, use_font_unicode)));
+    ctrl_fontsel(s, "Font for unicode characters", 's',
+		 HELPCTX(no_help),
+		 dlg_stdfontsel_handler, I(offsetof(Config, font_unicode)));
+    ctrl_editbox(s, "Adjustment of unicode font (px)", 'a', 20,
+		 HELPCTX(no_help),
+		 dlg_stdeditbox_handler, I(offsetof(Config, font_unicode_adj)), I(-1));
+    ctrl_checkbox(s, "Allow selection of variable-pitch fonts", NO_SHORTCUT,
+                  HELPCTX(appearance_font), variable_pitch_handler, I(0));
     /*
      * Configurable font quality settings for Windows.
      */
-    s = ctrl_getset(b, "Window/Appearance", "font",
-		    "Font settings");
-    ctrl_checkbox(s, "Allow selection of variable-pitch fonts", NO_SHORTCUT,
-                  HELPCTX(appearance_font), variable_pitch_handler, I(0));
     ctrl_radiobuttons(s, "Font quality:", 'q', 2,
 		      HELPCTX(appearance_font),
 		      dlg_stdradiobutton_handler,
@@ -373,25 +385,25 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		  dlg_stdcheckbox_handler,
 		  I(offsetof(Config,fullscreenonaltenter)));
 
-	/*
-	 * HACK: PuttyTray
-	 */
+    /*
+     * HACK: PuttyTray
+     */
     ctrl_radiobuttons(s, "Show tray icon:", NO_SHORTCUT, 4,
 		      HELPCTX(no_help),
 		      dlg_stdradiobutton_handler,
 		      I(offsetof(Config, tray)),
 		      "Normal", 'n', I(TRAY_NORMAL),
-			  "Always", 'y', I(TRAY_ALWAYS),
-			  "Never", 'r', I(TRAY_NEVER),
-			  "On start", 's', I(TRAY_START), NULL);
+		      "Always", 'y', I(TRAY_ALWAYS),
+		      "Never", 'r', I(TRAY_NEVER),
+		      "On start", 's', I(TRAY_START), NULL);
     ctrl_checkbox(s, "Accept single-click to restore from tray", 'm',
 		  HELPCTX(no_help),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,tray_restore)));
 
-	/*
-	 * HACK: PuttyTray / Session Icon
-	 */
-	s = ctrl_getset(b, "Window/Behaviour", "icon", "Adjust the icon");
+    /*
+     * HACK: PuttyTray / Session Icon
+     */
+    s = ctrl_getset(b, "Window/Behaviour", "icon", "Adjust the icon");
     ctrl_columns(s, 3, 40, 20, 40);
     c = ctrl_text(s, "Window / tray icon:", HELPCTX(appearance_title));
     c->generic.column = 0;
@@ -403,63 +415,63 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     c->generic.column = 2;
     ctrl_columns(s, 1, 100);
 
-	/*
-	 * HACK: PuttyTray / Transparency
-	 */
-	s = ctrl_getset(b, "Window", "main", "Window transparency options");
+    /*
+     * HACK: PuttyTray / Transparency
+     */
+    s = ctrl_getset(b, "Window", "main", "Window transparency options");
     ctrl_editbox(s, "Opacity (50-255)", 't', 30, HELPCTX(no_help), dlg_stdeditbox_handler, I(offsetof(Config,transparency)), I(-1));
 
-	/*
-	 * HACK: PuttyTray / Reconnect
-	 */
-	s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options");
-	ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,wakeup_reconnect)));
-	ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'w', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,failure_reconnect)));
+    /*
+     * HACK: PuttyTray / Reconnect
+     */
+    s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options");
+    ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,wakeup_reconnect)));
+    ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'w', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,failure_reconnect)));
 
-	/*
-	 * HACK: PuttyTray / Nutty
-	 * Hyperlink stuff: The Window/Hyperlinks panel.
-	 */
-	ctrl_settitle(b, "Window/Hyperlinks", "Options controlling behaviour of hyperlinks");
-	s = ctrl_getset(b, "Window/Hyperlinks", "general", "General options for hyperlinks");
+    /*
+     * HACK: PuttyTray / Nutty
+     * Hyperlink stuff: The Window/Hyperlinks panel.
+     */
+    ctrl_settitle(b, "Window/Hyperlinks", "Options controlling behaviour of hyperlinks");
+    s = ctrl_getset(b, "Window/Hyperlinks", "general", "General options for hyperlinks");
 
-	ctrl_radiobuttons(s, "Underline hyperlinks:", NO_SHORTCUT, 1,
-			  HELPCTX(no_help),
-			  dlg_stdradiobutton_handler,
-			  I(offsetof(Config, url_underline)),
-			  "Always", NO_SHORTCUT, I(URLHACK_UNDERLINE_ALWAYS),
-			  "When hovered upon", NO_SHORTCUT, I(URLHACK_UNDERLINE_HOVER),
-			  "Never", NO_SHORTCUT, I(URLHACK_UNDERLINE_NEVER),
-			  NULL);
+    ctrl_radiobuttons(s, "Underline hyperlinks:", NO_SHORTCUT, 1,
+		      HELPCTX(no_help),
+		      dlg_stdradiobutton_handler,
+		      I(offsetof(Config, url_underline)),
+		      "Always", NO_SHORTCUT, I(URLHACK_UNDERLINE_ALWAYS),
+		      "When hovered upon", NO_SHORTCUT, I(URLHACK_UNDERLINE_HOVER),
+		      "Never", NO_SHORTCUT, I(URLHACK_UNDERLINE_NEVER),
+		      NULL);
 
-	ctrl_checkbox(s, "Use ctrl+click to launch hyperlinks", 'l',
+    ctrl_checkbox(s, "Use ctrl+click to launch hyperlinks", 'l',
 		  HELPCTX(no_help),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,url_ctrl_click)));
 
-	s = ctrl_getset(b, "Window/Hyperlinks", "browser", "Browser application");
+    s = ctrl_getset(b, "Window/Hyperlinks", "browser", "Browser application");
 
-	ctrl_checkbox(s, "Use the default browser", 'b',
+    ctrl_checkbox(s, "Use the default browser", 'b',
 		  HELPCTX(no_help),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,url_defbrowser)));
 
-	ctrl_filesel(s, "or specify an application to open hyperlinks with:", 's',
-		"Application (*.exe)\0*.exe\0All files (*.*)\0*.*\0\0", TRUE,
-		"Select executable to open hyperlinks with", HELPCTX(no_help),
+    ctrl_filesel(s, "or specify an application to open hyperlinks with:", 's',
+		 "Application (*.exe)\0*.exe\0All files (*.*)\0*.*\0\0", TRUE,
+		 "Select executable to open hyperlinks with", HELPCTX(no_help),
 		 dlg_stdfilesel_handler, I(offsetof(Config, url_browser)));
 
-	s = ctrl_getset(b, "Window/Hyperlinks", "regexp", "Regular expression");
+    s = ctrl_getset(b, "Window/Hyperlinks", "regexp", "Regular expression");
 
-	ctrl_checkbox(s, "Use the default regular expression", 'r',
+    ctrl_checkbox(s, "Use the default regular expression", 'r',
 		  HELPCTX(no_help),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,url_defregex)));
 
-	ctrl_editbox(s, "or specify your own:", NO_SHORTCUT, 100,
+    ctrl_editbox(s, "or specify your own:", NO_SHORTCUT, 100,
 		 HELPCTX(no_help),
 		 dlg_stdeditbox_handler, I(offsetof(Config,url_regex)),
 		 I(sizeof(((Config *)0)->url_regex)));
 
-	ctrl_text(s, "The single white space will be cropped in front of the link, if exists.",
-		  HELPCTX(no_help));
+    ctrl_text(s, "The single white space will be cropped in front of the link, if exists.",
+	      HELPCTX(no_help));
 
     /*
      * Windows supports a local-command proxy. This also means we
@@ -517,3 +529,5 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		     dlg_stdfilesel_handler, I(offsetof(Config, xauthfile)));
     }
 }
+
+// vim: ts=8 sts=4 sw=4 noet cino=\:2\=2(0u0

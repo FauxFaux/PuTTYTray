@@ -731,3 +731,5 @@ int ctrl_path_elements(char *path);
 /* Return the number of matching path elements at the starts of p1 and p2,
  * or INT_MAX if the paths are identical. */
 int ctrl_path_compare(char *p1, char *p2);
+
+// vim: ts=8 sts=4 sw=4 noet cino=\:2\=2(0u0

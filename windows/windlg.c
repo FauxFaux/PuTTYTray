@@ -215,11 +215,11 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 	    return 0;
 
 	  case IDA_WEB:
-		/*
-		 * HACK: PuttyTray
-		 * Show different website
-		 */
-	    ShellExecute(hwnd, "open", "http://www.xs4all.nl/~whaa/putty/", 0, 0, SW_SHOWDEFAULT);
+	    /*
+	     * HACK: PuttyTray
+	     * Show different website
+	     */
+	    ShellExecute(hwnd, "open", "http://bitbucket.org/daybreaker/iputty/", 0, 0, SW_SHOWDEFAULT);
 	    return 0;
 	}
 	return 0;
@@ -243,13 +243,13 @@ static int SaneDialogBox(HINSTANCE hinst,
     int gm;
 
     wc.cbSize = sizeof(WNDCLASSEX); //HACK: PuTTYTray / Icon Fix
-	wc.style = CS_DBLCLKS | CS_SAVEBITS | CS_BYTEALIGNWINDOW;
+    wc.style = CS_DBLCLKS | CS_SAVEBITS | CS_BYTEALIGNWINDOW;
     wc.lpfnWndProc = DefDlgProc;
     wc.cbClsExtra = 0;
     wc.cbWndExtra = DLGWINDOWEXTRA + 2*sizeof(LONG_PTR);
     wc.hInstance = hinst;
-	wc.hIcon = LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED); //HACK: PuTTYTray / Icon Fix
-	wc.hIconSm = LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED); //HACK: PuTTYTray / Icon Fix
+    wc.hIcon = LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED); //HACK: PuTTYTray / Icon Fix
+    wc.hIconSm = LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED); //HACK: PuTTYTray / Icon Fix
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     wc.hbrBackground = (HBRUSH) (COLOR_BACKGROUND +1);
     wc.lpszMenuName = NULL;
@@ -346,7 +346,7 @@ static void create_controls(HWND hwnd, char *path)
 	/*
 	 * Here we must create the basic standard controls.
 	 */
-	ctlposinit(&cp, hwnd, 3, 3, 280);
+	ctlposinit(&cp, hwnd, 3, 3, 290);
 	wc = &ctrls_base;
 	base_id = IDCX_STDBASE;
     } else {

@@ -602,3 +602,5 @@ void dlg_stdfontsel_handler(union control *ctrl, void *dlg,
 	dlg_fontsel_get(ctrl, dlg, (FontSpec *)ATOFFSET(data, offset));
     }
 }
+
+// vim: ts=8 sts=4 sw=4 noet cino=\:2\=2(0u0
