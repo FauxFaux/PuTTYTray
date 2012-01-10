@@ -25,6 +25,7 @@
 # Source directories.
 !srcdir charset/
 !srcdir windows/
+!srcdir windows/re_lib
 !srcdir unix/
 !srcdir macosx/
 
@@ -139,7 +140,7 @@
 
 # Hack to force version.o to be rebuilt always.
 !begin vc
-version.obj: *.c *.h *.rc
+version.obj: *.c *.cpp *.h *.rc
 	cl $(VER) $(CFLAGS) /c ..\version.c
 !end
 !specialobj vc version
@@ -249,7 +250,7 @@ TERMINAL = terminal wcwidth ldiscucs logging tree234 minibidi
 
 # GUI front end and terminal emulator (putty, puttytel).
 GUITERM  = TERMINAL window windlg winctrls sizetip winucs winprint
-         + winutils wincfg sercfg winhelp winjump
+         + winutils wincfg sercfg winhelp winjump urlhack regexp PickIconDialog
 
 # Same thing on Unix.
 UXTERM   = TERMINAL uxcfg sercfg uxucs uxprint timing

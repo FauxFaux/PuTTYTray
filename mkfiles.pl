@@ -153,6 +153,7 @@ foreach $i (@prognames) {
       push @scanlist, $file;
     } elsif ($j !~ /\./) {
       $file = "$j.c";
+      $file = "$j.cpp" unless &findfile($file);
       $file = "$j.m" unless &findfile($file);
       $depends{$j} = [$file];
       push @scanlist, $file;
@@ -634,11 +635,15 @@ if (defined $makefiles{'vc'}) {
 	print "\n";
     }
     foreach $d (&deps("X.obj", "X.res", $dirpfx, "\\", "vc")) {
-        $extradeps = $forceobj{$d->{obj_orig}} ? ["*.c","*.h","*.rc"] : [];
+        $extradeps = $forceobj{$d->{obj_orig}} ? ["*.c","*.cpp","*.h","*.rc"] : [];
         print &splitline(sprintf("%s: %s", $d->{obj},
                                  join " ", @$extradeps, @{$d->{deps}})), "\n";
-        if ($d->{obj} =~ /.obj$/) {
-	    print "\tcl \$(COMPAT) \$(CFLAGS) \$(XFLAGS) /c ".$d->{deps}->[0],"\n\n";
+        if ($d->{obj} =~ /\.obj$/) {
+	    if ($d->{deps}->[0] =~ /\.cpp$/) {
+		print "\tcl \$(COMPAT) \$(CFLAGS) \$(XFLAGS) /c /Tp ".$d->{deps}->[0],"\n\n";
+	    } else {
+		print "\tcl \$(COMPAT) \$(CFLAGS) \$(XFLAGS) /c ".$d->{deps}->[0],"\n\n";
+	    }
 	} else {
 	    print "\trc \$(RCFL) -r \$(RCFLAGS) ".$d->{deps}->[0],"\n\n";
 	}
@@ -751,6 +756,10 @@ if (defined $makefiles{'vcproj'}) {
 	    $object_deps = $all_object_deps{$object_file};
 	    foreach $object_dep (@$object_deps) {
 		if($object_dep =~ /\.c$/io) {
+		    $source_files{$object_dep} = 1;
+		    next;
+		}
+		if($object_dep =~ /\.cpp$/io) {
 		    $source_files{$object_dep} = 1;
 		    next;
 		}
@@ -1289,6 +1298,8 @@ if (defined $makefiles{'osx'}) {
       $firstdep = $d->{deps}->[0];
       if ($firstdep =~ /\.c$/) {
 	  print "\t\$(CC) \$(COMPAT) \$(FWHACK) \$(CFLAGS) \$(XFLAGS) -c \$<\n";
+      } elsif ($firstdep =~ /\.cpp$/) {
+	  print "\t\$(CC) -x c++ \$(COMPAT) \$(FWHACK) \$(CFLAGS) \$(XFLAGS) -c \$<\n";
       } elsif ($firstdep =~ /\.m$/) {
 	  print "\t\$(CC) -x objective-c \$(COMPAT) \$(FWHACK) \$(CFLAGS) \$(XFLAGS) -c \$<\n";
       }
@@ -1355,6 +1366,10 @@ if (defined $makefiles{'devcppproj'}) {
       $object_deps = $all_object_deps{$object_file};
       foreach $object_dep (@$object_deps) {
     if($object_dep =~ /\.c$/io) {
+        $source_files{$object_dep} = 1;
+        next;
+    }
+    if($object_dep =~ /\.cpp$/io) {
         $source_files{$object_dep} = 1;
         next;
     }

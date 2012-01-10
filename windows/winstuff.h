@@ -11,6 +11,7 @@
 
 #ifndef AUTO_WINSOCK
 #include <winsock2.h>
+#define WIN32_LEAN_AND_MIN
 #endif
 #include <windows.h>
 #include <commdlg.h>

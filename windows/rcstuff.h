@@ -18,6 +18,8 @@
 #endif
 #endif
 
+#include "win_res.h"
+
 #endif /* end #ifdef __LCC__ */
 
 /* Some systems don't define this, so I do it myself if necessary */

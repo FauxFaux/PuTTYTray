@@ -1082,7 +1082,9 @@
 #define scr8                            0x0497
 #define ctl1                            0x04A0
 #define ctlLast                         0x04ff
+#ifndef WINVER
 #define WINVER                          0x0500
+#endif
 #define _WIN32_WINNT                    0x0500
 #define _WIN32_IE                       0x0501
 #define FILEOPENORD                     1536

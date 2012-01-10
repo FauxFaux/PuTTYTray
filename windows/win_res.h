@@ -39,4 +39,6 @@
 
 #define IDR_ACCELERATOR1	108
 
+#define IDM_NEXTWINDOW	0x0250 // from window.c
+
 #endif

@@ -1,24 +1,22 @@
 // Microsoft Visual C++ generated resource script.
 //
-#include "resource."
+#include "rcstuff.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
 //
 // Generated from the TEXTINCLUDE 2 resource.
 //
-#include "afxres.h"
+// NOTE: this is commented out due to errors of mkfiles.pl.
 /////////////////////////////////////////////////////////////////////////////
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// 한국어 resources
+// Korean (Korea) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_KOR)
-#ifdef _WIN32
 LANGUAGE LANG_KOREAN, SUBLANG_DEFAULT
 #pragma code_page(949)
-#endif //_WIN32
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -36,7 +34,7 @@ IDI_CFGICON             ICON                    "MSVC\\putty\\ico201.ico"
 // Dialog
 //
 
-IDD_ABOUTBOX DIALOG  140, 40, 214, 70
+IDD_ABOUTBOX DIALOG 140, 40, 214, 70
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About PuTTY"
 FONT 8, "MS Shell Dlg"
@@ -49,7 +47,7 @@ BEGIN
     CTEXT           "? 1997-2007 Simon Tatham. All rights reserved.",IDA_TEXT2,10,34,194,16
 END
 
-IDD_MAINBOX DIALOGEX 0, 0, 300, 299
+IDD_MAINBOX DIALOGEX 0, 0, 300, 312
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "PuTTY Configuration"
 CLASS "PuTTYConfigBox"
@@ -57,7 +55,7 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
 END
 
-IDD_LOGBOX DIALOG  100, 20, 300, 119
+IDD_LOGBOX DIALOG 100, 20, 300, 119
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "PuTTY Event Log"
 FONT 8, "MS Shell Dlg"
@@ -67,7 +65,7 @@ BEGIN
     LISTBOX         IDN_LIST,3,3,294,95,LBS_HASSTRINGS | LBS_USETABSTOPS | LBS_EXTENDEDSEL | WS_VSCROLL
 END
 
-IDD_LICENCEBOX DIALOG  50, 50, 226, 263
+IDD_LICENCEBOX DIALOG 50, 50, 226, 263
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "PuTTY Licence"
 FONT 8, "MS Shell Dlg"
@@ -177,11 +175,11 @@ END
 //
 
 #ifdef APSTUDIO_INVOKED
-GUIDELINES DESIGNINFO 
+GUIDELINES DESIGNINFO
 BEGIN
     IDD_MAINBOX, DIALOG
     BEGIN
-        BOTTOMMARGIN, 298
+        BOTTOMMARGIN, 311
     END
 END
 #endif    // APSTUDIO_INVOKED
@@ -192,12 +190,12 @@ END
 // Accelerator
 //
 
-IDR_ACCELERATOR1 ACCELERATORS 
+IDR_ACCELERATOR1 ACCELERATORS
 BEGIN
     VK_TAB,         IDM_NEXTWINDOW,         VIRTKEY, CONTROL, NOINVERT
 END
 
-#endif    // 한국어 resources
+#endif    // Korean (Korea) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
