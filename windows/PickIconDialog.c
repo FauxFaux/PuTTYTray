@@ -58,3 +58,5 @@ BOOL SelectIconW(HWND hWndParent, LPWSTR lpszFilename, DWORD dwBufferSize, DWORD
 
     return result;
 }
+
+// vim: ts=8 sts=4 sw=4 noet cino=\=2\:2(0u0

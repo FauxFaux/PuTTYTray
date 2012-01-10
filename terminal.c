@@ -1507,10 +1507,10 @@ Terminal *term_init(Config *mycfg, struct unicode_data *ucsdata,
     term->bidi_cache_size = 0;
     term->pre_bidi_cache = term->post_bidi_cache = NULL;
 
-	/*
-	 * HACK: PuttyTray / Nutty
-	 */
-	term->url_update = TRUE;
+    /*
+     * HACK: PuttyTray / Nutty
+     */
+    term->url_update = TRUE;
 
     /* FULL-TERMCHAR */
     term->basic_erase_char.chr = CSET_ASCII | ' ';
@@ -4717,48 +4717,48 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 #endif /* OPTIMISE_SCROLL */
     termchar *newline;
 
-	/*
-	 * HACK: PuttyTray / Nutty
-	 * Hyperlink stuff: Find visible hyperlinks
-	 *
-	 * TODO: We should find out somehow that the stuff on screen has changed since last
-	 *       paint. How to do it?
-	 */
-	int urlhack_underline_always = (term->cfg.url_underline == URLHACK_UNDERLINE_ALWAYS);
+    /*
+     * HACK: PuttyTray / Nutty
+     * Hyperlink stuff: Find visible hyperlinks
+     *
+     * TODO: We should find out somehow that the stuff on screen has changed since last
+     *       paint. How to do it?
+     */
+    int urlhack_underline_always = (term->cfg.url_underline == URLHACK_UNDERLINE_ALWAYS);
 
-	int urlhack_underline =
-		term->cfg.url_underline == URLHACK_UNDERLINE_ALWAYS ||
-		(term->cfg.url_underline == URLHACK_UNDERLINE_HOVER && (!term->cfg.url_ctrl_click || urlhack_is_ctrl_pressed())) ? 1 : 0;
+    int urlhack_underline =
+	term->cfg.url_underline == URLHACK_UNDERLINE_ALWAYS ||
+	(term->cfg.url_underline == URLHACK_UNDERLINE_HOVER && (!term->cfg.url_ctrl_click || urlhack_is_ctrl_pressed())) ? 1 : 0;
 
-	int urlhack_is_link = 0, urlhack_hover_current = 0;
-	int urlhack_toggle_x = term->cols, urlhack_toggle_y = term->rows;
-	int urlhack_region_index = 0;
-	text_region urlhack_region;
+    int urlhack_is_link = 0, urlhack_hover_current = 0;
+    int urlhack_toggle_x = term->cols, urlhack_toggle_y = term->rows;
+    int urlhack_region_index = 0;
+    text_region urlhack_region;
 
-	if (term->url_update) {
-		urlhack_reset();
+    if (term->url_update) {
+	urlhack_reset();
 
-		for (i = 0; i < term->rows; i++) {
-			termline *lp = scrlineptr(term->disptop + i);
+	for (i = 0; i < term->rows; i++) {
+	    termline *lp = scrlineptr(term->disptop + i);
 
-			for (j = 0; j < term->cols; j++) {
-				urlhack_putchar((wchar_t)(lp->chars[j].chr & 0xFFFF));
-			}
+	    for (j = 0; j < term->cols; j++) {
+		urlhack_putchar((wchar_t)(lp->chars[j].chr & 0xFFFF));
+	    }
 
-			unlineptr(lp);
-		}
-
-		urlhack_go_find_me_some_hyperlinks(term->cols);
+	    unlineptr(lp);
 	}
-	urlhack_region = urlhack_get_link_region(urlhack_region_index);
-	urlhack_toggle_x = urlhack_region.x0;
-	urlhack_toggle_y = urlhack_region.y0;
 
-	if (urlhack_underline_always)
-		urlhack_hover_current = 1;
-	else
-		urlhack_hover_current = urlhack_is_in_this_link_region(urlhack_region, urlhack_mouse_old_x, urlhack_mouse_old_y);
-	/* HACK: PuttyTray / Nutty : END */
+	urlhack_go_find_me_some_hyperlinks(term->cols);
+    }
+    urlhack_region = urlhack_get_link_region(urlhack_region_index);
+    urlhack_toggle_x = urlhack_region.x0;
+    urlhack_toggle_y = urlhack_region.y0;
+
+    if (urlhack_underline_always)
+	urlhack_hover_current = 1;
+    else
+	urlhack_hover_current = urlhack_is_in_this_link_region(urlhack_region, urlhack_mouse_old_x, urlhack_mouse_old_y);
+    /* HACK: PuttyTray / Nutty : END */
 
     chlen = 1024;
     ch = snewn(chlen, wchar_t);
@@ -4917,46 +4917,46 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	    if (j < term->cols-1 && d[1].chr == UCSWIDE)
 		tattr |= ATTR_WIDE;
 
-		/*
-		 * HACK: PuttyTray / Nutty
-		 * Hyperlink stuff: Underline link regions if user has configured us so
-		 */
-		if (urlhack_underline) {
-			if (j == urlhack_toggle_x && i == urlhack_toggle_y) {
-				urlhack_is_link = urlhack_is_link == 1 ? 0 : 1;
+	    /*
+	     * HACK: PuttyTray / Nutty
+	     * Hyperlink stuff: Underline link regions if user has configured us so
+	     */
+	    if (urlhack_underline) {
+		if (j == urlhack_toggle_x && i == urlhack_toggle_y) {
+		    urlhack_is_link = urlhack_is_link == 1 ? 0 : 1;
 
-				// Find next bound for the toggle
-				
-				if (urlhack_is_link == 1) {
-					urlhack_toggle_x = urlhack_region.x1;
-					urlhack_toggle_y = urlhack_region.y1;
+		    // Find next bound for the toggle
 
-					if (urlhack_toggle_x == term->cols - 1) {
-						// Handle special case where link ends at the last char of the row
-						urlhack_toggle_y++;
-						urlhack_toggle_x = 0;
-					}
-				}
-				else {
-					urlhack_region = urlhack_get_link_region(++urlhack_region_index);
+		    if (urlhack_is_link == 1) {
+			urlhack_toggle_x = urlhack_region.x1;
+			urlhack_toggle_y = urlhack_region.y1;
 
-					if (urlhack_underline_always)
-						urlhack_hover_current = 1;
-					else
-						urlhack_hover_current = urlhack_is_in_this_link_region(urlhack_region, urlhack_mouse_old_x, urlhack_mouse_old_y);
-
-					urlhack_toggle_x = urlhack_region.x0;
-					urlhack_toggle_y = urlhack_region.y0;
-				}
+			if (urlhack_toggle_x == term->cols - 1) {
+			    // Handle special case where link ends at the last char of the row
+			    urlhack_toggle_y++;
+			    urlhack_toggle_x = 0;
 			}
+		    }
+		    else {
+			urlhack_region = urlhack_get_link_region(++urlhack_region_index);
 
-			if (urlhack_is_link == 1 && urlhack_hover_current == 1) {	
-				tattr |= ATTR_UNDER;
-			}
+			if (urlhack_underline_always)
+			    urlhack_hover_current = 1;
+			else
+			    urlhack_hover_current = urlhack_is_in_this_link_region(urlhack_region, urlhack_mouse_old_x, urlhack_mouse_old_y);
 
-			term->url_update = 0;
+			urlhack_toggle_x = urlhack_region.x0;
+			urlhack_toggle_y = urlhack_region.y0;
+		    }
 		}
-		/* HACK: PuttyTray / Nutty : END */
+
+		if (urlhack_is_link == 1 && urlhack_hover_current == 1) {	
+		    tattr |= ATTR_UNDER;
+		}
+
+		term->url_update = 0;
+	    }
+	    /* HACK: PuttyTray / Nutty : END */
 
 	    /* Video reversing things */
 	    if (term->selstate == DRAGGING || term->selstate == SELECTED) {
@@ -5280,10 +5280,10 @@ void term_scroll(Terminal *term, int rel, int where)
     int shift;
 #endif /* OPTIMISE_SCROLL */
 
-	/*
-	 * HACK: PuttyTray / Nutty
-	 */
-	term->url_update = TRUE;
+    /*
+     * HACK: PuttyTray / Nutty
+     */
+    term->url_update = TRUE;
 
     term->disptop = (rel < 0 ? 0 : rel > 0 ? sbtop : term->disptop) + where;
     if (term->disptop < sbtop)
@@ -5886,10 +5886,10 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 	    }
 	    switch (a) {
 	      case MA_DRAG:
-			if (term->xterm_mouse == 1) {// HACK: ADDED FOR hyperlink stuff
-				unlineptr(ldata); 
-				return;
-			}
+		if (term->xterm_mouse == 1) {// HACK: ADDED FOR hyperlink stuff
+		    unlineptr(ldata); 
+		    return;
+		}
 		encstate += 0x20;
 		break;
 	      case MA_RELEASE:
@@ -5897,10 +5897,10 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 		term->mouse_is_down = 0;
 		break;
 	      case MA_CLICK:
-			  if (term->mouse_is_down == braw) {// HACK: ADDED FOR hyperlink stuff
-				  unlineptr(ldata); 
-				  return;
-			  }
+		if (term->mouse_is_down == braw) {// HACK: ADDED FOR hyperlink stuff
+		    unlineptr(ldata); 
+		    return;
+		}
 		term->mouse_is_down = braw;
 		break;
 	      default: break;	       /* placate gcc warning about enum use */
@@ -5939,63 +5939,63 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 	term->selanchor = selpoint;
 	term->selmode = SM_CHAR;
 
+    } else if (bcooked == MBT_SELECT && a == MA_RELEASE && term->selstate == ABOUT_TO) {
 	/*
 	 * HACK: PuttyTray / Nutty
 	 * Hyperlink stuff: Check whether the click coordinates are inside link
 	 * region, if so -> copy url to temporary buffer and launch it. Delete
 	 * the temporary buffer.
 	 */
-	} else if (bcooked == MBT_SELECT && a == MA_RELEASE && term->selstate == ABOUT_TO) {
 	deselect(term);
 	term->selstate = NO_SELECTION;
 
 	if ((!term->cfg.url_ctrl_click || (term->cfg.url_ctrl_click && urlhack_is_ctrl_pressed())) && urlhack_is_in_link_region(x, y)) {
-		int i;
-		wchar_t *linkbuf = NULL;
-        wchar_t *browser;
-		text_region region = urlhack_get_link_bounds(x, y);
+	    int i;
+	    wchar_t *linkbuf = NULL;
+	    wchar_t *browser;
+	    text_region region = urlhack_get_link_bounds(x, y);
 
-		if (region.y0 == region.y1) {
-			linkbuf = snewn(region.x1 - region.x0 + 2, wchar_t);
-			
-			for (i = region.x0; i < region.x1; i++) {
-                // TODO: why does chr have unnecessary bits?
-				linkbuf[i - region.x0] = (wchar_t)(ldata->chars[i].chr & CHAR_MASK);
-			}
+	    if (region.y0 == region.y1) {
+		linkbuf = snewn(region.x1 - region.x0 + 2, wchar_t);
 
-			linkbuf[i - region.x0] = '\0';
+		for (i = region.x0; i < region.x1; i++) {
+		    // TODO: why does chr have unnecessary bits?
+		    linkbuf[i - region.x0] = (wchar_t)(ldata->chars[i].chr & CHAR_MASK);
 		}
-		else {
-			termline *urldata = scrlineptr(region.y0);
-			int linklen, pos = region.x0, row = region.y0;
 
-			linklen = (term->cols - region.x0) +
-				((region.y1 - region.y0 - 1) * term->cols) + region.x1 + 1;
+		linkbuf[i - region.x0] = '\0';
+	    }
+	    else {
+		termline *urldata = scrlineptr(region.y0);
+		int linklen, pos = region.x0, row = region.y0;
 
-			linkbuf = snewn(linklen, wchar_t);
+		linklen = (term->cols - region.x0) +
+		    ((region.y1 - region.y0 - 1) * term->cols) + region.x1 + 1;
 
-			for (i = region.x0; i < linklen + region.x0; i++) {
-				linkbuf[i - region.x0] = (wchar_t)(urldata->chars[i % term->cols].chr & CHAR_MASK);
-				
-				// Jump to next line?
-				if (((i + 1) % term->cols) == 0) {
-					row++;
-					urldata = lineptr(row);
-				}
-			}
+		linkbuf = snewn(linklen, wchar_t);
 
-			linkbuf[linklen - 1] = '\0';
-			unlineptr(urldata);
+		for (i = region.x0; i < linklen + region.x0; i++) {
+		    linkbuf[i - region.x0] = (wchar_t)(urldata->chars[i % term->cols].chr & CHAR_MASK);
+
+		    // Jump to next line?
+		    if (((i + 1) % term->cols) == 0) {
+			row++;
+			urldata = lineptr(row);
+		    }
 		}
-        if (!term->cfg.url_defbrowser) {
-            browser = short_mb_to_wc(decode_codepage(term->cfg.line_codepage), 0, term->cfg.url_browser, strlen(term->cfg.url_browser));
-        } else
-            browser = NULL;
 
-		urlhack_launch_url(browser, linkbuf);
+		linkbuf[linklen - 1] = '\0';
+		unlineptr(urldata);
+	    }
+	    if (!term->cfg.url_defbrowser) {
+		browser = short_mb_to_wc(decode_codepage(term->cfg.line_codepage), 0, term->cfg.url_browser, strlen(term->cfg.url_browser));
+	    } else
+		browser = NULL;
 
-        sfree(browser);
-		sfree(linkbuf);
+	    urlhack_launch_url(browser, linkbuf);
+
+	    sfree(browser);
+	    sfree(linkbuf);
 	}
 	/* HACK: PuttyTray / Nutty : END */
 
@@ -6010,8 +6010,8 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
     } else if ((bcooked == MBT_SELECT && a == MA_DRAG) ||
 	       (bcooked == MBT_EXTEND && a != MA_RELEASE)) {
 	if (term->selstate == ABOUT_TO && poseq(term->selanchor, selpoint)) { // HACK: ADDED FOR HYPERLINK STUFF
-		unlineptr(ldata);
-		return;
+	    unlineptr(ldata);
+	    return;
 	}
 	if (bcooked == MBT_EXTEND && a != MA_DRAG &&
 	    term->selstate == SELECTED) {
@@ -6847,3 +6847,5 @@ int term_get_userpass_input(Terminal *term, prompts_t *p,
 	return +1; /* all done */
     }
 }
+
+// vim: ts=8 sts=4 sw=4 noet cino=\:2\=2(0u0
