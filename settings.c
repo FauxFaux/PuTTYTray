@@ -326,7 +326,7 @@ static void wprefs(void *sesskey, char *name,
 	}
     }
 
-    assert(p - buf == maxlen - 1);     /* maxlen counted the NUL */
+    assert(p - buf == maxlen);     /* maxlen counted the NUL */
     *p = '\0';
 
     write_setting_s(sesskey, name, buf);
