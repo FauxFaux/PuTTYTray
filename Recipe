@@ -25,7 +25,6 @@
 # Source directories.
 !srcdir charset/
 !srcdir windows/
-!srcdir windows/re_lib
 !srcdir unix/
 !srcdir macosx/
 
@@ -321,7 +320,7 @@ pageant  : [G] winpgnt sshrsa sshpubk sshdes sshbn sshmd5 version tree234
 puttygen : [G] winpgen sshrsag sshdssg sshprime sshdes sshbn sshmd5 version
          + sshrand winnoise sshsha winstore misc winctrls sshrsa sshdss winmisc
          + sshpubk sshaes sshsh256 sshsh512 import winutils puttygen.res
-	 + tree234 notiming winhelp winnojmp LIBS wintime
+	 + tree234 notiming winhelp winnojmp LIBS wintime PickIconDialog
 
 pterm    : [X] GTKTERM uxmisc misc ldisc settings uxpty uxsel BE_NONE uxstore
          + uxsignal CHARSET cmdline uxpterm version time xpmpterm xpmptcfg
