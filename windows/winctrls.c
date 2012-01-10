@@ -1336,13 +1336,6 @@ struct winctrl *winctrl_findbyindex(struct winctrls *wc, int index)
     return index234(wc->byid, index);
 }
 
-/*
- * HACK: PuttyTray / Session Icon
- */
-#ifdef _CONFIG_EXPORTED
-extern Config cfg;
-#endif
-//----------------------
 
 void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
 		    struct ctlpos *cp, struct controlset *s, int *id)
@@ -1361,6 +1354,8 @@ void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
     char *escaped;
     int i, actual_base_id, base_id, num_ids;
     void *data;
+
+    Config *cfg = (Config *)dp->data;
 
     base_id = *id;
 
@@ -1553,16 +1548,13 @@ void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
 	    sfree(escaped);
 	    break;
 
-		#ifdef _CONFIG_EXPORTED
-		/*
-		 * HACK: PuttyTray / Session Icon
-		 */ 
-		case CTRL_ICON:
-			num_ids = 1;
-			staticicon(&pos, ctrl->icon.label, (char *) ATOFFSET(&cfg, ctrl->icon.context.i), base_id);
-			break;
-		#endif
-		//-----------------------------------------------------
+	/*
+	 * HACK: PuttyTray / Session Icon
+	 */ 
+	  case CTRL_ICON:
+	    num_ids = 1;
+	    staticicon(&pos, ctrl->icon.label, (char *) ATOFFSET(&cfg, ctrl->icon.context.i), base_id);
+	    break;
 
 	  case CTRL_RADIO:
 	    num_ids = ctrl->radio.nbuttons + 1;   /* label as well */
@@ -2692,3 +2684,5 @@ int dlg_pick_icon(void *dlg, char **iname, int inamesize, int *iindex)
 	int ret = SelectIcon(dp->hwnd, *iname, inamesize, iindex);
 	return ret == IDOK ? TRUE : FALSE;
 };
+
+// vim: ts=8 sts=4 sw=4 noet cino=\:2\=2(0u0
