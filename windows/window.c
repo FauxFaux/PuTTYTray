@@ -162,6 +162,8 @@ static size_t clipboard_length;
 #define TIMING_TIMER_ID 1234
 static long timing_next_time;
 
+HICON extract_icon(char *iconpath, int smallicon);
+
 static struct {
     HMENU menu;
 } popup_menus[2];
@@ -2465,11 +2467,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 			SetClassLongPtr(hwnd, GCLP_HICON, (LONG_PTR)extract_icon(conf_get_filename(conf, CONF_win_icon)->path, FALSE));
 			SetClassLongPtr(hwnd, GCLP_HICONSM, (LONG_PTR)hIcon);
 		} else {
-			inst = (HINSTANCE) GetWindowLong(hwnd, GWL_HINSTANCE);
+			inst = (HINSTANCE) GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
 			DestroyIcon(puttyTray.hIcon);
 			puttyTray.hIcon	= LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
-			SetClassLong(hwnd, GCL_HICON, (LONG)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED));
-			SetClassLong(hwnd, GCL_HICONSM, (LONG)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED));
+			SetClassLongPtr(hwnd, GCLP_HICON, (LONG_PTR)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED));
+			SetClassLongPtr(hwnd, GCLP_HICONSM, (LONG_PTR)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED));
 		}
 		if (puttyTrayVisible) {
 			taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
@@ -2654,7 +2656,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    }
 	    break;
 	  case IDM_TRAYCLOSE:
-	    SendMessage(hwnd, WM_CLOSE, NULL, NULL);
+	    SendMessage(hwnd, WM_CLOSE, (WPARAM)NULL, (LPARAM)NULL);
 	    break;
 
 	  case SC_MOUSEMENU:
@@ -2852,13 +2854,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		if ((!conf_get_int(term->conf, CONF_url_ctrl_click) || urlhack_is_ctrl_pressed()) &&
 			urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y)) {
 				if (urlhack_cursor_is_hand == 0) {
-					SetClassLongPtr(hwnd, GCLP_HCURSOR, LoadCursor(NULL, MAKEINTRESOURCE(IDC_HAND)));
+					SetClassLongPtr(hwnd, GCLP_HCURSOR, (LONG_PTR)LoadCursor(NULL, MAKEINTRESOURCE(IDC_HAND)));
 					urlhack_cursor_is_hand = 1;
 					term_update(term); // Force the terminal to update, otherwise the underline will not show (bug somewhere, this is an ugly fix)
 				}
 		}
 		else if (urlhack_cursor_is_hand == 1) {
-			SetClassLongPtr(hwnd, GCLP_HCURSOR, LoadCursor(NULL, MAKEINTRESOURCE(IDC_IBEAM)));
+			SetClassLongPtr(hwnd, GCLP_HCURSOR, (LONG_PTR)LoadCursor(NULL, MAKEINTRESOURCE(IDC_IBEAM)));
 			urlhack_cursor_is_hand = 0;
 			term_update(term); // Force the terminal to update, see above
 		}
