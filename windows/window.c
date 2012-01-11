@@ -1611,7 +1611,7 @@ static void init_fonts(int pick_width, int pick_height)
 
     f(FONT_NORMAL, font->charset, fw_dontcare, FALSE);
 
-    if (bold_mode == BOLD_FONT) {
+    if (bold_font_mode == BOLD_FONT) {
         f(FONT_BOLD, font->charset, fw_bold, FALSE);
     }
 
@@ -2447,7 +2447,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    SetClassLongPtr(hwnd, GCL_HICON, extract_icon(filename_to_str(conf_get_filename(conf, CONF_win_icon)), FALSE));
 		    SetClassLongPtr(hwnd, GCL_HICONSM, (LONG)hIcon);
 		} else {
-		    inst = (HINSTANCE) GetWindowLong(hwnd, GWL_HINSTANCE);
+		    inst = (HINSTANCE) GetWindowLongPtr(hwnd, GWL_HINSTANCE);
 		    DestroyIcon(puttyTray.hIcon);
 		    puttyTray.hIcon = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
 		    SetClassLongPtr(hwnd, GCL_HICON, (LONG)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED));
@@ -2633,7 +2633,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    }
 	    break;
 	  case IDM_TRAYCLOSE:
-	    SendMessage(hwnd, WM_CLOSE, NULL, NULL);
+	    SendMessage(hwnd, WM_CLOSE, (WPARAM)NULL, (WPARAM)NULL);
 	    break;
 
 	  case SC_MOUSEMENU:
@@ -2827,13 +2827,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    if ((!conf_get_int(term->conf, CONF_url_ctrl_click) || urlhack_is_ctrl_pressed()) &&
 	        urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y)) {
 		    if (urlhack_cursor_is_hand == 0) {
-		        SetClassLongPtr(hwnd, GCLP_HCURSOR, LoadCursor(NULL, MAKEINTRESOURCE(IDC_HAND)));
+		        SetClassLongPtr(hwnd, GCLP_HCURSOR, (LONG_PTR)LoadCursor(NULL, MAKEINTRESOURCE(IDC_HAND)));
 		        urlhack_cursor_is_hand = 1;
 		        term_update(term); // Force the terminal to update, otherwise the underline will not show (bug somewhere, this is an ugly fix)
 		    }
 	    }
 	    else if (urlhack_cursor_is_hand == 1) {
-		SetClassLongPtr(hwnd, GCLP_HCURSOR, LoadCursor(NULL, MAKEINTRESOURCE(IDC_IBEAM)));
+		SetClassLongPtr(hwnd, GCLP_HCURSOR, (LONG_PTR)LoadCursor(NULL, MAKEINTRESOURCE(IDC_IBEAM)));
 		urlhack_cursor_is_hand = 0;
 		term_update(term); // Force the terminal to update, see above
 	    }
