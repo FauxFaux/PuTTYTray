@@ -1,0 +1,152 @@
+=== putty.h
+==================================================================
+--- putty.h	(revision 7489)
++++ putty.h	(local)
+@@ -598,6 +598,12 @@
+     FontSpec widefont;
+     FontSpec wideboldfont;
+     int shadowboldoffset;
++
++	/*
++	 * HACK: PuttyTray / Reconnect
++	 */
++	int wakeup_reconnect;
++	int failure_reconnect;
+ };
+ 
+ /*
+=== settings.c
+==================================================================
+--- settings.c	(revision 7489)
++++ settings.c	(local)
+@@ -328,6 +328,13 @@
+     write_setting_i(sesskey, "ApplicationCursorKeys", cfg->app_cursor);
+     write_setting_i(sesskey, "ApplicationKeypad", cfg->app_keypad);
+     write_setting_i(sesskey, "NetHackKeypad", cfg->nethack_keypad);
++
++	/*
++	 * HACK: PuttyTray / Reconnect
++	 */
++	write_setting_i(sesskey, "WakeupReconnect", cfg->wakeup_reconnect);
++	write_setting_i(sesskey, "FailureReconnect", cfg->failure_reconnect);
++
+     write_setting_i(sesskey, "AltF4", cfg->alt_f4);
+     write_setting_i(sesskey, "AltSpace", cfg->alt_space);
+     write_setting_i(sesskey, "AltOnly", cfg->alt_only);
+@@ -616,6 +623,13 @@
+     gppi(sesskey, "ApplicationCursorKeys", 0, &cfg->app_cursor);
+     gppi(sesskey, "ApplicationKeypad", 0, &cfg->app_keypad);
+     gppi(sesskey, "NetHackKeypad", 0, &cfg->nethack_keypad);
++
++	/*
++	 * HACK: PuttyTray / Reconnect
++	 */
++	gppi(sesskey, "WakeupReconnect", 0, &cfg->wakeup_reconnect);
++	gppi(sesskey, "FailureReconnect", 0, &cfg->failure_reconnect);
++
+     gppi(sesskey, "AltF4", 1, &cfg->alt_f4);
+     gppi(sesskey, "AltSpace", 0, &cfg->alt_space);
+     gppi(sesskey, "AltOnly", 0, &cfg->alt_only);
+=== windows/wincfg.c
+==================================================================
+--- windows/wincfg.c	(revision 7489)
++++ windows/wincfg.c	(local)
+@@ -334,6 +334,13 @@
+ 		  dlg_stdcheckbox_handler,
+ 		  I(offsetof(Config,fullscreenonaltenter)));
+ 
++	/*
++	 * HACK: PuttyTray / Reconnect
++	 */
++	s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options");
++	ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,wakeup_reconnect)));
++	ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'w', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,failure_reconnect)));
++
+     /*
+      * Windows supports a local-command proxy. This also means we
+      * must adjust the text on the `Telnet command' control.
+=== windows/window.c
+==================================================================
+--- windows/window.c	(revision 7489)
++++ windows/window.c	(local)
+@@ -198,6 +198,11 @@
+ 
+ static UINT wm_mousewheel = WM_MOUSEWHEEL;
+ 
++/*
++ * HACK: PuttyTray / Reconnect
++ */
++static time_t last_reconnect = 0;
++
+ /* Dummy routine, only required in plink. */
+ void ldisc_update(void *frontend, int echo, int edit)
+ {
+@@ -1058,6 +1063,24 @@
+     va_list ap;
+     char *stuff, morestuff[100];
+ 
++	/*
++	 * HACK: PuTTYTray / Reconnect on connection failure
++	 */
++	if (cfg.failure_reconnect) {
++		time_t tnow = time(NULL);
++		close_session();
++
++		if(last_reconnect && (tnow - last_reconnect) < 5) {
++			Sleep(5000);
++		}
++
++		last_reconnect = tnow;
++		logevent(NULL, "Lost connection, reconnecting...");
++		term_pwron(term, FALSE);
++		start_backend();
++		return; // done
++	}
++
+     va_start(ap, fmt);
+     stuff = dupvprintf(fmt, ap);
+     va_end(ap);
+@@ -3021,6 +3044,43 @@
+ 	    sfree(c);
+ 	}
+ 	return 0;
++
++	/*
++	 * HACK: PuttyTray / Reconnect
++	 */
++	case WM_POWERBROADCAST:
++		if(cfg.wakeup_reconnect) {
++			switch(wParam) {
++				case PBT_APMRESUMESUSPEND:
++				case PBT_APMRESUMEAUTOMATIC:
++				case PBT_APMRESUMECRITICAL:
++				case PBT_APMQUERYSUSPENDFAILED:
++					if(session_closed && !back) {
++						time_t tnow = time(NULL);
++						
++						if(last_reconnect && (tnow - last_reconnect) < 5) {
++							Sleep(1000);
++						}
++
++						last_reconnect = tnow;
++						logevent(NULL, "Woken up from suspend, reconnecting...");
++						term_pwron(term, FALSE);
++						start_backend();
++					}
++					break;
++				case PBT_APMSUSPEND:
++					if(!session_closed && back) {
++						logevent(NULL, "Suspend detected, disconnecting cleanly...");
++						close_session();
++					}
++					break;
++			}
++		}
++		break;
++	/*
++	 * END HACK: PuttyTray / Reconnect
++	 */
++
+       default:
+ 	if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
+ 	    int shift_pressed=0, control_pressed=0;

@@ -1,0 +1,58 @@
+=== settings.c
+==================================================================
+--- settings.c	(revision 7489)
++++ settings.c	(local)
+@@ -459,6 +459,15 @@
+     int i;
+     char prot[10];
+ 
++	/*
++	 * HACK: PuttyTray / Vista
++	 * Check windows version and set default font quality to 'cleartype' if this is Windows Vista
++	 */
++    OSVERSIONINFO versioninfo;
++    versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
++    GetVersionEx(&versioninfo);
++	/**/
++
+     cfg->ssh_subsys = 0;	       /* FIXME: load this properly */
+     cfg->remote_cmd_ptr = NULL;
+     cfg->remote_cmd_ptr2 = NULL;
+@@ -663,7 +672,13 @@
+     gppi(sesskey, "TermWidth", 80, &cfg->width);
+     gppi(sesskey, "TermHeight", 24, &cfg->height);
+     gppfont(sesskey, "Font", &cfg->font);
+-    gppi(sesskey, "FontQuality", FQ_DEFAULT, &cfg->font_quality);
++
++	/*
++	 * HACK: PuttyTray / Vista
++	 * Check windows version and set default font quality to 'cleartype' if this is Windows Vista
++	 */
++    gppi(sesskey, "FontQuality", ((versioninfo.dwMajorVersion >= 6) ? FQ_CLEARTYPE : FQ_DEFAULT), &cfg->font_quality);
++
+     gppi(sesskey, "FontVTMode", VT_UNICODE, (int *) &cfg->vtmode);
+     gppi(sesskey, "UseSystemColours", 0, &cfg->system_colour);
+     gppi(sesskey, "TryPalette", 0, &cfg->try_palette);
+=== windows/windefs.c
+==================================================================
+--- windows/windefs.c	(revision 7489)
++++ windows/windefs.c	(local)
+@@ -9,8 +9,17 @@
+ FontSpec platform_default_fontspec(const char *name)
+ {
+     FontSpec ret;
++
++	/*
++	 * HACK: PuttyTray / Vista
++	 * Check windows version and set default font to 'consolas' if this is Windows Vista
++	 */
++    OSVERSIONINFO versioninfo;
++    versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
++    GetVersionEx(&versioninfo);
++
+     if (!strcmp(name, "Font")) {
+-	strcpy(ret.name, "Courier New");
++	strcpy(ret.name, ((versioninfo.dwMajorVersion >= 6) ? "Consolas" : "Courier New"));
+ 	ret.isbold = 0;
+ 	ret.charset = ANSI_CHARSET;
+ 	ret.height = 10;

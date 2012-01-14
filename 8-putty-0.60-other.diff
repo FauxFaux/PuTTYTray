@@ -1,0 +1,61 @@
+=== settings.c
+==================================================================
+--- settings.c	(revision 7489)
++++ settings.c	(local)
+@@ -652,7 +652,7 @@
+ 		    / 1000
+ #endif
+ 	;
+-    gppi(sesskey, "ScrollbackLines", 200, &cfg->savelines);
++    gppi(sesskey, "ScrollbackLines", 1000, &cfg->savelines); // HACK: PuttyTray - more is better
+     gppi(sesskey, "DECOriginMode", 0, &cfg->dec_om);
+     gppi(sesskey, "AutoWrapMode", 1, &cfg->wrap_mode);
+     gppi(sesskey, "LFImpliesCR", 0, &cfg->lfhascr);
+=== version.c
+==================================================================
+--- version.c	(revision 7489)
++++ version.c	(local)
+@@ -30,7 +30,11 @@
+ 
+ #else
+ 
+-char ver[] = "Unidentified build, " __DATE__ " " __TIME__;
++/*
++ * HACK: PuttyTray
++ * Hardcode Version
++ */
++char ver[] = "PuTTY Tray 0.60 (r3), " __DATE__ " " __TIME__;
+ char sshver[] = "PuTTY-Local: " __DATE__ " " __TIME__;
+ 
+ #endif
+=== windows/wincfg.c
+==================================================================
+--- windows/wincfg.c	(revision 7489)
++++ windows/wincfg.c	(local)
+@@ -320,7 +320,7 @@
+     ctrl_checkbox(s, "Window closes on ALT-F4", '4',
+ 		  HELPCTX(behaviour_altf4),
+ 		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_f4)));
+-    ctrl_checkbox(s, "System menu appears on ALT-Space", 'y',
++    ctrl_checkbox(s, "System menu appears on ALT-Space", 'm', //HACK: PuttyTray: Changed shortcut key
+ 		  HELPCTX(behaviour_altspace),
+ 		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_space)));
+     ctrl_checkbox(s, "System menu appears on ALT alone", 'l',
+=== windows/windlg.c
+==================================================================
+--- windows/windlg.c	(revision 7489)
++++ windows/windlg.c	(local)
+@@ -216,8 +216,12 @@
+ 
+ 	  case IDA_WEB:
+ 	    /* Load web browser */
++		/*
++		 * HACK: PuttyTray
++		 * Show different website
++		 */
+ 	    ShellExecute(hwnd, "open",
+-			 "http://www.chiark.greenend.org.uk/~sgtatham/putty/",
++			 "http://www.xs4all.nl/~whaa/putty/",
+ 			 0, 0, SW_SHOWDEFAULT);
+ 	    return 0;
+ 	}

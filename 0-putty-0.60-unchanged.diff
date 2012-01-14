@@ -1,0 +1,6392 @@
+=== cmdline.c
+==================================================================
+--- cmdline.c	(revision 7489)
++++ cmdline.c	(local)
+@@ -162,7 +162,19 @@
+ 	loaded_session = TRUE;
+ 	return 2;
+     }
+-    if (!strcmp(p, "-ssh")) {
++    
++	/*
++	 * HACK: PuttyTray / PuTTY File
++	 * Load file based session from commandline
++	 */
++	if (!strcmp(p, "-loadfile") || !strcmp(p, "-file") || !strcmp(p, "-fileload")) {
++	RETURN(2);
++	do_defaults_file(value, cfg);
++	loaded_session = TRUE;
++	return 2;
++    }
++
++	if (!strcmp(p, "-ssh")) {
+ 	RETURN(1);
+ 	UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+ 	SAVEABLE(0);
+=== config.c
+==================================================================
+--- config.c	(revision 7489)
++++ config.c	(local)
+@@ -16,6 +16,18 @@
+ #define PORT_BOX_TITLE "Port"
+ 
+ /*
++ * HACK: PuttyTray / PuTTY File
++ * Define and struct moved up here so they can be used in storagetype_handler
++ */
++#define SAVEDSESSION_LEN 2048
++struct sessionsaver_data {
++    union control *editbox, *listbox, *loadbutton, *savebutton, *delbutton;
++    union control *okbutton, *cancelbutton;
++    struct sesslist sesslist;
++    int midsession;
++};
++
++/*
+  * Convenience function: determine whether this binary supports a
+  * given backend.
+  */
+@@ -143,6 +155,51 @@
+     }
+ }
+ 
++/*
++ * HACK: PuttyTray / PuTTY File
++ * Storagetype radio buttons event handler
++ */
++void storagetype_handler(union control *ctrl, void *dlg, void *data, int event)
++{
++    int button;
++    struct sessionsaver_data *ssd =(struct sessionsaver_data *)ctrl->generic.context.p;
++	Config *cfg = (Config *)data;
++
++    /*
++     * For a standard radio button set, the context parameter gives
++     * offsetof(targetfield, Config), and the extra data per button
++     * gives the value the target field should take if that button
++     * is the one selected.
++     */
++    if (event == EVENT_REFRESH) {
++		button = cfg->session_storagetype; // Button index = same as storagetype number. Set according to config
++		dlg_radiobutton_set(ctrl, dlg, button);
++	} else if (event == EVENT_VALCHANGE) {
++		button = dlg_radiobutton_get(ctrl, dlg);
++
++		// Switch between registry and file
++		if (ctrl->radio.buttondata[button].i == 0) {
++			get_sesslist(&ssd->sesslist, FALSE, 0);
++			get_sesslist(&ssd->sesslist, TRUE, 0);
++			dlg_refresh(ssd->editbox, dlg);
++			dlg_refresh(ssd->listbox, dlg);
++
++			// Save setting into config (the whole *(int *)ATOFFSET(data, ctrl->radio.context.i) = ctrl->radio.buttondata[button].i; didn't work)
++			// and I don't see why I shouldn't do it this way (it works?)
++			cfg->session_storagetype = 0;
++		} else {
++			get_sesslist(&ssd->sesslist, FALSE, 1);
++			get_sesslist(&ssd->sesslist, TRUE, 1);
++			dlg_refresh(ssd->editbox, dlg);
++			dlg_refresh(ssd->listbox, dlg);
++
++			// Here as well
++			cfg->session_storagetype = 1;
++		}
++	}
++}
++/** HACK: END **/
++
+ static void loggingbuttons_handler(union control *ctrl, void *dlg,
+ 				   void *data, int event)
+ {
+@@ -367,15 +424,6 @@
+     }
+ }
+ 
+-#define SAVEDSESSION_LEN 2048
+-
+-struct sessionsaver_data {
+-    union control *editbox, *listbox, *loadbutton, *savebutton, *delbutton;
+-    union control *okbutton, *cancelbutton;
+-    struct sesslist sesslist;
+-    int midsession;
+-};
+-
+ /* 
+  * Helper function to load the session selected in the list box, if
+  * any, as this is done in more than one place below. Returns 0 for
+@@ -507,8 +555,13 @@
+                     sfree(errmsg);
+                 }
+             }
+-	    get_sesslist(&ssd->sesslist, FALSE);
+-	    get_sesslist(&ssd->sesslist, TRUE);
++		/*
++		 * HACK: PuttyTray / PuTTY File
++		 * Added storagetype to get_sesslist
++		 */
++	    get_sesslist(&ssd->sesslist, FALSE, cfg->session_storagetype);
++	    get_sesslist(&ssd->sesslist, TRUE, cfg->session_storagetype);
++
+ 	    dlg_refresh(ssd->editbox, dlg);
+ 	    dlg_refresh(ssd->listbox, dlg);
+ 	} else if (!ssd->midsession &&
+@@ -518,8 +571,14 @@
+ 		dlg_beep(dlg);
+ 	    } else {
+ 		del_settings(ssd->sesslist.sessions[i]);
+-		get_sesslist(&ssd->sesslist, FALSE);
+-		get_sesslist(&ssd->sesslist, TRUE);
++
++		/*
++		 * HACK: PuttyTray / PuTTY File
++		 * Added storagetype to get_sesslist
++		 */
++		get_sesslist(&ssd->sesslist, FALSE, cfg->session_storagetype);
++		get_sesslist(&ssd->sesslist, TRUE, cfg->session_storagetype);
++
+ 		dlg_refresh(ssd->listbox, dlg);
+ 	    }
+ 	} else if (ctrl == ssd->okbutton) {
+@@ -1102,7 +1161,7 @@
+ }
+ 
+ void setup_config_box(struct controlbox *b, int midsession,
+-		      int protocol, int protcfginfo)
++		      int protocol, int protcfginfo, int session_storagetype) // HACK: PuttyTray / PuTTY File - Added 'int session_storagetype'
+ {
+     struct controlset *s;
+     struct sessionsaver_data *ssd;
+@@ -1113,6 +1172,7 @@
+     struct portfwd_data *pfd;
+     union control *c;
+     char *str;
++	int current_storagetype; // HACK: PuttyTray / PuTTY File - stores storagetype after sess_list may or may not have switched between file/registry because registry is empty
+ 
+     ssd = (struct sessionsaver_data *)
+ 	ctrl_alloc(b, sizeof(struct sessionsaver_data));
+@@ -1192,7 +1252,8 @@
+ 		    midsession ? "Save the current session settings" :
+ 		    "Load, save or delete a stored session");
+     ctrl_columns(s, 2, 75, 25);
+-    get_sesslist(&ssd->sesslist, TRUE);
++
++	current_storagetype = get_sesslist(&ssd->sesslist, TRUE, (midsession ? session_storagetype : (session_storagetype + 2))); // HACK: PuttyTray / PuTTY File - The +2 triggers storagetype autoswitching
+     ssd->editbox = ctrl_editbox(s, "Saved Sessions", 'e', 100,
+ 				HELPCTX(session_saved),
+ 				sessionsaver_handler, P(ssd), P(NULL));
+@@ -1234,6 +1295,28 @@
+     }
+     ctrl_columns(s, 1, 100);
+ 
++	/*
++	 * HACK: PuttyTray / PuTTY File
++	 * Add radio buttons
++	 *
++     * Couldn't get the default selection to switch, so I switched the button position instead.
++	 * Must be the lamest solution I ever came up with.
++	 *
++	 * In midsession, changing causes it to be reversed again (wrong). So don't.
++	 */
++	if (midsession || current_storagetype == 0) {
++		c = ctrl_radiobuttons(s, NULL, 'w', 2,
++				  HELPCTX(no_help),
++				  storagetype_handler,
++				  P(ssd), "Sessions from registry", I(0), "Sessions from file", I(1), NULL);
++	} else {
++		c = ctrl_radiobuttons(s, NULL, 'w', 2,
++				  HELPCTX(no_help),
++				  storagetype_handler,
++				  P(ssd), "Sessions from file", I(1), "Sessions from registry", I(0), NULL);
++	}
++	/** HACK: END **/
++
+     s = ctrl_getset(b, "Session", "otheropts", NULL);
+     c = ctrl_radiobuttons(s, "Close window on exit:", 'w', 4,
+ 			  HELPCTX(session_coe),
+=== dialog.c
+==================================================================
+--- dialog.c	(revision 7489)
++++ dialog.c	(local)
+@@ -272,6 +272,15 @@
+ }
+ 
+ /*
++ * HACK: PuttyTray / Session Icon
++ */ 
++union control *ctrl_icon(struct controlset *s, intorptr helpctx, intorptr context)
++{
++    union control *c = ctrl_new(s, CTRL_ICON, helpctx, NULL, context);
++    return c;
++};
++
++/*
+  * `ncolumns' is followed by (alternately) radio button titles and
+  * intorptrs, until a NULL in place of a title string is seen. Each
+  * title is expected to be followed by a shortcut _iff_ `shortcut'
+=== dialog.h
+==================================================================
+--- dialog.h	(revision 7489)
++++ dialog.h	(local)
+@@ -35,7 +35,13 @@
+     CTRL_COLUMNS,		       /* divide window into columns */
+     CTRL_FILESELECT,		       /* label plus filename selector */
+     CTRL_FONTSELECT,		       /* label plus font selector */
+-    CTRL_TABDELAY		       /* see `tabdelay' below */
++    CTRL_TABDELAY,		       /* see `tabdelay' below */
++
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 * Add ctrl_icon, ctrl_path, ctrl_sessionlistbox
++	 */ 
++    CTRL_ICON					/* static icon without label */
+ };
+ 
+ /*
+@@ -395,6 +401,15 @@
+ 	STANDARD_PREFIX;
+ 	char shortcut;
+     } fontselect;
++
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 */ 
++    struct {
++		STANDARD_PREFIX;
++		intorptr handle;
++    } icon;
++	//--------------
+ };
+ 
+ #undef STANDARD_PREFIX
+@@ -513,6 +528,16 @@
+ union control *ctrl_tabdelay(struct controlset *, union control *);
+ 
+ /*
++ * HACK: PuttyTray / Session Icon
++ */ 
++union control *ctrl_icon(struct controlset *, intorptr helpctx, intorptr context);
++
++// Should be somewhere below, but this is easier
++void dlg_icon_set(union control *ctrl, void *dlg, char const *icon);
++int dlg_pick_icon(void *dlg, char **iname, int inamesize, int *iindex);
++//------------------------------------
++
++/*
+  * Standard handler routines to cover most of the common cases in
+  * the config box.
+  */
+=== putty.h
+==================================================================
+--- putty.h	(revision 7489)
++++ putty.h	(local)
+@@ -137,6 +137,30 @@
+ #define ATTR_DEFBG   (258 << ATTR_BGSHIFT)
+ #define ATTR_DEFAULT (ATTR_DEFFG | ATTR_DEFBG)
+ 
++/*
++ * HACK: PuttyTray / Nutty
++ * Hyperlink stuff: define
++ */
++#define CHAR_MASK    0x000000FFUL
++
++/*
++ * HACK: PuttyTray / Nutty
++ * Hyperlink stuff: Underline settings
++ */
++enum {
++	URLHACK_UNDERLINE_ALWAYS,
++	URLHACK_UNDERLINE_HOVER,
++	URLHACK_UNDERLINE_NEVER
++};
++
++/*
++ * HACK: PuttyTray
++ * Tray options
++ */
++enum {
++    TRAY_NEVER, TRAY_NORMAL, TRAY_START, TRAY_ALWAYS
++};
++
+ struct sesslist {
+     int nsessions;
+     char **sessions;
+@@ -598,6 +622,45 @@
+     FontSpec widefont;
+     FontSpec wideboldfont;
+     int shadowboldoffset;
++
++	/*
++	 * HACK: PuttyTray / PuTTY File
++	 */
++	int session_storagetype;
++
++	/*
++	 * HACK: PuttyTray / Nutty
++	 * Hyperlink stuff: Underline settings
++	 */
++	int url_ctrl_click;
++	int url_underline;
++	int url_defbrowser;
++	int url_defregex;
++	char url_browser[MAX_PATH];
++	char url_regex[1024];
++
++	/*
++	 * HACK: PuttyTray
++	 */
++    int tray;
++	int start_tray;
++	int tray_restore;
++
++	/*
++	 * HACK: PuttyTray / Transparency
++	 */
++	int transparency;
++	
++	/*
++	 * HACK: PuttyTray / Reconnect
++	 */
++	int wakeup_reconnect;
++	int failure_reconnect;
++
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 */
++	char win_icon[256];
+ };
+ 
+ /*
+@@ -781,11 +844,18 @@
+ void save_open_settings(void *sesskey, Config *cfg);
+ void load_settings(char *section, Config * cfg);
+ void load_open_settings(void *sesskey, Config *cfg);
+-void get_sesslist(struct sesslist *, int allocate);
++int get_sesslist(struct sesslist *, int allocate); // HACK: PuTTYTray / PuTTY File - changed return type
+ void do_defaults(char *, Config *);
+ void registry_cleanup(void);
+ 
+ /*
++ * HACK: PuttyTray / PuTTY File
++ * Quick hack to load defaults from file
++ */
++void do_defaults_file(char *, Config *);
++void load_settings_file(char *section, Config * cfg);
++
++/*
+  * Functions used by settings.c to provide platform-specific
+  * default settings.
+  * 
+=== settings.c
+==================================================================
+--- settings.c	(revision 7489)
++++ settings.c	(local)
+@@ -9,6 +9,11 @@
+ #include "storage.h"
+ 
+ /*
++ * HACK: PuttyTray / Nutty
++ */ 
++#include "urlhack.h"
++
++/*
+  * Tables of string <-> enum value mappings
+  */
+ struct keyval { char *s; int v; };
+@@ -328,6 +333,38 @@
+     write_setting_i(sesskey, "ApplicationCursorKeys", cfg->app_cursor);
+     write_setting_i(sesskey, "ApplicationKeypad", cfg->app_keypad);
+     write_setting_i(sesskey, "NetHackKeypad", cfg->nethack_keypad);
++
++	/*
++	 * HACK: PuttyTray / PuTTY File
++	 * Save storagetype
++	 */
++    write_setting_i(sesskey, "StorageType", cfg->session_storagetype);
++
++	/*
++	 * HACK: PuttyTray
++	 * Save tray settings
++	 */
++    write_setting_i(sesskey, "Tray", cfg->tray);
++	write_setting_i(sesskey, "StartTray", cfg->start_tray);
++	write_setting_i(sesskey, "TrayRestore", cfg->tray_restore);
++
++	/*
++	 * HACK: PuttyTray / Reconnect
++	 */
++	write_setting_i(sesskey, "WakeupReconnect", cfg->wakeup_reconnect);
++	write_setting_i(sesskey, "FailureReconnect", cfg->failure_reconnect);
++
++	/*
++	 * HACK: PuttyTray / Transparency
++	 * Save transparency settings
++	 */
++    write_setting_i(sesskey, "Transparency", cfg->transparency);
++
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 */ 
++	write_setting_s(sesskey, "WindowIcon", cfg->win_icon);
++
+     write_setting_i(sesskey, "AltF4", cfg->alt_f4);
+     write_setting_i(sesskey, "AltSpace", cfg->alt_space);
+     write_setting_i(sesskey, "AltOnly", cfg->alt_only);
+@@ -443,6 +480,17 @@
+     write_setting_i(sesskey, "SerialStopHalfbits", cfg->serstopbits);
+     write_setting_i(sesskey, "SerialParity", cfg->serparity);
+     write_setting_i(sesskey, "SerialFlowControl", cfg->serflow);
++
++	/*
++	 * HACK: PuttyTray / Nutty
++	 * Hyperlink stuff: Save hyperlink settings
++	 */
++	write_setting_i(sesskey, "HyperlinkUnderline", cfg->url_underline);
++	write_setting_i(sesskey, "HyperlinkUseCtrlClick", cfg->url_ctrl_click);
++	write_setting_i(sesskey, "HyperlinkBrowserUseDefault", cfg->url_defbrowser);
++	write_setting_s(sesskey, "HyperlinkBrowser", cfg->url_browser);
++	write_setting_i(sesskey, "HyperlinkRegularExpressionUseDefault", cfg->url_defregex);
++	write_setting_s(sesskey, "HyperlinkRegularExpression", cfg->url_regex);
+ }
+ 
+ void load_settings(char *section, Config * cfg)
+@@ -454,10 +502,32 @@
+     close_settings_r(sesskey);
+ }
+ 
++/*
++ * HACK: PuttyTray / PuTTY File
++ * Quick hack to load defaults from file
++ */
++void load_settings_file(char *section, Config * cfg)
++{
++    void *sesskey;
++	set_storagetype(1);
++    sesskey = open_settings_r(section);
++    load_open_settings(sesskey, cfg);
++    close_settings_r(sesskey);
++}
++
+ void load_open_settings(void *sesskey, Config *cfg)
+ {
+     int i;
+     char prot[10];
++	
++	/*
++	 * HACK: PuttyTray / Vista
++	 * Check windows version and set default font quality to 'cleartype' if this is Windows Vista
++	 */
++    OSVERSIONINFO versioninfo;
++    versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
++    GetVersionEx(&versioninfo);
++	/**/
+ 
+     cfg->ssh_subsys = 0;	       /* FIXME: load this properly */
+     cfg->remote_cmd_ptr = NULL;
+@@ -616,6 +686,38 @@
+     gppi(sesskey, "ApplicationCursorKeys", 0, &cfg->app_cursor);
+     gppi(sesskey, "ApplicationKeypad", 0, &cfg->app_keypad);
+     gppi(sesskey, "NetHackKeypad", 0, &cfg->nethack_keypad);
++
++	/*
++	 * HACK: PuttyTray / PuTTY File
++	 * Save storagetype
++	 */
++	gppi(sesskey, "StorageType", 0, &cfg->session_storagetype);
++
++	/*
++	 * HACK: PuttyTray
++	 * Save tray settings
++	 */
++	gppi(sesskey, "Tray", 1, &cfg->tray);
++	gppi(sesskey, "StartTray", 0, &cfg->start_tray);
++	gppi(sesskey, "TrayRestore", 0, &cfg->tray_restore);
++
++	/*
++	 * HACK: PuttyTray / Reconnect
++	 */
++	gppi(sesskey, "WakeupReconnect", 0, &cfg->wakeup_reconnect);
++	gppi(sesskey, "FailureReconnect", 0, &cfg->failure_reconnect);
++
++	/*
++	 * HACK: PuttyTray / Transparency
++	 * Save transparency settings
++	 */
++	gppi(sesskey, "Transparency", 255, &cfg->transparency);
++
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 */
++	gpps(sesskey, "WindowIcon", "", cfg->win_icon, sizeof(cfg->win_icon));
++
+     gppi(sesskey, "AltF4", 1, &cfg->alt_f4);
+     gppi(sesskey, "AltSpace", 0, &cfg->alt_space);
+     gppi(sesskey, "AltOnly", 0, &cfg->alt_only);
+@@ -652,7 +754,7 @@
+ 		    / 1000
+ #endif
+ 	;
+-    gppi(sesskey, "ScrollbackLines", 200, &cfg->savelines);
++    gppi(sesskey, "ScrollbackLines", 1000, &cfg->savelines); // HACK: PuttyTray - more is better
+     gppi(sesskey, "DECOriginMode", 0, &cfg->dec_om);
+     gppi(sesskey, "AutoWrapMode", 1, &cfg->wrap_mode);
+     gppi(sesskey, "LFImpliesCR", 0, &cfg->lfhascr);
+@@ -663,8 +765,18 @@
+     gppi(sesskey, "TermWidth", 80, &cfg->width);
+     gppi(sesskey, "TermHeight", 24, &cfg->height);
+     gppfont(sesskey, "Font", &cfg->font);
+-    gppi(sesskey, "FontQuality", FQ_DEFAULT, &cfg->font_quality);
+-    gppi(sesskey, "FontVTMode", VT_UNICODE, (int *) &cfg->vtmode);
++
++	/*
++	 * HACK: PuttyTray / Vista
++	 * Check windows version and set default font quality to 'cleartype' if this is Windows Vista
++	 */
++	if (versioninfo.dwMajorVersion >= 6) {
++		gppi(sesskey, "FontQuality", FQ_CLEARTYPE, &cfg->font_quality);
++	} else {
++		gppi(sesskey, "FontQuality", FQ_DEFAULT, &cfg->font_quality);
++	}
++    
++	gppi(sesskey, "FontVTMode", VT_UNICODE, (int *) &cfg->vtmode);
+     gppi(sesskey, "UseSystemColours", 0, &cfg->system_colour);
+     gppi(sesskey, "TryPalette", 0, &cfg->try_palette);
+     gppi(sesskey, "ANSIColour", 1, &cfg->ansi_colour);
+@@ -775,6 +887,17 @@
+     gppi(sesskey, "SerialStopHalfbits", 2, &cfg->serstopbits);
+     gppi(sesskey, "SerialParity", SER_PAR_NONE, &cfg->serparity);
+     gppi(sesskey, "SerialFlowControl", SER_FLOW_XONXOFF, &cfg->serflow);
++
++	/*
++	 * HACK: PuttyTray / Nutty
++	 * Hyperlink stuff: Save hyperlink settings
++	 */
++	gppi(sesskey, "HyperlinkUnderline", 1, &cfg->url_underline);
++	gppi(sesskey, "HyperlinkUseCtrlClick", 0, &cfg->url_ctrl_click);
++	gppi(sesskey, "HyperlinkBrowserUseDefault", 1, &cfg->url_defbrowser);
++	gpps(sesskey, "HyperlinkBrowser", "", cfg->url_browser, sizeof(cfg->url_browser));
++	gppi(sesskey, "HyperlinkRegularExpressionUseDefault", 1, &cfg->url_defregex);
++	gpps(sesskey, "HyperlinkRegularExpression", urlhack_default_regex, cfg->url_regex, sizeof(cfg->url_regex));
+ }
+ 
+ void do_defaults(char *session, Config * cfg)
+@@ -782,6 +905,15 @@
+     load_settings(session, cfg);
+ }
+ 
++/*
++ * HACK: PuttyTray / PuTTY File
++ * Quick hack to load defaults from file
++ */
++void do_defaults_file(char *session, Config * cfg)
++{
++    load_settings_file(session, cfg);
++}
++
+ static int sessioncmp(const void *av, const void *bv)
+ {
+     const char *a = *(const char *const *) av;
+@@ -802,18 +934,28 @@
+     return strcmp(a, b);	       /* otherwise, compare normally */
+ }
+ 
+-void get_sesslist(struct sesslist *list, int allocate)
++/*
++ * HACK: PuttyTray / PuTTY File
++ * Updated get_sesslist with storagetype
++ */
++int get_sesslist(struct sesslist *list, int allocate, int storagetype) // HACK: PuTTYTray / PuTTY File - changed return type
+ {
+     char otherbuf[2048];
+     int buflen, bufsize, i;
+     char *p, *ret;
+     void *handle;
++	
++	// HACK: PUTTY FILE
++	int autoswitch = 0;
++	if (storagetype > 1) {
++		storagetype = storagetype - 2;
++		autoswitch = 1;
++	}
+ 
+     if (allocate) {
+-
+ 	buflen = bufsize = 0;
+ 	list->buffer = NULL;
+-	if ((handle = enum_settings_start()) != NULL) {
++	if ((handle = enum_settings_start(storagetype)) != NULL) { // HACK: PuTTYTray / PuTTY File - storagetype
+ 	    do {
+ 		ret = enum_settings_next(handle, otherbuf, sizeof(otherbuf));
+ 		if (ret) {
+@@ -832,6 +974,45 @@
+ 	list->buffer[buflen] = '\0';
+ 
+ 	/*
++	 * HACK: PuttyTray / PuTTY File
++	 * Switch to file mode if registry is empty (and in registry mode)
++	 */
++	if (autoswitch == 1 && storagetype != 1 && buflen == 0) {
++		storagetype = 1;
++
++		// Ok, this is a copy of the code above. Crude but working
++		buflen = bufsize = 0;
++		list->buffer = NULL;
++		if ((handle = enum_settings_start(1)) != NULL) { // Force file storage type
++			do {
++			ret = enum_settings_next(handle, otherbuf, sizeof(otherbuf));
++			if (ret) {
++				int len = strlen(otherbuf) + 1;
++				if (bufsize < buflen + len) {
++				bufsize = buflen + len + 2048;
++				list->buffer = sresize(list->buffer, bufsize, char);
++				}
++				strcpy(list->buffer + buflen, otherbuf);
++				buflen += strlen(list->buffer + buflen) + 1;
++			}
++			} while (ret);
++			enum_settings_finish(handle);
++		}
++		list->buffer = sresize(list->buffer, buflen + 1, char);
++		list->buffer[buflen] = '\0';
++	}
++
++	/*
++	 * HACK: PuttyTray / PuTTY File
++	 * If registry is empty AND file store is empty, show empty registry
++	 */
++	if (autoswitch == 1 && storagetype == 1 && buflen == 0) {
++		storagetype = 0;
++		set_storagetype(storagetype);
++	}
++
++
++	/*
+ 	 * Now set up the list of sessions. Note that "Default
+ 	 * Settings" must always be claimed to exist, even if it
+ 	 * doesn't really.
+@@ -866,4 +1047,10 @@
+ 	list->buffer = NULL;
+ 	list->sessions = NULL;
+     }
++
++	/*
++	 * HACK: PuttyTray / PuTTY File
++	 * Return storagetype
++	 */
++	return storagetype;
+ }
+=== storage.h
+==================================================================
+--- storage.h	(revision 7489)
++++ storage.h	(local)
+@@ -15,6 +15,12 @@
+  */
+ 
+ /*
++ * HACK: PuttyTray / PuTTY File
++ * Function to force the storage loader to a certain type
++ */
++void set_storagetype(int new_storagetype);
++
++/*
+  * Write a saved session. The caller is expected to call
+  * open_setting_w() to get a `void *' handle, then pass that to a
+  * number of calls to write_setting_s() and write_setting_i(), and
+@@ -67,7 +73,7 @@
+ /*
+  * Enumerate all saved sessions.
+  */
+-void *enum_settings_start(void);
++void *enum_settings_start(int new_storagetype); // HACK: PuttyTray / PuTTY File - enum_settings_start with storagetype
+ char *enum_settings_next(void *handle, char *buffer, int buflen);
+ void enum_settings_finish(void *handle);
+ 
+=== terminal.c
+==================================================================
+--- terminal.c	(revision 7489)
++++ terminal.c	(local)
+@@ -11,6 +11,11 @@
+ #include "putty.h"
+ #include "terminal.h"
+ 
++/*
++ * HACK: PuttyTray / Nutty
++ */ 
++#include "urlhack.h"
++
+ #define poslt(p1,p2) ( (p1).y < (p2).y || ( (p1).y == (p2).y && (p1).x < (p2).x ) )
+ #define posle(p1,p2) ( (p1).y < (p2).y || ( (p1).y == (p2).y && (p1).x <= (p2).x ) )
+ #define poseq(p1,p2) ( (p1).y == (p2).y && (p1).x == (p2).x )
+@@ -1489,6 +1494,11 @@
+     term->bidi_cache_size = 0;
+     term->pre_bidi_cache = term->post_bidi_cache = NULL;
+ 
++	/*
++	 * HACK: PuttyTray / Nutty
++	 */
++	term->url_update = TRUE;
++
+     /* FULL-TERMCHAR */
+     term->basic_erase_char.chr = CSET_ASCII | ' ';
+     term->basic_erase_char.attr = ATTR_DEFAULT;
+@@ -4648,6 +4658,49 @@
+ #endif /* OPTIMISE_SCROLL */
+     termchar *newline;
+ 
++	/*
++	 * HACK: PuttyTray / Nutty
++	 * Hyperlink stuff: Find visible hyperlinks
++	 *
++	 * TODO: We should find out somehow that the stuff on screen has changed since last
++	 *       paint. How to do it?
++	 */
++	int urlhack_underline_always = (term->cfg.url_underline == URLHACK_UNDERLINE_ALWAYS);
++
++	int urlhack_underline =
++		term->cfg.url_underline == URLHACK_UNDERLINE_ALWAYS ||
++		(term->cfg.url_underline == URLHACK_UNDERLINE_HOVER && (!term->cfg.url_ctrl_click || urlhack_is_ctrl_pressed())) ? 1 : 0;
++
++	int urlhack_is_link = 0, urlhack_hover_current = 0;
++	int urlhack_toggle_x = term->cols, urlhack_toggle_y = term->rows;
++	int urlhack_region_index = 0;
++	text_region urlhack_region;
++
++	if (term->url_update) {
++		urlhack_reset();
++
++		for (i = 0; i < term->rows; i++) {
++			termline *lp = scrlineptr(term->disptop + i);
++
++			for (j = 0; j < term->cols; j++) {
++				urlhack_putchar((char)(lp->chars[j].chr & CHAR_MASK));
++			}
++
++			unlineptr(lp);
++		}
++
++		urlhack_go_find_me_some_hyperlinks(term->cols);
++	}
++	urlhack_region = urlhack_get_link_region(urlhack_region_index);
++	urlhack_toggle_x = urlhack_region.x0;
++	urlhack_toggle_y = urlhack_region.y0;
++
++	if (urlhack_underline_always)
++		urlhack_hover_current = 1;
++	else
++		urlhack_hover_current = urlhack_is_in_this_link_region(urlhack_region, urlhack_mouse_old_x, urlhack_mouse_old_y);
++	/* HACK: PuttyTray / Nutty : END */
++
+     chlen = 1024;
+     ch = snewn(chlen, wchar_t);
+ 
+@@ -4802,6 +4855,47 @@
+ 	    if (j < term->cols-1 && d[1].chr == UCSWIDE)
+ 		tattr |= ATTR_WIDE;
+ 
++		/*
++		 * HACK: PuttyTray / Nutty
++		 * Hyperlink stuff: Underline link regions if user has configured us so
++		 */
++		if (urlhack_underline) {
++			if (j == urlhack_toggle_x && i == urlhack_toggle_y) {
++				urlhack_is_link = urlhack_is_link == 1 ? 0 : 1;
++
++				// Find next bound for the toggle
++				
++				if (urlhack_is_link == 1) {
++					urlhack_toggle_x = urlhack_region.x1;
++					urlhack_toggle_y = urlhack_region.y1;
++
++					if (urlhack_toggle_x == term->cols - 1) {
++						// Handle special case where link ends at the last char of the row
++						urlhack_toggle_y++;
++						urlhack_toggle_x = 0;
++					}
++				}
++				else {
++					urlhack_region = urlhack_get_link_region(++urlhack_region_index);
++
++					if (urlhack_underline_always)
++						urlhack_hover_current = 1;
++					else
++						urlhack_hover_current = urlhack_is_in_this_link_region(urlhack_region, urlhack_mouse_old_x, urlhack_mouse_old_y);
++
++					urlhack_toggle_x = urlhack_region.x0;
++					urlhack_toggle_y = urlhack_region.y0;
++				}
++			}
++
++			if (urlhack_is_link == 1 && urlhack_hover_current == 1) {	
++				tattr |= ATTR_UNDER;
++			}
++
++			term->url_update = 0;
++		}
++		/* HACK: PuttyTray / Nutty : END */
++
+ 	    /* Video reversing things */
+ 	    if (term->selstate == DRAGGING || term->selstate == SELECTED) {
+ 		if (term->seltype == LEXICOGRAPHIC)
+@@ -5095,6 +5189,11 @@
+     int shift;
+ #endif /* OPTIMISE_SCROLL */
+ 
++	/*
++	 * HACK: PuttyTray / Nutty
++	 */
++	term->url_update = TRUE;
++
+     term->disptop = (rel < 0 ? 0 : rel > 0 ? sbtop : term->disptop) + where;
+     if (term->disptop < sbtop)
+ 	term->disptop = sbtop;
+@@ -5626,7 +5725,7 @@
+     }
+ 
+     selpoint.x = x;
+-    unlineptr(ldata);
++    //unlineptr(ldata); // HACK: REMOVED FOR HYPERLINK STUFF
+ 
+     /*
+      * If we're in the middle of a selection operation, we ignore raw
+@@ -5663,8 +5762,10 @@
+ 	    }
+ 	    switch (a) {
+ 	      case MA_DRAG:
+-		if (term->xterm_mouse == 1)
+-		    return;
++			if (term->xterm_mouse == 1) {// HACK: ADDED FOR hyperlink stuff
++				unlineptr(ldata); 
++				return;
++			}
+ 		encstate += 0x20;
+ 		break;
+ 	      case MA_RELEASE:
+@@ -5672,8 +5773,10 @@
+ 		term->mouse_is_down = 0;
+ 		break;
+ 	      case MA_CLICK:
+-		if (term->mouse_is_down == braw)
+-		    return;
++			  if (term->mouse_is_down == braw) {// HACK: ADDED FOR hyperlink stuff
++				  unlineptr(ldata); 
++				  return;
++			  }
+ 		term->mouse_is_down = braw;
+ 		break;
+ 	      default: break;	       /* placate gcc warning about enum use */
+@@ -5688,6 +5791,7 @@
+ 	    sprintf(abuf, "\033[M%c%c%c", encstate, c, r);
+ 	    ldisc_send(term->ldisc, abuf, 6, 0);
+ 	}
++	unlineptr(ldata); // HACK: ADDED FOR hyperlink stuff
+ 	return;
+     }
+ 
+@@ -5710,6 +5814,60 @@
+ 	term->seltype = default_seltype;
+ 	term->selanchor = selpoint;
+ 	term->selmode = SM_CHAR;
++
++	/*
++	 * HACK: PuttyTray / Nutty
++	 * Hyperlink stuff: Check whether the click coordinates are inside link
++	 * region, if so -> copy url to temporary buffer and launch it. Delete
++	 * the temporary buffer.
++	 */
++	} else if (bcooked == MBT_SELECT && a == MA_RELEASE && term->selstate == ABOUT_TO) {
++	deselect(term);
++	term->selstate = NO_SELECTION;
++
++	if ((!term->cfg.url_ctrl_click || (term->cfg.url_ctrl_click && urlhack_is_ctrl_pressed())) && urlhack_is_in_link_region(x, y)) {
++		int i;
++		char *linkbuf = NULL;
++		text_region region = urlhack_get_link_bounds(x, y);
++
++		if (region.y0 == region.y1) {
++			linkbuf = snewn(region.x1 - region.x0 + 2, char);
++			
++			for (i = region.x0; i < region.x1; i++) {
++				linkbuf[i - region.x0] = (char)(ldata->chars[i].chr);
++			}
++
++			linkbuf[i - region.x0] = '\0';
++		}
++		else {
++			termline *urldata = scrlineptr(region.y0);
++			int linklen, pos = region.x0, row = region.y0;
++
++			linklen = (term->cols - region.x0) +
++				((region.y1 - region.y0 - 1) * term->cols) + region.x1 + 1;
++
++			linkbuf = snewn(linklen, char);
++
++			for (i = region.x0; i < linklen + region.x0; i++) {
++				linkbuf[i - region.x0] = (char)(urldata->chars[i % term->cols].chr);
++				
++				// Jump to next line?
++				if (((i + 1) % term->cols) == 0) {
++					row++;
++					urldata = lineptr(row);
++				}
++			}
++
++			linkbuf[linklen - 1] = '\0';
++			unlineptr(urldata);
++		}
++		
++		urlhack_launch_url(!term->cfg.url_defbrowser ? term->cfg.url_browser : NULL, linkbuf);
++		
++		sfree(linkbuf);
++	}
++	/* HACK: PuttyTray / Nutty : END */
++
+     } else if (bcooked == MBT_SELECT && (a == MA_2CLK || a == MA_3CLK)) {
+ 	deselect(term);
+ 	term->selmode = (a == MA_2CLK ? SM_WORD : SM_LINE);
+@@ -5720,8 +5878,10 @@
+ 	sel_spread(term);
+     } else if ((bcooked == MBT_SELECT && a == MA_DRAG) ||
+ 	       (bcooked == MBT_EXTEND && a != MA_RELEASE)) {
+-	if (term->selstate == ABOUT_TO && poseq(term->selanchor, selpoint))
+-	    return;
++	if (term->selstate == ABOUT_TO && poseq(term->selanchor, selpoint)) { // HACK: ADDED FOR HYPERLINK STUFF
++		unlineptr(ldata);
++		return;
++	}
+ 	if (bcooked == MBT_EXTEND && a != MA_DRAG &&
+ 	    term->selstate == SELECTED) {
+ 	    if (term->seltype == LEXICOGRAPHIC) {
+@@ -6334,6 +6494,11 @@
+ 	if (term->selstate != DRAGGING)
+ 	    term_out(term);
+ 	term->in_term_out = FALSE;
++
++	/*
++	 * HACK: PuttyTray / Nutty
++	 */
++	term->url_update = TRUE;
+     }
+ 
+     /*
+=== terminal.h
+==================================================================
+--- terminal.h	(revision 7489)
++++ terminal.h	(local)
+@@ -273,6 +273,11 @@
+     int wcFromTo_size;
+     struct bidi_cache_entry *pre_bidi_cache, *post_bidi_cache;
+     int bidi_cache_size;
++
++	/*
++	 * HACK: PuttyTray / Nutty
++	 */
++	int url_update;
+ };
+ 
+ #define in_utf(term) ((term)->utf || (term)->ucsdata->line_codepage==CP_UTF8)
+=== version.c
+==================================================================
+--- version.c	(revision 7489)
++++ version.c	(local)
+@@ -30,7 +30,11 @@
+ 
+ #else
+ 
+-char ver[] = "Unidentified build, " __DATE__ " " __TIME__;
++/*
++ * HACK: PuttyTray
++ * Hardcode Version
++ */
++char ver[] = "PuTTY Tray 0.60 (r3), " __DATE__ " " __TIME__;
+ char sshver[] = "PuTTY-Local: " __DATE__ " " __TIME__;
+ 
+ #endif
+=== windows/win_res.h
+==================================================================
+--- windows/win_res.h	(revision 7489)
++++ windows/win_res.h	(local)
+@@ -8,6 +8,12 @@
+ #define IDI_MAINICON     200
+ #define IDI_CFGICON      201
+ 
++/*
++ * HACK: PuttyTray
++ * TrayIcon Resource
++ */
++#define IDI_TRAYICON     202
++
+ #define IDD_MAINBOX      102
+ #define IDD_LOGBOX       110
+ #define IDD_ABOUTBOX     111
+=== windows/wincfg.c
+==================================================================
+--- windows/wincfg.c	(revision 7489)
++++ windows/wincfg.c	(local)
+@@ -30,6 +30,33 @@
+     }
+ }
+ 
++/*
++ * HACK: PuttyTray / Session Icon
++ */ 
++static void window_icon_handler(union control *ctrl, void *dlg, void *data, int event)
++{
++    Config *cfg = (Config *) data;
++
++    if (event == EVENT_ACTION) {
++		char buf[512], iname[512], *ipointer;
++		int iindex;
++
++		memset(&iname, 0, sizeof(iname));
++		memset(&buf, 0, sizeof(buf));
++		iindex = 0;
++		ipointer = iname;
++		if (dlg_pick_icon(dlg, &ipointer, sizeof(iname), &iindex) /*&& iname[0]*/) {
++			if (iname[0]) {
++				sprintf(buf, "%s,%d", iname, iindex);
++			} else {
++				sprintf(buf, "%s", iname);
++			}
++			dlg_icon_set((union control *) ctrl->button.context.p, dlg, buf);
++			strcpy(cfg->win_icon, buf);
++		};
++	};
++};
++
+ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
+ 			  int midsession, int protocol)
+ {
+@@ -320,7 +347,7 @@
+     ctrl_checkbox(s, "Window closes on ALT-F4", '4',
+ 		  HELPCTX(behaviour_altf4),
+ 		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_f4)));
+-    ctrl_checkbox(s, "System menu appears on ALT-Space", 'y',
++    ctrl_checkbox(s, "System menu appears on ALT-Space", 'm', //HACK: PuttyTray: Changed shortcut key
+ 		  HELPCTX(behaviour_altspace),
+ 		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_space)));
+     ctrl_checkbox(s, "System menu appears on ALT alone", 'l',
+@@ -334,6 +361,94 @@
+ 		  dlg_stdcheckbox_handler,
+ 		  I(offsetof(Config,fullscreenonaltenter)));
+ 
++	/*
++	 * HACK: PuttyTray
++	 */
++    ctrl_radiobuttons(s, "Show tray icon:", NO_SHORTCUT, 4,
++		      HELPCTX(no_help),
++		      dlg_stdradiobutton_handler,
++		      I(offsetof(Config, tray)),
++		      "Normal", 'n', I(TRAY_NORMAL),
++			  "Always", 'y', I(TRAY_ALWAYS),
++			  "Never", 'r', I(TRAY_NEVER),
++			  "On start", 's', I(TRAY_START), NULL);
++    ctrl_checkbox(s, "Accept single-click to restore from tray", 'm',
++		  HELPCTX(no_help),
++		  dlg_stdcheckbox_handler, I(offsetof(Config,tray_restore)));
++
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 */
++	s = ctrl_getset(b, "Window/Behaviour", "icon", "Adjust the icon");
++    ctrl_columns(s, 3, 40, 20, 40);
++    c = ctrl_text(s, "Window / tray icon:", HELPCTX(appearance_title));
++    c->generic.column = 0;
++    c = ctrl_icon(s, HELPCTX(appearance_title),
++		  I(offsetof(Config, win_icon)));
++    c->generic.column = 1;
++    c = ctrl_pushbutton(s, "Change Icon...", 'h', HELPCTX(appearance_title),
++			window_icon_handler, P(c));
++    c->generic.column = 2;
++    ctrl_columns(s, 1, 100);
++
++	/*
++	 * HACK: PuttyTray / Transparency
++	 */
++	s = ctrl_getset(b, "Window", "main", "Window transparency options");
++    ctrl_editbox(s, "Opacity (50-255)", 't', 30, HELPCTX(no_help), dlg_stdeditbox_handler, I(offsetof(Config,transparency)), I(-1));
++
++	/*
++	 * HACK: PuttyTray / Reconnect
++	 */
++	s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options");
++	ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,wakeup_reconnect)));
++	ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'w', HELPCTX(no_help), dlg_stdcheckbox_handler, I(offsetof(Config,failure_reconnect)));
++
++	/*
++	 * HACK: PuttyTray / Nutty
++	 * Hyperlink stuff: The Window/Hyperlinks panel.
++	 */
++	ctrl_settitle(b, "Window/Hyperlinks", "Options controlling behaviour of hyperlinks");
++	s = ctrl_getset(b, "Window/Hyperlinks", "general", "General options for hyperlinks");
++
++	ctrl_radiobuttons(s, "Underline hyperlinks:", NO_SHORTCUT, 1,
++			  HELPCTX(no_help),
++			  dlg_stdradiobutton_handler,
++			  I(offsetof(Config, url_underline)),
++			  "Always", NO_SHORTCUT, I(URLHACK_UNDERLINE_ALWAYS),
++			  "When hovered upon", NO_SHORTCUT, I(URLHACK_UNDERLINE_HOVER),
++			  "Never", NO_SHORTCUT, I(URLHACK_UNDERLINE_NEVER),
++			  NULL);
++
++	ctrl_checkbox(s, "Use ctrl+click to launch hyperlinks", 'l',
++		  HELPCTX(no_help),
++		  dlg_stdcheckbox_handler, I(offsetof(Config,url_ctrl_click)));
++
++	s = ctrl_getset(b, "Window/Hyperlinks", "browser", "Browser application");
++
++	ctrl_checkbox(s, "Use the default browser", 'b',
++		  HELPCTX(no_help),
++		  dlg_stdcheckbox_handler, I(offsetof(Config,url_defbrowser)));
++
++	ctrl_filesel(s, "or specify an application to open hyperlinks with:", 's',
++		"Application (*.exe)\0*.exe\0All files (*.*)\0*.*\0\0", TRUE,
++		"Select executable to open hyperlinks with", HELPCTX(no_help),
++		 dlg_stdfilesel_handler, I(offsetof(Config, url_browser)));
++
++	s = ctrl_getset(b, "Window/Hyperlinks", "regexp", "Regular expression");
++
++	ctrl_checkbox(s, "Use the default regular expression", 'r',
++		  HELPCTX(no_help),
++		  dlg_stdcheckbox_handler, I(offsetof(Config,url_defregex)));
++
++	ctrl_editbox(s, "or specify your own:", NO_SHORTCUT, 100,
++		 HELPCTX(no_help),
++		 dlg_stdeditbox_handler, I(offsetof(Config,url_regex)),
++		 I(sizeof(((Config *)0)->url_regex)));
++
++	ctrl_text(s, "The single white space will be cropped in front of the link, if exists.",
++		  HELPCTX(no_help));
++
+     /*
+      * Windows supports a local-command proxy. This also means we
+      * must adjust the text on the `Telnet command' control.
+=== windows/winctrls.c
+==================================================================
+--- windows/winctrls.c	(revision 7489)
++++ windows/winctrls.c	(local)
+@@ -22,6 +22,12 @@
+ 
+ #include <commctrl.h>
+ 
++/*
++ * HACK: PuttyTray / Session Icon
++ */ 
++#include "PickIconDialog.h"
++#define	ICONHEIGHT 20
++
+ #define GAPBETWEEN 3
+ #define GAPWITHIN 1
+ #define GAPXBOX 7
+@@ -954,6 +960,26 @@
+ }
+ 
+ /*
++ * HACK: PuttyTray / Session Icon
++ */ 
++void staticicon(struct ctlpos *cp, char *stext, char *iname, int id)
++{
++	RECT r;
++	HWND hcontrol;
++	HICON hicon;
++
++	r.left = GAPBETWEEN;
++	r.top = cp->ypos;
++	r.right = cp->width;
++	r.bottom = ICONHEIGHT;
++	cp->ypos += r.bottom + GAPBETWEEN;
++	hcontrol = doctl(cp, r, "STATIC",
++		WS_CHILD | WS_VISIBLE | SS_ICON, 0, NULL, id);
++	hicon = extract_icon(iname, FALSE);
++	SendMessage(hcontrol, STM_SETICON, (WPARAM) hicon, 0);
++}
++
++/*
+  * Helper function for prefslist: move item in list box.
+  */
+ static void pl_moveitem(HWND hwnd, int listid, int src, int dst)
+@@ -1310,6 +1336,12 @@
+     return index234(wc->byid, index);
+ }
+ 
++/*
++ * HACK: PuttyTray / Session Icon
++ */
++extern Config cfg;
++//----------------------
++
+ void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
+ 		    struct ctlpos *cp, struct controlset *s, int *id)
+ {
+@@ -1518,6 +1550,16 @@
+ 	    }
+ 	    sfree(escaped);
+ 	    break;
++
++		/*
++		 * HACK: PuttyTray / Session Icon
++		 */ 
++		case CTRL_ICON:
++			num_ids = 1;
++			staticicon(&pos, ctrl->icon.label, (char *) ATOFFSET(&cfg, ctrl->icon.context.i), base_id);
++			break;
++		//-----------------------------------------------------
++
+ 	  case CTRL_RADIO:
+ 	    num_ids = ctrl->radio.nbuttons + 1;   /* label as well */
+ 	    {
+@@ -2239,6 +2281,21 @@
+     SetDlgItemText(dp->hwnd, c->base_id, text);
+ }
+ 
++/*
++ * HACK: PuttyTray / Session Icon
++ */ 
++void dlg_icon_set(union control *ctrl, void *dlg, char const *icon)
++{
++	HICON hicon;
++
++	struct dlgparam *dp = (struct dlgparam *) dlg;
++	struct winctrl *c = dlg_findbyctrl(dp, ctrl);
++	assert(c && c->ctrl->generic.type == CTRL_ICON);
++	hicon = extract_icon((char *) icon, FALSE);
++	SendDlgItemMessage(dp->hwnd, c->base_id, STM_SETICON, (WPARAM) hicon, 0);
++};
++//--------------------------------
++
+ void dlg_label_change(union control *ctrl, void *dlg, char const *text)
+ {
+     struct dlgparam *dp = (struct dlgparam *)dlg;
+@@ -2567,3 +2624,13 @@
+     p->data = smalloc(size);
+     return p->data;
+ }
++
++/*
++ * HACK: PuttyTray / Session Icon
++ */ 
++int dlg_pick_icon(void *dlg, char **iname, int inamesize, int *iindex)
++{
++	struct dlgparam *dp = (struct dlgparam *) dlg;
++	int ret = SelectIcon(dp->hwnd, *iname, inamesize, iindex);
++	return ret == IDOK ? TRUE : FALSE;
++};
+=== windows/windefs.c
+==================================================================
+--- windows/windefs.c	(revision 7489)
++++ windows/windefs.c	(local)
+@@ -9,13 +9,27 @@
+ FontSpec platform_default_fontspec(const char *name)
+ {
+     FontSpec ret;
++
++	/*
++	 * HACK: PuttyTray / Vista
++	 * Check windows version and set default font to 'consolas' if this is Windows Vista
++	 */
++    OSVERSIONINFO versioninfo;
++    versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
++    GetVersionEx(&versioninfo);
++
+     if (!strcmp(name, "Font")) {
+-	strcpy(ret.name, "Courier New");
+-	ret.isbold = 0;
+-	ret.charset = ANSI_CHARSET;
+-	ret.height = 10;
++		if (versioninfo.dwMajorVersion >= 6) {
++			strcpy(ret.name, "Consolas");
++		} else{
++			strcpy(ret.name, "Courier New");
++		}
++
++		ret.isbold = 0;
++		ret.charset = ANSI_CHARSET;
++		ret.height = 10;
+     } else {
+-	ret.name[0] = '\0';
++		ret.name[0] = '\0';
+     }
+     return ret;
+ }
+=== windows/windlg.c
+==================================================================
+--- windows/windlg.c	(revision 7489)
++++ windows/windlg.c	(local)
+@@ -215,10 +215,11 @@
+ 	    return 0;
+ 
+ 	  case IDA_WEB:
+-	    /* Load web browser */
+-	    ShellExecute(hwnd, "open",
+-			 "http://www.chiark.greenend.org.uk/~sgtatham/putty/",
+-			 0, 0, SW_SHOWDEFAULT);
++		/*
++		 * HACK: PuttyTray
++		 * Show different website
++		 */
++	    ShellExecute(hwnd, "open", "http://www.xs4all.nl/~whaa/putty/", 0, 0, SW_SHOWDEFAULT);
+ 	    return 0;
+ 	}
+ 	return 0;
+@@ -234,24 +235,26 @@
+ 			 HWND hwndparent,
+ 			 DLGPROC lpDialogFunc)
+ {
+-    WNDCLASS wc;
++    WNDCLASSEX wc; //HACK: PuTTYTray / Icon Fix
+     HWND hwnd;
+     MSG msg;
+     int flags;
+     int ret;
+     int gm;
+ 
+-    wc.style = CS_DBLCLKS | CS_SAVEBITS | CS_BYTEALIGNWINDOW;
++    wc.cbSize = sizeof(WNDCLASSEX); //HACK: PuTTYTray / Icon Fix
++	wc.style = CS_DBLCLKS | CS_SAVEBITS | CS_BYTEALIGNWINDOW;
+     wc.lpfnWndProc = DefDlgProc;
+     wc.cbClsExtra = 0;
+     wc.cbWndExtra = DLGWINDOWEXTRA + 2*sizeof(LONG_PTR);
+     wc.hInstance = hinst;
+-    wc.hIcon = NULL;
++	wc.hIcon = LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED); //HACK: PuTTYTray / Icon Fix
++	wc.hIconSm = LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED); //HACK: PuTTYTray / Icon Fix
+     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+     wc.hbrBackground = (HBRUSH) (COLOR_BACKGROUND +1);
+     wc.lpszMenuName = NULL;
+     wc.lpszClassName = "PuTTYConfigBox";
+-    RegisterClass(&wc);
++    RegisterClassEx(&wc); //HACK: PuTTYTray / Icon Fix
+ 
+     hwnd = CreateDialog(hinst, tmpl, hwndparent, lpDialogFunc);
+ 
+@@ -389,8 +392,10 @@
+             if (item)
+                 DestroyWindow(item);
+         }
+-	SendMessage(hwnd, WM_SETICON, (WPARAM) ICON_BIG,
+-		    (LPARAM) LoadIcon(hinst, MAKEINTRESOURCE(IDI_CFGICON)));
++
++	// HACK: DISABLES LINE
++	//SendMessage(hwnd, WM_SETICON, (WPARAM) ICON_BIG, (LPARAM) LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR|LR_SHARED)); //HACK: PuTTYTray / Icon Fix
++	
+ 	/*
+ 	 * Centre the window.
+ 	 */
+@@ -639,7 +644,7 @@
+     int ret;
+ 
+     ctrlbox = ctrl_new_box();
+-    setup_config_box(ctrlbox, FALSE, 0, 0);
++    setup_config_box(ctrlbox, FALSE, 0, 0, 0); // HACK: PuttyTray / PuTTY File, Added 0 for 'int session_storagetype'
+     win_setup_config_box(ctrlbox, &dp.hwnd, has_help(), FALSE, 0);
+     dp_init(&dp);
+     winctrl_init(&ctrls_base);
+@@ -671,7 +676,7 @@
+     backup_cfg = cfg;		       /* structure copy */
+ 
+     ctrlbox = ctrl_new_box();
+-    setup_config_box(ctrlbox, TRUE, cfg.protocol, protcfginfo);
++    setup_config_box(ctrlbox, TRUE, cfg.protocol, protcfginfo, cfg.session_storagetype); // HACK: PuttyTray / PuTTY File, Added 'session_storagetype'
+     win_setup_config_box(ctrlbox, &dp.hwnd, has_help(), TRUE,
+                          cfg.protocol);
+     dp_init(&dp);
+=== windows/window.c
+==================================================================
+--- windows/window.c	(revision 7489)
++++ windows/window.c	(local)
+@@ -10,6 +10,11 @@
+ #include <limits.h>
+ #include <assert.h>
+ 
++/*
++ * HACK: PuttyTray / Nutty
++ */ 
++#include "urlhack.h"
++
+ #ifndef NO_MULTIMON
+ #define COMPILE_MULTIMON_STUBS
+ #endif
+@@ -49,12 +54,23 @@
+ #define IDM_PASTE     0x0190
+ #define IDM_SPECIALSEP 0x0200
+ 
++/*
++ * HACK: PuttyTray
++ * Trayicon Menu addons
++ */
++#define IDM_VISIBLE 0x0240
++
++#define IDM_TRAYSEP 0x0210
++#define IDM_TRAYCLOSE 0x0220
++#define IDM_TRAYRESTORE 0x0230
++
+ #define IDM_SPECIAL_MIN 0x0400
+ #define IDM_SPECIAL_MAX 0x0800
+ 
+ #define IDM_SAVED_MIN 0x1000
+ #define IDM_SAVED_MAX 0x5000
+ #define MENU_SAVED_STEP 16
++
+ /* Maximum number of sessions on saved-session submenu */
+ #define MENU_SAVED_MAX ((IDM_SAVED_MAX-IDM_SAVED_MIN) / MENU_SAVED_STEP)
+ 
+@@ -198,6 +214,52 @@
+ 
+ static UINT wm_mousewheel = WM_MOUSEWHEEL;
+ 
++/*
++ * HACK: PuttyTray
++ * Trayicon struct, Message ID and functions
++ */
++static NOTIFYICONDATA puttyTray;
++static BOOL puttyTrayVisible;
++static BOOL puttyTrayFlash;
++static HICON puttyTrayFlashIcon;
++static BOOL windowMinimized = FALSE;
++BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon);
++void tray_updatemenu(BOOL disableMenuItems);
++#define WM_NOTIFY_PUTTYTRAY (WM_USER + 1983)
++
++/*
++ * HACK: PuttyTray / Reconnect
++ */
++static time_t last_reconnect = 0;
++
++/*
++ * HACK: PuttyTray / Nutty
++ */ 
++static int urlhack_cursor_is_hand = 0;
++
++/*
++ * HACK: PuttyTray / Always on top
++ */ 
++void MakeWindowOnTop(HWND hwnd);
++
++/*
++ * HACK: PuttyTray / Transparency
++ */ 
++BOOL MakeWindowTransparent(HWND hWnd, int factor);
++
++typedef DWORD (WINAPI *PSLWA)(HWND, DWORD, BYTE, DWORD);
++static PSLWA pSetLayeredWindowAttributes = NULL;
++static BOOL initialized = FALSE;
++#if !defined(WS_EX_LAYERED)
++	#define WS_EX_LAYERED	0x00080000
++#endif
++#if !defined(LWA_COLORKEY)
++	#define LWA_COLORKEY	0x00000001
++#endif
++#if !defined(LWA_ALPHA)
++	#define LWA_ALPHA	0x00000002
++#endif
++
+ /* Dummy routine, only required in plink. */
+ void ldisc_update(void *frontend, int echo, int edit)
+ {
+@@ -316,7 +378,7 @@
+ 
+ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+ {
+-    WNDCLASS wndclass;
++    WNDCLASSEX wndclass; //HACK: PuttyTray / Session Icon
+     MSG msg;
+     int guess_width, guess_height;
+ 
+@@ -614,19 +676,33 @@
+ 	cleanup_exit(1);
+     }
+ 
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 *
++	 * Changes below: wndclassEX and some additions for the 2 icon sizes
++	 */ 
+     if (!prev) {
+-	wndclass.style = 0;
+-	wndclass.lpfnWndProc = WndProc;
+-	wndclass.cbClsExtra = 0;
+-	wndclass.cbWndExtra = 0;
+-	wndclass.hInstance = inst;
+-	wndclass.hIcon = LoadIcon(inst, MAKEINTRESOURCE(IDI_MAINICON));
+-	wndclass.hCursor = LoadCursor(NULL, IDC_IBEAM);
+-	wndclass.hbrBackground = NULL;
+-	wndclass.lpszMenuName = NULL;
+-	wndclass.lpszClassName = appname;
++		wndclass.cbSize = sizeof(WNDCLASSEX);
++		wndclass.style = 0;
++		wndclass.lpfnWndProc = WndProc;
++		wndclass.cbClsExtra = 0;
++		wndclass.cbWndExtra = 0;
++		wndclass.hInstance = inst;
+ 
+-	RegisterClass(&wndclass);
++		if (cfg.win_icon[0]) {
++			wndclass.hIcon = extract_icon(cfg.win_icon, FALSE);
++			wndclass.hIconSm = extract_icon(cfg.win_icon, TRUE);
++		} else {
++			wndclass.hIcon = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED);
++			wndclass.hIconSm = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
++		}
++
++		wndclass.hCursor = LoadCursor(NULL, IDC_IBEAM);
++		wndclass.hbrBackground = NULL;
++		wndclass.lpszMenuName = NULL;
++		wndclass.lpszClassName = appname;
++
++		RegisterClassEx(&wndclass);
+     }
+ 
+     memset(&ucsdata, 0, sizeof(ucsdata));
+@@ -707,10 +783,9 @@
+      */
+     guess_width = extra_width + font_width * term->cols;
+     guess_height = extra_height + font_height * term->rows;
+-    SetWindowPos(hwnd, NULL, 0, 0, guess_width, guess_height,
+-		 SWP_NOMOVE | SWP_NOREDRAW | SWP_NOZORDER);
++    SetWindowPos(hwnd, NULL, 0, 0, guess_width, guess_height, SWP_NOMOVE | SWP_NOREDRAW | SWP_NOZORDER);
+ 
+-    /*
++	/*
+      * Set up a caret bitmap, with no content.
+      */
+     {
+@@ -758,7 +833,11 @@
+ 	AppendMenu(popup_menus[CTXMENU].menu, MF_ENABLED, IDM_PASTE, "&Paste");
+ 
+ 	savedsess_menu = CreateMenu();
+-	get_sesslist(&sesslist, TRUE);
++	/*
++	 * HACK: PuttyTray / PuTTY File
++	 * Added storagetype to get_sesslist
++	 */
++	get_sesslist(&sesslist, TRUE, cfg.session_storagetype);
+ 	update_savedsess_menu();
+ 
+ 	for (j = 0; j < lenof(popup_menus); j++) {
+@@ -779,6 +858,16 @@
+ 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
+ 	    AppendMenu(m, (cfg.resize_action == RESIZE_DISABLED) ?
+ 		       MF_GRAYED : MF_ENABLED, IDM_FULLSCREEN, "&Full Screen");
++
++		/*
++		 * HACK: PuttyTray / Always on top
++		 */
++		if (cfg.alwaysontop) {
++			AppendMenu(m, MF_ENABLED | MF_CHECKED, IDM_VISIBLE, "Alwa&ys on top");
++		} else {
++			AppendMenu(m, MF_ENABLED | MF_UNCHECKED, IDM_VISIBLE, "Alwa&ys on top");
++		}
++
+ 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
+ 	    if (has_help())
+ 		AppendMenu(m, MF_ENABLED, IDM_HELP, "&Help");
+@@ -790,6 +879,42 @@
+ 
+     start_backend();
+ 
++	/*
++	 * HACK: PuttyTray
++	 * Init TrayIcon
++	 */
++	puttyTray.cbSize = sizeof(NOTIFYICONDATA); 
++	puttyTray.hWnd	= hwnd; 
++	puttyTray.uID	= 1983; 
++	puttyTray.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP; 
++	puttyTray.uCallbackMessage = WM_NOTIFY_PUTTYTRAY;
++	if (cfg.win_icon[0]) {
++		puttyTray.hIcon	= wndclass.hIconSm;
++	} else {
++		puttyTray.hIcon	= LoadImage(inst, MAKEINTRESOURCE(IDI_TRAYICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
++	}
++
++	/*
++	 * HACK: PuttyTray
++	 * Set trayicon menu properties
++	 */
++	{
++		MENUINFO mi;
++		memset(&mi, 0, sizeof(MENUINFO));
++		mi.cbSize = sizeof(MENUINFO);
++		mi.fMask = MIM_STYLE;
++		mi.dwStyle = MNS_NOCHECK | MNS_AUTODISMISS;
++		SetMenuInfo(popup_menus[CTXMENU].menu, &mi);
++	}
++		
++	/*
++	 * HACK: PuttyTray / Nutty
++	 * Hyperlink stuff: Set the regular expression
++	 */
++	if (term->cfg.url_defregex == 0) {
++		urlhack_set_regular_expression(term->cfg.url_regex);
++	}
++
+     /*
+      * Set up the initial input locale.
+      */
+@@ -808,9 +933,32 @@
+     logpal = NULL;
+     init_palette();
+ 
+-    term_set_focus(term, GetForegroundWindow() == hwnd);
+-    UpdateWindow(hwnd);
++	/*
++	 * HACK: PuttyTray / Transparency
++	 */
++	if (cfg.transparency >= 50 && cfg.transparency < 255) {
++		MakeWindowTransparent(hwnd, cfg.transparency);
++	}
+ 
++	/*
++	 * HACK: PuttyTray
++	 * Finally show the window (or the trayicon)!
++	 */
++	puttyTrayVisible = FALSE;
++	
++	if (cfg.tray == TRAY_START || cfg.tray == TRAY_ALWAYS) {
++		taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++	}
++	if (cfg.tray == TRAY_START) {
++		ShowWindow(hwnd, SW_HIDE);
++		windowMinimized = TRUE;
++	} else {
++		ShowWindow(hwnd, show);
++		SetForegroundWindow(hwnd);
++		term_set_focus(term, GetForegroundWindow() == hwnd);
++		UpdateWindow(hwnd);
++	}
++
+     while (1) {
+ 	HANDLE *handles;
+ 	int nhandles, n;
+@@ -863,6 +1011,12 @@
+  */
+ void cleanup_exit(int code)
+ {
++	/* HACK: PuttyTray 
++	 * Remove trayicon on close 
++	 */
++	taskbar_addicon("", FALSE);
++	DestroyIcon(puttyTray.hIcon);
++
+     /*
+      * Clean up.
+      */
+@@ -1058,18 +1212,35 @@
+     va_list ap;
+     char *stuff, morestuff[100];
+ 
+-    va_start(ap, fmt);
+-    stuff = dupvprintf(fmt, ap);
+-    va_end(ap);
+-    sprintf(morestuff, "%.70s Fatal Error", appname);
+-    MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
+-    sfree(stuff);
++	/*
++	 * HACK: PuTTYTray / Reconnect on connection failure
++	 */
++	if (cfg.failure_reconnect) {
++		time_t tnow = time(NULL);
++		close_session();
+ 
+-    if (cfg.close_on_exit == FORCE_ON)
+-	PostQuitMessage(1);
+-    else {
+-	must_close_session = TRUE;
+-    }
++		if(last_reconnect && (tnow - last_reconnect) < 5) {
++			Sleep(5000);
++		}
++
++		last_reconnect = tnow;
++		logevent(NULL, "Lost connection, reconnecting...");
++		term_pwron(term, FALSE);
++		start_backend();
++	} else {
++		va_start(ap, fmt);
++		stuff = dupvprintf(fmt, ap);
++		va_end(ap);
++		sprintf(morestuff, "%.70s Fatal Error", appname);
++		MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
++		sfree(stuff);
++
++		if (cfg.close_on_exit == FORCE_ON)
++		PostQuitMessage(1);
++		else {
++		must_close_session = TRUE;
++		}
++	}
+ }
+ 
+ /*
+@@ -1974,6 +2145,11 @@
+     static int fullscr_on_max = FALSE;
+     static UINT last_mousemove = 0;
+ 
++	/*
++	 * HACK: PuttyTray / Nutty
++	 */ 
++	POINT cursor_pt;
++
+     switch (message) {
+       case WM_TIMER:
+ 	if ((UINT_PTR)wParam == TIMING_TIMER_ID) {
+@@ -2010,8 +2186,12 @@
+ 	if ((HMENU)wParam == savedsess_menu) {
+ 	    /* About to pop up Saved Sessions sub-menu.
+ 	     * Refresh the session list. */
+-	    get_sesslist(&sesslist, FALSE); /* free */
+-	    get_sesslist(&sesslist, TRUE);
++		/*
++		 * HACK: PuttyTray / PuTTY File
++		 * Added storagetype to get_sesslist
++		 */
++	    get_sesslist(&sesslist, FALSE, cfg.session_storagetype); /* free */
++	    get_sesslist(&sesslist, TRUE, cfg.session_storagetype);
+ 	    update_savedsess_menu();
+ 	    return 0;
+ 	}
+@@ -2108,6 +2288,12 @@
+ 		int init_lvl = 1;
+ 		int reconfig_result;
+ 
++		/*
++		 * HACK: PuttyTray / Session Icon
++		 */ 
++		HINSTANCE inst;
++		HICON hIcon;
++
+ 		if (reconfiguring)
+ 		    break;
+ 		else
+@@ -2159,6 +2345,68 @@
+ 		if (back)
+ 		    back->reconfig(backhandle, &cfg);
+ 
++		/*
++		 * HACK: PuttyTray / Transparency
++		 * Reconfigure
++		 */
++		if (cfg.transparency >= 50) {
++			if (cfg.transparency > 255) {
++				MakeWindowTransparent(hwnd, 255);
++			} else {
++				MakeWindowTransparent(hwnd, cfg.transparency);
++			}
++		} else {
++			MakeWindowTransparent(hwnd, 255);
++		}
++
++		/*
++		 * HACK: PuttyTray / Nutty
++		 * Reconfigure
++		 */
++		if (cfg.url_defregex == 0) {
++			urlhack_set_regular_expression(cfg.url_regex);
++		}
++		term->url_update = TRUE;
++		term_update(term);
++
++		/*
++		 * HACK: PuttyTray / Session Icon
++		 * Reconfigure
++		 */
++		if (cfg.win_icon[0]) {
++			hIcon = extract_icon(cfg.win_icon, TRUE);
++			DestroyIcon(puttyTray.hIcon);
++			puttyTray.hIcon = hIcon;
++			SetClassLong(hwnd, GCL_HICON, extract_icon(cfg.win_icon, FALSE));
++			SetClassLong(hwnd, GCL_HICONSM, (LONG)hIcon);
++		} else {
++			inst = GetWindowLong(hwnd, -6);
++			DestroyIcon(puttyTray.hIcon);
++			puttyTray.hIcon	= LoadImage(inst, MAKEINTRESOURCE(IDI_TRAYICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
++			SetClassLong(hwnd, GCL_HICON, LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED));
++			SetClassLong(hwnd, GCL_HICONSM, LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED));
++		}
++		if (puttyTrayVisible) {
++			taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++		}
++
++		/*
++		 * HACK: PuttyTray
++		 * Reconfigure
++		 */
++		if (cfg.tray == TRAY_NORMAL || cfg.tray == TRAY_START) {
++			if (windowMinimized) {
++				ShowWindow(hwnd, SW_HIDE);
++				taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++			} else {
++				taskbar_addicon("", FALSE);
++			}
++		} else if (cfg.tray == TRAY_ALWAYS) {
++			taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++		} else {
++			taskbar_addicon("", FALSE);
++		}
++
+ 		/* Screen size changed ? */
+ 		if (cfg.height != prev_cfg.height ||
+ 		    cfg.width != prev_cfg.width ||
+@@ -2175,17 +2423,22 @@
+ 			GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+ 
+ 		    nexflag = exflag;
+-		    if (cfg.alwaysontop != prev_cfg.alwaysontop) {
+-			if (cfg.alwaysontop) {
+-			    nexflag |= WS_EX_TOPMOST;
+-			    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+-					 SWP_NOMOVE | SWP_NOSIZE);
+-			} else {
+-			    nexflag &= ~(WS_EX_TOPMOST);
+-			    SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+-					 SWP_NOMOVE | SWP_NOSIZE);
+-			}
+-		    }
++			//if (cfg.alwaysontop != prev_cfg.alwaysontop) { //HACK: PuttyTray / Always on top:
++				if (cfg.alwaysontop) {
++					nexflag |= WS_EX_TOPMOST;
++					SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
++
++					//HACK: PuttyTray / Always on top:
++					CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_VISIBLE, MF_CHECKED);
++				} else {
++					nexflag &= ~(WS_EX_TOPMOST);
++					SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
++
++					//HACK: PuttyTray / Always on top:
++					CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_VISIBLE, MF_UNCHECKED);
++				}
++		    //}
++
+ 		    if (cfg.sunken_edge)
+ 			nexflag |= WS_EX_CLIENTEDGE;
+ 		    else
+@@ -2275,6 +2528,32 @@
+ 	  case IDM_HELP:
+ 	    launch_help(hwnd, NULL);
+ 	    break;
++
++	  /*
++	   * HACK: PuttyTray / Always on top
++	   */
++	  case IDM_VISIBLE: 
++	  	MakeWindowOnTop(hwnd);
++		break ;
++
++	  /*
++	   * HACK: PuttyTray
++	   * Trayicon Menu addon click handlers
++	   */
++	  case IDM_TRAYRESTORE:
++	    ShowWindow(hwnd, SW_RESTORE);
++	    SetForegroundWindow(hwnd);
++	    windowMinimized = FALSE;
++
++	    // Remove icon
++	    if (cfg.tray != TRAY_ALWAYS) {
++	      taskbar_addicon(cfg.win_name_always ? window_name : icon_name, FALSE);
++	    }
++	    break;
++	  case IDM_TRAYCLOSE:
++	    SendMessage(hwnd, WM_CLOSE, NULL, NULL);
++	    break;
++
+ 	  case SC_MOUSEMENU:
+ 	    /*
+ 	     * We get this if the System menu has been activated
+@@ -2451,6 +2730,37 @@
+ 	 */
+ 	noise_ultralight(lParam);
+ 
++	/*
++	 * HACK: PuttyTray / Nutty
++	 * Hyperlink stuff: Change cursor type if hovering over link
++	 */ 
++	if (urlhack_mouse_old_x != TO_CHR_X(X_POS(lParam)) || urlhack_mouse_old_y != TO_CHR_Y(Y_POS(lParam))) {
++		urlhack_mouse_old_x = TO_CHR_X(X_POS(lParam));
++		urlhack_mouse_old_y = TO_CHR_Y(Y_POS(lParam));
++
++		if ((!term->cfg.url_ctrl_click || urlhack_is_ctrl_pressed()) &&
++			urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y)) {
++				if (urlhack_cursor_is_hand == 0) {
++					SetClassLong(hwnd, GCL_HCURSOR, LoadCursor(NULL, IDC_HAND));
++					urlhack_cursor_is_hand = 1;
++					term_update(term); // Force the terminal to update, otherwise the underline will not show (bug somewhere, this is an ugly fix)
++				}
++		}
++		else if (urlhack_cursor_is_hand == 1) {
++			SetClassLong(hwnd, GCL_HCURSOR, LoadCursor(NULL, IDC_IBEAM));
++			urlhack_cursor_is_hand = 0;
++			term_update(term); // Force the terminal to update, see above
++		}
++
++		// If mouse jumps from one link directly into another, we need a forced terminal update too
++		if (urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y) != urlhack_current_region) {
++			urlhack_current_region = urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y);
++			term_update(term);
++		}
++
++	}
++	/* HACK: PuttyTray / Nutty : END */
++
+ 	if (wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON) &&
+ 	    GetCapture() == hwnd) {
+ 	    Mouse_Button b;
+@@ -2741,9 +3051,30 @@
+ 		"...",
+ 	    LOWORD(lParam), HIWORD(lParam)));
+ #endif
+-	if (wParam == SIZE_MINIMIZED)
+-	    SetWindowText(hwnd,
+-			  cfg.win_name_always ? window_name : icon_name);
++
++	/*
++	 * HACK: PuttyTray
++	 * Addon to SIZE_MINIMIZED for adding/removing the trayicon
++	 */
++	if (wParam == SIZE_MINIMIZED) {
++
++		BYTE keys[256];
++		int control_pressed;
++		if (GetKeyboardState(keys)!=0) {
++			control_pressed=keys[VK_CONTROL]&0x80;
++		}
++
++		SetWindowText(hwnd, cfg.win_name_always ? window_name : icon_name);
++		
++		if (cfg.tray == TRAY_NORMAL || cfg.tray == TRAY_START || control_pressed > 0) {
++			taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++			ShowWindow(hwnd, SW_HIDE);
++		}
++		windowMinimized = TRUE;
++	} else {
++		windowMinimized = FALSE;
++	}
++
+ 	if (wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED)
+ 	    SetWindowText(hwnd, window_name);
+         if (wParam == SIZE_RESTORED)
+@@ -2863,11 +3194,40 @@
+ 	    }
+ 	}
+ 	return FALSE;
+-      case WM_KEYDOWN:
+-      case WM_SYSKEYDOWN:
+-      case WM_KEYUP:
+-      case WM_SYSKEYUP:
++
+ 	/*
++	 * HACK: PuttyTray / Nutty
++	 * Hyperlink stuff: Change cursor if we are in ctrl+click link mode
++	 *
++	 * WARNING: Spans over multiple CASEs
++	 */
++	case WM_KEYDOWN:
++		if (wParam == VK_CONTROL && term->cfg.url_ctrl_click) {
++			GetCursorPos(&cursor_pt);
++			ScreenToClient(hwnd, &cursor_pt);
++
++			if (urlhack_is_in_link_region(TO_CHR_X(cursor_pt.x), TO_CHR_Y(cursor_pt.y))) {
++				SetCursor(LoadCursor(NULL, IDC_HAND));
++				term_update(term);
++			}
++		
++			goto KEY_END;
++		}	
++
++	case WM_KEYUP:
++		if (wParam == VK_CONTROL && term->cfg.url_ctrl_click) {
++			SetCursor(LoadCursor(NULL, IDC_IBEAM));
++			term_update(term);
++		
++			goto KEY_END;
++		}
++	KEY_END:
++
++	case WM_SYSKEYDOWN:
++	case WM_SYSKEYUP:
++	/* HACK: PuttyTray / Nutty : END */
++
++	/*
+ 	 * Add the scan code and keypress timing to the random
+ 	 * number noise.
+ 	 */
+@@ -3021,6 +3381,90 @@
+ 	    sfree(c);
+ 	}
+ 	return 0;
++
++	/*
++	 * HACK: PuttyTray
++	 * Trayicon click handler
++	 */
++	case WM_NOTIFY_PUTTYTRAY:
++		{
++			UINT uID; 
++			UINT uMouseMsg; 
++			
++			uID = (UINT)wParam; 
++			uMouseMsg = (UINT)lParam; 
++
++			if (uID = 1983) {
++				if (uMouseMsg == WM_LBUTTONDBLCLK || (cfg.tray_restore == TRUE && uMouseMsg == WM_LBUTTONUP)) {
++					// Remove icon
++					if (cfg.tray != TRAY_ALWAYS) {
++						taskbar_addicon(cfg.win_name_always ? window_name : icon_name, FALSE);
++					}
++
++					// Sleep a little while, otherwise the click event is sent to, for example, the Outlook 2003 Tray Icon, and it will also pop its menu.
++					Sleep(100); 
++
++					// If trayicon is always visible, the icon should also be able to hide the window
++					if (windowMinimized) {
++						ShowWindow(hwnd, SW_RESTORE);
++						SetForegroundWindow(hwnd);
++						windowMinimized = FALSE;
++					} else {
++						ShowWindow(hwnd, SW_MINIMIZE);
++						windowMinimized = TRUE;
++					}
++				} else if (uMouseMsg == WM_RBUTTONUP) {
++					POINT cursorpos;
++
++					// Fix disappear bug
++					SetForegroundWindow(hwnd);
++
++					// Show popup
++					show_mouseptr(1);	       /* make sure pointer is visible */
++					GetCursorPos(&cursorpos);
++					TrackPopupMenu(popup_menus[CTXMENU].menu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, cursorpos.x, cursorpos.y, 0, hwnd, NULL);
++					PostMessage(hwnd, WM_NULL, 0, 0);
++				}
++			}
++		}
++		break;
++
++	/*
++	 * HACK: PuttyTray / Reconnect
++	 */
++	case WM_POWERBROADCAST:
++		if(cfg.wakeup_reconnect) {
++			switch(wParam) {
++				case PBT_APMRESUMESUSPEND:
++				case PBT_APMRESUMEAUTOMATIC:
++				case PBT_APMRESUMECRITICAL:
++				case PBT_APMQUERYSUSPENDFAILED:
++					if(session_closed && !back) {
++						time_t tnow = time(NULL);
++						
++						if(last_reconnect && (tnow - last_reconnect) < 5) {
++							Sleep(1000);
++						}
++
++						last_reconnect = tnow;
++						logevent(NULL, "Woken up from suspend, reconnecting...");
++						term_pwron(term, FALSE);
++						start_backend();
++					}
++					break;
++				case PBT_APMSUSPEND:
++					if(!session_closed && back) {
++						logevent(NULL, "Suspend detected, disconnecting cleanly...");
++						close_session();
++					}
++					break;
++			}
++		}
++		break;
++	/*
++	 * END HACKS: PuttyTray / Trayicon & Reconnect
++	 */
++
+       default:
+ 	if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
+ 	    int shift_pressed=0, control_pressed=0;
+@@ -4447,6 +4891,12 @@
+     strcpy(window_name, title);
+     if (cfg.win_name_always || !IsIconic(hwnd))
+ 	SetWindowText(hwnd, title);
++
++	/*
++	 * HACK: Putty Tray
++	 * Change Trayicon Tooltip to window title
++	 */
++	taskbar_addicon(cfg.win_name_always ? window_name : icon_name, puttyTrayVisible);
+ }
+ 
+ void set_icon(void *frontend, char *title)
+@@ -5054,49 +5504,82 @@
+ }
+ 
+ /*
+- * Manage window caption / taskbar flashing, if enabled.
+- * 0 = stop, 1 = maintain, 2 = start
++* Manage window caption / taskbar flashing, if enabled.
++* 0 = stop, 1 = maintain, 2 = start
++*/
++/*
++ * HACK: PuttyTray
++ * REPLACED flash_window with flash_window from PuTTY 0.58. 
++ * The new version with FlashWindowEx is nice but where do I trigger the icon flash if I use it?
+  */
+ static void flash_window(int mode)
+ {
+-    if ((mode == 0) || (cfg.beep_ind == B_IND_DISABLED)) {
+-	/* stop */
+-	if (flashing) {
+-	    flashing = 0;
+-	    if (p_FlashWindowEx)
+-		flash_window_ex(FLASHW_STOP, 0, 0);
+-	    else
+-		FlashWindow(hwnd, FALSE);
+-	}
++	HINSTANCE inst;
+ 
+-    } else if (mode == 2) {
+-	/* start */
+-	if (!flashing) {
+-	    flashing = 1;
+-	    if (p_FlashWindowEx) {
+-		/* For so-called "steady" mode, we use uCount=2, which
+-		 * seems to be the traditional number of flashes used
+-		 * by user notifications (e.g., by Explorer).
+-		 * uCount=0 appears to enable continuous flashing, per
+-		 * "flashing" mode, although I haven't seen this
+-		 * documented. */
+-		flash_window_ex(FLASHW_ALL | FLASHW_TIMER,
+-				(cfg.beep_ind == B_IND_FLASH ? 0 : 2),
+-				0 /* system cursor blink rate */);
+-		/* No need to schedule timer */
+-	    } else {
+-		FlashWindow(hwnd, TRUE);
+-		next_flash = schedule_timer(450, flash_window_timer, hwnd);
+-	    }
+-	}
++	if ((mode == 0) || (cfg.beep_ind == B_IND_DISABLED)) {
++		/* stop */
++		if (flashing) {
++			FlashWindow(hwnd, FALSE);
++			flashing = 0;
+ 
+-    } else if ((mode == 1) && (cfg.beep_ind == B_IND_FLASH)) {
+-	/* maintain */
+-	if (flashing && !p_FlashWindowEx) {
+-	    FlashWindow(hwnd, TRUE);	/* toggle */
+-	    next_flash = schedule_timer(450, flash_window_timer, hwnd);
++			/*
++			 * HACK: PuttyTray
++			 * Reset trayicon
++			 */
++			if (puttyTrayVisible) {
++				inst = GetWindowLong(hwnd, -6);
++
++				puttyTrayFlash = FALSE;
++				puttyTray.hIcon = puttyTrayFlashIcon;
++				taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++			}
++
++			return;
++		}
++
++	} else if (mode == 2) {
++		/* start */
++		if (!flashing) {
++			flashing = 1;
++			FlashWindow(hwnd, TRUE);
++			next_flash = schedule_timer(450, flash_window_timer, hwnd);
++
++			/*
++			 * HACK: PuttyTray
++			 * Start flashing trayicon
++			 */
++			if (puttyTrayVisible) {
++				puttyTrayFlash = FALSE;
++			}
++		}
++
++	} else if ((mode == 1) && (cfg.beep_ind == B_IND_FLASH)) {
++		/* maintain */
++		if (flashing) {
++			FlashWindow(hwnd, TRUE);	/* toggle */
++			next_flash = schedule_timer(450, flash_window_timer, hwnd);
++
++			/*
++			 * HACK: PuttyTray
++			 * Make trayicon blink
++			 */
++			if (puttyTrayVisible) {
++				if (!puttyTrayFlash) {
++					puttyTrayFlash = TRUE;
++
++					puttyTrayFlashIcon = puttyTray.hIcon;
++					puttyTray.hIcon	= NULL;
++					taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++				} else {
++					inst = GetWindowLong(hwnd, -6);
++					puttyTrayFlash = FALSE;
++
++					puttyTray.hIcon = puttyTrayFlashIcon;
++					taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++				}
++			}
++		}
+ 	}
+-    }
+ }
+ 
+ /*
+@@ -5166,11 +5649,15 @@
+ void set_iconic(void *frontend, int iconic)
+ {
+     if (IsIconic(hwnd)) {
+-	if (!iconic)
+-	    ShowWindow(hwnd, SW_RESTORE);
++		if (!iconic) { // HACK: PuttyTray / added { to if structure
++			ShowWindow(hwnd, SW_RESTORE);
++			windowMinimized = FALSE; // HACK: PuttyTray
++		}
+     } else {
+-	if (iconic)
+-	    ShowWindow(hwnd, SW_MINIMIZE);
++		if (iconic){
++			ShowWindow(hwnd, SW_MINIMIZE);
++			windowMinimized = TRUE; // HACK: PuTTYTray
++		}
+     }
+ }
+ 
+@@ -5422,3 +5909,142 @@
+     c->len = len;
+     PostMessage(hwnd, WM_AGENT_CALLBACK, 0, (LPARAM)c);
+ }
++
++/*
++ * HACK: PuttyTray
++ * Function to add icon to the taskbar's system tray
++ */
++BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon) 
++{ 
++    BOOL icon_result; 
++
++	if (showIcon) {
++		// Set Tooltip
++		if (lpszTip) {
++			strncpy(puttyTray.szTip, lpszTip, sizeof(puttyTray.szTip));
++		} else {
++			puttyTray.szTip[0] = (TCHAR)'\0'; 
++		}
++
++		// Set icon visibility
++		if (!puttyTrayVisible) {
++			tray_updatemenu(TRUE);
++			icon_result = Shell_NotifyIcon(NIM_ADD, &puttyTray);
++			puttyTrayVisible = TRUE;
++			return icon_result; 
++		} else {
++			icon_result = Shell_NotifyIcon(NIM_MODIFY, &puttyTray);
++			return icon_result; 
++		}
++	} else {
++		if (puttyTrayVisible) {
++			tray_updatemenu(FALSE);
++			icon_result = Shell_NotifyIcon(NIM_DELETE, &puttyTray);
++			puttyTrayVisible = FALSE;
++			return icon_result; 
++		}
++	}
++
++    return TRUE; 
++}
++
++void tray_updatemenu(BOOL disableMenuItems)
++{
++	MENUITEMINFO mii;
++	memset(&mii, 0, sizeof(MENUITEMINFO));
++	mii.cbSize = sizeof(MENUITEMINFO);
++
++	if (disableMenuItems) {
++		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYSEP, MF_BYCOMMAND);
++		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, MF_BYCOMMAND);
++		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, MF_BYCOMMAND);
++		InsertMenu(popup_menus[CTXMENU].menu, -1, MF_BYPOSITION | MF_SEPARATOR, IDM_TRAYSEP, 0);
++		InsertMenu(popup_menus[CTXMENU].menu, -1, MF_BYPOSITION | MF_ENABLED, IDM_TRAYRESTORE, "&Restore Window");
++		InsertMenu(popup_menus[CTXMENU].menu, -1, MF_BYPOSITION | MF_ENABLED, IDM_TRAYCLOSE, "&Exit");
++
++		// Set X bitmap on close window menuitem
++		mii.fMask = MIIM_BITMAP;
++		mii.hbmpItem = HBMMENU_POPUP_CLOSE;
++		SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, FALSE, &mii);
++		
++		// Set restore icon on restore menuitem
++		mii.hbmpItem = HBMMENU_POPUP_RESTORE;
++		SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, FALSE, &mii);
++
++		mii.fMask = MIIM_STATE;
++		mii.fState = MFS_GRAYED;
++	} else {
++		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYSEP, MF_BYCOMMAND);
++		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, MF_BYCOMMAND);
++		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, MF_BYCOMMAND);
++		
++		mii.fMask = MIIM_STATE;
++		mii.fState = MFS_ENABLED;
++	}
++	
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, specials_menu, FALSE, &mii);
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_PASTE, FALSE, &mii);
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_FULLSCREEN, FALSE, &mii);
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_RESET, FALSE, &mii);
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_CLRSB, FALSE, &mii);
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_COPYALL, FALSE, &mii);
++}
++
++
++/*
++ * HACK: PuttyTray / Transparency
++ * Function to set the window transparency
++ */ 
++BOOL MakeWindowTransparent(HWND hWnd, int factor)
++{
++	// First, see if we can get the API call we need. If we've tried once, we don't need to try again.
++	if (!initialized) {
++		HMODULE hDLL = LoadLibrary("user32");
++		pSetLayeredWindowAttributes = (PSLWA) GetProcAddress(hDLL, "SetLayeredWindowAttributes");
++		initialized = TRUE;
++	}
++	if (pSetLayeredWindowAttributes == NULL) {
++		return FALSE;
++	}
++
++	// Sanity checks
++	if (factor < 0) { return FALSE; }
++	if (factor > 255) { factor = 255; }
++
++	// Make the window transparent
++	if (factor < 255) {
++		// Windows need to be layered to be made transparent. This is done by modifying the extended style bits to contain WS_EX_LAYARED.
++		SetLastError(0);
++		SetWindowLong(hWnd, GWL_EXSTYLE, GetWindowLong(hWnd, GWL_EXSTYLE) | WS_EX_LAYERED);
++		if (GetLastError()) {
++			return FALSE;
++		}
++
++		// Now, we need to set the 'layered window attributes'. This is where the alpha values get set. 
++		return pSetLayeredWindowAttributes (hWnd, RGB(255,255,255), factor, LWA_ALPHA);
++	
++	// Make the window opaque
++	} else {
++		SetWindowLong(hWnd, GWL_EXSTYLE, GetWindowLong(hWnd, GWL_EXSTYLE) & ~WS_EX_LAYERED);
++		return TRUE;
++	}
++}
++
++/*
++ * HACK: PuttyTray / Always on top
++ * Function to switch the window positioning to and from 'always on top'
++ */ 
++void MakeWindowOnTop(HWND hwnd) {
++	HMENU m;
++	if ((m = GetSystemMenu(hwnd, FALSE)) != NULL) {
++		DWORD fdwMenu = GetMenuState(m, (UINT)IDM_VISIBLE, MF_BYCOMMAND); 
++		if (!(fdwMenu & MF_CHECKED)) {
++			CheckMenuItem(m, (UINT)IDM_VISIBLE, MF_BYCOMMAND|MF_CHECKED);
++			SetWindowPos(hwnd, (HWND)-1, 0, 0, 0, 0, SWP_NOMOVE |SWP_NOSIZE);
++		}
++		else {
++			CheckMenuItem(m, (UINT)IDM_VISIBLE, MF_BYCOMMAND|MF_UNCHECKED);
++			SetWindowPos(hwnd, (HWND)-2, 0, 0, 0, 0, SWP_NOMOVE |SWP_NOSIZE);
++		}
++	}
++}
+=== windows/winmisc.c
+==================================================================
+--- windows/winmisc.c	(revision 7489)
++++ windows/winmisc.c	(local)
+@@ -6,6 +6,13 @@
+ #include <stdlib.h>
+ #include "putty.h"
+ 
++/*
++ * HACK: PuttyTray / Session Icon
++ * Otherwise it will not know IDI_MAINICON
++ */ 
++#include "win_res.h"
++//--------------------------
++
+ OSVERSIONINFO osVersion;
+ 
+ void platform_get_x11_auth(char *display, int *proto,
+@@ -319,3 +326,46 @@
+ }
+ 
+ #endif				/* MINEFIELD */
++
++/*
++ * HACK: PuttyTray / Session Icon
++ */ 
++HICON extract_icon(char *iconpath, int smallicon)
++{
++    char *iname, *comma;
++    int iindex;
++	HICON hiconLarge, hiconSmall;
++
++    hiconLarge = NULL;
++	hiconSmall = NULL;
++
++	// Get icon
++    if (iconpath && iconpath[0]) {
++		iname = dupstr(iconpath);
++		comma = strrchr(iname, ',');
++
++		if (comma) {
++			*comma = '\0';
++			*comma++;
++			iindex = atoi(comma);
++
++			ExtractIconEx(iname, iindex, &hiconLarge, &hiconSmall, 1);
++		};
++		sfree(iname);
++    };
++
++	// Fix if no icon found
++	if (!hiconLarge && !smallicon) {
++		hiconLarge = LoadImage(hinst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED);
++	}
++	if (!hiconSmall && smallicon) {
++		hiconSmall = LoadImage(hinst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
++	}
++
++	// Return the right icon
++	if (smallicon) {
++		return hiconSmall;
++	} else {
++		return hiconLarge;
++	}
++};
+=== windows/winstore.c
+==================================================================
+--- windows/winstore.c	(revision 7489)
++++ windows/winstore.c	(local)
+@@ -1,6 +1,10 @@
+ /*
++ * HACK: PuttyTray / PuTTY File
++ *
+  * winstore.c: Windows-specific implementation of the interface
+  * defined in storage.h.
++ *
++ * Added file support for PuTTY Tray
+  */
+ 
+ #include <stdio.h>
+@@ -27,6 +31,896 @@
+     (HWND, int, HANDLE, DWORD, LPTSTR);
+ static p_SHGetFolderPath_t p_SHGetFolderPath = NULL;
+ 
++// Saved sessions enumeration.
++struct enumsettings {
++    HKEY key;
++    int i;
++	int fromFile;
++	HANDLE hFile;
++};
++
++// Random seed functions enumeration
++enum { DEL, OPEN_R, OPEN_W };
++
++// PUTTY Tray / PuTTY File - global storage type
++static int storagetype = 0;	// 0 = registry, 1 = file
++
++// PUTTY Tray / PuTTY File - extra variables / structs for file
++static char seedpath[2 * MAX_PATH + 10] = "\0";
++static char sesspath[2 * MAX_PATH] = "\0";
++static char sshkpath[2 * MAX_PATH] = "\0";
++static char oldpath[2 * MAX_PATH] = "\0";
++static char sessionsuffix[16] = "\0";
++static char keysuffix[16] = "\0";
++
++/* JK: structures for handling settings in memory as linked list */
++struct setItem {
++	char* key;
++	char* value;
++	struct setItem* next;
++};
++struct setPack {
++	unsigned int fromFile;
++	void* handle;
++	char* fileBuf;
++};
++
++// Forward declarations for helper functions
++static void mungestr(const char *in, char *out);
++static void unmungestr(const char *in, char *out, int outlen);
++static void registry_recursive_remove(HKEY key);
++
++// Forward declarations for file functions
++void *file_open_settings_w(const char *sessionname, char **errmsg);
++void file_write_setting_s(void *handle, const char *key, const char *value);
++void file_write_setting_i(void *handle, const char *key, int value);
++void file_write_setting_filename(void *handle, const char *key, Filename value);
++void file_write_setting_fontspec(void *handle, const char *key, FontSpec font);
++void file_close_settings_w(void *handle);
++void *file_open_settings_r(const char *sessionname);
++char *file_read_setting_s(void *handle, const char *key, char *buffer, int buflen);
++int file_read_setting_i(void *handle, const char *key, int defvalue);
++int file_read_setting_filename(void *handle, const char *key, Filename *value);
++int file_read_setting_fontspec(void *handle, const char *key, FontSpec *font);
++void file_close_settings_r(void *handle);
++void file_del_settings(const char *sessionname);
++void *file_enum_settings_start();
++char *file_enum_settings_next(void *handle, char *buffer, int buflen);
++void file_enum_settings_finish(void *handle);
++int file_verify_host_key(const char *hostname, int port, const char *keytype, const char *key);
++void file_store_host_key(const char *hostname, int port, const char *keytype, const char *key);
++
++// Forward declarations for registry functions
++void *reg_open_settings_w(const char *sessionname, char **errmsg);
++void reg_write_setting_s(void *handle, const char *key, const char *value);
++void reg_write_setting_i(void *handle, const char *key, int value);
++void reg_write_setting_filename(void *handle, const char *key, Filename value);
++void reg_write_setting_fontspec(void *handle, const char *key, FontSpec font);
++void reg_close_settings_w(void *handle);
++void *reg_open_settings_r(const char *sessionname);
++char *reg_read_setting_s(void *handle, const char *key, char *buffer, int buflen);
++int reg_read_setting_i(void *handle, const char *key, int defvalue);
++int reg_read_setting_filename(void *handle, const char *key, Filename *value);
++int reg_read_setting_fontspec(void *handle, const char *key, FontSpec *font);
++void reg_close_settings_r(void *handle);
++void reg_del_settings(const char *sessionname);
++void *reg_enum_settings_start();
++char *reg_enum_settings_next(void *handle, char *buffer, int buflen);
++void reg_enum_settings_finish(void *handle);
++int reg_verify_host_key(const char *hostname, int port, const char *keytype, const char *key);
++void reg_store_host_key(const char *hostname, int port, const char *keytype, const char *key);
++
++
++/*
++ * Sets storage type
++ */
++void set_storagetype(int new_storagetype)
++{
++	storagetype = new_storagetype;
++}
++
++
++/*
++ * Write a saved session. The caller is expected to call
++ * open_setting_w() to get a `void *' handle, then pass that to a
++ * number of calls to write_setting_s() and write_setting_i(), and
++ * then close it using close_settings_w(). At the end of this call
++ * sequence the settings should have been written to the PuTTY
++ * persistent storage area.
++ *
++ * A given key will be written at most once while saving a session.
++ * Keys may be up to 255 characters long.  String values have no length
++ * limit.
++ * 
++ * Any returned error message must be freed after use.
++ *
++ * STORAGETYPE SWITCHER
++ */
++void *open_settings_w(const char *sessionname, char **errmsg)
++{
++	if (storagetype == 1) {
++		return file_open_settings_w(sessionname, errmsg);
++	} else {
++		return reg_open_settings_w(sessionname, errmsg);
++	}
++}
++
++
++/*
++ * STORAGETYPE SWITCHER
++ */
++void write_setting_s(void *handle, const char *key, const char *value)
++{
++	if (storagetype == 1) {
++		file_write_setting_s(handle, key, value);
++	} else {
++		reg_write_setting_s(handle, key, value);
++	}
++}
++
++/*
++ * STORAGETYPE SWITCHER
++ */
++void write_setting_i(void *handle, const char *key, int value)
++{
++	if (storagetype == 1) {
++		file_write_setting_i(handle, key, value);
++	} else {
++		reg_write_setting_i(handle, key, value);
++	}
++}
++
++/*
++ * STORAGETYPE SWITCHER
++ */
++void write_setting_filename(void *handle, const char *name, Filename result)
++{
++	if (storagetype == 1) {
++		file_write_setting_filename(handle, name, result);
++	} else {
++		reg_write_setting_filename(handle, name, result);
++	}
++}
++
++/*
++ * STORAGETYPE SWITCHER
++ */
++void write_setting_fontspec(void *handle, const char *name, FontSpec font)
++{
++	if (storagetype == 1) {
++		file_write_setting_fontspec(handle, name, font);
++	} else {
++		reg_write_setting_fontspec(handle, name, font);
++	}
++}
++
++/*
++ * STORAGETYPE SWITCHER
++ */
++void close_settings_w(void *handle)
++{
++	if (storagetype == 1) {
++		file_close_settings_w(handle);
++	} else {
++		reg_close_settings_w(handle);
++	}
++}
++
++/*
++ * Read a saved session. The caller is expected to call
++ * open_setting_r() to get a `void *' handle, then pass that to a
++ * number of calls to read_setting_s() and read_setting_i(), and
++ * then close it using close_settings_r().
++ * 
++ * read_setting_s() writes into the provided buffer and returns a
++ * pointer to the same buffer.
++ * 
++ * If a particular string setting is not present in the session,
++ * read_setting_s() can return NULL, in which case the caller
++ * should invent a sensible default. If an integer setting is not
++ * present, read_setting_i() returns its provided default.
++ * 
++ * read_setting_filename() and read_setting_fontspec() each read into
++ * the provided buffer, and return zero if they failed to.
++ *
++ * STORAGETYPE SWITCHER
++ */
++void *open_settings_r(const char *sessionname)
++{
++	if (storagetype == 1) {
++		return file_open_settings_r(sessionname);
++	} else {
++		return reg_open_settings_r(sessionname);
++	}
++}
++
++/*
++ * STORAGETYPE SWITCHER
++ */
++char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
++{
++	if (storagetype == 1) {
++		return file_read_setting_s(handle, key, buffer, buflen);
++	} else {
++		return reg_read_setting_s(handle, key, buffer, buflen);
++	}
++}
++
++/*
++ * STORAGETYPE SWITCHER
++ */
++int read_setting_i(void *handle, const char *key, int defvalue)
++{
++	if (storagetype == 1) {
++		return file_read_setting_i(handle, key, defvalue);
++	} else {
++		return reg_read_setting_i(handle, key, defvalue);
++	}
++}
++
++/*
++ * STORAGETYPE SWITCHER
++ */
++int read_setting_fontspec(void *handle, const char *name, FontSpec *result)
++{
++	if (storagetype == 1) {
++		return file_read_setting_fontspec(handle, name, result);
++	} else {
++		return reg_read_setting_fontspec(handle, name, result);
++	}
++}
++
++/*
++ * STORAGETYPE SWITCHER
++ */
++int read_setting_filename(void *handle, const char *name, Filename *result)
++{
++	if (storagetype == 1) {
++		return file_read_setting_filename(handle, name, result);
++	} else {
++		return reg_read_setting_filename(handle, name, result);
++	}
++}
++
++/*
++ * STORAGETYPE SWITCHER
++ */
++void close_settings_r(void *handle)
++{
++	if (storagetype == 1) {
++		return file_close_settings_r(handle);
++	} else {
++		return reg_close_settings_r(handle);
++	}
++}
++
++/*
++ * Delete a whole saved session.
++ *
++ * STORAGETYPE SWITCHER
++ */
++void del_settings(const char *sessionname)
++{
++	if (storagetype == 1) {
++		file_del_settings(sessionname);
++	} else {
++		reg_del_settings(sessionname);
++	}
++}
++
++/*
++ * STORAGETYPE SWITCHER
++ */
++void *enum_settings_start(int new_storagetype)
++{
++	storagetype = new_storagetype;
++
++	if (storagetype == 1) {
++		return file_enum_settings_start();
++	} else {
++		return reg_enum_settings_start();
++	}
++}
++
++/*
++ * STORAGETYPE SWITCHER
++ */
++char *enum_settings_next(void *handle, char *buffer, int buflen)
++{
++	if (storagetype == 1) {
++		return file_enum_settings_next(handle, buffer, buflen);
++	} else {
++		return reg_enum_settings_next(handle, buffer, buflen);
++	}
++}
++
++/*
++ * STORAGETYPE SWITCHER
++ */
++void enum_settings_finish(void *handle)
++{
++	if (storagetype == 1) {
++		file_enum_settings_finish(handle);
++	} else {
++		reg_enum_settings_finish(handle);
++	}
++}
++
++
++/* ----------------------------------------------------------------------
++ * Functions to access PuTTY's host key database.
++ */
++
++/*
++ * Helper for hostkey functions (not part of storage.h)
++ * NO HACK: PuttyTray / PuTTY File - This is an original function (not patched)
++ */
++static void hostkey_regname(char *buffer, const char *hostname, int port, const char *keytype)
++{
++    int len;
++    strcpy(buffer, keytype);
++    strcat(buffer, "@");
++    len = strlen(buffer);
++    len += sprintf(buffer + len, "%d:", port);
++    mungestr(hostname, buffer + strlen(buffer));
++}
++
++/*
++ * See if a host key matches the database entry. Return values can
++ * be 0 (entry matches database), 1 (entry is absent in database),
++ * or 2 (entry exists in database and is different).
++ *
++ * STORAGETYPE SWITCHER
++ */
++int verify_host_key(const char *hostname, int port, const char *keytype, const char *key)
++{
++	if (storagetype == 1) {
++		return file_verify_host_key(hostname, port, keytype, key);
++	} else {
++		return reg_verify_host_key(hostname, port, keytype, key);
++	}
++}
++
++/*
++ * Write a host key into the database, overwriting any previous
++ * entry that might have been there.
++ *
++ * STORAGETYPE SWITCHER
++ */
++void store_host_key(const char *hostname, int port, const char *keytype, const char *key)
++{
++	if (storagetype == 1) {
++		file_store_host_key(hostname, port, keytype, key);
++	} else {
++		reg_store_host_key(hostname, port, keytype, key);
++	}
++}
++
++
++/* ----------------------------------------------------------------------
++ * Functions to access PuTTY's random number seed file.
++ */
++/*
++ * HELPER FOR RANDOM SEED FUNCTIONS (not part of storage.h)
++ * Open (or delete) the random seed file.
++ *
++ * NO HACK: PuttyTray / PuTTY File - This is an original function (not patched)
++ */
++static int try_random_seed(char const *path, int action, HANDLE *ret)
++{
++    if (action == DEL) {
++	remove(path);
++	*ret = INVALID_HANDLE_VALUE;
++	return FALSE;		       /* so we'll do the next ones too */
++    }
++
++    *ret = CreateFile(path,
++		      action == OPEN_W ? GENERIC_WRITE : GENERIC_READ,
++		      action == OPEN_W ? 0 : (FILE_SHARE_READ |
++					      FILE_SHARE_WRITE),
++		      NULL,
++		      action == OPEN_W ? CREATE_ALWAYS : OPEN_EXISTING,
++		      action == OPEN_W ? FILE_ATTRIBUTE_NORMAL : 0,
++		      NULL);
++
++    return (*ret != INVALID_HANDLE_VALUE);
++}
++
++ /*
++  * HELPER FOR RANDOM SEED FUNCTIONS (not part of storage.h)
++  * 
++  * PARTLY HACKED: PuttyTray / PuTTY File - This is an original function (only first lines patched)
++  */
++static HANDLE access_random_seed(int action)
++{
++    HKEY rkey;
++    DWORD type, size;
++    HANDLE rethandle;
++    char seedpath[2 * MAX_PATH + 10] = "\0";
++
++	/* PuttyTray / PuTTY File - HACK STARTS HERE */
++	if (seedpath != '\0') {
++		/* JK: In PuTTY 0.58 this won't ever happen - this function was called only if (!seedpath[0])
++		 * This changed in PuTTY 0.59 - read the long comment below
++		 */
++		return;
++	}
++	/* PuttyTray / PuTTY File - HACK ENDS HERE */
++
++    /*
++     * Iterate over a selection of possible random seed paths until
++     * we find one that works.
++     * 
++     * We do this iteration separately for reading and writing,
++     * meaning that we will automatically migrate random seed files
++     * if a better location becomes available (by reading from the
++     * best location in which we actually find one, and then
++     * writing to the best location in which we can _create_ one).
++     */
++
++    /*
++     * First, try the location specified by the user in the
++     * Registry, if any.
++     */
++    size = sizeof(seedpath);
++    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS, &rkey) ==
++	ERROR_SUCCESS) {
++	int ret = RegQueryValueEx(rkey, "RandSeedFile",
++				  0, &type, seedpath, &size);
++	if (ret != ERROR_SUCCESS || type != REG_SZ)
++	    seedpath[0] = '\0';
++	RegCloseKey(rkey);
++
++	if (*seedpath && try_random_seed(seedpath, action, &rethandle))
++	    return rethandle;
++    }
++
++    /*
++     * Next, try the user's local Application Data directory,
++     * followed by their non-local one. This is found using the
++     * SHGetFolderPath function, which won't be present on all
++     * versions of Windows.
++     */
++    if (!tried_shgetfolderpath) {
++	/* This is likely only to bear fruit on systems with IE5+
++	 * installed, or WinMe/2K+. There is some faffing with
++	 * SHFOLDER.DLL we could do to try to find an equivalent
++	 * on older versions of Windows if we cared enough.
++	 * However, the invocation below requires IE5+ anyway,
++	 * so stuff that. */
++	shell32_module = LoadLibrary("SHELL32.DLL");
++	if (shell32_module) {
++	    p_SHGetFolderPath = (p_SHGetFolderPath_t)
++		GetProcAddress(shell32_module, "SHGetFolderPathA");
++	}
++    }
++    if (p_SHGetFolderPath) {
++	if (SUCCEEDED(p_SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA,
++					NULL, SHGFP_TYPE_CURRENT, seedpath))) {
++	    strcat(seedpath, "\\PUTTY.RND");
++	    if (try_random_seed(seedpath, action, &rethandle))
++		return rethandle;
++	}
++
++	if (SUCCEEDED(p_SHGetFolderPath(NULL, CSIDL_APPDATA,
++					NULL, SHGFP_TYPE_CURRENT, seedpath))) {
++	    strcat(seedpath, "\\PUTTY.RND");
++	    if (try_random_seed(seedpath, action, &rethandle))
++		return rethandle;
++	}
++    }
++
++    /*
++     * Failing that, try %HOMEDRIVE%%HOMEPATH% as a guess at the
++     * user's home directory.
++     */
++    {
++	int len, ret;
++
++	len =
++	    GetEnvironmentVariable("HOMEDRIVE", seedpath,
++				   sizeof(seedpath));
++	ret =
++	    GetEnvironmentVariable("HOMEPATH", seedpath + len,
++				   sizeof(seedpath) - len);
++	if (ret != 0) {
++	    strcat(seedpath, "\\PUTTY.RND");
++	    if (try_random_seed(seedpath, action, &rethandle))
++		return rethandle;
++	}
++    }
++
++    /*
++     * And finally, fall back to C:\WINDOWS.
++     */
++    GetWindowsDirectory(seedpath, sizeof(seedpath));
++    strcat(seedpath, "\\PUTTY.RND");
++    if (try_random_seed(seedpath, action, &rethandle))
++	return rethandle;
++
++    /*
++     * If even that failed, give up.
++     */
++    return INVALID_HANDLE_VALUE;
++}
++
++
++/*
++ * Read PuTTY's random seed file and pass its contents to a noise
++ * consumer function.
++ *
++ * NO HACK: PuttyTray / PuTTY File - This is an original function (not patched)
++ */
++void read_random_seed(noise_consumer_t consumer)
++{
++    HANDLE seedf = access_random_seed(OPEN_R);
++
++    if (seedf != INVALID_HANDLE_VALUE) {
++	while (1) {
++	    char buf[1024];
++	    DWORD len;
++
++	    if (ReadFile(seedf, buf, sizeof(buf), &len, NULL) && len)
++		consumer(buf, len);
++	    else
++		break;
++	}
++	CloseHandle(seedf);
++    }
++}
++
++/*
++ * Write PuTTY's random seed file from a given chunk of noise.
++ *
++ * NO HACK: PuttyTray / PuTTY File - This is an original function (not patched)
++ */
++void write_random_seed(void *data, int len)
++{
++    HANDLE seedf = access_random_seed(OPEN_W);
++
++    if (seedf != INVALID_HANDLE_VALUE) {
++	DWORD lenwritten;
++
++	WriteFile(seedf, data, len, &lenwritten, NULL);
++	CloseHandle(seedf);
++    }
++}
++
++
++/* ----------------------------------------------------------------------
++ * Cleanup function: remove all of PuTTY's persistent state.
++ *
++ * NO HACK: PuttyTray / PuTTY File - This is an original function (not patched)
++ */
++void cleanup_all(void)
++{
++    HKEY key;
++    int ret;
++    char name[MAX_PATH + 1];
++
++    /* ------------------------------------------------------------
++     * Wipe out the random seed file, in all of its possible
++     * locations.
++     */
++    access_random_seed(DEL);
++
++    /* ------------------------------------------------------------
++     * Destroy all registry information associated with PuTTY.
++     */
++
++    /*
++     * Open the main PuTTY registry key and remove everything in it.
++     */
++    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS, &key) ==
++	ERROR_SUCCESS) {
++	registry_recursive_remove(key);
++	RegCloseKey(key);
++    }
++    /*
++     * Now open the parent key and remove the PuTTY main key. Once
++     * we've done that, see if the parent key has any other
++     * children.
++     */
++    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_PARENT,
++		   &key) == ERROR_SUCCESS) {
++	RegDeleteKey(key, PUTTY_REG_PARENT_CHILD);
++	ret = RegEnumKey(key, 0, name, sizeof(name));
++	RegCloseKey(key);
++	/*
++	 * If the parent key had no other children, we must delete
++	 * it in its turn. That means opening the _grandparent_
++	 * key.
++	 */
++	if (ret != ERROR_SUCCESS) {
++	    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_GPARENT,
++			   &key) == ERROR_SUCCESS) {
++		RegDeleteKey(key, PUTTY_REG_GPARENT_CHILD);
++		RegCloseKey(key);
++	    }
++	}
++    }
++    /*
++     * Now we're done.
++     */
++}
++
++
++/* ----------------------------------------------------------------------
++ * PUTTY FILE HELPERS (not part of storage.h)
++ */
++/* JK: my generic function for simplyfing error reporting */
++DWORD errorShow(const char* pcErrText, const char* pcErrParam) {
++
++	HWND hwRodic;
++	DWORD erChyba;
++	char pcBuf[16];
++	char* pcHlaska = snewn(strlen(pcErrParam) + strlen(pcErrText) + 31, char);
++	
++	erChyba = GetLastError();		
++	ltoa(erChyba, pcBuf, 10);
++
++	strcpy(pcHlaska, "Error: ");
++	strcat(pcHlaska, pcErrText);
++	strcat(pcHlaska, "\n");	
++
++	if (pcErrParam) {
++		strcat(pcHlaska, pcErrParam);
++		strcat(pcHlaska, "\n");
++	}
++    strcat(pcHlaska, "Error code: ");
++	strcat(pcHlaska, pcBuf);
++
++    /* JK: get parent-window and show */
++    hwRodic = GetActiveWindow();
++    if (hwRodic != NULL) { hwRodic = GetLastActivePopup(hwRodic);}
++  
++	if (MessageBox(hwRodic, pcHlaska, "Error", MB_OK|MB_APPLMODAL|MB_ICONEXCLAMATION) == 0) {
++        /* JK: this is really bad -> just ignore */
++        return 0;
++    }
++
++	sfree(pcHlaska);
++	return erChyba;
++};
++
++/* JK: pack string for use as filename - pack < > : " / \ | */
++static void packstr(const char *in, char *out) {
++    while (*in) {
++		if (*in == '<' || *in == '>' || *in == ':' || *in == '"' ||
++	    *in == '/' || *in == '|') {
++	    *out++ = '%';
++	    *out++ = hex[((unsigned char) *in) >> 4];
++	    *out++ = hex[((unsigned char) *in) & 15];
++	} else
++	    *out++ = *in;
++	in++;
++    }
++    *out = '\0';
++    return;
++}
++
++/*
++ * JK: create directory if specified as dir1\dir2\dir3 and dir1|2 doesn't exists
++ * handle if part of path already exists
++*/
++int createPath(char* dir) {
++    char *p;
++
++	p = strrchr(dir, '\\');
++
++	if (p == NULL) {
++		/* what if it already exists */
++		if (!SetCurrentDirectory(dir)) {
++			CreateDirectory(dir, NULL);
++			return SetCurrentDirectory(dir);
++		}
++		return 1;
++	}
++	
++	*p = '\0';
++	createPath(dir);
++	*p = '\\';
++	++p;
++
++	/* what if it already exists */
++	if (!SetCurrentDirectory(dir)) {
++		CreateDirectory(p, NULL);
++		return SetCurrentDirectory(p);
++	}
++	return 1;
++}
++
++/*
++ * JK: join path pcMain.pcSuf solving extra cases to pcDest
++ * expecting - pcMain as path from WinAPI ::GetCurrentDirectory()/GetModuleFileName()
++ *           - pcSuf as user input path from config (at least MAX_PATH long)
++*/
++char* joinPath(char* pcDest, char* pcMain, char* pcSuf) {
++
++	char* pcBuf = snewn(MAX_PATH+1, char);
++
++	/* at first ExpandEnvironmentStrings */
++	if (0 == ExpandEnvironmentStrings(pcSuf, pcBuf, MAX_PATH)) {
++		/* JK: failure -> revert back - but it ussualy won't work, so report error to user! */
++		errorShow("Unable to ExpandEnvironmentStrings for session path", pcSuf);
++		strncpy(pcBuf, pcSuf, strlen(pcSuf));
++	}
++	/* now ExpandEnvironmentStringsForUser - only on win2000Pro and above */
++	/* It's much more tricky than I've expected, so it's ToDo */
++	/*
++	static HMODULE userenv_module = NULL;
++	typedef BOOL (WINAPI *p_ExpandESforUser_t) (HANDLE, LPCTSTR, LPTSTR, DWORD);
++	static p_ExpandESforUser_t p_ExpandESforUser = NULL;
++	
++	HMODULE userenv_module = LoadLibrary("USERENV.DLL");
++
++	if (userenv_module) {
++	    p_ExpandESforUser = (p_ExpandESforUser_t) GetProcAddress(shell32_module, "ExpandEnvironmentStringsForUserA");
++		
++		if (p_ExpandESforUser) {
++
++			TOKEN_IMPERSONATE
++
++			if (0 == (p_ExpandESforUser(NULL, pcSuf, pcBuf,	MAX_PATH))) {
++	    		/* JK: failure -> revert back - but it ussualy won't work, so report error to user! *//*
++				errorShow("Unable to ExpandEnvironmentStringsForUser for session path", pcBuf);
++				strncpy(pcSuf, pcBuf, strlen(pcSuf));
++			}
++		}
++	}*/
++
++	/* expand done, resutl in pcBuf */
++
++	if ((*pcBuf == '/') || (*pcBuf == '\\')) {
++		/* everything ok */
++		strcpy(pcDest, pcMain);
++		strcat(pcDest, pcBuf);
++	}
++	else {
++		if (*(pcBuf+1) == ':') {
++			/* absolute path */
++			strcpy(pcDest, pcBuf);
++		}
++		else {
++			/* some weird relative path - add '\' */
++			strcpy(pcDest, pcMain);
++			strcat(pcDest, "\\");
++			strcat(pcDest, pcBuf);
++		}
++	}
++	sfree(pcBuf);
++	return pcDest;
++}
++
++/*
++ * JK: init path variables from config or otherwise
++ * as of 1.5 GetModuleFileName solves our currentDirectory problem
++*/
++int loadPath() {
++
++	char *fileCont = NULL;
++	DWORD fileSize;
++	DWORD bytesRead;
++	char *p = NULL;
++	char *p2 = NULL;
++	HANDLE hFile;
++
++	char* puttypath = snewn( (MAX_PATH*2), char);
++
++	/* JK:  save path/curdir */
++	GetCurrentDirectory( (MAX_PATH*2), oldpath);
++
++	/* JK: get where putty.exe is */
++	if (GetModuleFileName(NULL, puttypath, (MAX_PATH*2)) != 0)
++	{
++		p = strrchr(puttypath, '\\');
++		if (p)
++		{
++			*p = '\0';
++		}
++		SetCurrentDirectory(puttypath);
++	}
++	else GetCurrentDirectory( (MAX_PATH*2), puttypath);
++
++	/* JK: set default values - if there is a config file, it will be overwitten */
++	strcpy(sesspath, puttypath);
++	strcat(sesspath, "\\sessions");
++	strcpy(sshkpath, puttypath);
++	strcat(sshkpath, "\\sshhostkeys");
++	strcpy(seedpath, puttypath);
++	strcat(seedpath, "\\putty.rnd");
++
++	hFile = CreateFile("putty.conf",GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
++
++	/* JK: now we can pre-clean-up */
++	SetCurrentDirectory(oldpath);
++
++	if (hFile != INVALID_HANDLE_VALUE) {
++		fileSize = GetFileSize(hFile, NULL);
++		fileCont = snewn(fileSize+16, char);
++
++		if (!ReadFile(hFile, fileCont, fileSize, &bytesRead, NULL)) {
++			errorShow("Unable to read configuration file, falling back to defaults", NULL);
++		
++			/* JK: default values are already there and clean-up at end */
++		}
++		else {
++			/* JK: parse conf file to path variables */
++			*(fileCont+fileSize) = '\0';
++			p = fileCont;
++			while (p) {
++				if (*p == ';') {	/* JK: comment -> skip line */
++					p = strchr(p, '\n');
++					++p;
++					continue;
++				}
++				p2 = strchr(p, '=');
++				if (!p2) break;
++				*p2 = '\0';
++				++p2;
++
++				if (!strcmp(p, "sessions")) {
++					p = strchr(p2, '\n');
++					*p = '\0';
++					joinPath(sesspath, puttypath, p2);
++					p2 = sesspath+strlen(sesspath)-1;
++					while ((*p2 == ' ')||(*p2 == '\n')||(*p2 == '\r')||(*p2 == '\t')) --p2;
++					*(p2+1) = '\0';
++				}
++				else if (!strcmp(p, "sshhostkeys")) {
++					p = strchr(p2, '\n');
++					*p = '\0';
++					joinPath(sshkpath, puttypath, p2);
++					p2 = sshkpath+strlen(sshkpath)-1;
++					while ((*p2 == ' ')||(*p2 == '\n')||(*p2 == '\r')||(*p2 == '\t')) --p2;
++					*(p2+1) = '\0';
++				}
++				else if (!strcmp(p, "seedfile")) {
++					p = strchr(p2, '\n');
++					*p = '\0';
++					joinPath(seedpath, puttypath, p2);			
++					p2 = seedpath+strlen(seedpath)-1;
++					while ((*p2 == ' ')||(*p2 == '\n')||(*p2 == '\r')||(*p2 == '\t')) --p2;
++					*(p2+1) = '\0';
++				}
++				else if (!strcmp(p, "sessionsuffix")) {
++					p = strchr(p2, '\n');
++					*p = '\0';
++					strcpy(sessionsuffix, p2);
++					p2 = sessionsuffix+strlen(sessionsuffix)-1;
++					while ((*p2 == ' ')||(*p2 == '\n')||(*p2 == '\r')||(*p2 == '\t')) --p2;
++					*(p2+1) = '\0';
++				}
++				else if (!strcmp(p, "keysuffix")) {
++					p = strchr(p2, '\n');
++					*p = '\0';
++					strcpy(keysuffix, p2);
++					p2 = keysuffix+strlen(keysuffix)-1;
++					while ((*p2 == ' ')||(*p2 == '\n')||(*p2 == '\r')||(*p2 == '\t')) --p2;
++					*(p2+1) = '\0';
++				}
++				++p;
++			}
++		}
++		CloseHandle(hFile);
++		sfree(fileCont);
++	}
++	/* else - INVALID_HANDLE {
++		 * JK: unable to read conf file - probably doesn't exists
++		 * we won't create one, user wants putty light, just fall back to defaults
++		 * and defaults are already there
++	}*/
++
++	sfree(puttypath);
++	return 1;
++}
++
++
++/* ----------------------------------------------------------------------
++ * OTHER HELPERS (not part of storage.h)
++ *
++ * NO HACK: PuttyTray / PuTTY File - these are original functions (not patched)
++ */
+ static void mungestr(const char *in, char *out)
+ {
+     int candot = 0;
+@@ -72,9 +966,883 @@
+     return;
+ }
+ 
+-void *open_settings_w(const char *sessionname, char **errmsg)
++/*
++ * Recursively delete a registry key and everything under it.
++ */
++static void registry_recursive_remove(HKEY key)
+ {
++    DWORD i;
++    char name[MAX_PATH + 1];
++    HKEY subkey;
++
++    i = 0;
++    while (RegEnumKey(key, i, name, sizeof(name)) == ERROR_SUCCESS) {
++	if (RegOpenKey(key, name, &subkey) == ERROR_SUCCESS) {
++	    registry_recursive_remove(subkey);
++	    RegCloseKey(subkey);
++	}
++	RegDeleteKey(key, name);
++    }
++}
++
++
++/* ---------------------------------------------------------------------------------------------------------
++ * ---------------------------------------------------------------------------------------------------------
++ * FILE FUNCTIONS
++ * ---------------------------------------------------------------------------------------------------------
++ * -------------------------------------------------------------------------------------------------------*/
++void *file_open_settings_w(const char *sessionname, char **errmsg)
++{
++    char *p;
++	struct setPack* sp;
++    *errmsg = NULL;
++
++	if (!sessionname || !*sessionname) {
++		sessionname = "Default Settings";
++	}
++
++	/* JK: if sessionname contains [registry] -> cut it off */
++	/*if ( *(sessionname+strlen(sessionname)-1) == ']') {
++		p = strrchr(sessionname, '[');
++		*(p-1) = '\0';
++	}*/
++
++    p = snewn(3 * strlen(sessionname) + 1, char);
++    mungestr(sessionname, p);
++
++	sp = snew( struct setPack );
++	sp->fromFile = 0;
++	sp->handle = NULL;
++
++	/* JK: secure pack for filename */
++	sp->fileBuf = snewn(3 * strlen(p) + 1 + 16, char);
++    packstr(p, sp->fileBuf);
++	strcat(sp->fileBuf, sessionsuffix);
++	sfree(p);
++
++	return sp;
++}
++
++void file_write_setting_s(void *handle, const char *key, const char *value)
++{
++	struct setItem *st;
++
++	if (handle) {
++		/* JK: counting max lenght of keys/values */
++		((struct setPack*) handle)->fromFile = max(((struct setPack*) handle)->fromFile, strlen(key)+1);
++		((struct setPack*) handle)->fromFile = max(((struct setPack*) handle)->fromFile, strlen(value)+1);
++
++		st = ((struct setPack*) handle)->handle;
++		while (st) {
++			if ( strcmp(st->key, key) == 0) {
++				/* this key already set -> reset */
++				sfree(st->value);
++				st->value = snewn( strlen(value)+1, char);
++				strcpy(st->value, value);
++				return;
++			}
++			st = st->next;
++		}
++		/* JK: key not found -> add to begin */
++		st = snew( struct setItem );
++		st->key = snewn( strlen(key)+1, char);
++		strcpy(st->key, key);
++		st->value = snewn( strlen(value)+1, char);
++		strcpy(st->value, value);
++		st->next = ((struct setPack*) handle)->handle;
++		((struct setPack*) handle)->handle = st;
++	}
++}
++
++void file_write_setting_i(void *handle, const char *key, int value)
++{
++	struct setItem *st;
++
++	if (handle) {
++		/* JK: counting max lenght of keys/values */
++		((struct setPack*) handle)->fromFile = max(((struct setPack*) handle)->fromFile, strlen(key)+1);
++
++		st = ((struct setPack*) handle)->handle;
++		while (st) {
++			if ( strcmp(st->key, key) == 0) {
++				/* this key already set -> reset */
++				sfree(st->value);
++				st->value = snewn(16, char);
++				itoa(value, st->value, 10);
++				return;
++			}
++			st = st->next;
++		}
++		/* JK: key not found -> add to begin */
++		st = snew( struct setItem );
++		st->key = snewn( strlen(key)+1, char);
++		strcpy(st->key, key);
++		st->value = snewn(16, char);
++		itoa(value, st->value, 10);
++		st->next = ((struct setPack*) handle)->handle;
++		((struct setPack*) handle)->handle = st;
++	}
++}
++
++void file_close_settings_w(void *handle)
++{
++	HANDLE hFile;
++	DWORD written;
++	WIN32_FIND_DATA FindFile;
++	char *p;
++	struct setItem *st1,*st2;
++	int writeok;
++
++	if (!handle) return;
++
++	/* JK: we will write to disk now - open file, filename stored in handle already packed */
++	if ((hFile = FindFirstFile(sesspath, &FindFile)) == INVALID_HANDLE_VALUE) {
++		if (!createPath(sesspath)) {
++			errorShow("Unable to create directory for storing sessions", sesspath);
++			return;
++		}
++	}
++	FindClose(hFile);
++	GetCurrentDirectory( (MAX_PATH*2), oldpath);
++	SetCurrentDirectory(sesspath);
++
++	hFile = CreateFile( ((struct setPack*) handle)->fileBuf, GENERIC_WRITE,0,NULL,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
++	if (hFile == INVALID_HANDLE_VALUE) {
++		errorShow("Unable to open file for writing", ((struct setPack*) handle)->fileBuf );
++		return;
++	}
++
++	/* JK: allocate enough memory for all keys/values */
++	p = snewn( max( 3* ((struct setPack*) handle)->fromFile ,16), char);
++
++	/* JK: process linked list */
++	st1 = ((struct setPack*) handle)->handle;
++	writeok = 1;
++
++	while (st1) {
++		mungestr(st1->key, p);
++		writeok = writeok && WriteFile( (HANDLE) hFile, p, strlen(p), &written, NULL);
++		writeok = writeok && WriteFile( (HANDLE) hFile, "\\", 1, &written, NULL);
++
++		mungestr(st1->value, p);
++		writeok = writeok && WriteFile( (HANDLE) hFile, p, strlen(p), &written, NULL);
++		writeok = writeok && WriteFile( (HANDLE) hFile, "\\\n", 2, &written, NULL);
++
++		if (!writeok) {
++			errorShow("Unable to save settings", st1->key);
++			return;
++			/* JK: memory should be freed here - fixme */
++		}
++
++		st2 = st1->next;
++		sfree(st1->key);
++		sfree(st1->value);
++		sfree(st1);
++		st1 = st2;
++	}
++
++	sfree(((struct setPack*) handle)->fileBuf);
++	CloseHandle( (HANDLE)hFile );
++	SetCurrentDirectory(oldpath);
++}
++
++void *file_open_settings_r(const char *sessionname)
++{
+     HKEY subkey1, sesskey;
++    char *p;
++	char *ses;
++	char *fileCont;
++	DWORD fileSize;
++	DWORD bytesRead;
++	HANDLE hFile;
++	struct setPack* sp;
++	struct setItem *st1, *st2;
++
++	sp = snew( struct setPack );
++
++	if (!sessionname || !*sessionname) {
++		sessionname = "Default Settings";
++	}
++
++	/* JK: in the first call of this function we initialize path variables */
++	if (*sesspath == '\0') {
++		loadPath();
++	}
++
++	/* JK: if sessionname contains [registry] -> cut it off in another buffer */
++	/*if ( *(sessionname+strlen(sessionname)-1) == ']') {
++		ses = snewn(strlen(sessionname)+1, char);
++		strcpy(ses, sessionname);
++
++		p = strrchr(ses, '[');
++		*(p-1) = '\0';
++
++		p = snewn(3 * strlen(ses) + 1, char);
++		mungestr(ses, p);
++		sfree(ses);
++
++		sp->fromFile = 0;
++	}
++	else {*/
++		p = snewn(3 * strlen(sessionname) + 1 + 16, char);
++		mungestr(sessionname, p);
++		strcat(p, sessionsuffix);
++
++		sp->fromFile = 1;
++	//}
++
++	/* JK: default settings must be read from registry */
++	/* 8.1.2007 - 0.1.6 try to load them from file if exists - nasty code duplication */
++	if (!strcmp(sessionname, "Default Settings")) {
++		GetCurrentDirectory( (MAX_PATH*2), oldpath);
++		if (SetCurrentDirectory(sesspath)) {
++			hFile = CreateFile(p, GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
++		}
++		else {
++			hFile = INVALID_HANDLE_VALUE;
++		}
++		SetCurrentDirectory(oldpath);
++		
++		if (hFile == INVALID_HANDLE_VALUE) {
++			sp->fromFile = 0;
++		}
++		else {
++			sp->fromFile = 1;
++			CloseHandle(hFile);
++		}
++	}
++
++	if (sp->fromFile) {
++		/* JK: session is in file -> open dir/file */
++		GetCurrentDirectory( (MAX_PATH*2), oldpath);
++		if (SetCurrentDirectory(sesspath)) {
++			hFile = CreateFile(p, GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
++		}
++		else {
++			hFile = INVALID_HANDLE_VALUE;
++		}
++		SetCurrentDirectory(oldpath);
++		
++		if (hFile == INVALID_HANDLE_VALUE) {
++			/* JK: some error occured -> just report and fail */
++
++			/* JK: PSCP/PLINK always try to load settings for sessionname=hostname (to what PSCP/PLINK is just connecting)
++			   These settings usually doesn't exist.
++			   So for PSCP/PLINK, do not report error - so when compiling PSCP/PLINK, comment line below
++			   (errorShow("Unable to load file for reading", p);)
++			*/
++//#error read comment above
++			errorShow("Unable to load file for reading", p);
++
++			sfree(p);
++			return NULL;
++		}
++
++		/* JK: succes -> load structure setPack from file */
++		fileSize = GetFileSize(hFile, NULL);
++		fileCont = snewn(fileSize+16, char);
++
++		if (!ReadFile(hFile, fileCont, fileSize, &bytesRead, NULL)) {
++			errorShow("Unable to read session from file", p);
++			sfree(p);
++			return NULL;
++		}
++		sfree(p);
++
++		st1 = snew( struct setItem );
++		sp->fromFile = 1;
++		sp->handle = st1;
++		
++		p = fileCont;
++		sp->fileBuf = fileCont; /* JK: remeber for memory freeing */
++
++		/* pJK: arse file in format:
++		 * key1\value1\
++		 * ...
++		*/
++		while (p < (fileCont+fileSize)) {
++			st1->key = p;
++			p = strchr(p, '\\');
++			if (!p) break;
++			*p = '\0';
++			++p;
++			st1->value = p;
++			p = strchr(p, '\\');
++			if (!p) break;
++			*p = '\0';
++			++p;
++			++p; /* for "\\\n" - human readable files */
++
++			st2 = snew( struct setItem );
++			st2->next = NULL;
++			st2->key = NULL;
++			st2->value = NULL;
++
++			st1->next = st2;
++			st1 = st2;
++		}
++		CloseHandle(hFile);
++	}
++	else {
++		/* JK: session is in registry */
++		if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS) {
++			sesskey = NULL;
++		}
++		else {
++			if (RegOpenKey(subkey1, p, &sesskey) != ERROR_SUCCESS) {
++				sesskey = NULL;
++			}
++			RegCloseKey(subkey1);
++		}
++		sp->fromFile = 0;
++		sp->handle = sesskey;
++		sfree(p);
++	}
++
++	return sp;
++}
++
++char *file_read_setting_s(void *handle, const char *key, char *buffer, int buflen)
++{
++    DWORD type;
++	struct setItem *st;
++	char *p;
++	DWORD size = buflen;
++
++	if (!handle) return NULL;	/* JK: new in 0.1.3 */
++
++	if (((struct setPack*) handle)->fromFile) {
++		
++		p = snewn(3 * strlen(key) + 1, char);
++		mungestr(key, p);
++
++		st = ((struct setPack*) handle)->handle;
++		while (st->key) {
++			if ( strcmp(st->key, p) == 0) {
++				unmungestr(st->value, buffer, buflen);
++				return st->value;				
++			}
++			st = st->next;
++		}
++	}
++	else {
++		handle = ((struct setPack*) handle)->handle;
++
++		if (!handle || RegQueryValueEx((HKEY) handle, key, 0, &type, buffer, &size) != ERROR_SUCCESS ||	type != REG_SZ) {
++			return NULL;
++		}
++		else {
++			return buffer;
++		}
++	}
++	/* JK: should not end here -> value not found in file */
++	return NULL;
++}
++
++int file_read_setting_i(void *handle, const char *key, int defvalue)
++{
++    DWORD type, val, size;
++	struct setItem *st;
++    size = sizeof(val);
++
++	if (!handle) return 0;	/* JK: new in 0.1.3 */
++
++	if (((struct setPack*) handle)->fromFile) {
++		st = ((struct setPack*) handle)->handle;
++		while (st->key) {
++			if ( strcmp(st->key, key) == 0) {
++				return atoi(st->value);				
++			}
++			st = st->next;
++		}
++	}
++	else {
++		handle = ((struct setPack*) handle)->handle;
++
++		if (!handle || RegQueryValueEx((HKEY) handle, key, 0, &type, (BYTE *) &val, &size) != ERROR_SUCCESS || size != sizeof(val) || type != REG_DWORD) {
++			return defvalue;
++		}
++		else {
++			return val;
++		}
++	}
++	/* JK: should not end here -> value not found in file */
++	return defvalue;
++}
++
++int file_read_setting_fontspec(void *handle, const char *name, FontSpec *result)
++{
++    char *settingname;
++    FontSpec ret;
++
++    if (!file_read_setting_s(handle, name, ret.name, sizeof(ret.name)))
++	return 0;
++    settingname = dupcat(name, "IsBold", NULL);
++    ret.isbold = file_read_setting_i(handle, settingname, -1);
++    sfree(settingname);
++    if (ret.isbold == -1) return 0;
++    settingname = dupcat(name, "CharSet", NULL);
++    ret.charset = file_read_setting_i(handle, settingname, -1);
++    sfree(settingname);
++    if (ret.charset == -1) return 0;
++    settingname = dupcat(name, "Height", NULL);
++    ret.height = file_read_setting_i(handle, settingname, INT_MIN);
++    sfree(settingname);
++    if (ret.height == INT_MIN) return 0;
++    *result = ret;
++    return 1;
++}
++
++void file_write_setting_fontspec(void *handle, const char *name, FontSpec font)
++{
++    char *settingname;
++
++    file_write_setting_s(handle, name, font.name);
++    settingname = dupcat(name, "IsBold", NULL);
++    file_write_setting_i(handle, settingname, font.isbold);
++    sfree(settingname);
++    settingname = dupcat(name, "CharSet", NULL);
++    file_write_setting_i(handle, settingname, font.charset);
++    sfree(settingname);
++    settingname = dupcat(name, "Height", NULL);
++    file_write_setting_i(handle, settingname, font.height);
++    sfree(settingname);
++}
++
++int file_read_setting_filename(void *handle, const char *name, Filename *result)
++{
++    return !!file_read_setting_s(handle, name, result->path, sizeof(result->path));
++}
++
++void file_write_setting_filename(void *handle, const char *name, Filename result)
++{
++    file_write_setting_s(handle, name, result.path);
++}
++
++void file_close_settings_r(void *handle)
++{
++	if (!handle) return;	/* JK: new in 0.1.3 */
++
++	if (((struct setPack*) handle)->fromFile) {
++		struct setItem *st1, *st2;
++
++		st1 = ((struct setPack*) handle)->handle;
++		while (st1) {
++			st2 = st1->next;
++			sfree(st1);
++			st1 = st2;
++		}
++		sfree( ((struct setPack*) handle)->fileBuf );
++		sfree(handle);
++	}
++	else {
++		handle = ((struct setPack*) handle)->handle;
++	    RegCloseKey((HKEY) handle);
++	}
++}
++
++void file_del_settings(const char *sessionname)
++{
++    HKEY subkey1;
++    char *p;
++	char *p2;
++
++	/* JK: if sessionname contains [registry] -> cut it off and delete from registry */
++	/*if ( *(sessionname+strlen(sessionname)-1) == ']') {
++
++		p = strrchr(sessionname, '[');
++		*(p-1) = '\0';
++
++		p = snewn(3 * strlen(sessionname) + 1, char);
++		mungestr(sessionname, p);
++		
++		if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS)	return;
++
++		RegDeleteKey(subkey1, p);
++		RegCloseKey(subkey1);
++	}
++	else {*/
++		/* JK: delete from file - file itself */
++
++		p = snewn(3 * strlen(sessionname) + 1, char);
++		mungestr(sessionname, p);
++		p2 = snewn(3 * strlen(p) + 1, char);
++		packstr(p, p2);
++
++		GetCurrentDirectory( (MAX_PATH*2), oldpath);
++		if (SetCurrentDirectory(sesspath)) {
++			if (!DeleteFile(p2))
++			{
++				errorShow("Unable to delete settings.", NULL);
++			}
++			SetCurrentDirectory(oldpath);
++		}
++	//}
++
++	sfree(p);
++}
++
++void *file_enum_settings_start(void)
++{
++    struct enumsettings *ret;
++    HKEY key;
++
++	/* JK: in the first call of this function we can initialize path variables */
++	if (*sesspath == '\0') {
++		loadPath();
++	}
++	/* JK: we have path variables */
++	
++	/* JK: let's do what this function should normally do */
++	ret = snew(struct enumsettings);
++
++	if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &key) != ERROR_SUCCESS) {
++		/*
++		 * JK: nothing in registry -> pretend we found it, first call to file_enum_settings_next
++		 * will solve this by starting scanning dir sesspath
++		*/
++	}
++	ret->key = key;
++	ret->fromFile = 0;
++	ret->hFile = NULL;
++	ret->i = 0;
++
++    return ret;
++}
++
++char *file_enum_settings_next(void *handle, char *buffer, int buflen)
++{
++	struct enumsettings *e = (struct enumsettings *) handle;
++    WIN32_FIND_DATA FindFileData;
++	HANDLE hFile;
++	char *otherbuf;
++	
++	if (!handle) return NULL;	/* JK: new in 0.1.3 */
++	
++	otherbuf = snewn( (3*buflen)+1, char); /* must be here */
++
++	if (! ((struct enumsettings *)handle)->fromFile ) {
++
++	    /*if (RegEnumKey(e->key, e->i++, otherbuf, 3 * buflen) == ERROR_SUCCESS) {
++			unmungestr(otherbuf, buffer, buflen);
++			strcat(buffer, " [registry]");
++			sfree(otherbuf);
++			return buffer;
++		}
++		else {*/
++			/* JK: registry scanning done, starting scanning directory "sessions" */
++			((struct enumsettings *)handle)->fromFile = 1;
++			GetCurrentDirectory( (MAX_PATH*2), oldpath);
++			if (!SetCurrentDirectory(sesspath)) {
++				sfree(otherbuf);
++				return NULL;
++			}
++			hFile = FindFirstFile("*", &FindFileData);
++
++			/* JK: skip directories (extra check for "." and ".." too, seems to bug on some machines) */
++			while ((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || FindFileData.cFileName[0] == '.') { // HACK: PUTTY TRAY / PUTTY FILE: Fixed directory check
++				if (!FindNextFile(hFile,&FindFileData)) {
++					sfree(otherbuf);
++					return NULL;
++				}
++			}
++			/* JK: a file found */
++			if (hFile != INVALID_HANDLE_VALUE && !((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || FindFileData.cFileName[0] == '.')) { // HACK: PUTTY TRAY / PUTTY FILE: Fixed directory check
++				((struct enumsettings *)handle)->hFile = hFile;
++				unmungestr(FindFileData.cFileName, buffer, buflen);
++				sfree(otherbuf);
++				/* JK: cut off sessionsuffix */
++				otherbuf = buffer + strlen(buffer) - strlen(sessionsuffix);
++				if (strncmp(otherbuf, sessionsuffix, strlen(sessionsuffix)) == 0) {
++					*otherbuf = '\0';
++				}
++				return buffer;
++			}
++			else {
++				/* JK: not a single file found -> give up */
++				sfree(otherbuf);
++				return NULL;
++			}
++		//}
++	}
++	else if ( ((struct enumsettings *)handle)->fromFile ) {
++		if (FindNextFile(((struct enumsettings *)handle)->hFile,&FindFileData) && !((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || FindFileData.cFileName[0] == '.')) { // HACK: PUTTY TRAY / PUTTY FILE: Fixed directory check
++			unmungestr(FindFileData.cFileName, buffer, buflen);
++			sfree(otherbuf);
++			/* JK: cut off sessionsuffix */
++			otherbuf = buffer + strlen(buffer) - strlen(sessionsuffix);
++			if (strncmp(otherbuf, sessionsuffix, strlen(sessionsuffix)) == 0) {
++				*otherbuf = '\0';
++			}
++			return buffer;
++		}
++		else {
++			sfree(otherbuf);
++			return NULL;
++		}
++	}
++	/* JK: should not end here */
++	sfree(otherbuf);
++	return NULL;
++}
++
++void file_enum_settings_finish(void *handle)
++{
++    struct enumsettings *e = (struct enumsettings *) handle;
++	if (!handle) return;	/* JK: new in 0.1.3 */
++
++    RegCloseKey(e->key);
++	if (((struct enumsettings *)handle)->hFile != NULL) { FindClose(((struct enumsettings *)handle)->hFile); }
++	SetCurrentDirectory(oldpath);
++	sfree(e);
++}
++
++int file_verify_host_key(const char *hostname, int port,
++		    const char *keytype, const char *key)
++{
++    char *otherstr, *regname;
++    int len;
++	HKEY rkey;
++    DWORD readlen;
++    DWORD type;
++    int ret, compare, userMB;
++
++	DWORD fileSize;
++	DWORD bytesRW;
++	char *p;
++	HANDLE hFile;
++	WIN32_FIND_DATA FindFile;
++
++    len = 1 + strlen(key);
++
++    /* Now read a saved key in from the registry and see what it says. */
++    otherstr = snewn(len, char);
++    regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
++
++    hostkey_regname(regname, hostname, port, keytype);
++
++	/* JK: settings on disk - every hostkey as file in dir */
++	GetCurrentDirectory( (MAX_PATH*2), oldpath);
++	if (SetCurrentDirectory(sshkpath)) {
++		
++		p = snewn(3 * strlen(regname) + 1 + 16, char);
++		packstr(regname, p);
++		strcat(p, keysuffix);
++
++		hFile = CreateFile(p, GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
++		SetCurrentDirectory(oldpath);
++
++		if (hFile != INVALID_HANDLE_VALUE) {
++			/* JK: ok we got it -> read it to otherstr */
++			fileSize = GetFileSize(hFile, NULL);
++			otherstr = snewn(fileSize+1, char);
++			ReadFile(hFile, otherstr, fileSize, &bytesRW, NULL);
++			*(otherstr+fileSize) = '\0';
++
++			compare = strcmp(otherstr, key);
++
++			CloseHandle(hFile);
++			sfree(otherstr);
++			sfree(regname);
++			sfree(p);
++
++			if (compare) { /* key is here, but different */
++				return 2;
++			}
++			else { /* key is here and match */
++				return 0;
++			}
++		}
++		else {
++			/* not found as file -> try registry */
++			sfree(p);
++		}
++	}
++	else {
++		/* JK: there are no hostkeys as files -> try registry -> nothing to do here now */
++	}
++	
++	/* JK: directory/file not found -> try registry */
++	if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys", &rkey) != ERROR_SUCCESS) {
++		return 1;		       /* key does not exist in registry */
++	}
++
++    readlen = len;
++    ret = RegQueryValueEx(rkey, regname, NULL, &type, otherstr, &readlen);
++
++    if (ret != ERROR_SUCCESS && ret != ERROR_MORE_DATA &&
++	!strcmp(keytype, "rsa")) {
++	/*
++	 * Key didn't exist. If the key type is RSA, we'll try
++	 * another trick, which is to look up the _old_ key format
++	 * under just the hostname and translate that.
++	 */
++	char *justhost = regname + 1 + strcspn(regname, ":");
++	char *oldstyle = snewn(len + 10, char);	/* safety margin */
++	readlen = len;
++	ret = RegQueryValueEx(rkey, justhost, NULL, &type,
++			      oldstyle, &readlen);
++
++	if (ret == ERROR_SUCCESS && type == REG_SZ) {
++	    /*
++	     * The old format is two old-style bignums separated by
++	     * a slash. An old-style bignum is made of groups of
++	     * four hex digits: digits are ordered in sensible
++	     * (most to least significant) order within each group,
++	     * but groups are ordered in silly (least to most)
++	     * order within the bignum. The new format is two
++	     * ordinary C-format hex numbers (0xABCDEFG...XYZ, with
++	     * A nonzero except in the special case 0x0, which
++	     * doesn't appear anyway in RSA keys) separated by a
++	     * comma. All hex digits are lowercase in both formats.
++	     */
++	    char *p = otherstr;
++	    char *q = oldstyle;
++	    int i, j;
++
++	    for (i = 0; i < 2; i++) {
++		int ndigits, nwords;
++		*p++ = '0';
++		*p++ = 'x';
++		ndigits = strcspn(q, "/");	/* find / or end of string */
++		nwords = ndigits / 4;
++		/* now trim ndigits to remove leading zeros */
++		while (q[(ndigits - 1) ^ 3] == '0' && ndigits > 1)
++		    ndigits--;
++		/* now move digits over to new string */
++		for (j = 0; j < ndigits; j++)
++		    p[ndigits - 1 - j] = q[j ^ 3];
++		p += ndigits;
++		q += nwords * 4;
++		if (*q) {
++		    q++;	       /* eat the slash */
++		    *p++ = ',';	       /* add a comma */
++		}
++		*p = '\0';	       /* terminate the string */
++	    }
++
++	    /*
++	     * Now _if_ this key matches, we'll enter it in the new
++	     * format. If not, we'll assume something odd went
++	     * wrong, and hyper-cautiously do nothing.
++	     */
++	    if (!strcmp(otherstr, key))
++		RegSetValueEx(rkey, regname, 0, REG_SZ, otherstr,
++			      strlen(otherstr) + 1);
++		/* JK: session is not saved to file - fixme */
++	}
++    }
++
++    compare = strcmp(otherstr, key);
++
++	if (ret == ERROR_MORE_DATA || (ret == ERROR_SUCCESS && type == REG_SZ && compare)) {
++		RegCloseKey(rkey);
++		return 2;		       /* key is different in registry */
++	}
++	else if (ret != ERROR_SUCCESS || type != REG_SZ) {
++		RegCloseKey(rkey);
++		return 1;		       /* key does not exist in registry */
++	}
++	else { /* key matched OK in registry */
++		/* JK: matching key found in registry -> warn user, ask what to do */
++		p = snewn(256, char);
++		userMB = MessageBox(NULL, "The host key is cached in the Windows registry. "
++			"Do you want to move it to a file? \n\n"
++			"Yes \t-> Move to file (and delete from registry)\n"
++			"No \t-> Copy to file (and keep in registry)\n"
++			"Cancel \t-> nothing will be done\n", "Security risk", MB_YESNOCANCEL|MB_ICONWARNING);
++
++		if ((userMB == IDYES) || (userMB == IDNO)) {
++			/* JK: save key to file */
++			if ((hFile = FindFirstFile(sshkpath, &FindFile)) == INVALID_HANDLE_VALUE) {
++				createPath(sshkpath);
++			}
++			FindClose(hFile);
++			SetCurrentDirectory(sshkpath);
++
++			p = snewn(3*strlen(regname) + 1 + 16, char);
++			packstr(regname, p);
++			strcat(p, keysuffix);
++			
++			hFile = CreateFile(p, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
++
++			if (hFile == INVALID_HANDLE_VALUE) {
++				errorShow("Unable to create file (key won't be deleted from registry)", p);
++				userMB = IDNO;
++			}
++			else {
++				if (!WriteFile(hFile, key, strlen(key), &bytesRW, NULL)) {
++					errorShow("Unable to save key to file (key won't be deleted from registry)", NULL);
++					userMB = IDNO;
++				}
++				CloseHandle(hFile);
++			}
++		}
++		if (userMB == IDYES) {
++			/* delete from registry */
++			if (RegDeleteValue(rkey, regname) != ERROR_SUCCESS) {
++				errorShow("Unable to delete registry value", regname);
++			}
++		}
++		/* JK: else (Cancel) -> nothing to be done right now */
++		
++		RegCloseKey(rkey);
++
++		sfree(otherstr);
++		sfree(regname);
++		return 0;		       
++	}
++}
++
++void file_store_host_key(const char *hostname, int port,
++		    const char *keytype, const char *key)
++{
++    char *regname = NULL;
++	WIN32_FIND_DATA FindFile;
++    HANDLE hFile = NULL;
++	char* p = NULL;
++	DWORD bytesWritten;
++
++    regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
++    hostkey_regname(regname, hostname, port, keytype);
++
++	/* JK: save hostkey to file in dir */
++	if ((hFile = FindFirstFile(sshkpath, &FindFile)) == INVALID_HANDLE_VALUE) {
++		createPath(sshkpath);
++	}
++	FindClose(hFile);
++	GetCurrentDirectory( (MAX_PATH*2), oldpath);
++	SetCurrentDirectory(sshkpath);
++
++	p = snewn(3*strlen(regname) + 1, char);
++	packstr(regname, p);
++	strcat(p, keysuffix);
++	hFile = CreateFile(p, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
++
++	if (hFile == INVALID_HANDLE_VALUE) {
++		errorShow("Unable to create file", p);
++	}
++	else {
++		if (!WriteFile(hFile, key, strlen(key), &bytesWritten, NULL)) {
++			errorShow("Unable to save key to file", NULL);
++		}
++		CloseHandle(hFile);
++	}
++	SetCurrentDirectory(oldpath);
++
++    sfree(p);
++	sfree(regname);
++}
++
++
++/* ---------------------------------------------------------------------------------------------------------
++ * ---------------------------------------------------------------------------------------------------------
++ * REGISTRY FUNCTIONS
++ * ---------------------------------------------------------------------------------------------------------
++ * -------------------------------------------------------------------------------------------------------*/
++void *reg_open_settings_w(const char *sessionname, char **errmsg)
++{
++    HKEY subkey1, sesskey;
+     int ret;
+     char *p;
+ 
+@@ -105,26 +1873,26 @@
+     return (void *) sesskey;
+ }
+ 
+-void write_setting_s(void *handle, const char *key, const char *value)
++void reg_write_setting_s(void *handle, const char *key, const char *value)
+ {
+     if (handle)
+ 	RegSetValueEx((HKEY) handle, key, 0, REG_SZ, value,
+ 		      1 + strlen(value));
+ }
+ 
+-void write_setting_i(void *handle, const char *key, int value)
++void reg_write_setting_i(void *handle, const char *key, int value)
+ {
+     if (handle)
+ 	RegSetValueEx((HKEY) handle, key, 0, REG_DWORD,
+ 		      (CONST BYTE *) &value, sizeof(value));
+ }
+ 
+-void close_settings_w(void *handle)
++void reg_close_settings_w(void *handle)
+ {
+     RegCloseKey((HKEY) handle);
+ }
+ 
+-void *open_settings_r(const char *sessionname)
++void *reg_open_settings_r(const char *sessionname)
+ {
+     HKEY subkey1, sesskey;
+     char *p;
+@@ -149,7 +1917,7 @@
+     return (void *) sesskey;
+ }
+ 
+-char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
++char *reg_read_setting_s(void *handle, const char *key, char *buffer, int buflen)
+ {
+     DWORD type, size;
+     size = buflen;
+@@ -162,7 +1930,7 @@
+ 	return buffer;
+ }
+ 
+-int read_setting_i(void *handle, const char *key, int defvalue)
++int reg_read_setting_i(void *handle, const char *key, int defvalue)
+ {
+     DWORD type, val, size;
+     size = sizeof(val);
+@@ -176,61 +1944,61 @@
+ 	return val;
+ }
+ 
+-int read_setting_fontspec(void *handle, const char *name, FontSpec *result)
++int reg_read_setting_fontspec(void *handle, const char *name, FontSpec *result)
+ {
+     char *settingname;
+     FontSpec ret;
+ 
+-    if (!read_setting_s(handle, name, ret.name, sizeof(ret.name)))
++    if (!reg_read_setting_s(handle, name, ret.name, sizeof(ret.name)))
+ 	return 0;
+     settingname = dupcat(name, "IsBold", NULL);
+-    ret.isbold = read_setting_i(handle, settingname, -1);
++    ret.isbold = reg_read_setting_i(handle, settingname, -1);
+     sfree(settingname);
+     if (ret.isbold == -1) return 0;
+     settingname = dupcat(name, "CharSet", NULL);
+-    ret.charset = read_setting_i(handle, settingname, -1);
++    ret.charset = reg_read_setting_i(handle, settingname, -1);
+     sfree(settingname);
+     if (ret.charset == -1) return 0;
+     settingname = dupcat(name, "Height", NULL);
+-    ret.height = read_setting_i(handle, settingname, INT_MIN);
++    ret.height = reg_read_setting_i(handle, settingname, INT_MIN);
+     sfree(settingname);
+     if (ret.height == INT_MIN) return 0;
+     *result = ret;
+     return 1;
+ }
+ 
+-void write_setting_fontspec(void *handle, const char *name, FontSpec font)
++void reg_write_setting_fontspec(void *handle, const char *name, FontSpec font)
+ {
+     char *settingname;
+ 
+-    write_setting_s(handle, name, font.name);
++    reg_write_setting_s(handle, name, font.name);
+     settingname = dupcat(name, "IsBold", NULL);
+-    write_setting_i(handle, settingname, font.isbold);
++    reg_write_setting_i(handle, settingname, font.isbold);
+     sfree(settingname);
+     settingname = dupcat(name, "CharSet", NULL);
+-    write_setting_i(handle, settingname, font.charset);
++    reg_write_setting_i(handle, settingname, font.charset);
+     sfree(settingname);
+     settingname = dupcat(name, "Height", NULL);
+-    write_setting_i(handle, settingname, font.height);
++    reg_write_setting_i(handle, settingname, font.height);
+     sfree(settingname);
+ }
+ 
+-int read_setting_filename(void *handle, const char *name, Filename *result)
++int reg_read_setting_filename(void *handle, const char *name, Filename *result)
+ {
+-    return !!read_setting_s(handle, name, result->path, sizeof(result->path));
++    return !!reg_read_setting_s(handle, name, result->path, sizeof(result->path));
+ }
+ 
+-void write_setting_filename(void *handle, const char *name, Filename result)
++void reg_write_setting_filename(void *handle, const char *name, Filename result)
+ {
+-    write_setting_s(handle, name, result.path);
++    reg_write_setting_s(handle, name, result.path);
+ }
+ 
+-void close_settings_r(void *handle)
++void reg_close_settings_r(void *handle)
+ {
+     RegCloseKey((HKEY) handle);
+ }
+ 
+-void del_settings(const char *sessionname)
++void reg_del_settings(const char *sessionname)
+ {
+     HKEY subkey1;
+     char *p;
+@@ -246,12 +2014,7 @@
+     RegCloseKey(subkey1);
+ }
+ 
+-struct enumsettings {
+-    HKEY key;
+-    int i;
+-};
+-
+-void *enum_settings_start(void)
++void *reg_enum_settings_start(int storagetype)
+ {
+     struct enumsettings *ret;
+     HKEY key;
+@@ -268,7 +2031,7 @@
+     return ret;
+ }
+ 
+-char *enum_settings_next(void *handle, char *buffer, int buflen)
++char *reg_enum_settings_next(void *handle, char *buffer, int buflen)
+ {
+     struct enumsettings *e = (struct enumsettings *) handle;
+     char *otherbuf;
+@@ -283,25 +2046,14 @@
+     }
+ }
+ 
+-void enum_settings_finish(void *handle)
++void reg_enum_settings_finish(void *handle)
+ {
+     struct enumsettings *e = (struct enumsettings *) handle;
+     RegCloseKey(e->key);
+     sfree(e);
+ }
+ 
+-static void hostkey_regname(char *buffer, const char *hostname,
+-			    int port, const char *keytype)
+-{
+-    int len;
+-    strcpy(buffer, keytype);
+-    strcat(buffer, "@");
+-    len = strlen(buffer);
+-    len += sprintf(buffer + len, "%d:", port);
+-    mungestr(hostname, buffer + strlen(buffer));
+-}
+-
+-int verify_host_key(const char *hostname, int port,
++int reg_verify_host_key(const char *hostname, int port,
+ 		    const char *keytype, const char *key)
+ {
+     char *otherstr, *regname;
+@@ -407,7 +2159,7 @@
+ 	return 0;		       /* key matched OK in registry */
+ }
+ 
+-void store_host_key(const char *hostname, int port,
++void reg_store_host_key(const char *hostname, int port,
+ 		    const char *keytype, const char *key)
+ {
+     char *regname;
+@@ -425,232 +2177,3 @@
+ 
+     sfree(regname);
+ }
+-
+-/*
+- * Open (or delete) the random seed file.
+- */
+-enum { DEL, OPEN_R, OPEN_W };
+-static int try_random_seed(char const *path, int action, HANDLE *ret)
+-{
+-    if (action == DEL) {
+-	remove(path);
+-	*ret = INVALID_HANDLE_VALUE;
+-	return FALSE;		       /* so we'll do the next ones too */
+-    }
+-
+-    *ret = CreateFile(path,
+-		      action == OPEN_W ? GENERIC_WRITE : GENERIC_READ,
+-		      action == OPEN_W ? 0 : (FILE_SHARE_READ |
+-					      FILE_SHARE_WRITE),
+-		      NULL,
+-		      action == OPEN_W ? CREATE_ALWAYS : OPEN_EXISTING,
+-		      action == OPEN_W ? FILE_ATTRIBUTE_NORMAL : 0,
+-		      NULL);
+-
+-    return (*ret != INVALID_HANDLE_VALUE);
+-}
+-
+-static HANDLE access_random_seed(int action)
+-{
+-    HKEY rkey;
+-    DWORD type, size;
+-    HANDLE rethandle;
+-    char seedpath[2 * MAX_PATH + 10] = "\0";
+-
+-    /*
+-     * Iterate over a selection of possible random seed paths until
+-     * we find one that works.
+-     * 
+-     * We do this iteration separately for reading and writing,
+-     * meaning that we will automatically migrate random seed files
+-     * if a better location becomes available (by reading from the
+-     * best location in which we actually find one, and then
+-     * writing to the best location in which we can _create_ one).
+-     */
+-
+-    /*
+-     * First, try the location specified by the user in the
+-     * Registry, if any.
+-     */
+-    size = sizeof(seedpath);
+-    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS, &rkey) ==
+-	ERROR_SUCCESS) {
+-	int ret = RegQueryValueEx(rkey, "RandSeedFile",
+-				  0, &type, seedpath, &size);
+-	if (ret != ERROR_SUCCESS || type != REG_SZ)
+-	    seedpath[0] = '\0';
+-	RegCloseKey(rkey);
+-
+-	if (*seedpath && try_random_seed(seedpath, action, &rethandle))
+-	    return rethandle;
+-    }
+-
+-    /*
+-     * Next, try the user's local Application Data directory,
+-     * followed by their non-local one. This is found using the
+-     * SHGetFolderPath function, which won't be present on all
+-     * versions of Windows.
+-     */
+-    if (!tried_shgetfolderpath) {
+-	/* This is likely only to bear fruit on systems with IE5+
+-	 * installed, or WinMe/2K+. There is some faffing with
+-	 * SHFOLDER.DLL we could do to try to find an equivalent
+-	 * on older versions of Windows if we cared enough.
+-	 * However, the invocation below requires IE5+ anyway,
+-	 * so stuff that. */
+-	shell32_module = LoadLibrary("SHELL32.DLL");
+-	if (shell32_module) {
+-	    p_SHGetFolderPath = (p_SHGetFolderPath_t)
+-		GetProcAddress(shell32_module, "SHGetFolderPathA");
+-	}
+-    }
+-    if (p_SHGetFolderPath) {
+-	if (SUCCEEDED(p_SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA,
+-					NULL, SHGFP_TYPE_CURRENT, seedpath))) {
+-	    strcat(seedpath, "\\PUTTY.RND");
+-	    if (try_random_seed(seedpath, action, &rethandle))
+-		return rethandle;
+-	}
+-
+-	if (SUCCEEDED(p_SHGetFolderPath(NULL, CSIDL_APPDATA,
+-					NULL, SHGFP_TYPE_CURRENT, seedpath))) {
+-	    strcat(seedpath, "\\PUTTY.RND");
+-	    if (try_random_seed(seedpath, action, &rethandle))
+-		return rethandle;
+-	}
+-    }
+-
+-    /*
+-     * Failing that, try %HOMEDRIVE%%HOMEPATH% as a guess at the
+-     * user's home directory.
+-     */
+-    {
+-	int len, ret;
+-
+-	len =
+-	    GetEnvironmentVariable("HOMEDRIVE", seedpath,
+-				   sizeof(seedpath));
+-	ret =
+-	    GetEnvironmentVariable("HOMEPATH", seedpath + len,
+-				   sizeof(seedpath) - len);
+-	if (ret != 0) {
+-	    strcat(seedpath, "\\PUTTY.RND");
+-	    if (try_random_seed(seedpath, action, &rethandle))
+-		return rethandle;
+-	}
+-    }
+-
+-    /*
+-     * And finally, fall back to C:\WINDOWS.
+-     */
+-    GetWindowsDirectory(seedpath, sizeof(seedpath));
+-    strcat(seedpath, "\\PUTTY.RND");
+-    if (try_random_seed(seedpath, action, &rethandle))
+-	return rethandle;
+-
+-    /*
+-     * If even that failed, give up.
+-     */
+-    return INVALID_HANDLE_VALUE;
+-}
+-
+-void read_random_seed(noise_consumer_t consumer)
+-{
+-    HANDLE seedf = access_random_seed(OPEN_R);
+-
+-    if (seedf != INVALID_HANDLE_VALUE) {
+-	while (1) {
+-	    char buf[1024];
+-	    DWORD len;
+-
+-	    if (ReadFile(seedf, buf, sizeof(buf), &len, NULL) && len)
+-		consumer(buf, len);
+-	    else
+-		break;
+-	}
+-	CloseHandle(seedf);
+-    }
+-}
+-
+-void write_random_seed(void *data, int len)
+-{
+-    HANDLE seedf = access_random_seed(OPEN_W);
+-
+-    if (seedf != INVALID_HANDLE_VALUE) {
+-	DWORD lenwritten;
+-
+-	WriteFile(seedf, data, len, &lenwritten, NULL);
+-	CloseHandle(seedf);
+-    }
+-}
+-
+-/*
+- * Recursively delete a registry key and everything under it.
+- */
+-static void registry_recursive_remove(HKEY key)
+-{
+-    DWORD i;
+-    char name[MAX_PATH + 1];
+-    HKEY subkey;
+-
+-    i = 0;
+-    while (RegEnumKey(key, i, name, sizeof(name)) == ERROR_SUCCESS) {
+-	if (RegOpenKey(key, name, &subkey) == ERROR_SUCCESS) {
+-	    registry_recursive_remove(subkey);
+-	    RegCloseKey(subkey);
+-	}
+-	RegDeleteKey(key, name);
+-    }
+-}
+-
+-void cleanup_all(void)
+-{
+-    HKEY key;
+-    int ret;
+-    char name[MAX_PATH + 1];
+-
+-    /* ------------------------------------------------------------
+-     * Wipe out the random seed file, in all of its possible
+-     * locations.
+-     */
+-    access_random_seed(DEL);
+-
+-    /* ------------------------------------------------------------
+-     * Destroy all registry information associated with PuTTY.
+-     */
+-
+-    /*
+-     * Open the main PuTTY registry key and remove everything in it.
+-     */
+-    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS, &key) ==
+-	ERROR_SUCCESS) {
+-	registry_recursive_remove(key);
+-	RegCloseKey(key);
+-    }
+-    /*
+-     * Now open the parent key and remove the PuTTY main key. Once
+-     * we've done that, see if the parent key has any other
+-     * children.
+-     */
+-    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_PARENT,
+-		   &key) == ERROR_SUCCESS) {
+-	RegDeleteKey(key, PUTTY_REG_PARENT_CHILD);
+-	ret = RegEnumKey(key, 0, name, sizeof(name));
+-	RegCloseKey(key);
+-	/*
+-	 * If the parent key had no other children, we must delete
+-	 * it in its turn. That means opening the _grandparent_
+-	 * key.
+-	 */
+-	if (ret != ERROR_SUCCESS) {
+-	    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_GPARENT,
+-			   &key) == ERROR_SUCCESS) {
+-		RegDeleteKey(key, PUTTY_REG_GPARENT_CHILD);
+-		RegCloseKey(key);
+-	    }
+-	}
+-    }
+-    /*
+-     * Now we're done.
+-     */
+-}
+=== windows/PickIconDialog.c
+==================================================================
+--- windows/PickIconDialog.c	(revision 7489)
++++ windows/PickIconDialog.c	(local)
+@@ -0,0 +1,59 @@
++/*
++ * HACK: PuttyTray / Session Icon
++ * Added this file
++ */ 
++#include <windows.h>
++typedef WINSHELLAPI BOOL(WINAPI * fnPickIconDlg) (HWND hWndParent, LPTSTR pszFilename, LPDWORD pdwBufferSize, LPDWORD pdwIndex);
++
++BOOL SelectIconA(HWND hWndParent, LPSTR lpszFilename, DWORD dwBufferSize, DWORD * pdwIndex) {
++    BOOL result = FALSE;
++    OSVERSIONINFO versioninfo;
++    HMODULE hShell32 = LoadLibrary("shell32.dll");
++    versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
++    GetVersionEx(&versioninfo);
++
++	if (hShell32) {
++		fnPickIconDlg PickIconDlg = (fnPickIconDlg) GetProcAddress(hShell32, (LPCSTR) 62);
++		if (PickIconDlg) {
++			if (versioninfo.dwPlatformId == VER_PLATFORM_WIN32_NT) {
++				LPWSTR pszWideName = (LPWSTR) malloc(dwBufferSize);
++				MultiByteToWideChar(CP_ACP, 0, lpszFilename, -1, pszWideName, dwBufferSize);
++				result = PickIconDlg(hWndParent, (LPTSTR) pszWideName, &dwBufferSize, pdwIndex);
++				WideCharToMultiByte(CP_ACP, 0, pszWideName, -1, lpszFilename, dwBufferSize, NULL, NULL);
++				free(pszWideName);
++			} else {
++				result = PickIconDlg(hWndParent, (LPTSTR) lpszFilename, &dwBufferSize, pdwIndex);
++			}
++		}
++		FreeLibrary(hShell32);
++    }
++
++    return result;
++}
++
++
++BOOL SelectIconW(HWND hWndParent, LPWSTR lpszFilename, DWORD dwBufferSize, DWORD * pdwIndex) {
++    BOOL result = FALSE;
++    OSVERSIONINFO versioninfo;
++    HMODULE hShell32 = LoadLibrary("shell32.dll");
++    versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
++    GetVersionEx(&versioninfo);
++
++	if (hShell32) {
++		fnPickIconDlg PickIconDlg = (fnPickIconDlg) GetProcAddress(hShell32, (LPCSTR) 62);
++		if (PickIconDlg) {
++			if (versioninfo.dwPlatformId != VER_PLATFORM_WIN32_NT) {
++				LPSTR pszMBName = (LPSTR) malloc(dwBufferSize);
++				WideCharToMultiByte(CP_ACP, 0, lpszFilename, -1, pszMBName, dwBufferSize, NULL, NULL);
++				result = PickIconDlg(hWndParent, (LPTSTR) pszMBName, &dwBufferSize, pdwIndex);
++				MultiByteToWideChar(CP_ACP, 0, pszMBName, -1, lpszFilename, dwBufferSize);
++				free(pszMBName);
++			} else {
++				result = PickIconDlg(hWndParent, (LPTSTR) lpszFilename, &dwBufferSize, pdwIndex);
++			}
++		}
++		FreeLibrary(hShell32);
++    }
++
++    return result;
++}
+
+Property changes on: windows/PickIconDialog.c
+___________________________________________________________________
+Name: svn:eol-style
+ +native
+
+=== windows/PickIconDialog.h
+==================================================================
+--- windows/PickIconDialog.h	(revision 7489)
++++ windows/PickIconDialog.h	(local)
+@@ -0,0 +1,19 @@
++/*
++ * HACK: PuttyTray / Session Icon
++ * Added this file
++ */ 
++
++#ifndef _SELECTICON_H_
++#define _SELECTICON_H_
++
++BOOL SelectIconW(HWND hWndParent, LPWSTR lpszFilename, DWORD dwBufferSize, DWORD * pdwIndex);
++BOOL SelectIconA(HWND hWndParent, LPSTR lpszFilename, DWORD dwBufferSize, DWORD * pdwIndex);
++
++#ifdef _UNICODE
++#define SelectIcon SelectIconW
++#else
++#define SelectIcon SelectIconA
++#endif
++
++
++#endif
+
+Property changes on: windows/PickIconDialog.h
+___________________________________________________________________
+Name: svn:eol-style
+ +native
+
+=== windows/re_lib	(new directory)
+==================================================================
+=== windows/re_lib/regexp.cpp
+==================================================================
+--- windows/re_lib/regexp.cpp	(revision 7489)
++++ windows/re_lib/regexp.cpp	(local)
+@@ -0,0 +1,1212 @@
++/*
++ * regcomp and regexec -- regsub and regerror are elsewhere
++ * @(#)regexp.c	1.3 of 18 April 87
++ *
++ *	Copyright (c) 1986 by University of Toronto.
++ *	Written by Henry Spencer.  Not derived from licensed software.
++ *
++ *	Permission is granted to anyone to use this software for any
++ *	purpose on any computer system, and to redistribute it freely,
++ *	subject to the following restrictions:
++ *
++ *	1. The author is not responsible for the consequences of use of
++ *		this software, no matter how awful, even if they arise
++ *		from defects in it.
++ *
++ *	2. The origin of this software must not be misrepresented, either
++ *		by explicit claim or by omission.
++ *
++ *	3. Altered versions must be plainly marked as such, and must not
++ *		be misrepresented as being the original software.
++ *
++ * Beware that some of this code is subtly aware of the way operator
++ * precedence is structured in regular expressions.  Serious changes in
++ * regular-expression syntax might require a total rethink.
++ */
++#include <stdio.h>
++#include <malloc.h>
++#include <string.h>
++
++#include "regexp.h"
++#include "regmagic.h"
++
++/*
++ * The "internal use only" fields in regexp.h are present to pass info from
++ * compile to execute that permits the execute phase to run lots faster on
++ * simple cases.  They are:
++ *
++ * regstart	char that must begin a match; '\0' if none obvious
++ * reganch	is the match anchored (at beginning-of-line only)?
++ * regmust	string (pointer into program) that match must include, or NULL
++ * regmlen	length of regmust string
++ *
++ * Regstart and reganch permit very fast decisions on suitable starting points
++ * for a match, cutting down the work a lot.  Regmust permits fast rejection
++ * of lines that cannot possibly match.  The regmust tests are costly enough
++ * that regcomp() supplies a regmust only if the r.e. contains something
++ * potentially expensive (at present, the only such thing detected is * or +
++ * at the start of the r.e., which can involve a lot of backup).  Regmlen is
++ * supplied because the test in regexec() needs it and regcomp() is computing
++ * it anyway.
++ */
++
++/*
++ * Structure for regexp "program".  This is essentially a linear encoding
++ * of a nondeterministic finite-state machine (aka syntax charts or
++ * "railroad normal form" in parsing technology).  Each node is an opcode
++ * plus a "next" pointer, possibly plus an operand.  "Next" pointers of
++ * all nodes except BRANCH implement concatenation; a "next" pointer with
++ * a BRANCH on both ends of it is connecting two alternatives.  (Here we
++ * have one of the subtle syntax dependencies:  an individual BRANCH (as
++ * opposed to a collection of them) is never concatenated with anything
++ * because of operator precedence.)  The operand of some types of node is
++ * a literal string; for others, it is a node leading into a sub-FSM.  In
++ * particular, the operand of a BRANCH node is the first node of the branch.
++ * (NB this is *not* a tree structure:  the tail of the branch connects
++ * to the thing following the set of BRANCHes.)  The opcodes are:
++ */
++
++/* definition	number	opnd?	meaning */
++#define	END	0	/* no	End of program. */
++#define	BOL	1	/* no	Match "" at beginning of line. */
++#define	EOL	2	/* no	Match "" at end of line. */
++#define	ANY	3	/* no	Match any one character. */
++#define	ANYOF	4	/* str	Match any character in this string. */
++#define	ANYBUT	5	/* str	Match any character not in this string. */
++#define	BRANCH	6	/* node	Match this alternative, or the next... */
++#define	BACK	7	/* no	Match "", "next" ptr points backward. */
++#define	EXACTLY	8	/* str	Match this string. */
++#define	NOTHING	9	/* no	Match empty string. */
++#define	STAR	10	/* node	Match this (simple) thing 0 or more times. */
++#define	PLUS	11	/* node	Match this (simple) thing 1 or more times. */
++#define	OPEN	20	/* no	Mark this point in input as start of #n. */
++			/*	OPEN+1 is number 1, etc. */
++#define	CLOSE	OPEN + NSUBEXP	/* no	Analogous to OPEN. */
++
++/*
++ * Opcode notes:
++ *
++ * BRANCH	The set of branches constituting a single choice are hooked
++ *		together with their "next" pointers, since precedence prevents
++ *		anything being concatenated to any individual branch.  The
++ *		"next" pointer of the last BRANCH in a choice points to the
++ *		thing following the whole choice.  This is also where the
++ *		final "next" pointer of each individual branch points; each
++ *		branch starts with the operand node of a BRANCH node.
++ *
++ * BACK		Normal "next" pointers all implicitly point forward; BACK
++ *		exists to make loop structures possible.
++ *
++ * STAR,PLUS	'?', and complex '*' and '+', are implemented as circular
++ *		BRANCH structures using BACK.  Simple cases (one character
++ *		per match) are implemented with STAR and PLUS for speed
++ *		and to minimize recursive plunges.
++ *
++ * OPEN,CLOSE	...are numbered at compile time.
++ */
++
++/*
++ * A node is one char of opcode followed by two chars of "next" pointer.
++ * "Next" pointers are stored as two 8-bit pieces, high order first.  The
++ * value is a positive offset from the opcode of the node containing it.
++ * An operand, if any, simply follows the node.  (Note that much of the
++ * code generation knows about this implicit relationship.)
++ *
++ * Using two bytes for the "next" pointer is vast overkill for most things,
++ * but allows patterns to get big without disasters.
++ */
++#define	OP(p)	(*(p))
++#define	NEXT(p)	(((*((p)+1)&0377)<<8) + (*((p)+2)&0377))
++#define	OPERAND(p)	((p) + 3)
++
++/*
++ * See regmagic.h for one further detail of program structure.
++ */
++
++
++/*
++ * Utility definitions.
++ */
++#ifndef CHARBITS
++#define	UCHARAT(p)	((int)*(unsigned char *)(p))
++#else
++#define	UCHARAT(p)	((int)*(p)&CHARBITS)
++#endif
++
++#define	FAIL(m)	{ regerror(m); return(NULL); }
++#define	ISMULT(c)	((c) == '*' || (c) == '+' || (c) == '?')
++#define	META	"^$.[()|?+*\\"
++
++/*
++ * Flags to be passed up and down.
++ */
++#define	HASWIDTH	01	/* Known never to match null string. */
++#define	SIMPLE		02	/* Simple enough to be STAR/PLUS operand. */
++#define	SPSTART		04	/* Starts with * or +. */
++#define	WORST		0	/* Worst case. */
++
++/*
++ * Global work variables for regcomp().
++ */
++static char *regparse;		/* Input-scan pointer. */
++static int regnpar;		/* () count. */
++static char regdummy;
++static char *regcode;		/* Code-emit pointer; &regdummy = don't. */
++static long regsize;		/* Code size. */
++
++/*
++ * Forward declarations for regcomp()'s friends.
++ */
++#ifndef STATIC
++#define	STATIC	static
++#endif
++STATIC char* reg( int paren, int* flagp);
++STATIC char* regbranch( int* flagp);
++STATIC char* regpiece( int* flagp);
++STATIC char* regatom( int* flagp);
++STATIC char* regnode( char op);
++STATIC char* regnext( char* p);
++STATIC void regc( char c);
++STATIC void reginsert( char op, char* opnd);
++STATIC void regtail( char* p, char* val);
++STATIC void regoptail( char* p,  char* val);
++#ifdef STRCSPN
++STATIC int strcspn();
++#endif
++
++static void (*regerror_func)( char* s) = 0;
++
++void regerror( char* s)
++{
++	if( regerror_func)
++		(*regerror_func)( s);
++}
++
++void set_regerror_func( void (*func)( char*))
++{
++	regerror_func = func;
++}
++
++/*
++ - regcomp - compile a regular expression into internal code
++ *
++ * We can't allocate space until we know how big the compiled form will be,
++ * but we can't compile it (and thus know how big it is) until we've got a
++ * place to put the code.  So we cheat:  we compile it twice, once with code
++ * generation turned off and size counting turned on, and once "for real".
++ * This also means that we don't allocate space until we are sure that the
++ * thing really will compile successfully, and we never have to move the
++ * code and thus invalidate pointers into it.  (Note that it has to be in
++ * one piece because free() must be able to free it all.)
++ *
++ * Beware that the optimization-preparation code in here knows about some
++ * of the structure of the compiled regexp.
++ */
++regexp *
++regcomp( char* exp)
++{
++	register regexp *r;
++	register char *scan;
++	register char *longest;
++	register int len;
++	int flags;
++
++	if (exp == NULL)
++		FAIL("NULL argument");
++
++	/* First pass: determine size, legality. */
++	regparse = exp;
++	regnpar = 1;
++	regsize = 0L;
++	regcode = &regdummy;
++	regc(MAGIC);
++	if (reg(0, &flags) == NULL)
++		return(NULL);
++
++	/* Small enough for pointer-storage convention? */
++	if (regsize >= 32767L)		/* Probably could be 65535L. */
++		FAIL("regexp too big");
++
++	/* Allocate space. */
++	r = (regexp *)malloc(sizeof(regexp) + (unsigned)regsize);
++	if (r == NULL)
++		FAIL("out of space");
++
++	/* Second pass: emit code. */
++	regparse = exp;
++	regnpar = 1;
++	regcode = r->program;
++	regc(MAGIC);
++	if (reg(0, &flags) == NULL)
++		return(NULL);
++
++	/* Dig out information for optimizations. */
++	r->regstart = '\0';	/* Worst-case defaults. */
++	r->reganch = 0;
++	r->regmust = NULL;
++	r->regmlen = 0;
++	scan = r->program+1;			/* First BRANCH. */
++	if (OP(regnext(scan)) == END) {		/* Only one top-level choice. */
++		scan = OPERAND(scan);
++
++		/* Starting-point info. */
++		if (OP(scan) == EXACTLY)
++			r->regstart = *OPERAND(scan);
++		else if (OP(scan) == BOL)
++			r->reganch++;
++
++		/*
++		 * If there's something expensive in the r.e., find the
++		 * longest literal string that must appear and make it the
++		 * regmust.  Resolve ties in favor of later strings, since
++		 * the regstart check works with the beginning of the r.e.
++		 * and avoiding duplication strengthens checking.  Not a
++		 * strong reason, but sufficient in the absence of others.
++		 */
++		if (flags&SPSTART) {
++			longest = NULL;
++			len = 0;
++			for (; scan != NULL; scan = regnext(scan))
++				if (OP(scan) == EXACTLY && strlen(OPERAND(scan)) >= len) {
++					longest = OPERAND(scan);
++					len = strlen(OPERAND(scan));
++				}
++			r->regmust = longest;
++			r->regmlen = len;
++		}
++	}
++
++	return(r);
++}
++
++/*
++ - reg - regular expression, i.e. main body or parenthesized thing
++ *
++ * Caller must absorb opening parenthesis.
++ *
++ * Combining parenthesis handling with the base level of regular expression
++ * is a trifle forced, but the need to tie the tails of the branches to what
++ * follows makes it hard to avoid.
++ */
++static char *
++reg( int paren, int* flagp)	/* paren - Parenthesized? */
++{
++	register char *ret;
++	register char *br;
++	register char *ender;
++	register int parno;
++	int flags;
++
++	*flagp = HASWIDTH;	/* Tentatively. */
++
++	/* Make an OPEN node, if parenthesized. */
++	if (paren) {
++		if (regnpar >= NSUBEXP)
++			FAIL("too many ()");
++		parno = regnpar;
++		regnpar++;
++		ret = regnode(OPEN+parno);
++	} else
++		ret = NULL;
++
++	/* Pick up the branches, linking them together. */
++	br = regbranch(&flags);
++	if (br == NULL)
++		return(NULL);
++	if (ret != NULL)
++		regtail(ret, br);	/* OPEN -> first. */
++	else
++		ret = br;
++	if (!(flags&HASWIDTH))
++		*flagp &= ~HASWIDTH;
++	*flagp |= flags&SPSTART;
++	while (*regparse == '|') {
++		regparse++;
++		br = regbranch(&flags);
++		if (br == NULL)
++			return(NULL);
++		regtail(ret, br);	/* BRANCH -> BRANCH. */
++		if (!(flags&HASWIDTH))
++			*flagp &= ~HASWIDTH;
++		*flagp |= flags&SPSTART;
++	}
++
++	/* Make a closing node, and hook it on the end. */
++	ender = regnode((paren) ? CLOSE+parno : END);	
++	regtail(ret, ender);
++
++	/* Hook the tails of the branches to the closing node. */
++	for (br = ret; br != NULL; br = regnext(br))
++		regoptail(br, ender);
++
++	/* Check for proper termination. */
++	if (paren && *regparse++ != ')') {
++		FAIL("unmatched ()");
++	} else if (!paren && *regparse != '\0') {
++		if (*regparse == ')') {
++			FAIL("unmatched ()");
++		} else
++			FAIL("junk on end");	/* "Can't happen". */
++		/* NOTREACHED */
++	}
++
++	return(ret);
++}
++
++/*
++ - regbranch - one alternative of an | operator
++ *
++ * Implements the concatenation operator.
++ */
++static char *
++regbranch( int* flagp)
++{
++	register char *ret;
++	register char *chain;
++	register char *latest;
++	int flags;
++
++	*flagp = WORST;		/* Tentatively. */
++
++	ret = regnode(BRANCH);
++	chain = NULL;
++	while (*regparse != '\0' && *regparse != '|' && *regparse != ')') {
++		latest = regpiece(&flags);
++		if (latest == NULL)
++			return(NULL);
++		*flagp |= flags&HASWIDTH;
++		if (chain == NULL)	/* First piece. */
++			*flagp |= flags&SPSTART;
++		else
++			regtail(chain, latest);
++		chain = latest;
++	}
++	if (chain == NULL)	/* Loop ran zero times. */
++		(void) regnode(NOTHING);
++
++	return(ret);
++}
++
++/*
++ - regpiece - something followed by possible [*+?]
++ *
++ * Note that the branching code sequences used for ? and the general cases
++ * of * and + are somewhat optimized:  they use the same NOTHING node as
++ * both the endmarker for their branch list and the body of the last branch.
++ * It might seem that this node could be dispensed with entirely, but the
++ * endmarker role is not redundant.
++ */
++static char *
++regpiece( int* flagp)
++{
++	register char *ret;
++	register char op;
++	register char *next;
++	int flags;
++
++	ret = regatom(&flags);
++	if (ret == NULL)
++		return(NULL);
++
++	op = *regparse;
++	if (!ISMULT(op)) {
++		*flagp = flags;
++		return(ret);
++	}
++
++	if (!(flags&HASWIDTH) && op != '?')
++		FAIL("*+ operand could be empty");
++	*flagp = (op != '+') ? (WORST|SPSTART) : (WORST|HASWIDTH);
++
++	if (op == '*' && (flags&SIMPLE))
++		reginsert(STAR, ret);
++	else if (op == '*') {
++		/* Emit x* as (x&|), where & means "self". */
++		reginsert(BRANCH, ret);			/* Either x */
++		regoptail(ret, regnode(BACK));		/* and loop */
++		regoptail(ret, ret);			/* back */
++		regtail(ret, regnode(BRANCH));		/* or */
++		regtail(ret, regnode(NOTHING));		/* null. */
++	} else if (op == '+' && (flags&SIMPLE))
++		reginsert(PLUS, ret);
++	else if (op == '+') {
++		/* Emit x+ as x(&|), where & means "self". */
++		next = regnode(BRANCH);			/* Either */
++		regtail(ret, next);
++		regtail(regnode(BACK), ret);		/* loop back */
++		regtail(next, regnode(BRANCH));		/* or */
++		regtail(ret, regnode(NOTHING));		/* null. */
++	} else if (op == '?') {
++		/* Emit x? as (x|) */
++		reginsert(BRANCH, ret);			/* Either x */
++		regtail(ret, regnode(BRANCH));		/* or */
++		next = regnode(NOTHING);		/* null. */
++		regtail(ret, next);
++		regoptail(ret, next);
++	}
++	regparse++;
++	if (ISMULT(*regparse))
++		FAIL("nested *?+");
++
++	return(ret);
++}
++
++/*
++ - regatom - the lowest level
++ *
++ * Optimization:  gobbles an entire sequence of ordinary characters so that
++ * it can turn them into a single node, which is smaller to store and
++ * faster to run.  Backslashed characters are exceptions, each becoming a
++ * separate node; the code is simpler that way and it's not worth fixing.
++ */
++static char *
++regatom( int* flagp)
++{
++	register char *ret;
++	int flags;
++
++	*flagp = WORST;		/* Tentatively. */
++
++	switch (*regparse++) {
++	case '^':
++		ret = regnode(BOL);
++		break;
++	case '$':
++		ret = regnode(EOL);
++		break;
++	case '.':
++		ret = regnode(ANY);
++		*flagp |= HASWIDTH|SIMPLE;
++		break;
++	case '[': {
++			int rclass;
++			int classend;
++
++			if (*regparse == '^') {	/* Complement of range. */
++				ret = regnode(ANYBUT);
++				regparse++;
++			} else
++				ret = regnode(ANYOF);
++			if (*regparse == ']' || *regparse == '-')
++				regc(*regparse++);
++			while (*regparse != '\0' && *regparse != ']') {
++				if (*regparse == '-') {
++					regparse++;
++					if (*regparse == ']' || *regparse == '\0')
++						regc('-');
++					else {
++						rclass = UCHARAT(regparse-2)+1;
++						classend = UCHARAT(regparse);
++						if (rclass > classend+1)
++							FAIL("invalid [] range");
++						for (; rclass <= classend; rclass++)
++							regc(rclass);
++						regparse++;
++					}
++				} else
++					regc(*regparse++);
++			}
++			regc('\0');
++			if (*regparse != ']')
++				FAIL("unmatched []");
++			regparse++;
++			*flagp |= HASWIDTH|SIMPLE;
++		}
++		break;
++	case '(':
++		ret = reg(1, &flags);
++		if (ret == NULL)
++			return(NULL);
++		*flagp |= flags&(HASWIDTH|SPSTART);
++		break;
++	case '\0':
++	case '|':
++	case ')':
++		FAIL("internal urp");	/* Supposed to be caught earlier. */
++		break;
++	case '?':
++	case '+':
++	case '*':
++		FAIL("?+* follows nothing");
++		break;
++	case '\\':
++		if (*regparse == '\0')
++			FAIL("trailing \\");
++		ret = regnode(EXACTLY);
++		regc(*regparse++);
++		regc('\0');
++		*flagp |= HASWIDTH|SIMPLE;
++		break;
++	default: {
++			register int len;
++			register char ender;
++
++			regparse--;
++			len = strcspn(regparse, META);
++			if (len <= 0)
++				FAIL("internal disaster");
++			ender = *(regparse+len);
++			if (len > 1 && ISMULT(ender))
++				len--;		/* Back off clear of ?+* operand. */
++			*flagp |= HASWIDTH;
++			if (len == 1)
++				*flagp |= SIMPLE;
++			ret = regnode(EXACTLY);
++			while (len > 0) {
++				regc(*regparse++);
++				len--;
++			}
++			regc('\0');
++		}
++		break;
++	}
++
++	return(ret);
++}
++
++/*
++ - regnode - emit a node
++ */
++static char *			/* Location. */
++regnode( char op)
++{
++	register char *ret;
++	register char *ptr;
++
++	ret = regcode;
++	if (ret == &regdummy) {
++		regsize += 3;
++		return(ret);
++	}
++
++	ptr = ret;
++	*ptr++ = op;
++	*ptr++ = '\0';		/* Null "next" pointer. */
++	*ptr++ = '\0';
++	regcode = ptr;
++
++	return(ret);
++}
++
++/*
++ - regc - emit (if appropriate) a byte of code
++ */
++static void
++regc( char b)
++{
++	if (regcode != &regdummy)
++		*regcode++ = b;
++	else
++		regsize++;
++}
++
++/*
++ - reginsert - insert an operator in front of already-emitted operand
++ *
++ * Means relocating the operand.
++ */
++static void
++reginsert( char op, char* opnd)
++{
++	register char *src;
++	register char *dst;
++	register char *place;
++
++	if (regcode == &regdummy) {
++		regsize += 3;
++		return;
++	}
++
++	src = regcode;
++	regcode += 3;
++	dst = regcode;
++	while (src > opnd)
++		*--dst = *--src;
++
++	place = opnd;		/* Op node, where operand used to be. */
++	*place++ = op;
++	*place++ = '\0';
++	*place++ = '\0';
++}
++
++/*
++ - regtail - set the next-pointer at the end of a node chain
++ */
++static void
++regtail( char* p, char* val)
++{
++	register char *scan;
++	register char *temp;
++	register int offset;
++
++	if (p == &regdummy)
++		return;
++
++	/* Find last node. */
++	scan = p;
++	for (;;) {
++		temp = regnext(scan);
++		if (temp == NULL)
++			break;
++		scan = temp;
++	}
++
++	if (OP(scan) == BACK)
++		offset = scan - val;
++	else
++		offset = val - scan;
++	*(scan+1) = (offset>>8)&0377;
++	*(scan+2) = offset&0377;
++}
++
++/*
++ - regoptail - regtail on operand of first argument; nop if operandless
++ */
++static void
++regoptail( char* p,  char* val)
++{
++	/* "Operandless" and "op != BRANCH" are synonymous in practice. */
++	if (p == NULL || p == &regdummy || OP(p) != BRANCH)
++		return;
++	regtail(OPERAND(p), val);
++}
++
++/*
++ * regexec and friends
++ */
++
++/*
++ * Global work variables for regexec().
++ */
++static char *reginput;		/* String-input pointer. */
++static char *regbol;		/* Beginning of input, for ^ check. */
++static char **regstartp;	/* Pointer to startp array. */
++static char **regendp;		/* Ditto for endp. */
++
++/*
++ * Forwards.
++ */
++STATIC int regtry( regexp* prog, char* string);
++STATIC int regmatch( char* prog);
++STATIC int regrepeat( char* p);
++
++#ifdef DEBUG
++int regnarrate = 0;
++void regdump( regexp* r);
++STATIC char* regprop( char* op);
++#endif
++
++/*
++ - regexec - match a regexp against a string
++ */
++int
++regexec( regexp* prog, char* string)
++{
++	register char *s;
++
++	/* Be paranoid... */
++	if (prog == NULL || string == NULL) {
++		regerror("NULL parameter");
++		return(0);
++	}
++
++	/* Check validity of program. */
++	if (UCHARAT(prog->program) != MAGIC) {
++		regerror("corrupted program");
++		return(0);
++	}
++
++	/* If there is a "must appear" string, look for it. */
++	if (prog->regmust != NULL) {
++		s = string;
++		while ((s = strchr(s, prog->regmust[0])) != NULL) {
++			if (strncmp(s, prog->regmust, prog->regmlen) == 0)
++				break;	/* Found it. */
++			s++;
++		}
++		if (s == NULL)	/* Not present. */
++			return(0);
++	}
++
++	/* Mark beginning of line for ^ . */
++	regbol = string;
++
++	/* Simplest case:  anchored match need be tried only once. */
++	if (prog->reganch)
++		return(regtry(prog, string));
++
++	/* Messy cases:  unanchored match. */
++	s = string;
++	if (prog->regstart != '\0')
++		/* We know what char it must start with. */
++		while ((s = strchr(s, prog->regstart)) != NULL) {
++			if (regtry(prog, s))
++				return(1);
++			s++;
++		}
++	else
++		/* We don't -- general case. */
++		do {
++			if (regtry(prog, s))
++				return(1);
++		} while (*s++ != '\0');
++
++	/* Failure. */
++	return(0);
++}
++
++/*
++ - regtry - try match at specific point
++ */
++static int			/* 0 failure, 1 success */
++regtry( regexp* prog, char* string)
++{
++	register int i;
++	register char **sp;
++	register char **ep;
++
++	reginput = string;
++	regstartp = prog->startp;
++	regendp = prog->endp;
++
++	sp = prog->startp;
++	ep = prog->endp;
++	for (i = NSUBEXP; i > 0; i--) {
++		*sp++ = NULL;
++		*ep++ = NULL;
++	}
++	if (regmatch(prog->program + 1)) {
++		prog->startp[0] = string;
++		prog->endp[0] = reginput;
++		return(1);
++	} else
++		return(0);
++}
++
++/*
++ - regmatch - main matching routine
++ *
++ * Conceptually the strategy is simple:  check to see whether the current
++ * node matches, call self recursively to see whether the rest matches,
++ * and then act accordingly.  In practice we make some effort to avoid
++ * recursion, in particular by going through "ordinary" nodes (that don't
++ * need to know whether the rest of the match failed) by a loop instead of
++ * by recursion.
++ */
++static int			/* 0 failure, 1 success */
++regmatch( char* prog)
++{
++	register char *scan;	/* Current node. */
++	char *next;		/* Next node. */
++
++	scan = prog;
++#ifdef DEBUG
++	if (scan != NULL && regnarrate)
++		fprintf(stderr, "%s(\n", regprop(scan));
++#endif
++	while (scan != NULL) {
++#ifdef DEBUG
++		if (regnarrate)
++			fprintf(stderr, "%s...\n", regprop(scan));
++#endif
++		next = regnext(scan);
++
++		switch (OP(scan)) {
++		case BOL:
++			if (reginput != regbol)
++				return(0);
++			break;
++		case EOL:
++			if (*reginput != '\0')
++				return(0);
++			break;
++		case ANY:
++			if (*reginput == '\0')
++				return(0);
++			reginput++;
++			break;
++		case EXACTLY: {
++				register int len;
++				register char *opnd;
++
++				opnd = OPERAND(scan);
++				/* Inline the first character, for speed. */
++				if (*opnd != *reginput)
++					return(0);
++				len = strlen(opnd);
++				if (len > 1 && strncmp(opnd, reginput, len) != 0)
++					return(0);
++				reginput += len;
++			}
++			break;
++		case ANYOF:
++			if (*reginput == '\0' || strchr(OPERAND(scan), *reginput) == NULL)
++				return(0);
++			reginput++;
++			break;
++		case ANYBUT:
++			if (*reginput == '\0' || strchr(OPERAND(scan), *reginput) != NULL)
++				return(0);
++			reginput++;
++			break;
++		case NOTHING:
++			break;
++		case BACK:
++			break;
++		case OPEN+1:
++		case OPEN+2:
++		case OPEN+3:
++		case OPEN+4:
++		case OPEN+5:
++		case OPEN+6:
++		case OPEN+7:
++		case OPEN+8:
++		case OPEN+9:
++		case OPEN+10:
++		case OPEN+11:
++		case OPEN+12:
++		case OPEN+13:
++		case OPEN+14:
++		case OPEN+15: {
++				register int no;
++				register char *save;
++
++				no = OP(scan) - OPEN;
++				save = reginput;
++
++				if (regmatch(next)) {
++					/*
++					 * Don't set startp if some later
++					 * invocation of the same parentheses
++					 * already has.
++					 */
++					if (regstartp[no] == NULL)
++						regstartp[no] = save;
++					return(1);
++				} else
++					return(0);
++			}
++			break;
++		case CLOSE+1:
++		case CLOSE+2:
++		case CLOSE+3:
++		case CLOSE+4:
++		case CLOSE+5:
++		case CLOSE+6:
++		case CLOSE+7:
++		case CLOSE+8:
++		case CLOSE+9:
++		case CLOSE+10:
++		case CLOSE+11:
++		case CLOSE+12:
++		case CLOSE+13:
++		case CLOSE+14:
++		case CLOSE+15: {
++				register int no;
++				register char *save;
++
++				no = OP(scan) - CLOSE;
++				save = reginput;
++
++				if (regmatch(next)) {
++					/*
++					 * Don't set endp if some later
++					 * invocation of the same parentheses
++					 * already has.
++					 */
++					if (regendp[no] == NULL)
++						regendp[no] = save;
++					return(1);
++				} else
++					return(0);
++			}
++			break;
++		case BRANCH: {
++				register char *save;
++
++				if (OP(next) != BRANCH)		/* No choice. */
++					next = OPERAND(scan);	/* Avoid recursion. */
++				else {
++					do {
++						save = reginput;
++						if (regmatch(OPERAND(scan)))
++							return(1);
++						reginput = save;
++						scan = regnext(scan);
++					} while (scan != NULL && OP(scan) == BRANCH);
++					return(0);
++					/* NOTREACHED */
++				}
++			}
++			break;
++		case STAR:
++		case PLUS: {
++				register char nextch;
++				register int no;
++				register char *save;
++				register int min;
++
++				/*
++				 * Lookahead to avoid useless match attempts
++				 * when we know what character comes next.
++				 */
++				nextch = '\0';
++				if (OP(next) == EXACTLY)
++					nextch = *OPERAND(next);
++				min = (OP(scan) == STAR) ? 0 : 1;
++				save = reginput;
++				no = regrepeat(OPERAND(scan));
++				while (no >= min) {
++					/* If it could work, try it. */
++					if (nextch == '\0' || *reginput == nextch)
++						if (regmatch(next))
++							return(1);
++					/* Couldn't or didn't -- back up. */
++					no--;
++					reginput = save + no;
++				}
++				return(0);
++			}
++			break;
++		case END:
++			return(1);	/* Success! */
++			break;
++		default:
++			regerror("memory corruption");
++			return(0);
++			break;
++		}
++
++		scan = next;
++	}
++
++	/*
++	 * We get here only if there's trouble -- normally "case END" is
++	 * the terminating point.
++	 */
++	regerror("corrupted pointers");
++	return(0);
++}
++
++/*
++ - regrepeat - repeatedly match something simple, report how many
++ */
++static int
++regrepeat( char* p)
++{
++	register int count = 0;
++	register char *scan;
++	register char *opnd;
++
++	scan = reginput;
++	opnd = OPERAND(p);
++	switch (OP(p)) {
++	case ANY:
++		count = strlen(scan);
++		scan += count;
++		break;
++	case EXACTLY:
++		while (*opnd == *scan) {
++			count++;
++			scan++;
++		}
++		break;
++	case ANYOF:
++		while (*scan != '\0' && strchr(opnd, *scan) != NULL) {
++			count++;
++			scan++;
++		}
++		break;
++	case ANYBUT:
++		while (*scan != '\0' && strchr(opnd, *scan) == NULL) {
++			count++;
++			scan++;
++		}
++		break;
++	default:		/* Oh dear.  Called inappropriately. */
++		regerror("internal foulup");
++		count = 0;	/* Best compromise. */
++		break;
++	}
++	reginput = scan;
++
++	return(count);
++}
++
++/*
++ - regnext - dig the "next" pointer out of a node
++ */
++static char *
++regnext( char* p)
++{
++	register int offset;
++
++	if (p == &regdummy)
++		return(NULL);
++
++	offset = NEXT(p);
++	if (offset == 0)
++		return(NULL);
++
++	if (OP(p) == BACK)
++		return(p-offset);
++	else
++		return(p+offset);
++}
++
++#ifdef DEBUG
++
++STATIC char *regprop();
++
++/*
++ - regdump - dump a regexp onto stdout in vaguely comprehensible form
++ */
++void
++regdump( regexp* r)
++{
++	register char *s;
++	register char op = EXACTLY;	/* Arbitrary non-END op. */
++	register char *next;
++
++	s = r->program + 1;
++	while (op != END) {	/* While that wasn't END last time... */
++		op = OP(s);
++		printf("%2d%s", s-r->program, regprop(s));	/* Where, what. */
++		next = regnext(s);
++		if (next == NULL)		/* Next ptr. */
++			printf("(0)");
++		else 
++			printf("(%d)", (s-r->program)+(next-s));
++		s += 3;
++		if (op == ANYOF || op == ANYBUT || op == EXACTLY) {
++			/* Literal string, where present. */
++			while (*s != '\0') {
++				putchar(*s);
++				s++;
++			}
++			s++;
++		}
++		putchar('\n');
++	}
++
++	/* Header fields of interest. */
++	if (r->regstart != '\0')
++		printf("start `%c' ", r->regstart);
++	if (r->reganch)
++		printf("anchored ");
++	if (r->regmust != NULL)
++		printf("must have \"%s\"", r->regmust);
++	printf("\n");
++}
++
++/*
++ - regprop - printable representation of opcode
++ */
++static char *
++regprop( char* op)
++{
++	register char *p;
++	static char buf[50];
++
++	(void) strcpy(buf, ":");
++
++	switch (OP(op)) {
++	case BOL:
++		p = "BOL";
++		break;
++	case EOL:
++		p = "EOL";
++		break;
++	case ANY:
++		p = "ANY";
++		break;
++	case ANYOF:
++		p = "ANYOF";
++		break;
++	case ANYBUT:
++		p = "ANYBUT";
++		break;
++	case BRANCH:
++		p = "BRANCH";
++		break;
++	case EXACTLY:
++		p = "EXACTLY";
++		break;
++	case NOTHING:
++		p = "NOTHING";
++		break;
++	case BACK:
++		p = "BACK";
++		break;
++	case END:
++		p = "END";
++		break;
++	case OPEN+1:
++	case OPEN+2:
++	case OPEN+3:
++	case OPEN+4:
++	case OPEN+5:
++	case OPEN+6:
++	case OPEN+7:
++	case OPEN+8:
++	case OPEN+9:
++		sprintf(buf+strlen(buf), "OPEN%d", OP(op)-OPEN);
++		p = NULL;
++		break;
++	case CLOSE+1:
++	case CLOSE+2:
++	case CLOSE+3:
++	case CLOSE+4:
++	case CLOSE+5:
++	case CLOSE+6:
++	case CLOSE+7:
++	case CLOSE+8:
++	case CLOSE+9:
++		sprintf(buf+strlen(buf), "CLOSE%d", OP(op)-CLOSE);
++		p = NULL;
++		break;
++	case STAR:
++		p = "STAR";
++		break;
++	case PLUS:
++		p = "PLUS";
++		break;
++	default:
++		regerror("corrupted opcode");
++		break;
++	}
++	if (p != NULL)
++		(void) strcat(buf, p);
++	return(buf);
++}
++#endif
++
++/*
++ * The following is provided for those people who do not have strcspn() in
++ * their C libraries.  They should get off their butts and do something
++ * about it; at least one public-domain implementation of those (highly
++ * useful) string routines has been published on Usenet.
++ */
++#ifdef STRCSPN
++/*
++ * strcspn - find length of initial segment of s1 consisting entirely
++ * of characters not from s2
++ */
++
++static int
++strcspn( char* s1, char* s2)
++{
++	register char *scan1;
++	register char *scan2;
++	register int count;
++
++	count = 0;
++	for (scan1 = s1; *scan1 != '\0'; scan1++) {
++		for (scan2 = s2; *scan2 != '\0';)	/* ++ moved down. */
++			if (*scan1 == *scan2++)
++				return(count);
++		count++;
++	}
++	return(count);
++}
++#endif
+
+Property changes on: windows/re_lib/regexp.cpp
+___________________________________________________________________
+Name: svn:eol-style
+ +native
+
+=== windows/re_lib/regexp.h
+==================================================================
+--- windows/re_lib/regexp.h	(revision 7489)
++++ windows/re_lib/regexp.h	(local)
+@@ -0,0 +1,22 @@
++/*
++ * Definitions etc. for regexp(3) routines.
++ *
++ * Caveat:  this is V8 regexp(3) [actually, a reimplementation thereof],
++ * not the System V one.
++ */
++#define NSUBEXP  16
++typedef struct regexp {
++	char *startp[NSUBEXP];
++	char *endp[NSUBEXP];
++	char regstart;		/* Internal use only. */
++	char reganch;		/* Internal use only. */
++	char *regmust;		/* Internal use only. */
++	int regmlen;		/* Internal use only. */
++	char program[1];	/* Unwarranted chumminess with compiler. */
++} regexp;
++
++regexp *regcomp( char* re);
++int regexec( regexp* r, char* str);
++void regsub( regexp* r, char* str, char* substr);
++void regerror( char* s);	/* for internal use only */
++void set_regerror_func( void (*func)( char*));
+
+Property changes on: windows/re_lib/regexp.h
+___________________________________________________________________
+Name: svn:eol-style
+ +native
+
+=== windows/re_lib/regmagic.h
+==================================================================
+--- windows/re_lib/regmagic.h	(revision 7489)
++++ windows/re_lib/regmagic.h	(local)
+@@ -0,0 +1,5 @@
++/*
++ * The first byte of the regexp internal "program" is actually this magic
++ * number; the start node begins in the second byte.
++ */
++#define	MAGIC	0234
+
+Property changes on: windows/re_lib/regmagic.h
+___________________________________________________________________
+Name: svn:eol-style
+ +native
+
+=== windows/urlhack.cpp
+==================================================================
+--- windows/urlhack.cpp	(revision 7489)
++++ windows/urlhack.cpp	(local)
+@@ -0,0 +1,276 @@
++/*
++ * HACK: PuttyTray / Nutty
++ * Hyperlink stuff: CORE FILE! Don't forget to COPY IT TO THE NEXT VERSION
++ */
++#include <windows.h>
++#include <vector>
++#include <sstream>
++#include "urlhack.h"
++
++extern int urlhack_mouse_old_x = -1, urlhack_mouse_old_y = -1, urlhack_current_region = -1;
++
++static std::vector<text_region> link_regions;
++static std::string browser_app;
++
++extern const char* urlhack_default_regex = "(((https?|ftp):\\/\\/)|www\\.)(([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)|localhost|([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\.(com|net|org|info|biz|gov|name|edu|[a-zA-Z][a-zA-Z]))(:[0-9]+)?((\\/|\\?)[^ \"]*[^ ,;\\.:\">)])?";
++
++
++void urlhack_clear_link_regions()
++{
++	link_regions.clear();
++}
++
++
++
++int urlhack_is_in_link_region(int x, int y)
++{
++	std::vector<text_region>::iterator i = link_regions.begin();
++	int loopCounter = 1;
++
++	while (i != link_regions.end()) {
++		text_region r = *i;
++
++		if ((r.y0 == r.y1 && y == r.y0 && y == r.y1 && x >= r.x0 && x < r.x1) ||
++			(r.y0 != r.y1 && ((y == r.y0 && x >= r.x0) || (y == r.y1 && x < r.x1) || (y > r.y0 && y < r.y1))))
++			return loopCounter; //Changed: was return true
++
++		loopCounter++;
++		i++;
++	}
++	
++	return false;
++}
++
++
++
++int urlhack_is_in_this_link_region(text_region r, int x, int y)
++{
++  	if ((r.y0 == r.y1 && y == r.y0 && y == r.y1 && x >= r.x0 && x < r.x1) || (r.y0 != r.y1 && ((y == r.y0 && x >= r.x0) || (y == r.y1 && x < r.x1) || (y > r.y0 && y < r.y1)))) {
++		return true;
++	}
++	
++	return false;
++}
++
++
++
++text_region urlhack_get_link_bounds(int x, int y)
++{
++	std::vector<text_region>::iterator i = link_regions.begin();
++
++	while (i != link_regions.end()) {
++		text_region r = *i;
++
++		if ((r.y0 == r.y1 && y == r.y0 && y == r.y1 && x >= r.x0 && x < r.x1) ||
++			(r.y0 != r.y1 && ((y == r.y0 && x >= r.x0) || (y == r.y1 && x < r.x1) || (y > r.y0 && y < r.y1))))
++			return *i;
++
++		i++;
++	}
++
++	text_region region;
++	region.x0 = region.y0 = region.x1 = region.y1 = -1;
++	return region;
++}
++
++
++
++text_region urlhack_get_link_region(int index)
++{
++	text_region region;
++
++	if (index < 0 || index >= (int)link_regions.size()) {
++		region.x0 = region.y0 = region.x1 = region.y1 = -1;
++		return region;
++	}
++	else {
++		return link_regions.at(index);
++	}
++}
++
++
++
++void urlhack_add_link_region(int x0, int y0, int x1, int y1)
++{
++	text_region region;
++
++	region.x0 = x0;
++	region.y0 = y0;
++	region.x1 = x1;
++	region.y1 = y1;
++
++	link_regions.insert(link_regions.end(), region);
++}
++
++
++
++void urlhack_launch_url(const char* app, const char *url)
++{
++	if (app) {
++		ShellExecute(NULL, NULL, app, url, NULL, SW_SHOW);
++		return;
++	}
++
++	if (browser_app.size() == 0) {
++		// Find out the default app
++		HKEY key;
++		DWORD dwValue;
++		char *str;
++		std::string lookup;
++
++		if (RegOpenKeyEx(HKEY_CURRENT_USER,"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice", 0, KEY_READ, &key) == ERROR_SUCCESS) {
++			if (RegQueryValueEx(key, "Progid", NULL, NULL, NULL, &dwValue) == ERROR_SUCCESS)
++			{
++				str = new char[dwValue + 1];
++
++				RegQueryValueEx(key, "Progid", NULL, NULL, (BYTE*)str, &dwValue);
++				RegCloseKey(key);
++
++				std::stringstream buffer;
++				buffer << str << "\\shell\\open\\command";
++				lookup = buffer.str();
++
++				delete [] str;
++			}
++		}
++
++		if (RegOpenKeyEx(HKEY_CLASSES_ROOT, lookup.length() > 0 ? lookup.c_str() : "HTTP\\shell\\open\\command", 0, KEY_READ, &key) == ERROR_SUCCESS) {
++			if (!RegQueryValueEx(key, NULL, NULL, NULL, NULL, &dwValue) == ERROR_SUCCESS) return;
++
++			str = new char[dwValue + 1];
++
++			RegQueryValueEx(key, NULL, NULL, NULL, (BYTE*)str, &dwValue);
++			RegCloseKey(key);
++
++			browser_app = str;
++			delete[] str;
++
++			// Drop all stuff from the path and leave only the executable and the path
++
++			if (browser_app.at(0) == '"') {
++				browser_app.erase(0, 1);
++				
++				if (browser_app.find('"') > 0)
++					browser_app.resize(browser_app.find('"'));
++			}
++			else {
++				if (browser_app.find(' ') > 0)
++					browser_app.resize(browser_app.find(' '));
++			}
++		}
++		else {
++			MessageBox(NULL, "Could not find your default browser.", "PuTTY Tray Error", MB_OK | MB_ICONINFORMATION);
++		}
++	}
++
++	std::string u = url;
++
++	if (u.find("http://") == std::string::npos && u.find("https://") == std::string::npos &&
++		u.find("ftp://") == std::string::npos && u.find("ftps://") == std::string::npos) {
++		if (u.find("ftp.") != std::string::npos)
++			u.insert(0, "ftp://");
++		else
++			u.insert(0, "http://");
++	}
++
++	ShellExecute(NULL, NULL, browser_app.c_str(), u.c_str(), NULL, SW_SHOW);
++}
++
++
++
++
++
++
++int urlhack_is_ctrl_pressed()
++{
++	return HIWORD(GetAsyncKeyState(VK_CONTROL));
++}
++
++
++
++// Regular expression stuff
++
++static int urlhack_disabled = 0;
++static int is_regexp_compiled = 0;
++static regexp* urlhack_rx;
++static std::string text_mass;
++
++
++
++void urlhack_reset()
++{
++	text_mass.clear();
++}
++
++
++
++void urlhack_putchar(char ch)
++{
++	char r00fles[2] = { ch, 0 };
++	text_mass.append(r00fles);
++}
++
++
++
++static void rtfm(char *error)
++{
++	std::string error_msg = "The following error occured when compiling the regular expression\n" \
++		                    "for the hyperlink support. Hyperlink detection is disabled during\n" \
++							"this session (restart PuTTY Tray to try again).\n\n";
++
++	std::string actual_error_msg = error_msg;
++
++	actual_error_msg.append(error);
++
++	MessageBox(0, actual_error_msg.c_str(), "PuTTY Tray Error", MB_OK);
++}
++
++
++
++void urlhack_set_regular_expression(const char* expression)
++{
++	is_regexp_compiled = 0;
++	urlhack_disabled = 0;
++
++	set_regerror_func(rtfm);
++	urlhack_rx = regcomp(const_cast<char*>(expression));
++
++	if (urlhack_rx == 0) {
++		urlhack_disabled = 1;
++	}
++
++	is_regexp_compiled = 1;
++}
++
++
++
++void urlhack_go_find_me_some_hyperlinks(int screen_width)
++{
++	if (urlhack_disabled != 0) return;
++
++	if (is_regexp_compiled == 0) {
++		urlhack_set_regular_expression(urlhack_default_regex);
++	}
++
++	urlhack_clear_link_regions();
++
++
++	char* text = const_cast<char*>(text_mass.c_str());
++	char* text_pos = text;
++
++	while (regexec(urlhack_rx, text_pos) == 1) {
++		char* start_pos = *urlhack_rx->startp[0] == ' ' ? urlhack_rx->startp[0] + 1: urlhack_rx->startp[0];
++
++		int x0 = (start_pos - text) % screen_width;
++		int y0 = (start_pos - text) / screen_width;
++		int x1 = (urlhack_rx->endp[0] - text) % screen_width;
++		int y1 = (urlhack_rx->endp[0] - text) / screen_width;
++
++		if (x0 >= screen_width) x0 = screen_width - 1;
++		if (x1 >= screen_width) x1 = screen_width - 1;
++
++		urlhack_add_link_region(x0, y0, x1, y1);
++
++		text_pos = urlhack_rx->endp[0] + 1;
++	}
++}
+
+Property changes on: windows/urlhack.cpp
+___________________________________________________________________
+Name: svn:eol-style
+ +native
+
+=== windows/urlhack.h
+==================================================================
+--- windows/urlhack.h	(revision 7489)
++++ windows/urlhack.h	(local)
+@@ -0,0 +1,40 @@
++/*
++ * HACK: PuttyTray / Nutty
++ * Hyperlink stuff: CORE FILE! Don't forget to COPY IT TO THE NEXT VERSION
++ */
++#pragma once
++#ifndef _URLHACK_H
++#define _URLHACK_H
++
++#include "re_lib/regexp.h"
++
++typedef struct { int x0, y0, x1, y1; } text_region;
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++const char* urlhack_default_regex;
++int urlhack_mouse_old_x, urlhack_mouse_old_y, urlhack_current_region;
++
++void urlhack_reset();
++void urlhack_go_find_me_some_hyperlinks(int screen_width);
++void urlhack_putchar(char ch);
++text_region urlhack_get_link_region(int index);
++
++void urlhack_clear_link_regions();
++int urlhack_is_in_link_region(int x, int y);
++int urlhack_is_in_this_link_region(text_region r, int x, int y);
++text_region urlhack_get_link_bounds(int x, int y);
++void urlhack_add_link_region(int x0, int y0, int x1, int y1);
++void urlhack_launch_url(const char* app, const char *url);
++int urlhack_is_ctrl_pressed();
++void urlhack_set_regular_expression(const char* expression);
++
++#ifdef __cplusplus
++}
++#endif
++
++
++
++#endif // _URLHACK_H
+
+Property changes on: windows/urlhack.h
+___________________________________________________________________
+Name: svn:eol-style
+ +native
+

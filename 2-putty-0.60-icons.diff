@@ -1,0 +1,1036 @@
+=== dialog.c
+==================================================================
+--- dialog.c	(revision 7489)
++++ dialog.c	(local)
+@@ -272,6 +272,15 @@
+ }
+ 
+ /*
++ * HACK: PuttyTray / Session Icon
++ */ 
++union control *ctrl_icon(struct controlset *s, intorptr helpctx, intorptr context)
++{
++    union control *c = ctrl_new(s, CTRL_ICON, helpctx, NULL, context);
++    return c;
++};
++
++/*
+  * `ncolumns' is followed by (alternately) radio button titles and
+  * intorptrs, until a NULL in place of a title string is seen. Each
+  * title is expected to be followed by a shortcut _iff_ `shortcut'
+=== dialog.h
+==================================================================
+--- dialog.h	(revision 7489)
++++ dialog.h	(local)
+@@ -35,7 +35,13 @@
+     CTRL_COLUMNS,		       /* divide window into columns */
+     CTRL_FILESELECT,		       /* label plus filename selector */
+     CTRL_FONTSELECT,		       /* label plus font selector */
+-    CTRL_TABDELAY		       /* see `tabdelay' below */
++    CTRL_TABDELAY,		       /* see `tabdelay' below */
++
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 * Add ctrl_icon, ctrl_path, ctrl_sessionlistbox
++	 */ 
++    CTRL_ICON                  /* static icon without label */
+ };
+ 
+ /*
+@@ -395,6 +401,15 @@
+ 	STANDARD_PREFIX;
+ 	char shortcut;
+     } fontselect;
++
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 */ 
++    struct {
++		STANDARD_PREFIX;
++		intorptr handle;
++    } icon;
++	//--------------
+ };
+ 
+ #undef STANDARD_PREFIX
+@@ -513,6 +528,16 @@
+ union control *ctrl_tabdelay(struct controlset *, union control *);
+ 
+ /*
++ * HACK: PuttyTray / Session Icon
++ */ 
++union control *ctrl_icon(struct controlset *, intorptr helpctx, intorptr context);
++
++// Should be somewhere below, but this is easier
++void dlg_icon_set(union control *ctrl, void *dlg, char const *icon);
++int dlg_pick_icon(void *dlg, char **iname, int inamesize, int *iindex);
++//------------------------------------
++
++/*
+  * Standard handler routines to cover most of the common cases in
+  * the config box.
+  */
+=== putty.h
+==================================================================
+--- putty.h	(revision 7489)
++++ putty.h	(local)
+@@ -137,6 +137,14 @@
+ #define ATTR_DEFBG   (258 << ATTR_BGSHIFT)
+ #define ATTR_DEFAULT (ATTR_DEFFG | ATTR_DEFBG)
+ 
++/*
++ * HACK: PuttyTray
++ * Tray options
++ */
++enum {
++    TRAY_NEVER, TRAY_NORMAL, TRAY_START, TRAY_ALWAYS
++};
++
+ struct sesslist {
+     int nsessions;
+     char **sessions;
+@@ -598,6 +606,18 @@
+     FontSpec widefont;
+     FontSpec wideboldfont;
+     int shadowboldoffset;
++
++	/*
++	 * HACK: PuttyTray
++	 */
++    int tray;
++	int start_tray;
++	int tray_restore;
++
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 */
++	char win_icon[256];
+ };
+ 
+ /*
+=== settings.c
+==================================================================
+--- settings.c	(revision 7489)
++++ settings.c	(local)
+@@ -328,6 +328,12 @@
+     write_setting_i(sesskey, "ApplicationCursorKeys", cfg->app_cursor);
+     write_setting_i(sesskey, "ApplicationKeypad", cfg->app_keypad);
+     write_setting_i(sesskey, "NetHackKeypad", cfg->nethack_keypad);
++
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 */ 
++	write_setting_s(sesskey, "WindowIcon", cfg->win_icon);
++
+     write_setting_i(sesskey, "AltF4", cfg->alt_f4);
+     write_setting_i(sesskey, "AltSpace", cfg->alt_space);
+     write_setting_i(sesskey, "AltOnly", cfg->alt_only);
+@@ -616,6 +622,12 @@
+     gppi(sesskey, "ApplicationCursorKeys", 0, &cfg->app_cursor);
+     gppi(sesskey, "ApplicationKeypad", 0, &cfg->app_keypad);
+     gppi(sesskey, "NetHackKeypad", 0, &cfg->nethack_keypad);
++
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 */
++	gpps(sesskey, "WindowIcon", "", cfg->win_icon, sizeof(cfg->win_icon));
++
+     gppi(sesskey, "AltF4", 1, &cfg->alt_f4);
+     gppi(sesskey, "AltSpace", 0, &cfg->alt_space);
+     gppi(sesskey, "AltOnly", 0, &cfg->alt_only);
+=== windows/win_res.h
+==================================================================
+--- windows/win_res.h	(revision 7489)
++++ windows/win_res.h	(local)
+@@ -8,6 +8,12 @@
+ #define IDI_MAINICON     200
+ #define IDI_CFGICON      201
+ 
++/*
++ * HACK: PuttyTray
++ * TrayIcon Resource
++ */
++#define IDI_TRAYICON     202
++
+ #define IDD_MAINBOX      102
+ #define IDD_LOGBOX       110
+ #define IDD_ABOUTBOX     111
+=== windows/wincfg.c
+==================================================================
+--- windows/wincfg.c	(revision 7489)
++++ windows/wincfg.c	(local)
+@@ -30,6 +30,33 @@
+     }
+ }
+ 
++/*
++ * HACK: PuttyTray / Session Icon
++ */ 
++static void window_icon_handler(union control *ctrl, void *dlg, void *data, int event)
++{
++    Config *cfg = (Config *) data;
++
++    if (event == EVENT_ACTION) {
++		char buf[512], iname[512], *ipointer;
++		int iindex;
++
++		memset(&iname, 0, sizeof(iname));
++		memset(&buf, 0, sizeof(buf));
++		iindex = 0;
++		ipointer = iname;
++		if (dlg_pick_icon(dlg, &ipointer, sizeof(iname), &iindex) /*&& iname[0]*/) {
++			if (iname[0]) {
++				sprintf(buf, "%s,%d", iname, iindex);
++			} else {
++				sprintf(buf, "%s", iname);
++			}
++			dlg_icon_set((union control *) ctrl->button.context.p, dlg, buf);
++			strcpy(cfg->win_icon, buf);
++		};
++	};
++};
++
+ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
+ 			  int midsession, int protocol)
+ {
+@@ -334,6 +361,36 @@
+ 		  dlg_stdcheckbox_handler,
+ 		  I(offsetof(Config,fullscreenonaltenter)));
+ 
++	/*
++	 * HACK: PuttyTray
++	 */
++    ctrl_radiobuttons(s, "Show tray icon:", NO_SHORTCUT, 4,
++		      HELPCTX(no_help),
++		      dlg_stdradiobutton_handler,
++		      I(offsetof(Config, tray)),
++		      "Normal", 'n', I(TRAY_NORMAL),
++			  "Always", 'y', I(TRAY_ALWAYS),
++			  "Never", 'r', I(TRAY_NEVER),
++			  "On start", 's', I(TRAY_START), NULL);
++    ctrl_checkbox(s, "Accept single-click to restore from tray", 'm',
++		  HELPCTX(no_help),
++		  dlg_stdcheckbox_handler, I(offsetof(Config,tray_restore)));
++
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 */
++	s = ctrl_getset(b, "Window/Behaviour", "icon", "Adjust the icon");
++    ctrl_columns(s, 3, 40, 20, 40);
++    c = ctrl_text(s, "Window / tray icon:", HELPCTX(appearance_title));
++    c->generic.column = 0;
++    c = ctrl_icon(s, HELPCTX(appearance_title),
++		  I(offsetof(Config, win_icon)));
++    c->generic.column = 1;
++    c = ctrl_pushbutton(s, "Change Icon...", 'h', HELPCTX(appearance_title),
++			window_icon_handler, P(c));
++    c->generic.column = 2;
++    ctrl_columns(s, 1, 100);
++
+     /*
+      * Windows supports a local-command proxy. This also means we
+      * must adjust the text on the `Telnet command' control.
+=== windows/winctrls.c
+==================================================================
+--- windows/winctrls.c	(revision 7489)
++++ windows/winctrls.c	(local)
+@@ -954,6 +954,27 @@
+ }
+ 
+ /*
++ * HACK: PuttyTray / Session Icon
++ */ 
++#define	ICONHEIGHT 20
++void staticicon(struct ctlpos *cp, char *stext, char *iname, int id)
++{
++	RECT r;
++	HWND hcontrol;
++	HICON hicon;
++
++	r.left = GAPBETWEEN;
++	r.top = cp->ypos;
++	r.right = cp->width;
++	r.bottom = ICONHEIGHT;
++	cp->ypos += r.bottom + GAPBETWEEN;
++	hcontrol = doctl(cp, r, "STATIC",
++		WS_CHILD | WS_VISIBLE | SS_ICON, 0, NULL, id);
++	hicon = extract_icon(iname, FALSE);
++	SendMessage(hcontrol, STM_SETICON, (WPARAM) hicon, 0);
++}
++
++/*
+  * Helper function for prefslist: move item in list box.
+  */
+ static void pl_moveitem(HWND hwnd, int listid, int src, int dst)
+@@ -1518,6 +1539,19 @@
+ 	    }
+ 	    sfree(escaped);
+ 	    break;
++
++		/*
++		 * HACK: PuttyTray / Session Icon
++		 */ 
++	  case CTRL_ICON:
++		{
++		extern Config cfg;
++		num_ids = 1;
++		staticicon(&pos, ctrl->icon.label, (char *) ATOFFSET(&cfg, ctrl->icon.context.i), base_id);
++		break;
++		}
++		//-----------------------------------------------------
++
+ 	  case CTRL_RADIO:
+ 	    num_ids = ctrl->radio.nbuttons + 1;   /* label as well */
+ 	    {
+@@ -2239,6 +2273,21 @@
+     SetDlgItemText(dp->hwnd, c->base_id, text);
+ }
+ 
++/*
++ * HACK: PuttyTray / Session Icon
++ */ 
++void dlg_icon_set(union control *ctrl, void *dlg, char const *icon)
++{
++	HICON hicon;
++
++	struct dlgparam *dp = (struct dlgparam *) dlg;
++	struct winctrl *c = dlg_findbyctrl(dp, ctrl);
++	assert(c && c->ctrl->generic.type == CTRL_ICON);
++	hicon = extract_icon((char *) icon, FALSE);
++	SendDlgItemMessage(dp->hwnd, c->base_id, STM_SETICON, (WPARAM) hicon, 0);
++};
++//--------------------------------
++
+ void dlg_label_change(union control *ctrl, void *dlg, char const *text)
+ {
+     struct dlgparam *dp = (struct dlgparam *)dlg;
+@@ -2567,3 +2616,68 @@
+     p->data = smalloc(size);
+     return p->data;
+ }
++
++/*
++ * HACK: PuttyTray / Session Icon
++ */ 
++typedef WINSHELLAPI BOOL(WINAPI * fnPickIconDlgA) (HWND hWndParent, LPSTR pszFilename, LPDWORD pdwBufferSize, LPDWORD pdwIndex);
++typedef WINSHELLAPI BOOL(WINAPI * fnPickIconDlgW) (HWND hWndParent, LPWSTR pszFilename, LPDWORD pdwBufferSize, LPDWORD pdwIndex);
++BOOL SelectIcon(HWND hWndParent, LPTSTR lpszFilename, DWORD dwBufferSize, LPDWORD pdwIndex)
++{
++    BOOL result = FALSE;
++    OSVERSIONINFO versioninfo;
++    HMODULE hShell32;
++
++	hShell32 = LoadLibrary("shell32.dll");
++	if (hShell32 == NULL)
++		return result; // failed.
++
++    versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
++    GetVersionEx(&versioninfo);
++
++	if (versioninfo.dwPlatformId == VER_PLATFORM_WIN32_NT)
++	{// NT, expects wide string
++		fnPickIconDlgW PickIconDlg = (fnPickIconDlgW) GetProcAddress(hShell32, (LPCSTR) 62);
++		if (PickIconDlg)
++		{
++#ifndef UNICODE
++			LPWSTR pszWideName = (LPWSTR) malloc(dwBufferSize);
++			MultiByteToWideChar(CP_ACP, 0, lpszFilename, -1, pszWideName, dwBufferSize);
++			result = PickIconDlg(hWndParent, (LPTSTR) pszWideName, &dwBufferSize, pdwIndex);
++			WideCharToMultiByte(CP_ACP, 0, pszWideName, -1, lpszFilename, dwBufferSize, NULL, NULL);
++			free(pszWideName);
++#else
++			result = PickIconDlg(hWndParent, lpszFilename, &dwBufferSize, pdwIndex);
++#endif
++		}
++	}
++	else
++	{// use undocumented narrow version
++		fnPickIconDlgA PickIconDlg = (fnPickIconDlgA) GetProcAddress(hShell32, (LPCSTR) 62);
++		if (PickIconDlg)
++		{
++#ifndef UNICODE
++			result = PickIconDlg(hWndParent, lpszFilename, &dwBufferSize, pdwIndex);
++#else
++			LPSTR pszMBName = (LPSTR) malloc(dwBufferSize);
++			WideCharToMultiByte(CP_ACP, 0, lpszFilename, -1, pszMBName, dwBufferSize, NULL, NULL);
++			result = PickIconDlg(hWndParent, (LPTSTR) pszMBName, &dwBufferSize, pdwIndex);
++			MultiByteToWideChar(CP_ACP, 0, pszMBName, -1, lpszFilename, dwBufferSize);
++			free(pszMBName);
++#endif
++		}
++	}
++
++	FreeLibrary(hShell32);
++	return result;
++}
++
++int dlg_pick_icon(void *dlg, char **iname, int inamesize, int *iindex)
++{
++	struct dlgparam *dp = (struct dlgparam *) dlg;
++	int ret = SelectIcon(dp->hwnd, *iname, inamesize, iindex);
++	return ret == IDOK ? TRUE : FALSE;
++};
++/*
++ * END HACK: PuttyTray / Session Icon
++ */
+=== windows/windlg.c
+==================================================================
+--- windows/windlg.c	(revision 7489)
++++ windows/windlg.c	(local)
+@@ -234,24 +234,26 @@
+ 			 HWND hwndparent,
+ 			 DLGPROC lpDialogFunc)
+ {
+-    WNDCLASS wc;
++    WNDCLASSEX wc; //HACK: PuTTYTray / Icon Fix
+     HWND hwnd;
+     MSG msg;
+     int flags;
+     int ret;
+     int gm;
+ 
++    wc.cbSize = sizeof(WNDCLASSEX); //HACK: PuTTYTray / Icon Fix
+     wc.style = CS_DBLCLKS | CS_SAVEBITS | CS_BYTEALIGNWINDOW;
+     wc.lpfnWndProc = DefDlgProc;
+     wc.cbClsExtra = 0;
+     wc.cbWndExtra = DLGWINDOWEXTRA + 2*sizeof(LONG_PTR);
+     wc.hInstance = hinst;
+-    wc.hIcon = NULL;
++    wc.hIcon = LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED); //HACK: PuTTYTray / Icon Fix
++    wc.hIconSm = LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED); //HACK: PuTTYTray / Icon Fix
+     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+     wc.hbrBackground = (HBRUSH) (COLOR_BACKGROUND +1);
+     wc.lpszMenuName = NULL;
+     wc.lpszClassName = "PuTTYConfigBox";
+-    RegisterClass(&wc);
++    RegisterClassEx(&wc); //HACK: PuTTYTray / Icon Fix
+ 
+     hwnd = CreateDialog(hinst, tmpl, hwndparent, lpDialogFunc);
+ 
+@@ -389,8 +391,9 @@
+             if (item)
+                 DestroyWindow(item);
+         }
+-	SendMessage(hwnd, WM_SETICON, (WPARAM) ICON_BIG,
+-		    (LPARAM) LoadIcon(hinst, MAKEINTRESOURCE(IDI_CFGICON)));
++	// HACK: DISABLES LINE
++	//SendMessage(hwnd, WM_SETICON, (WPARAM) ICON_BIG, (LPARAM) LoadImage(hinst, MAKEINTRESOURCE(IDI_CFGICON), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR|LR_SHARED)); //HACK: PuTTYTray / Icon Fix
++
+ 	/*
+ 	 * Centre the window.
+ 	 */
+=== windows/window.c
+==================================================================
+--- windows/window.c	(revision 7489)
++++ windows/window.c	(local)
+@@ -19,6 +19,7 @@
+ #include "terminal.h"
+ #include "storage.h"
+ #include "win_res.h"
++#include "winstuff.h" // HACK: PuttyTray / Icon stuff
+ 
+ #ifndef NO_MULTIMON
+ #include <multimon.h>
+@@ -49,6 +50,14 @@
+ #define IDM_PASTE     0x0190
+ #define IDM_SPECIALSEP 0x0200
+ 
++/*
++ * HACK: PuttyTray
++ * Trayicon Menu addons
++ */
++#define IDM_TRAYSEP 0x0210
++#define IDM_TRAYCLOSE 0x0220
++#define IDM_TRAYRESTORE 0x0230
++
+ #define IDM_SPECIAL_MIN 0x0400
+ #define IDM_SPECIAL_MAX 0x0800
+ 
+@@ -198,6 +207,19 @@
+ 
+ static UINT wm_mousewheel = WM_MOUSEWHEEL;
+ 
++/*
++ * HACK: PuttyTray
++ * Trayicon struct, Message ID and functions
++ */
++static NOTIFYICONDATA puttyTray;
++static BOOL puttyTrayVisible;
++static BOOL puttyTrayFlash;
++static HICON puttyTrayFlashIcon;
++static BOOL windowMinimized = FALSE;
++BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon);
++void tray_updatemenu(BOOL disableMenuItems);
++#define WM_NOTIFY_PUTTYTRAY (WM_USER + 1983)
++
+ /* Dummy routine, only required in plink. */
+ void ldisc_update(void *frontend, int echo, int edit)
+ {
+@@ -316,7 +338,7 @@
+ 
+ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+ {
+-    WNDCLASS wndclass;
++    WNDCLASSEX wndclass; //HACK: PuttyTray / Session Icon
+     MSG msg;
+     int guess_width, guess_height;
+ 
+@@ -614,19 +636,33 @@
+ 	cleanup_exit(1);
+     }
+ 
++	/*
++	 * HACK: PuttyTray / Session Icon
++	 *
++	 * Changes below: wndclassEX and some additions for the 2 icon sizes
++	 */ 
+     if (!prev) {
++	wndclass.cbSize = sizeof(WNDCLASSEX);
+ 	wndclass.style = 0;
+ 	wndclass.lpfnWndProc = WndProc;
+ 	wndclass.cbClsExtra = 0;
+ 	wndclass.cbWndExtra = 0;
+ 	wndclass.hInstance = inst;
+-	wndclass.hIcon = LoadIcon(inst, MAKEINTRESOURCE(IDI_MAINICON));
++
++	if (cfg.win_icon[0]) {
++		wndclass.hIcon = extract_icon(cfg.win_icon, FALSE);
++		wndclass.hIconSm = extract_icon(cfg.win_icon, TRUE);
++	} else {
++		wndclass.hIcon = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED);
++		wndclass.hIconSm = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
++	}
++
+ 	wndclass.hCursor = LoadCursor(NULL, IDC_IBEAM);
+ 	wndclass.hbrBackground = NULL;
+ 	wndclass.lpszMenuName = NULL;
+ 	wndclass.lpszClassName = appname;
+ 
+-	RegisterClass(&wndclass);
++	RegisterClassEx(&wndclass);
+     }
+ 
+     memset(&ucsdata, 0, sizeof(ucsdata));
+@@ -790,6 +826,34 @@
+ 
+     start_backend();
+ 
++	/*
++	 * HACK: PuttyTray
++	 * Init TrayIcon
++	 */
++	puttyTray.cbSize = sizeof(NOTIFYICONDATA); 
++	puttyTray.hWnd	= hwnd; 
++	puttyTray.uID	= 1983; 
++	puttyTray.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP; 
++	puttyTray.uCallbackMessage = WM_NOTIFY_PUTTYTRAY;
++	if (cfg.win_icon[0]) {
++		puttyTray.hIcon	= wndclass.hIconSm;
++	} else {
++		puttyTray.hIcon	= LoadImage(inst, MAKEINTRESOURCE(IDI_TRAYICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
++	}
++
++	/*
++	 * HACK: PuttyTray
++	 * Set trayicon menu properties
++	 */
++	{
++		MENUINFO mi;
++		memset(&mi, 0, sizeof(MENUINFO));
++		mi.cbSize = sizeof(MENUINFO);
++		mi.fMask = MIM_STYLE;
++		mi.dwStyle = MNS_NOCHECK | MNS_AUTODISMISS;
++		SetMenuInfo(popup_menus[CTXMENU].menu, &mi);
++	}
++
+     /*
+      * Set up the initial input locale.
+      */
+@@ -808,8 +872,24 @@
+     logpal = NULL;
+     init_palette();
+ 
+-    term_set_focus(term, GetForegroundWindow() == hwnd);
+-    UpdateWindow(hwnd);
++	/*
++	 * HACK: PuttyTray
++	 * Finally show the window (or the trayicon)!
++	 */
++	puttyTrayVisible = FALSE;
++	
++	if (cfg.tray == TRAY_START || cfg.tray == TRAY_ALWAYS) {
++		taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++	}
++	if (cfg.tray == TRAY_START) {
++		ShowWindow(hwnd, SW_HIDE);
++		windowMinimized = TRUE;
++	} else {
++		ShowWindow(hwnd, show);
++		SetForegroundWindow(hwnd);
++		term_set_focus(term, GetForegroundWindow() == hwnd);
++		UpdateWindow(hwnd);
++	}
+ 
+     while (1) {
+ 	HANDLE *handles;
+@@ -863,6 +943,12 @@
+  */
+ void cleanup_exit(int code)
+ {
++	/* HACK: PuttyTray 
++	 * Remove trayicon on close 
++	 */
++	taskbar_addicon("", FALSE);
++	DestroyIcon(puttyTray.hIcon);
++
+     /*
+      * Clean up.
+      */
+@@ -2159,6 +2245,54 @@
+ 		if (back)
+ 		    back->reconfig(backhandle, &cfg);
+ 
++		/*
++		 * HACK: PuttyTray / Session Icon
++		 * Reconfigure
++		 */
++		if (cfg.win_icon[0]) {
++			HICON hIcon = extract_icon(cfg.win_icon, TRUE);
++			SetClassLong(hwnd, GCL_HICON, extract_icon(cfg.win_icon, FALSE));
++			SetClassLong(hwnd, GCL_HICONSM, (LONG)hIcon);
++		} else {
++			HINSTANCE inst = GetWindowLong(hwnd, -6);
++			SetClassLong(hwnd, GCL_HICON, LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED));
++			SetClassLong(hwnd, GCL_HICONSM, LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED));
++		}
++
++		/*
++		 * HACK: PuttyTray
++		 * Reconfigure
++		 */
++		if (cfg.win_icon[0]) {
++			HICON hIcon = extract_icon(cfg.win_icon, TRUE);
++			DestroyIcon(puttyTray.hIcon);
++			puttyTray.hIcon = hIcon;
++		} else {
++			HINSTANCE inst = GetWindowLong(hwnd, -6);
++			DestroyIcon(puttyTray.hIcon);
++			puttyTray.hIcon	= LoadImage(inst, MAKEINTRESOURCE(IDI_TRAYICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
++		}
++		if (puttyTrayVisible) {
++			taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++		}
++
++		/*
++		 * HACK: PuttyTray
++		 * Reconfigure
++		 */
++		if (cfg.tray == TRAY_NORMAL || cfg.tray == TRAY_START) {
++			if (windowMinimized) {
++				ShowWindow(hwnd, SW_HIDE);
++				taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++			} else {
++				taskbar_addicon("", FALSE);
++			}
++		} else if (cfg.tray == TRAY_ALWAYS) {
++			taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++		} else {
++			taskbar_addicon("", FALSE);
++		}
++
+ 		/* Screen size changed ? */
+ 		if (cfg.height != prev_cfg.height ||
+ 		    cfg.width != prev_cfg.width ||
+@@ -2275,6 +2409,25 @@
+ 	  case IDM_HELP:
+ 	    launch_help(hwnd, NULL);
+ 	    break;
++	  
++	  /*
++	   * HACK: PuttyTray
++	   * Trayicon Menu addon click handlers
++	   */
++	  case IDM_TRAYRESTORE:
++	    ShowWindow(hwnd, SW_RESTORE);
++	    SetForegroundWindow(hwnd);
++	    windowMinimized = FALSE;
++
++	    // Remove icon
++	    if (cfg.tray != TRAY_ALWAYS) {
++	      taskbar_addicon(cfg.win_name_always ? window_name : icon_name, FALSE);
++	    }
++	    break;
++	  case IDM_TRAYCLOSE:
++	    SendMessage(hwnd, WM_CLOSE, NULL, NULL);
++	    break;
++
+ 	  case SC_MOUSEMENU:
+ 	    /*
+ 	     * We get this if the System menu has been activated
+@@ -2741,9 +2894,31 @@
+ 		"...",
+ 	    LOWORD(lParam), HIWORD(lParam)));
+ #endif
++
++	/*
++	 * HACK: PuttyTray
++	 * Addon to SIZE_MINIMIZED for adding/removing the trayicon
++	 */
+ 	if (wParam == SIZE_MINIMIZED)
++	{
++		BYTE keys[256];
++		int control_pressed;
++		if (GetKeyboardState(keys)!=0) {
++			control_pressed=keys[VK_CONTROL]&0x80;
++		}
++
+ 	    SetWindowText(hwnd,
+ 			  cfg.win_name_always ? window_name : icon_name);
++		
++		if (cfg.tray == TRAY_NORMAL || cfg.tray == TRAY_START || control_pressed > 0) {
++			taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++			ShowWindow(hwnd, SW_HIDE);
++		}
++		windowMinimized = TRUE;
++	} else {
++		windowMinimized = FALSE;
++	}
++
+ 	if (wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED)
+ 	    SetWindowText(hwnd, window_name);
+         if (wParam == SIZE_RESTORED)
+@@ -3021,6 +3196,54 @@
+ 	    sfree(c);
+ 	}
+ 	return 0;
++
++	/*
++	 * HACK: PuttyTray
++	 * Trayicon click handler
++	 */
++	case WM_NOTIFY_PUTTYTRAY:
++		{
++			UINT uID; 
++			UINT uMouseMsg; 
++			
++			uID = (UINT)wParam; 
++			uMouseMsg = (UINT)lParam; 
++
++			if (uID = 1983) {
++				if (uMouseMsg == WM_LBUTTONDBLCLK || (cfg.tray_restore == TRUE && uMouseMsg == WM_LBUTTONUP)) {
++					// Remove icon
++					if (cfg.tray != TRAY_ALWAYS) {
++						taskbar_addicon(cfg.win_name_always ? window_name : icon_name, FALSE);
++					}
++
++					// Sleep a little while, otherwise the click event is sent to, for example, the Outlook 2003 Tray Icon, and it will also pop its menu.
++					Sleep(100); 
++
++					// If trayicon is always visible, the icon should also be able to hide the window
++					if (windowMinimized) {
++						ShowWindow(hwnd, SW_RESTORE);
++						SetForegroundWindow(hwnd);
++						windowMinimized = FALSE;
++					} else {
++						ShowWindow(hwnd, SW_MINIMIZE);
++						windowMinimized = TRUE;
++					}
++				} else if (uMouseMsg == WM_RBUTTONUP) {
++					POINT cursorpos;
++
++					// Fix disappear bug
++					SetForegroundWindow(hwnd);
++
++					// Show popup
++					show_mouseptr(1);	       /* make sure pointer is visible */
++					GetCursorPos(&cursorpos);
++					TrackPopupMenu(popup_menus[CTXMENU].menu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, cursorpos.x, cursorpos.y, 0, hwnd, NULL);
++					PostMessage(hwnd, WM_NULL, 0, 0);
++				}
++			}
++		}
++		break;
++
+       default:
+ 	if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
+ 	    int shift_pressed=0, control_pressed=0;
+@@ -4447,6 +4670,12 @@
+     strcpy(window_name, title);
+     if (cfg.win_name_always || !IsIconic(hwnd))
+ 	SetWindowText(hwnd, title);
++
++	/*
++	 * HACK: Putty Tray
++	 * Change Trayicon Tooltip to window title
++	 */
++	taskbar_addicon(cfg.win_name_always ? window_name : icon_name, puttyTrayVisible);
+ }
+ 
+ void set_icon(void *frontend, char *title)
+@@ -5057,44 +5286,77 @@
+  * Manage window caption / taskbar flashing, if enabled.
+  * 0 = stop, 1 = maintain, 2 = start
+  */
++/*
++ * HACK: PuttyTray
++ * REPLACED flash_window with flash_window from PuTTY 0.58. 
++ * The new version with FlashWindowEx is nice but where do I trigger the icon flash if I use it?
++ */
+ static void flash_window(int mode)
+ {
++	HINSTANCE inst;
++
+     if ((mode == 0) || (cfg.beep_ind == B_IND_DISABLED)) {
+ 	/* stop */
+ 	if (flashing) {
+ 	    flashing = 0;
+-	    if (p_FlashWindowEx)
+-		flash_window_ex(FLASHW_STOP, 0, 0);
+-	    else
+ 		FlashWindow(hwnd, FALSE);
++
++		/*
++		 * HACK: PuttyTray
++		 * Reset trayicon
++		 */
++		if (puttyTrayVisible) {
++			inst = GetWindowLong(hwnd, -6);
++
++			puttyTrayFlash = FALSE;
++			puttyTray.hIcon = puttyTrayFlashIcon;
++			taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++		}
++
++		return;
+ 	}
+ 
+     } else if (mode == 2) {
+ 	/* start */
+ 	if (!flashing) {
+ 	    flashing = 1;
+-	    if (p_FlashWindowEx) {
+-		/* For so-called "steady" mode, we use uCount=2, which
+-		 * seems to be the traditional number of flashes used
+-		 * by user notifications (e.g., by Explorer).
+-		 * uCount=0 appears to enable continuous flashing, per
+-		 * "flashing" mode, although I haven't seen this
+-		 * documented. */
+-		flash_window_ex(FLASHW_ALL | FLASHW_TIMER,
+-				(cfg.beep_ind == B_IND_FLASH ? 0 : 2),
+-				0 /* system cursor blink rate */);
+-		/* No need to schedule timer */
+-	    } else {
+ 		FlashWindow(hwnd, TRUE);
+ 		next_flash = schedule_timer(450, flash_window_timer, hwnd);
+-	    }
++
++		/*
++		 * HACK: PuttyTray
++		 * Start flashing trayicon
++		 */
++		if (puttyTrayVisible) {
++			puttyTrayFlash = FALSE;
++		}
+ 	}
+ 
+     } else if ((mode == 1) && (cfg.beep_ind == B_IND_FLASH)) {
+ 	/* maintain */
+-	if (flashing && !p_FlashWindowEx) {
++	if (flashing) {
+ 	    FlashWindow(hwnd, TRUE);	/* toggle */
+ 	    next_flash = schedule_timer(450, flash_window_timer, hwnd);
++
++		/*
++		 * HACK: PuttyTray
++		 * Make trayicon blink
++		 */
++		if (puttyTrayVisible) {
++			if (!puttyTrayFlash) {
++				puttyTrayFlash = TRUE;
++
++				puttyTrayFlashIcon = puttyTray.hIcon;
++				puttyTray.hIcon	= NULL;
++				taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++			} else {
++				inst = GetWindowLong(hwnd, -6);
++				puttyTrayFlash = FALSE;
++
++				puttyTray.hIcon = puttyTrayFlashIcon;
++				taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
++			}
++		}
+ 	}
+     }
+ }
+@@ -5166,11 +5428,15 @@
+ void set_iconic(void *frontend, int iconic)
+ {
+     if (IsIconic(hwnd)) {
+-	if (!iconic)
++	if (!iconic) {
+ 	    ShowWindow(hwnd, SW_RESTORE);
++	    windowMinimized = FALSE; // HACK: PuttyTray
++	}
+     } else {
+-	if (iconic)
++	if (iconic){
+ 	    ShowWindow(hwnd, SW_MINIMIZE);
++	    windowMinimized = TRUE; // HACK: PuTTYTray
++	}
+     }
+ }
+ 
+@@ -5422,3 +5688,83 @@
+     c->len = len;
+     PostMessage(hwnd, WM_AGENT_CALLBACK, 0, (LPARAM)c);
+ }
++
++/*
++ * HACK: PuttyTray
++ * Function to add icon to the taskbar's system tray
++ */
++BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon) 
++{ 
++    BOOL icon_result; 
++
++	if (showIcon) {
++		// Set Tooltip
++		if (lpszTip) {
++			strncpy(puttyTray.szTip, lpszTip, sizeof(puttyTray.szTip));
++		} else {
++			puttyTray.szTip[0] = (TCHAR)'\0'; 
++		}
++
++		// Set icon visibility
++		if (!puttyTrayVisible) {
++			tray_updatemenu(TRUE);
++			icon_result = Shell_NotifyIcon(NIM_ADD, &puttyTray);
++			puttyTrayVisible = TRUE;
++			return icon_result; 
++		} else {
++			icon_result = Shell_NotifyIcon(NIM_MODIFY, &puttyTray);
++			return icon_result; 
++		}
++	} else {
++		if (puttyTrayVisible) {
++			tray_updatemenu(FALSE);
++			icon_result = Shell_NotifyIcon(NIM_DELETE, &puttyTray);
++			puttyTrayVisible = FALSE;
++			return icon_result; 
++		}
++	}
++
++    return TRUE; 
++}
++
++void tray_updatemenu(BOOL disableMenuItems)
++{
++	MENUITEMINFO mii;
++	memset(&mii, 0, sizeof(MENUITEMINFO));
++	mii.cbSize = sizeof(MENUITEMINFO);
++
++	if (disableMenuItems) {
++		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYSEP, MF_BYCOMMAND);
++		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, MF_BYCOMMAND);
++		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, MF_BYCOMMAND);
++		InsertMenu(popup_menus[CTXMENU].menu, -1, MF_BYPOSITION | MF_SEPARATOR, IDM_TRAYSEP, 0);
++		InsertMenu(popup_menus[CTXMENU].menu, -1, MF_BYPOSITION | MF_ENABLED, IDM_TRAYRESTORE, "&Restore Window");
++		InsertMenu(popup_menus[CTXMENU].menu, -1, MF_BYPOSITION | MF_ENABLED, IDM_TRAYCLOSE, "&Exit");
++
++		// Set X bitmap on close window menuitem
++		mii.fMask = MIIM_BITMAP;
++		mii.hbmpItem = HBMMENU_POPUP_CLOSE;
++		SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, FALSE, &mii);
++		
++		// Set restore icon on restore menuitem
++		mii.hbmpItem = HBMMENU_POPUP_RESTORE;
++		SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, FALSE, &mii);
++
++		mii.fMask = MIIM_STATE;
++		mii.fState = MFS_GRAYED;
++	} else {
++		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYSEP, MF_BYCOMMAND);
++		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, MF_BYCOMMAND);
++		DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, MF_BYCOMMAND);
++		
++		mii.fMask = MIIM_STATE;
++		mii.fState = MFS_ENABLED;
++	}
++	
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, specials_menu, FALSE, &mii);
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_PASTE, FALSE, &mii);
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_FULLSCREEN, FALSE, &mii);
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_RESET, FALSE, &mii);
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_CLRSB, FALSE, &mii);
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_COPYALL, FALSE, &mii);
++}
+=== windows/winmisc.c
+==================================================================
+--- windows/winmisc.c	(revision 7489)
++++ windows/winmisc.c	(local)
+@@ -5,6 +5,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include "putty.h"
++#include "win_res.h" // HACK: PuttyTray / Session Icon
+ 
+ OSVERSIONINFO osVersion;
+ 
+@@ -319,3 +320,46 @@
+ }
+ 
+ #endif				/* MINEFIELD */
++
++/*
++ * HACK: PuttyTray / Session Icon
++ */ 
++HICON extract_icon(char *iconpath, int smallicon)
++{
++    char *iname, *comma;
++    int iindex;
++	HICON hiconLarge, hiconSmall;
++
++    hiconLarge = NULL;
++	hiconSmall = NULL;
++
++	// Get icon
++    if (iconpath && iconpath[0]) {
++		iname = dupstr(iconpath);
++		comma = strrchr(iname, ',');
++
++		if (comma) {
++			*comma = '\0';
++			*comma++;
++			iindex = atoi(comma);
++
++			ExtractIconEx(iname, iindex, &hiconLarge, &hiconSmall, 1);
++		};
++		sfree(iname);
++    };
++
++	// Fix if no icon found
++	if (!hiconLarge && !smallicon) {
++		hiconLarge = LoadImage(hinst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED);
++	}
++	if (!hiconSmall && smallicon) {
++		hiconSmall = LoadImage(hinst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
++	}
++
++	// Return the right icon
++	if (smallicon) {
++		return hiconSmall;
++	} else {
++		return hiconLarge;
++	}
++};
+=== windows/winstuff.h
+==================================================================
+--- windows/winstuff.h	(revision 7489)
++++ windows/winstuff.h	(local)
+@@ -448,4 +448,6 @@
+  */
+ extern Backend serial_backend;
+ 
++extern Config cfg;
++
+ #endif
