@@ -6454,6 +6454,46 @@ void term_key(Terminal *term, Key_Sym keysym, wchar_t *text, size_t tlen,
 	    p += sprintf((char *) p, "\x1B[%c", xkey);
 	}
     }
+    
+    /* LC: 4690 function keys and editing keys */
+    if (term->funky_type == FUNKY_4690) {
+	if (PK_ISFKEY(keysym) && keysym <= PK_F12) {
+	    static char const codes[] =
+		"MNOPQRSTUVWX" "YZabcdefghij" "klmnopqrstuv" "wxyz@[\\]^_`{";
+	    int index = keysym - PK_F1;
+
+	    /* LC: function keys. */
+	    if (keysym <= PK_F5) {
+	    	p += sprintf((char *) p, "\x1BO%c", codes[index + 3]);
+	    }
+	    else {
+		    if (modifiers & PKM_SHIFT) index += 12;
+		    if (modifiers & PKM_CONTROL) index += 24;
+		    p += sprintf((char *) p, "\x1B[%c", codes[index]);
+	    }
+	    goto done;
+	}
+	if (PK_ISEDITING(keysym)) {
+	    int xkey = 0;
+
+	    /* LC: special keys. */
+	    switch (keysym) {
+	      case PK_DELETE:   xkey = 'n'; break;
+	      case PK_HOME:     xkey = 'w'; break;
+	      case PK_INSERT:   xkey = 'p'; break;
+	      case PK_END:      xkey = 'q'; break;
+	      case PK_PAGEUP:   xkey = '5'; break;
+	      case PK_PAGEDOWN: xkey = '6'; break;
+	      default: break; /* else gcc warns `enum value not used' */
+	    }
+	    if (keysym >= PK_PAGEUP && keysym <= PK_PAGEDOWN)
+		p += sprintf((char *) p, "\x1B[%c~", xkey);
+	    else
+		p += sprintf((char *) p, "\x1BO%c", xkey);
+	    goto done;
+	}
+    }
+    
 
     if (PK_ISEDITING(keysym) && (modifiers & PKM_SHIFT) == 0) {
 	int code;
