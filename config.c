@@ -309,7 +309,7 @@ void storagetype_handler(union control *ctrl, void *dlg, void *data, int event)
 {
     int button;
     struct sessionsaver_data *ssd =(struct sessionsaver_data *)ctrl->generic.context.p;
-	Config *cfg = (Config *)data;
+    Conf *conf = (Conf *)data;
 
     /*
      * For a standard radio button set, the context parameter gives
@@ -318,7 +318,8 @@ void storagetype_handler(union control *ctrl, void *dlg, void *data, int event)
      * is the one selected.
      */
     if (event == EVENT_REFRESH) {
-		button = cfg->session_storagetype; // Button index = same as storagetype number. Set according to config
+		// Button index = same as storagetype number. Set according to config
+		button = conf_get_int(conf, CONF_session_storagetype);
 		dlg_radiobutton_set(ctrl, dlg, button);
 	} else if (event == EVENT_VALCHANGE) {
 		button = dlg_radiobutton_get(ctrl, dlg);
@@ -332,7 +333,7 @@ void storagetype_handler(union control *ctrl, void *dlg, void *data, int event)
 
 			// Save setting into config (the whole *(int *)ATOFFSET(data, ctrl->radio.context.i) = ctrl->radio.buttondata[button].i; didn't work)
 			// and I don't see why I shouldn't do it this way (it works?)
-			cfg->session_storagetype = 0;
+			conf_set_int(conf, CONF_session_storagetype, 0);
 		} else {
 			get_sesslist(&ssd->sesslist, FALSE, 1);
 			get_sesslist(&ssd->sesslist, TRUE, 1);
@@ -340,7 +341,7 @@ void storagetype_handler(union control *ctrl, void *dlg, void *data, int event)
 			dlg_refresh(ssd->listbox, dlg);
 
 			// Here as well
-			cfg->session_storagetype = 1;
+			conf_set_int(conf, CONF_session_storagetype, 1);
 		}
 	}
 }
@@ -749,8 +750,8 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
 		 * HACK: PuttyTray / PuTTY File
 		 * Added storagetype to get_sesslist
 		 */
-	    get_sesslist(&ssd->sesslist, FALSE, cfg->session_storagetype);
-	    get_sesslist(&ssd->sesslist, TRUE, cfg->session_storagetype);
+	    get_sesslist(&ssd->sesslist, FALSE, conf_get_int(conf, CONF_session_storagetype));
+	    get_sesslist(&ssd->sesslist, TRUE, conf_get_int(conf, CONF_session_storagetype));
 
 	    dlg_refresh(ssd->editbox, dlg);
 	    dlg_refresh(ssd->listbox, dlg);
@@ -766,8 +767,8 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
 		 * HACK: PuttyTray / PuTTY File
 		 * Added storagetype to get_sesslist
 		 */
-		get_sesslist(&ssd->sesslist, FALSE, cfg->session_storagetype);
-		get_sesslist(&ssd->sesslist, TRUE, cfg->session_storagetype);
+		get_sesslist(&ssd->sesslist, FALSE, conf_get_int(conf, CONF_session_storagetype));
+		get_sesslist(&ssd->sesslist, TRUE, conf_get_int(conf, CONF_session_storagetype));
 
 		dlg_refresh(ssd->listbox, dlg);
 	    }
@@ -1298,6 +1299,7 @@ static void portfwd_handler(union control *ctrl, void *dlg,
 void setup_config_box(struct controlbox *b, int midsession,
 		      int protocol, int protcfginfo, int session_storagetype) // HACK: PuttyTray / PuTTY File - Added 'int session_storagetype'
 {
+    int lol;
     struct controlset *s;
     struct sessionsaver_data *ssd;
     struct charclass_data *ccd;
@@ -1390,7 +1392,9 @@ void setup_config_box(struct controlbox *b, int midsession,
 		    "Load, save or delete a stored session");
     ctrl_columns(s, 2, 75, 25);
 
-	current_storagetype = get_sesslist(&ssd->sesslist, TRUE, (midsession ? session_storagetype : (session_storagetype + 2))); // HACK: PuttyTray / PuTTY File - The +2 triggers storagetype autoswitching
+    // HACK: PuttyTray / PuTTY File - The +2 triggers storagetype autoswitching
+    lol = (midsession ? session_storagetype : (session_storagetype + 2));
+    current_storagetype = get_sesslist(&ssd->sesslist, TRUE, lol);
     ssd->editbox = ctrl_editbox(s, "Saved Sessions", 'e', 100,
 				HELPCTX(session_saved),
 				sessionsaver_handler, P(ssd), P(NULL));

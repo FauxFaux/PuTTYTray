@@ -519,20 +519,20 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "ApplicationCursorKeys", conf_get_int(conf, CONF_app_cursor));
     write_setting_i(sesskey, "ApplicationKeypad", conf_get_int(conf, CONF_app_keypad));
     write_setting_i(sesskey, "NetHackKeypad", conf_get_int(conf, CONF_nethack_keypad));
-    write_setting_i(sesskey, "Transparency", conf_get_int(conf, CONF_transparency);
-    write_setting_i(sesskey, "WakeupReconnect", conf_get_int(conf, CONF_wakeup_reconnect);
-    write_setting_i(sesskey, "FailureReconnect", conf_get_int(conf, CONF_failure_reconnect);
-    write_setting_i(sesskey, "StorageType", conf_get_int(conf, CONF_session_storagetype);
-    write_setting_i(sesskey, "Tray", conf_get_int(conf, CONF_tray);
-    write_setting_i(sesskey, "StartTray", conf_get_int(conf, CONF_start_tray);
-    write_setting_i(sesskey, "TrayRestore", conf_get_int(conf, CONF_tray_restore);
-    write_setting_s(sesskey, "WinIcon", conf_get_int(conf, CONF_win_icon);
-    write_setting_i(sesskey, "HyperlinkUnderline", conf_get_int(conf, CONF_url_underline);
-    write_setting_i(sesskey, "HyperlinkUseCtrlClick", conf_get_int(conf, CONF_url_ctrl_click);
-    write_setting_i(sesskey, "HyperlinkBrowserUseDefault", conf_get_int(conf, CONF_url_defbrowser);
-    write_setting_filename(sesskey, "HyperlinkBrowser", conf_get_int(conf, CONF_url_browser);
-    write_setting_i(sesskey, "HyperlinkRegularExpressionUseDefault", conf_get_int(conf, CONF_url_defregex);
-    write_setting_s(sesskey, "HyperlinkRegularExpression", conf_get_int(conf, CONF_url_regex);
+    write_setting_i(sesskey, "Transparency", conf_get_int(conf, CONF_transparency));
+    write_setting_i(sesskey, "WakeupReconnect", conf_get_int(conf, CONF_wakeup_reconnect));
+    write_setting_i(sesskey, "FailureReconnect", conf_get_int(conf, CONF_failure_reconnect));
+    write_setting_i(sesskey, "StorageType", conf_get_int(conf, CONF_session_storagetype));
+    write_setting_i(sesskey, "Tray", conf_get_int(conf, CONF_tray));
+    write_setting_i(sesskey, "StartTray", conf_get_int(conf, CONF_start_tray));
+    write_setting_i(sesskey, "TrayRestore", conf_get_int(conf, CONF_tray_restore));
+    write_setting_filename(sesskey, "WinIcon", conf_get_filename(conf, CONF_win_icon));
+    write_setting_i(sesskey, "HyperlinkUnderline", conf_get_int(conf, CONF_url_underline));
+    write_setting_i(sesskey, "HyperlinkUseCtrlClick", conf_get_int(conf, CONF_url_ctrl_click));
+    write_setting_i(sesskey, "HyperlinkBrowserUseDefault", conf_get_int(conf, CONF_url_defbrowser));
+    write_setting_filename(sesskey, "HyperlinkBrowser", conf_get_filename(conf, CONF_url_browser));
+    write_setting_i(sesskey, "HyperlinkRegularExpressionUseDefault", conf_get_int(conf, CONF_url_defregex));
+    write_setting_s(sesskey, "HyperlinkRegularExpression", conf_get_str(conf, CONF_url_regex));
     write_setting_i(sesskey, "AltF4", conf_get_int(conf, CONF_alt_f4));
     write_setting_i(sesskey, "AltSpace", conf_get_int(conf, CONF_alt_space));
     write_setting_i(sesskey, "AltOnly", conf_get_int(conf, CONF_alt_only));
@@ -894,6 +894,7 @@ void load_open_settings(void *sesskey, Conf *conf)
 #ifdef PUTTY_UNIX_H
 		 / 1000
 #endif
+    );
     gppi(sesskey, "ScrollbackLines", 1000, conf, CONF_savelines);
     gppi(sesskey, "DECOriginMode", 0, conf, CONF_dec_om);
     gppi(sesskey, "AutoWrapMode", 1, conf, CONF_wrap_mode);
@@ -1034,9 +1035,9 @@ void do_defaults(char *session, Conf *conf)
  * HACK: PuttyTray / PuTTY File
  * Quick hack to load defaults from file
  */
-void do_defaults_file(char *session, Config * cfg)
+void do_defaults_file(char *session, Conf *conf)
 {
-    load_settings_file(session, cfg);
+    load_settings_file(session, conf);
 }
 
 static int sessioncmp(const void *av, const void *bv)

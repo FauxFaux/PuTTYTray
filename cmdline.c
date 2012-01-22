@@ -179,7 +179,7 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
 	 */
 	if (!strcmp(p, "-loadfile") || !strcmp(p, "-file") || !strcmp(p, "-fileload")) {
 	RETURN(2);
-	do_defaults_file(value, cfg);
+	do_defaults_file(value, conf);
 	loaded_session = TRUE;
 	return 2;
     }
