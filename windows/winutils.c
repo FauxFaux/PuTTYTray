@@ -145,7 +145,11 @@ void pgp_fingerprints(void)
 		"PuTTY Master Key (RSA), 1024-bit:\n"
 		"  " PGP_RSA_MASTER_KEY_FP "\n"
 		"PuTTY Master Key (DSA), 1024-bit:\n"
-		"  " PGP_DSA_MASTER_KEY_FP,
+		"  " PGP_DSA_MASTER_KEY_FP "\n"
+                "\n"
+                "PuTTYTray is signed by the unrelated:\n"
+                "Chris West (Faux) <gpg@goeswhere.com>:\n"
+                "  408A E4F1 4EA7 33EF 1265  82C1 B195 E1C4 779B A9B2\n",
 		"PGP fingerprints", MB_ICONINFORMATION | MB_OK,
 		HELPCTXID(pgp_fingerprints));
 }
