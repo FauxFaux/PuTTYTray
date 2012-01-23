@@ -133,15 +133,16 @@ var PuTTYTray = {
 	 */
 	startDownload: function()
 	{
+		var version = 'https://puttytray.goeswhere.com/download/v008/putty.exe';
 		if ($('downloadframe')) {
 			var downloadFrame = $('downloadframe');
 			downloadFrame.setAttribute('src', 'g/nothing.png');
-			downloadFrame.setAttribute('src', 'http://b.goeswhere.com/putty-tray-v004/putty.exe'); 
+			downloadFrame.setAttribute('src', version); 
 		} else {
 			var downloadFrame = document.createElement('iframe');
 			downloadFrame.className = 'downloadframe';
 			downloadFrame.setAttribute('id', 'downloadframe'); 
-			downloadFrame.setAttribute('src', 'http://b.goeswhere.com/putty-tray-v004/putty.exe'); 
+			downloadFrame.setAttribute('src', version); 
 			document.body.appendChild(downloadFrame);
 		}
 	},
