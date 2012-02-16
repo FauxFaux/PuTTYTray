@@ -469,6 +469,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     conf = conf_new();
 
+    urlhack_init();
+
     /*
      * Initialize COM.
      */
@@ -1109,6 +1111,7 @@ void cleanup_exit(int code)
     /*
      * Clean up.
      */
+    urlhack_cleanup();
     deinit_fonts();
     sfree(logpal);
     if (pal)

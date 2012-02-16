@@ -4782,10 +4782,9 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	int urlhack_underline =
 		conf_get_int(term->conf, CONF_url_underline) == URLHACK_UNDERLINE_ALWAYS ||
 		(conf_get_int(term->conf, CONF_url_underline) == URLHACK_UNDERLINE_HOVER && (!conf_get_int(term->conf, CONF_url_ctrl_click) || urlhack_is_ctrl_pressed())) ? 1 : 0;
-
 	int urlhack_is_link = 0, urlhack_hover_current = 0;
 	int urlhack_toggle_x = term->cols, urlhack_toggle_y = term->rows;
-	int urlhack_region_index = 0;
+	unsigned int urlhack_region_index = 0;
 	text_region urlhack_region;
 
 	if (term->url_update) {
@@ -6009,8 +6008,8 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 			linkbuf[i - region.x0] = '\0';
 		}
 		else {
-			termline *urldata = scrlineptr(region.y0);
-			int linklen, row = region.y0;
+			termline *urldata = lineptr(region.y0 + term->disptop);
+			int linklen, row = region.y0 + term->disptop;
 
 			linklen = (term->cols - region.x0) +
 				((region.y1 - region.y0 - 1) * term->cols) + region.x1 + 1;

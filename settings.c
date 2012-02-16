@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include "putty.h"
 #include "storage.h"
+#include "urlhack.h"
 
 /*
  * HACK: PuttyTray / Nutty
