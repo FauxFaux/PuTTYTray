@@ -35,7 +35,11 @@ char sshver[] = "PuTTY-Custom-r" STR(SVN_REV);
 
 #else
 
-char ver[] = "Unidentified build, " __DATE__ " " __TIME__;
+/*
+ * HACK: PuttyTray
+ * Hardcode Version
+ */
+char ver[] = "PuTTY-url 0.62, " __DATE__ " " __TIME__;
 char sshver[] = "PuTTY-Local: " __DATE__ " " __TIME__;
 
 #endif

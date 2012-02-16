@@ -10,6 +10,11 @@
 #include <limits.h>
 #include <assert.h>
 
+/*
+ * HACK: PuttyTray / Nutty
+ */ 
+#include "urlhack.h"
+
 #ifndef NO_MULTIMON
 #define COMPILE_MULTIMON_STUBS
 #endif
@@ -202,6 +207,11 @@ static int compose_state = 0;
 
 static UINT wm_mousewheel = WM_MOUSEWHEEL;
 
+/*
+ * HACK: PuttyTray / Nutty
+ */ 
+static int urlhack_cursor_is_hand = 0;
+
 /* Dummy routine, only required in plink. */
 void ldisc_update(void *frontend, int echo, int edit)
 {
@@ -363,6 +373,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     init_help();
 
     init_flashwindow();
+
+    urlhack_init();
 
     /*
      * Initialize COM.
@@ -806,6 +818,14 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     start_backend();
 
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Set the regular expression
+	 */
+	if (term->cfg.url_defregex == 0) {
+		urlhack_set_regular_expression(term->cfg.url_regex);
+	}
+
     /*
      * Set up the initial input locale.
      */
@@ -882,6 +902,7 @@ void cleanup_exit(int code)
     /*
      * Clean up.
      */
+    urlhack_cleanup();
     deinit_fonts();
     sfree(logpal);
     if (pal)
@@ -1995,6 +2016,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
     static int processed_resize = FALSE;
     static UINT last_mousemove = 0;
 
+	/*
+	 * HACK: PuttyTray / Nutty
+	 */ 
+	POINT cursor_pt;
+
     switch (message) {
       case WM_TIMER:
 	if ((UINT_PTR)wParam == TIMING_TIMER_ID) {
@@ -2180,6 +2206,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		/* Pass new config data to the back end */
 		if (back)
 		    back->reconfig(backhandle, &cfg);
+
+		/*
+		 * HACK: PuttyTray / Nutty
+		 * Reconfigure
+		 */
+		if (cfg.url_defregex == 0) {
+			urlhack_set_regular_expression(cfg.url_regex);
+		}
+		term->url_update = TRUE;
+		term_update(term);
 
 		/* Screen size changed ? */
 		if (cfg.height != prev_cfg.height ||
@@ -2479,6 +2515,37 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	 * number noise.
 	 */
 	noise_ultralight(lParam);
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Change cursor type if hovering over link
+	 */ 
+	if (urlhack_mouse_old_x != TO_CHR_X(X_POS(lParam)) || urlhack_mouse_old_y != TO_CHR_Y(Y_POS(lParam))) {
+		urlhack_mouse_old_x = TO_CHR_X(X_POS(lParam));
+		urlhack_mouse_old_y = TO_CHR_Y(Y_POS(lParam));
+
+		if ((!term->cfg.url_ctrl_click || urlhack_is_ctrl_pressed()) &&
+			urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y)) {
+				if (urlhack_cursor_is_hand == 0) {
+					SetClassLong(hwnd, GCL_HCURSOR, LoadCursor(NULL, IDC_HAND));
+					urlhack_cursor_is_hand = 1;
+					term_update(term); // Force the terminal to update, otherwise the underline will not show (bug somewhere, this is an ugly fix)
+				}
+		}
+		else if (urlhack_cursor_is_hand == 1) {
+			SetClassLong(hwnd, GCL_HCURSOR, LoadCursor(NULL, IDC_IBEAM));
+			urlhack_cursor_is_hand = 0;
+			term_update(term); // Force the terminal to update, see above
+		}
+
+		// If mouse jumps from one link directly into another, we need a forced terminal update too
+		if (urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y) != urlhack_current_region) {
+			urlhack_current_region = urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y);
+			term_update(term);
+		}
+
+	}
+	/* HACK: PuttyTray / Nutty : END */
 
 	if (wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON) &&
 	    GetCapture() == hwnd) {
@@ -2918,10 +2985,39 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    }
 	}
 	return FALSE;
-      case WM_KEYDOWN:
-      case WM_SYSKEYDOWN:
-      case WM_KEYUP:
-      case WM_SYSKEYUP:
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Change cursor if we are in ctrl+click link mode
+	 *
+	 * WARNING: Spans over multiple CASEs
+	 */
+	case WM_KEYDOWN:
+		if (wParam == VK_CONTROL && term->cfg.url_ctrl_click) {
+			GetCursorPos(&cursor_pt);
+			ScreenToClient(hwnd, &cursor_pt);
+
+			if (urlhack_is_in_link_region(TO_CHR_X(cursor_pt.x), TO_CHR_Y(cursor_pt.y))) {
+				SetCursor(LoadCursor(NULL, IDC_HAND));
+				term_update(term);
+			}
+		
+			goto KEY_END;
+		}	
+
+	case WM_KEYUP:
+		if (wParam == VK_CONTROL && term->cfg.url_ctrl_click) {
+			SetCursor(LoadCursor(NULL, IDC_IBEAM));
+			term_update(term);
+		
+			goto KEY_END;
+		}
+	KEY_END:
+
+	case WM_SYSKEYDOWN:
+	case WM_SYSKEYUP:
+	/* HACK: PuttyTray / Nutty : END */
+
 	/*
 	 * Add the scan code and keypress timing to the random
 	 * number noise.

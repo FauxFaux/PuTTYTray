@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include "putty.h"
 #include "storage.h"
+#include "urlhack.h"
 
 /* The cipher order given here is the default order. */
 static const struct keyvalwhere ciphernames[] = {
@@ -552,6 +553,17 @@ void save_open_settings(void *sesskey, Config *cfg)
     write_setting_i(sesskey, "SerialParity", cfg->serparity);
     write_setting_i(sesskey, "SerialFlowControl", cfg->serflow);
     write_setting_s(sesskey, "WindowClass", cfg->winclass);
+
+    /*
+     * HACK: PuttyTray / Nutty
+     * Hyperlink stuff: Save hyperlink settings
+     */
+    write_setting_i(sesskey, "HyperlinkUnderline", cfg->url_underline);
+    write_setting_i(sesskey, "HyperlinkUseCtrlClick", cfg->url_ctrl_click);
+    write_setting_i(sesskey, "HyperlinkBrowserUseDefault", cfg->url_defbrowser);
+    write_setting_s(sesskey, "HyperlinkBrowser", cfg->url_browser);
+    write_setting_i(sesskey, "HyperlinkRegularExpressionUseDefault", cfg->url_defregex);
+    write_setting_s(sesskey, "HyperlinkRegularExpression", cfg->url_regex);
 }
 
 void load_settings(char *section, Config * cfg)
@@ -570,6 +582,14 @@ void load_open_settings(void *sesskey, Config *cfg)
 {
     int i;
     char prot[10];
+
+    /*
+     * HACK: PuttyTray / Vista
+     * Check windows version and set default font quality to 'cleartype' if this is Windows Vista
+     */
+    OSVERSIONINFO versioninfo;
+    versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+    GetVersionEx(&versioninfo);
 
     cfg->ssh_subsys = 0;	       /* FIXME: load this properly */
     cfg->remote_cmd_ptr = NULL;
@@ -783,7 +803,7 @@ void load_open_settings(void *sesskey, Config *cfg)
 		    / 1000
 #endif
 	;
-    gppi(sesskey, "ScrollbackLines", 200, &cfg->savelines);
+    gppi(sesskey, "ScrollbackLines", 1000, &cfg->savelines); // HACK: PuttyTray - more is better
     gppi(sesskey, "DECOriginMode", 0, &cfg->dec_om);
     gppi(sesskey, "AutoWrapMode", 1, &cfg->wrap_mode);
     gppi(sesskey, "LFImpliesCR", 0, &cfg->lfhascr);
@@ -795,8 +815,18 @@ void load_open_settings(void *sesskey, Config *cfg)
     gppi(sesskey, "TermWidth", 80, &cfg->width);
     gppi(sesskey, "TermHeight", 24, &cfg->height);
     gppfont(sesskey, "Font", &cfg->font);
-    gppi(sesskey, "FontQuality", FQ_DEFAULT, &cfg->font_quality);
-    gppi(sesskey, "FontVTMode", VT_UNICODE, (int *) &cfg->vtmode);
+
+	/*
+	 * HACK: PuttyTray / Vista
+	 * Check windows version and set default font quality to 'cleartype' if this is Windows Vista
+	 */
+	if (versioninfo.dwMajorVersion >= 6) {
+		gppi(sesskey, "FontQuality", FQ_CLEARTYPE, &cfg->font_quality);
+	} else {
+		gppi(sesskey, "FontQuality", FQ_DEFAULT, &cfg->font_quality);
+	}
+    
+	gppi(sesskey, "FontVTMode", VT_UNICODE, (int *) &cfg->vtmode);
     gppi(sesskey, "UseSystemColours", 0, &cfg->system_colour);
     gppi(sesskey, "TryPalette", 0, &cfg->try_palette);
     gppi(sesskey, "ANSIColour", 1, &cfg->ansi_colour);
@@ -912,6 +942,17 @@ void load_open_settings(void *sesskey, Config *cfg)
     gppi(sesskey, "SerialParity", SER_PAR_NONE, &cfg->serparity);
     gppi(sesskey, "SerialFlowControl", SER_FLOW_XONXOFF, &cfg->serflow);
     gpps(sesskey, "WindowClass", "", cfg->winclass, sizeof(cfg->winclass));
+
+    /*
+     * HACK: PuttyTray / Nutty
+     * Hyperlink stuff: Save hyperlink settings
+     */
+    gppi(sesskey, "HyperlinkUnderline", 1, &cfg->url_underline);
+    gppi(sesskey, "HyperlinkUseCtrlClick", 0, &cfg->url_ctrl_click);
+    gppi(sesskey, "HyperlinkBrowserUseDefault", 1, &cfg->url_defbrowser);
+    gpps(sesskey, "HyperlinkBrowser", "", cfg->url_browser, sizeof(cfg->url_browser));
+    gppi(sesskey, "HyperlinkRegularExpressionUseDefault", 1, &cfg->url_defregex);
+    gpps(sesskey, "HyperlinkRegularExpression", urlhack_default_regex, cfg->url_regex, sizeof(cfg->url_regex));
 }
 
 void do_defaults(char *session, Config * cfg)
