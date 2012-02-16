@@ -4777,11 +4777,11 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 	 * TODO: We should find out somehow that the stuff on screen has changed since last
 	 *       paint. How to do it?
 	 */
-	int urlhack_underline_always = (term->cfg.url_underline == URLHACK_UNDERLINE_ALWAYS);
+	int urlhack_underline_always = (conf_get_int(term->conf, CONF_url_underline) == URLHACK_UNDERLINE_ALWAYS);
 
 	int urlhack_underline =
-		term->cfg.url_underline == URLHACK_UNDERLINE_ALWAYS ||
-		(term->cfg.url_underline == URLHACK_UNDERLINE_HOVER && (!term->cfg.url_ctrl_click || urlhack_is_ctrl_pressed())) ? 1 : 0;
+		conf_get_int(term->conf, CONF_url_underline) == URLHACK_UNDERLINE_ALWAYS ||
+		(conf_get_int(term->conf, CONF_url_underline) == URLHACK_UNDERLINE_HOVER && (!conf_get_int(term->conf, CONF_url_ctrl_click) || urlhack_is_ctrl_pressed())) ? 1 : 0;
 
 	int urlhack_is_link = 0, urlhack_hover_current = 0;
 	int urlhack_toggle_x = term->cols, urlhack_toggle_y = term->rows;
@@ -5994,7 +5994,7 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 	deselect(term);
 	term->selstate = NO_SELECTION;
 
-	if ((!term->cfg.url_ctrl_click || (term->cfg.url_ctrl_click && urlhack_is_ctrl_pressed())) && urlhack_is_in_link_region(x, y)) {
+	if ((!conf_get_int(term->conf, CONF_url_ctrl_click) || (conf_get_int(term->conf, CONF_url_ctrl_click) && urlhack_is_ctrl_pressed())) && urlhack_is_in_link_region(x, y)) {
 		int i;
 		char *linkbuf = NULL;
 		text_region region = urlhack_get_link_bounds(x, y);
@@ -6033,7 +6033,7 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 			unlineptr(urldata);
 		}
 		
-		urlhack_launch_url(!term->cfg.url_defbrowser ? term->cfg.url_browser : NULL, linkbuf);
+		urlhack_launch_url(!conf_get_int(term->conf, CONF_url_defbrowser) ? conf_get_str(term->conf, CONF_url_browser) : NULL, linkbuf);
 		
 		sfree(linkbuf);
 	}
