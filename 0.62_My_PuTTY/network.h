@@ -136,6 +136,10 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only, i
 
 Socket sk_register(OSSocket sock, Plug plug);
 
+#ifdef CYGTERMPORT
+int sk_getport(Socket s);
+#endif
+
 #define sk_plug(s,p) (((*s)->plug) (s, p))
 #define sk_close(s) (((*s)->close) (s))
 #define sk_write(s,buf,len) (((*s)->write) (s, buf, len))

@@ -11,7 +11,74 @@
 
 #include "win_res.h"
 
+#ifdef PERSOPORT
+
+#ifndef FDJ
+IDI_MAINICON_0 ICON "../../kitty.ico"
+IDI_MAINICON_1 ICON "putty.ico"
+#else
+IDI_MAINICON_0 ICON "putty.ico"
+IDI_MAINICON_1 ICON "../../kitty.ico"
+#endif
+
+IDI_MAINICON_2 ICON "../../res/puttyprd.ico"
+IDI_MAINICON_3 ICON "../../res/putty2.ico"
+IDI_MAINICON_4 ICON "../../res/putty3.ico"
+
+#ifndef FDJ
+IDI_MAINICON_5 ICON "../../res/coyote.ico"
+IDI_MAINICON_6 ICON "../../res/daffy.ico"
+IDI_MAINICON_7 ICON "../../res/tweety.ico"
+IDI_MAINICON_8 ICON "../../res/sylvester.ico"
+
+IDI_MAINICON_9 ICON "../../res/0.ico"
+IDI_MAINICON_10 ICON "../../res/1.ico"
+IDI_MAINICON_11 ICON "../../res/2.ico"
+IDI_MAINICON_12 ICON "../../res/3.ico"
+IDI_MAINICON_13 ICON "../../res/4.ico"
+IDI_MAINICON_14 ICON "../../res/5.ico"
+IDI_MAINICON_15 ICON "../../res/6.ico"
+IDI_MAINICON_16 ICON "../../res/7.ico"
+IDI_MAINICON_17 ICON "../../res/8.ico"
+IDI_MAINICON_18 ICON "../../res/9.ico"
+
+IDI_MAINICON_19 ICON "../../res/porky.ico"
+IDI_MAINICON_20 ICON "../../res/taz.ico"
+IDI_MAINICON_21 ICON "../../res/coq.ico"
+IDI_MAINICON_22 ICON "../../res/elmer.ico"
+IDI_MAINICON_23 ICON "../../res/mars.ico"
+IDI_MAINICON_24 ICON "../../res/speedy.ico"
+IDI_MAINICON_25 ICON "../../res/rocky.ico"
+IDI_MAINICON_26 ICON "../../res/pepepu.ico"
+IDI_MAINICON_27 ICON "../../res/general.ico"
+IDI_MAINICON_28 ICON "../../res/hagar.ico"
+IDI_MAINICON_29 ICON "../../res/jerry.ico"
+IDI_MAINICON_30 ICON "../../res/tom.ico"
+IDI_MAINICON_31 ICON "../../res/snoopy.ico"
+IDI_MAINICON_32 ICON "../../res/woods.ico"
+IDI_MAINICON_33 ICON "../../res/yogi.ico"
+IDI_MAINICON_34 ICON "../../res/scooby.ico"
+IDI_MAINICON_35 ICON "../../res/shaggy.ico"
+IDI_MAINICON_36 ICON "../../res/freddie.ico"
+IDI_MAINICON_37 ICON "../../res/velma.ico"
+IDI_MAINICON_38 ICON "../../res/daphne.ico"
+IDI_MAINICON_39 ICON "../../res/woody.ico"
+IDI_MAINICON_40 ICON "../../res/sam.ico"
+IDI_MAINICON_41 ICON "../../res/runner.ico"
+IDI_MAINICON_42 ICON "../../res/bunny.ico"
+IDI_MAINICON_43 ICON "../../res/hellokitty.ico"
+IDI_MAINICON_44 ICON "../../cthelper/puttycyg.ico"
+#endif
+
+IDC_HOVER CURSOR "../../res/Hover.cur"
+
+IDI_PUTTY_LAUNCH	ICON "../../res/putty_launcher.ico"
+
+#define IDB_OK	1098
+
+#else
 IDI_MAINICON ICON "putty.ico"
+#endif
 
 IDI_CFGICON ICON "puttycfg.ico"
 
@@ -26,13 +93,24 @@ BEGIN
     PUSHBUTTON "Visit &Web Site", IDA_WEB, 84, 52, 70, 14
     CTEXT "PuTTY", IDA_TEXT1, 10, 6, 194, 8
     CTEXT "", IDA_VERSION, 10, 16, 194, 16
+#if (defined PERSOPORT) && (!defined FDJ)
+	CTEXT "KiTTY (http://kitty.9bis.com), by 9bis.com", IDA_TEXT2, 10, 26, 194, 16
+#endif
+#if (defined PERSOPORT) && (defined FDJ)
+	CTEXT "PuTTY", IDA_TEXT2, 10, 26, 194, 16
+#endif
     CTEXT "\251 1997-2011 Simon Tatham. All rights reserved.",
           IDA_TEXT2, 10, 34, 194, 16
 END
 
 /* Accelerators used: aco */
+#if (defined PERSOPORT) && (!defined FDJ)
+IDD_MAINBOX DIALOG DISCARDABLE 0, 0, 300, 352
+STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU /*| WS_SIZEBOX*/
+#else
 IDD_MAINBOX DIALOG DISCARDABLE 0, 0, 300, 252
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+#endif
 CAPTION "PuTTY Configuration"
 FONT 8, "MS Shell Dlg"
 CLASS "PuTTYConfigBox"
@@ -85,8 +163,97 @@ BEGIN
     LTEXT "OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,", 1020, 10, 202, 206, 8
     LTEXT "TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN", 1021, 10, 210, 206, 8
     LTEXT "CONNECTION WITH THE SOFTWARE OR THE USE OR", 1022, 10, 218, 206, 8
+#ifdef PERSOPORT
+    LTEXT "OTHER DEALINGS IN THE SOFTWARE. That's all folks !", 1023, 10, 226, 206, 8
+#else
     LTEXT "OTHER DEALINGS IN THE SOFTWARE.", 1023, 10, 226, 206, 8
-
+#endif
 END
+
+#ifdef PERSOPORT
+
+#ifndef IDC_STATIC
+#define IDC_STATIC -1
+#endif
+
+/*114 DIALOG DISCARDABLE  0, 0, 198, 65*/
+114 DIALOG DISCARDABLE  0, 0, 248, 50
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Text input"
+FONT 8, "MS Sans Serif"
+BEGIN
+    EDITTEXT        IDC_RESULT,7,20,184,14,ES_AUTOHSCROLL
+    /*DEFPUSHBUTTON   "OK",IDOK,141,44,50,14*/
+    DEFPUSHBUTTON   "OK",IDOK,198,20,42,14
+    LTEXT           "Please write your text here", IDC_STATIC,7,7,184,13
+    /*PUSHBUTTON      "Cancel",IDCANCEL,84,44,52,14*/
+END
+
+115 DIALOG DISCARDABLE  0, 0, 248, 100
+STYLE DS_CENTER  | WS_SYSMENU | WS_CAPTION | WS_BORDER | WS_SIZEBOX
+CAPTION "Text input"
+FONT 8, "MS Sans Serif"
+BEGIN
+    EDITTEXT        IDC_RESULT,7,20,232,74,ES_AUTOHSCROLL|ES_AUTOVSCROLL|ES_MULTILINE|ES_WANTRETURN|WS_HSCROLL|WS_VSCROLL
+    /*PUSHBUTTON   "OK",IDB_OK,198,20,42,14*/
+    PUSHBUTTON   "OK",IDB_OK,115,3,42,14
+    PUSHBUTTON   "CANCEL",IDCANCEL,165,3,42,14
+    LTEXT           "Please write your text here\n(SHIFT+RETURN to send)", IDC_STATIC,7,2,90,17
+END
+
+116 DIALOG DISCARDABLE  0, 0, 248, 50
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Text input"
+FONT 8, "MS Sans Serif"
+BEGIN
+    EDITTEXT        IDC_RESULT,7,20,184,14,ES_AUTOHSCROLL|ES_PASSWORD
+    /*DEFPUSHBUTTON   "OK",IDOK,141,44,50,14*/
+    DEFPUSHBUTTON   "OK",IDOK,198,20,42,14
+    LTEXT           "Please write your password", IDC_STATIC,7,7,184,13
+    /*PUSHBUTTON      "Cancel",IDCANCEL,84,44,52,14*/
+END
+
+120 DIALOG DISCARDABLE  0, 0, 350, 28
+//STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE
+STYLE WS_DLGFRAME | DS_CENTER | WS_POPUP | WS_VISIBLE 
+#ifdef FDJ
+CAPTION "PuTTY"
+#else
+CAPTION "KiTTY"
+#endif
+FONT 8, "MS Sans Serif"
+BEGIN
+    //EDITTEXT        IDC_RESULT, 7, 20, 220, 14, ES_AUTOHSCROLL|ES_READONLY
+    LTEXT	"Empty", IDC_RESULT, 7, 10, 336, 14
+END
+
+//IDD_KITTYABOUT DIALOGEX 0, 0, 240, 70
+IDD_KITTYABOUT DIALOGEX 0, 0, 245, 90
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "About KiTTY"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    ICON            IDI_MAINICON_0,IDC_STATIC,7,7,30,20
+    LTEXT           "",IDA_VERSION,45,7,198,8
+    LTEXT           "Copyright © 2006-2012",IDC_STATIC,45,19,78,8
+    LTEXT           "9bis software - http://kitty.9bis.com",
+                    IDC_WEBPAGE,45,31,145,8
+    LTEXT           "Contact:",IDC_STATIC,45,43,46,8
+    //LTEXT           "kitty@9bis.com",IDC_EMAIL,45,55,83,8
+    LTEXT           "kitty@9bis.com",IDC_EMAIL,77,43,83,8
+    
+    LTEXT           "Message",IDC_BAN,45,55,188,8
+//    DEFPUSHBUTTON   "OK",IDOK,189,49,40,14
+//    PUSHBUTTON "Licence", IDA_LICENCE, 142, 49, 40, 14
+    DEFPUSHBUTTON   "OK",IDOK, 189, 69, 40, 14
+    PUSHBUTTON "&Upgrade", IDA_WEB, 95, 69, 40, 14
+    PUSHBUTTON "&Donate", IDA_DON, 142, 69, 40, 14
+    PUSHBUTTON "Licence", IDA_LICENCE, 48, 69, 40, 14
+END
+
+#include "../../notepad.rc"
+IDI_EDITICON ICON "../../res/edit.ico"
+
+#endif
 
 #include "version.rc2"

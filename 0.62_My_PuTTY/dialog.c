@@ -13,6 +13,10 @@
 #include "putty.h"
 #include "dialog.h"
 
+#ifdef SCPORT
+#include <dirent.h>
+#endif
+
 int ctrl_path_elements(char *path)
 {
     int i = 1;
@@ -407,6 +411,20 @@ union control *ctrl_fontsel(struct controlset *s,char *label,char shortcut,
     return c;
 }
 
+#ifdef ZMODEMPORT
+union control *ctrl_directorysel(struct controlset *s,char *label,char shortcut,
+			    char *title,
+			    intorptr helpctx, handler_fn handler,
+			    intorptr context)
+{
+    union control *c = ctrl_new(s, CTRL_DIRECTORYSELECT, helpctx, handler, context);
+    c->fileselect.label = label ? dupstr(label) : NULL;
+    c->fileselect.shortcut = shortcut;
+    c->fileselect.title = dupstr(title);
+    return c;
+}
+#endif
+
 union control *ctrl_tabdelay(struct controlset *s, union control *ctrl)
 {
     union control *c = ctrl_new(s, CTRL_TABDELAY, P(NULL), NULL, P(NULL));
@@ -453,6 +471,11 @@ void ctrl_free(union control *ctrl)
       case CTRL_FILESELECT:
 	sfree(ctrl->fileselect.title);
 	break;
+#ifdef ZMODEMPORT
+      case CTRL_DIRECTORYSELECT:
+	sfree(ctrl->fileselect.title);
+	break;
+#endif
     }
     sfree(ctrl);
 }
@@ -576,6 +599,41 @@ void dlg_stdfilesel_handler(union control *ctrl, void *dlg,
 	dlg_filesel_get(ctrl, dlg, (Filename *)ATOFFSET(data, offset));
     }
 }
+
+#ifdef SCPORT
+void *sc_get_label_dialog();
+void *sc_get_label_ctrl();
+void sc_tokenlabel_handler(union control *ctrl, void *dlg, void *data, int event );
+void sc_dlg_stdfilesel_handler11(union control *ctrl, void *dlg, void *data, int event) {
+  int offset = ctrl->fileselect.context.i;
+  if (event == EVENT_REFRESH) {
+    dlg_filesel_set(ctrl, dlg, *(Filename *)ATOFFSET(data, offset));
+  } else if (event == EVENT_VALCHANGE) {
+    dlg_filesel_get(ctrl, dlg, (Filename *)ATOFFSET(data, offset));
+  }
+  if(sc_get_label_dialog() != NULL) {
+    sc_tokenlabel_handler(sc_get_label_ctrl(), sc_get_label_dialog(), data, EVENT_REFRESH);
+  }
+}
+#endif
+#ifdef ZMODEMPORT
+void dlg_stddirectorysel_handler(union control *ctrl, void *dlg,
+			    void *data, int event)
+{
+    /*
+     * The standard file-selector handler expects the `context'
+     * field to contain the `offsetof' a Filename field in the
+     * structure pointed to by `data'.
+     */
+    int offset = ctrl->directoryselect.context.i;
+
+    if (event == EVENT_REFRESH) {
+	dlg_directorysel_set(ctrl, dlg, *(Filename *)ATOFFSET(data, offset));
+    } else if (event == EVENT_VALCHANGE) {
+	dlg_directorysel_get(ctrl, dlg, (Filename *)ATOFFSET(data, offset));
+    }
+}
+#endif
 
 void dlg_stdfontsel_handler(union control *ctrl, void *dlg,
 			    void *data, int event)

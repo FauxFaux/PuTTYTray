@@ -205,6 +205,14 @@ int cmdline_process_param(char *p, char *value, int need_save, Config *cfg)
 	SAVEABLE(0);
 	default_protocol = cfg->protocol = PROT_RAW;
     }
+#ifdef CYGTERMPORT
+    if (!strcmp(p, "-cygterm")) {
+	RETURN(1);
+	UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+	default_protocol = cfg->protocol = PROT_CYGTERM;
+	return 1;
+    }
+#endif
     if (!strcmp(p, "-serial")) {
 	RETURN(1);
 	/* Serial is not NONNETWORK in an odd sense of the word */

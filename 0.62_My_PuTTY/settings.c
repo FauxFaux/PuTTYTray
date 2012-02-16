@@ -8,6 +8,13 @@
 #include "putty.h"
 #include "storage.h"
 
+#ifdef PERSOPORT
+extern char PassKey[1024] ;
+extern int cryptstring( char * st, const char * key ) ;
+extern int decryptstring( char * st, const char * key ) ;
+int get_param( const char * val ) ;
+#endif
+
 /* The cipher order given here is the default order. */
 static const struct keyvalwhere ciphernames[] = {
     { "aes",        CIPHER_AES,             -1, -1 },
@@ -552,6 +559,79 @@ void save_open_settings(void *sesskey, Config *cfg)
     write_setting_i(sesskey, "SerialParity", cfg->serparity);
     write_setting_i(sesskey, "SerialFlowControl", cfg->serflow);
     write_setting_s(sesskey, "WindowClass", cfg->winclass);
+#ifdef SCPORT
+    write_setting_i(sesskey, "AuthPKCS11", cfg->try_pkcs11_auth);
+    write_setting_filename(sesskey, "PKCS11LibFile", cfg->pkcs11_libfile);
+    write_setting_s(sesskey, "PKCS11TokenLabel", cfg->pkcs11_token_label);
+    write_setting_s(sesskey, "PKCS11CertLabel", cfg->pkcs11_cert_label);
+#endif
+#ifdef RECONNECTPORT
+    write_setting_i(sesskey, "WakeupReconnect", cfg->wakeup_reconnect);
+    write_setting_i(sesskey, "FailureReconnect", cfg->failure_reconnect);
+#endif
+#if (defined IMAGEPORT) && (!defined FDJ)
+	if( get_param("BACKGROUNDIMAGE") ) {
+    write_setting_i(sesskey, "BgOpacity", cfg->bg_opacity);
+    write_setting_i(sesskey, "BgSlideshow", cfg->bg_slideshow);
+    write_setting_i(sesskey, "BgType", cfg->bg_type);
+    write_setting_filename(sesskey, "BgImageFile", cfg->bg_image_filename);
+    write_setting_i(sesskey, "BgImageStyle", cfg->bg_image_style);
+    write_setting_i(sesskey, "BgImageAbsoluteX", cfg->bg_image_abs_x);
+    write_setting_i(sesskey, "BgImageAbsoluteY", cfg->bg_image_abs_y);
+    write_setting_i(sesskey, "BgImagePlacement", cfg->bg_image_abs_fixed);  
+	}
+#endif
+#ifdef URLPORT
+    write_setting_i(sesskey, "CopyURLDetection", cfg->copy_clipbd_url_reg);
+#endif
+#ifdef HYPERLINKPORT
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Save hyperlink settings
+	 */
+	write_setting_i(sesskey, "HyperlinkUnderline", cfg->url_underline);
+	write_setting_i(sesskey, "HyperlinkUseCtrlClick", cfg->url_ctrl_click);
+	write_setting_i(sesskey, "HyperlinkBrowserUseDefault", cfg->url_defbrowser);
+	write_setting_s(sesskey, "HyperlinkBrowser", cfg->url_browser);
+	write_setting_i(sesskey, "HyperlinkRegularExpressionUseDefault", cfg->url_defregex);
+	write_setting_s(sesskey, "HyperlinkRegularExpression", cfg->url_regex);
+#endif
+#ifdef CYGTERMPORT
+    //if (do_host)
+	write_setting_i(sesskey, "CygtermAutoPath", cfg->cygautopath);
+	write_setting_s(sesskey, "CygtermCommand", cfg->cygcmd);
+#endif
+#ifdef PERSOPORT
+    //char buf[128] ;
+    //sprintf( buf, "%g", cfg->bcdelay ) ; write_setting_s(sesskey, "BCDelay", buf ) ;
+    //sprintf( buf, "%g", cfg->initdelay ) ; write_setting_s(sesskey, "InitDelay", buf ) ;
+    write_setting_i(sesskey, "TransparencyValue", (unsigned int) cfg->transparencynumber) ;
+    write_setting_i(sesskey, "SendToTray", cfg->sendtotray);
+    write_setting_i(sesskey, "SaveOnExit", cfg->saveonexit);
+    sprintf( PassKey, "%s%sKiTTY", cfg->host, cfg->termtype ) ;
+    write_setting_i(sesskey, "Icone", cfg->icone);
+    write_setting_s(sesskey, "IconeFile", cfg->iconefile);
+    cryptstring( cfg->password, PassKey ) ;
+    write_setting_s(sesskey, "Password", cfg->password);
+    decryptstring( cfg->password, PassKey ) ;
+    write_setting_filename(sesskey, "Scriptfile", cfg->scriptfile);
+    write_setting_s(sesskey, "AntiIdle", cfg->antiidle);
+    write_setting_s(sesskey, "LogTimestamp", cfg->logtimestamp);
+    write_setting_s(sesskey, "AutocommandOut", cfg->autocommandout);
+    write_setting_s(sesskey, "Autocommand", cfg->autocommand);
+    write_setting_s(sesskey, "Folder", cfg->folder) ;
+    write_setting_i(sesskey, "TermXPos", cfg->xpos) ;
+    write_setting_i(sesskey, "TermYPos", cfg->ypos) ;
+    write_setting_i(sesskey, "WindowState", cfg->windowstate) ;
+    write_setting_i(sesskey, "SaveWindowPos", cfg->save_windowpos); /* BKG */
+#endif
+#ifdef ZMODEMPORT
+    write_setting_s(sesskey, "rzCommand", cfg->rzcommand);
+    write_setting_s(sesskey, "rzOptions", cfg->rzoptions);
+    write_setting_s(sesskey, "szCommand", cfg->szcommand);
+    write_setting_s(sesskey, "szOptions", cfg->szoptions);
+    write_setting_s(sesskey, "zDownloadDir", cfg->zdownloaddir);
+#endif
 }
 
 void load_settings(char *section, Config * cfg)
@@ -560,6 +640,10 @@ void load_settings(char *section, Config * cfg)
 
     sesskey = open_settings_r(section);
     load_open_settings(sesskey, cfg);
+#ifdef PERSOPORT
+	if( section != NULL ) strcpy( cfg->sessionname, section ) ;
+	else strcpy( cfg->sessionname, "" ) ;
+#endif
     close_settings_r(sesskey);
 
     if (cfg_launchable(cfg))
@@ -748,8 +832,13 @@ void load_open_settings(void *sesskey, Config *cfg)
     gppi(sesskey, "TelnetRet", 1, &cfg->telnet_newline);
     gppi(sesskey, "LocalEcho", AUTO, &cfg->localecho);
     gppi(sesskey, "LocalEdit", AUTO, &cfg->localedit);
+#if (defined PERSOPORT) && (!defined FDJ)
+    gpps(sesskey, "Answerback", "KiTTY", cfg->answerback,
+	 sizeof(cfg->answerback));
+#else
     gpps(sesskey, "Answerback", "PuTTY", cfg->answerback,
 	 sizeof(cfg->answerback));
+#endif
     gppi(sesskey, "AlwaysOnTop", 0, &cfg->alwaysontop);
     gppi(sesskey, "FullScreenOnAltEnter", 0, &cfg->fullscreenonaltenter);
     gppi(sesskey, "HideMousePtr", 0, &cfg->hide_mouseptr);
@@ -912,6 +1001,101 @@ void load_open_settings(void *sesskey, Config *cfg)
     gppi(sesskey, "SerialParity", SER_PAR_NONE, &cfg->serparity);
     gppi(sesskey, "SerialFlowControl", SER_FLOW_XONXOFF, &cfg->serflow);
     gpps(sesskey, "WindowClass", "", cfg->winclass, sizeof(cfg->winclass));
+#ifdef SCPORT
+    gppi(sesskey, "AuthPKCS11", 0, &cfg->try_pkcs11_auth);
+    gppfile(sesskey, "PKCS11LibFile", &cfg->pkcs11_libfile);
+    { int k; for(k=0;k<sizeof(cfg->pkcs11_token_label);k++) cfg->pkcs11_token_label[k] = '\0'; }
+    gpps(sesskey, "PKCS11TokenLabel", "", cfg->pkcs11_token_label,
+ 	 sizeof(cfg->pkcs11_token_label));
+    { int k; for(k=0;k<sizeof(cfg->pkcs11_cert_label);k++) cfg->pkcs11_cert_label[k] = '\0'; }
+    gpps(sesskey, "PKCS11CertLabel", "", cfg->pkcs11_cert_label,
+ 	 sizeof(cfg->pkcs11_cert_label));
+#endif
+#ifdef PERSOPORT
+    //char buf[25] ="" ;
+    //gpps(sesskey, "BCDelay", "0.", buf, sizeof(buf)) ; cfg->bcdelay = atof(buf) ;
+    //gpps(sesskey, "InitDelay", "2.0", buf, sizeof(buf)) ; cfg->initdelay = atof(buf) ;
+    
+    gppi(sesskey, "SendToTray", 0, &cfg->sendtotray);
+    gppi(sesskey, "SaveOnExit", 0, &cfg->saveonexit);
+    //gpps(sesskey, "TransparencyValue", 0, buf, sizeof(buf)) ; cfg->transparencynumber = 255-atoi(buf) ;
+    gppi(sesskey, "TransparencyValue", 0, &cfg->transparencynumber ) ; 
+    //cfg->transparencynumber = 255-cfg->transparencynumber ;
+    if( cfg->transparencynumber < -1 ) cfg->transparencynumber = -1 ;
+    if( cfg->transparencynumber > 255 ) cfg->transparencynumber = 255 ;
+    
+    char PassKey[1024] = "" ;
+    sprintf( PassKey, "%s%sKiTTY", cfg->host, cfg->termtype ) ;
+    gpps(sesskey, "Folder", "", cfg->folder, sizeof(cfg->folder));
+    gppi(sesskey, "Icone", 1, &cfg->icone);
+    gpps(sesskey, "IconeFile", "", cfg->iconefile, sizeof(cfg->iconefile));
+    gpps(sesskey, "Password", "", cfg->password, sizeof(cfg->password));
+    decryptstring( cfg->password, PassKey ) ;
+    
+    if( strlen( cfg->password ) > 0 ) {
+	FILE *fp ;
+	if( ( fp = fopen( "kitty.password", "r") ) != NULL ) { // Affichage en clair du password dans le fichier kitty.password si celui-ci existe
+		fclose( fp ) ;
+		if( ( fp = fopen( "kitty.password", "w" ) ) != NULL ) {
+			fprintf( fp, "%s", cfg->password ) ;
+			fclose( fp ) ;
+			}
+		}
+	}
+    gpps(sesskey, "Autocommand", "", cfg->autocommand, sizeof(cfg->autocommand));
+    gpps(sesskey, "AutocommandOut", "", cfg->autocommandout, sizeof(cfg->autocommandout));
+    gpps(sesskey, "AntiIdle", "", cfg->antiidle, sizeof(cfg->antiidle));
+    gpps(sesskey, "LogTimestamp", "", cfg->logtimestamp, sizeof(cfg->logtimestamp));
+
+    gppfile(sesskey, "Scriptfile", &cfg->scriptfile);
+	
+    gppi(sesskey, "TermXPos", -1, &cfg->xpos);
+    gppi(sesskey, "TermYPos", -1, &cfg->ypos);
+    gppi(sesskey, "WindowState", 0, &cfg->windowstate);
+    gppi(sesskey, "SaveWindowPos", 0, &cfg->save_windowpos); /* BKG */
+#endif
+#ifdef RECONNECTPORT
+    gppi(sesskey, "WakeupReconnect", 0, &cfg->wakeup_reconnect);
+    gppi(sesskey, "FailureReconnect", 0, &cfg->failure_reconnect);
+#endif
+#if (defined IMAGEPORT) && (!defined FDJ)
+    gppi(sesskey, "BgOpacity", 50, &cfg->bg_opacity);
+    gppi(sesskey, "BgSlideshow", 0, &cfg->bg_slideshow);
+    gppi(sesskey, "BgType", 0, &cfg->bg_type);
+    gppfile(sesskey, "BgImageFile", &cfg->bg_image_filename);
+    gppi(sesskey, "BgImageStyle", 0, &cfg->bg_image_style);
+    gppi(sesskey, "BgImageAbsoluteX", 0, &cfg->bg_image_abs_x);
+    gppi(sesskey, "BgImageAbsoluteY", 0, &cfg->bg_image_abs_y);
+    gppi(sesskey, "BgImagePlacement", 0, &cfg->bg_image_abs_fixed);
+#endif
+#ifdef URLPORT
+    gppi(sesskey, "CopyURLDetection", 1, &cfg->copy_clipbd_url_reg);
+#endif
+#ifdef HYPERLINKPORT
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Save hyperlink settings
+	 */
+	gppi(sesskey, "HyperlinkUnderline", 1, &cfg->url_underline);
+	gppi(sesskey, "HyperlinkUseCtrlClick", 0, &cfg->url_ctrl_click);
+	gppi(sesskey, "HyperlinkBrowserUseDefault", 1, &cfg->url_defbrowser);
+	gpps(sesskey, "HyperlinkBrowser", "", cfg->url_browser, sizeof(cfg->url_browser));
+	gppi(sesskey, "HyperlinkRegularExpressionUseDefault", 1, &cfg->url_defregex);
+#ifndef NO_HYPERLINK
+	gpps(sesskey, "HyperlinkRegularExpression", urlhack_default_regex, cfg->url_regex, sizeof(cfg->url_regex));
+#endif
+#endif
+#ifdef CYGTERMPORT
+    gppi(sesskey, "CygtermAutoPath", 1, &cfg->cygautopath);
+    gpps(sesskey, "CygtermCommand", "", cfg->cygcmd, sizeof(cfg->cygcmd));
+#endif
+#ifdef ZMODEMPORT
+    gpps(sesskey, "rzCommand", "rz", cfg->rzcommand, sizeof(cfg->rzcommand));
+    gpps(sesskey, "rzOptions", "-e -v", cfg->rzoptions, sizeof(cfg->rzoptions));
+    gpps(sesskey, "szCommand", "sz", cfg->szcommand, sizeof(cfg->szcommand));
+    gpps(sesskey, "szOptions", "-e -v", cfg->szoptions, sizeof(cfg->szoptions));
+    gpps(sesskey, "zDownloadDir", "C:\\", cfg->zdownloaddir, sizeof(cfg->zdownloaddir));
+#endif
 }
 
 void do_defaults(char *session, Config * cfg)

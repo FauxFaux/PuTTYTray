@@ -27,6 +27,10 @@ typedef struct terminal_tag Terminal;
 #include "network.h"
 #include "misc.h"
 
+#ifdef PERSOPORT
+int switch_private_key_flag( void ) ;
+#endif
+
 /*
  * Fingerprints of the PGP master keys that can be used to establish a trust
  * path between an executable and other files.
@@ -137,6 +141,15 @@ typedef struct terminal_tag Terminal;
 #define ATTR_DEFBG   (258 << ATTR_BGSHIFT)
 #define ATTR_DEFAULT (ATTR_DEFFG | ATTR_DEFBG)
 
+#ifdef HYPERLINKPORT 
+/*
+ * HACK: PuttyTray / Nutty
+ * Hyperlink stuff: define
+ */
+#define CHAR_MASK    0x000000FFUL
+extern const char* urlhack_default_regex ;
+#endif
+
 struct sesslist {
     int nsessions;
     char **sessions;
@@ -240,6 +253,18 @@ typedef enum {
 #define PK_ISKEYPAD(k)	((k) >= PK_PF1 && (k) <= PK_KPENTER)
 #define PK_ISFKEY(k)	((k) >= PK_F1 && (k) <= PK_F20)
 
+#ifdef HYPERLINKPORT
+/*
+ * HACK: PuttyTray / Nutty
+ * Hyperlink stuff: Underline settings
+ */
+enum {
+	URLHACK_UNDERLINE_ALWAYS,
+	URLHACK_UNDERLINE_HOVER,
+	URLHACK_UNDERLINE_NEVER
+};
+#endif
+
 enum {
     VT_XWINDOWS, VT_OEMANSI, VT_OEMONLY, VT_POORMAN, VT_UNICODE
 };
@@ -306,6 +331,9 @@ enum {
 enum {
     /* Protocol back ends. (cfg.protocol) */
     PROT_RAW, PROT_TELNET, PROT_RLOGIN, PROT_SSH,
+#ifdef CYGTERMPORT
+    PROT_CYGTERM,
+#endif
     /* PROT_SERIAL is supported on a subset of platforms, but it doesn't
      * hurt to define it globally. */
     PROT_SERIAL
@@ -459,7 +487,11 @@ extern const int be_default_protocol;
  * Name of this particular application, for use in the config box
  * and other pieces of text.
  */
+#if (defined PERSOPORT) && (!defined FDJ)
+extern char *appname;
+#else
 extern const char *const appname;
+#endif
 
 /*
  * IMPORTANT POLICY POINT: everything in this structure which wants
@@ -491,6 +523,26 @@ struct config_tag {
     char proxy_username[128];
     char proxy_password[128];
     char proxy_telnet_command[512];
+#ifdef PERSOPORT
+	double bcdelay ;
+	double initdelay ;
+	int transparencynumber ;
+	int sendtotray ;
+	int saveonexit ;
+	int icone ;
+	char iconefile[128] ;
+	char folder[128] ;
+	char password[128] ;
+	char autocommand[1024] ;
+	char autocommandout[512] ;
+	char sessionname[128] ;
+	char antiidle[128] ;
+	char logtimestamp[128] ;
+	Filename scriptfile ;
+	int save_windowpos;
+	int xpos, ypos ;
+	int windowstate ;
+#endif
     /* SSH options */
     char remote_cmd[512];
     char *remote_cmd_ptr;	       /* might point to a larger command
@@ -511,6 +563,14 @@ struct config_tag {
     int ssh2_des_cbc;		       /* "des-cbc" unrecommended SSH-2 cipher */
     int ssh_no_userauth;	       /* bypass "ssh-userauth" (SSH-2 only) */
     int ssh_show_banner;	       /* show USERAUTH_BANNERs (SSH-2 only) */
+#ifdef SCPORT
+   int try_write_syslog;                /* check box (not persistent) */
+   int try_pkcs11_auth;                 /* check box */
+   Filename pkcs11_libfile;             /* token lib */
+   void *sclib;                         /* sc's owned struct */
+   char pkcs11_token_label[70];         /* token label */
+   char pkcs11_cert_label[70];          /* cert label */
+#endif
     int try_tis_auth;
     int try_ki_auth;
     int try_gssapi_auth;               /* attempt gssapi auth */
@@ -538,6 +598,11 @@ struct config_tag {
     int serdatabits, serstopbits;
     int serparity;
     int serflow;
+#ifdef CYGTERMPORT
+    /* Cygterm options */
+    int cygautopath;
+    char cygcmd[512];
+#endif
     /* Keyboard options */
     int bksp_is_delete;
     int rxvt_homeend;
@@ -559,6 +624,9 @@ struct config_tag {
     int alt_f4;			       /* is it special? */
     int alt_space;		       /* is it special? */
     int alt_only;		       /* is it special? */
+#ifdef CYGTERMPORT
+    int alt_metabit;		       /* set meta instead of escape */
+#endif
     int localecho;
     int localedit;
     int alwaysontop;
@@ -601,6 +669,16 @@ struct config_tag {
     int hide_mouseptr;
     int sunken_edge;
     int window_border;
+#if (defined IMAGEPORT) && (!defined FDJ)
+    int bg_opacity;
+    int bg_slideshow;
+    int bg_type;                 /* 0=solid 1=wallpaper 2=bitmap */
+    int bg_image_style;          /* 0=tile 1=center 2=stretch 3=(x,y) 4=Blanck background 5=Stretch Plus*/
+    int bg_image_abs_x;
+    int bg_image_abs_y;
+    int bg_image_abs_fixed;      /* 0=fixed to desktop, 1=fixed to term wnd */
+    Filename bg_image_filename;
+#endif
     char answerback[256];
     char printer[128];
     int arabicshaping;
@@ -618,6 +696,9 @@ struct config_tag {
     int rawcnp;
     int rtf_paste;
     int mouse_override;
+#ifdef URLPORT
+    int copy_clipbd_url_reg;
+#endif
     short wordness[256];
     /* translations */
     int vtmode;
@@ -666,6 +747,30 @@ struct config_tag {
     FontSpec wideboldfont;
     int shadowboldoffset;
     int crhaslf;
+#ifdef RECONNECTPORT
+	int wakeup_reconnect;
+ 	int failure_reconnect;
+#endif
+#ifdef HYPERLINKPORT
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Underline settings
+	 */
+	int url_ctrl_click;
+	int url_underline;
+	int url_defbrowser;
+	int url_defregex;
+	char url_browser[MAX_PATH];
+	char url_regex[1024];
+#endif
+#ifdef ZMODEMPORT
+    /* Z modem options */
+    char rzcommand[512];
+    char rzoptions[512];
+    char szcommand[512];
+    char szoptions[512];
+    char zdownloaddir[512];
+#endif
     char winclass[256];
 };
 
@@ -971,6 +1076,15 @@ extern Backend telnet_backend;
  * Exports from ssh.c.
  */
 extern Backend ssh_backend;
+
+#ifdef CYGTERMPORT
+/*
+ * Exports from cygterm.c.
+ */
+extern Backend cygterm_backend;
+void cygterm_setup_config_box(struct controlbox *b, int midsession);
+
+#endif
 
 /*
  * Exports from ldisc.c.

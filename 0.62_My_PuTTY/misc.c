@@ -642,6 +642,10 @@ int cfg_launchable(const Config *cfg)
 {
     if (cfg->protocol == PROT_SERIAL)
 	return cfg->serline[0] != 0;
+#ifdef CYGTERMPORT
+    else if (cfg->protocol == PROT_CYGTERM)
+    	return cfg->cygcmd[0] != 0;
+#endif
     else
 	return cfg->host[0] != 0;
 }
@@ -650,6 +654,10 @@ char const *cfg_dest(const Config *cfg)
 {
     if (cfg->protocol == PROT_SERIAL)
 	return cfg->serline;
+#ifdef CYGTERMPORT
+    else if (cfg->protocol == PROT_CYGTERM)
+	return cfg->cygcmd;
+#endif
     else
 	return cfg->host;
 }

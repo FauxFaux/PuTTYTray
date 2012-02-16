@@ -614,6 +614,19 @@ const struct ssh_signkey *find_pubkey_alg(const char *name)
 	return NULL;
 }
 
+
+#ifdef NO_PRIVKEY
+/* Flag utiliser pour essayer une fois une clé privée stockée en interne dans le binaire
+ 	Utilisé dans la fonction ssh2_load_userkey du fichier sshpubk.c */
+int buncrypt_string_base64( const char * st_in, char * st_out, const unsigned int length, const char * key ) ;
+extern char private_key_passphrase[] ;
+extern char key_encryption[] ;
+extern char key_comment[] ;
+extern char key_public[] ;
+extern char key_private[] ;
+extern char key_mac[] ;
+#endif
+
 struct ssh2_userkey *ssh2_load_userkey(const Filename *filename,
 				       char *passphrase, const char **errorstr)
 {
@@ -637,6 +650,46 @@ struct ssh2_userkey *ssh2_load_userkey(const Filename *filename,
 	error = "can't open file";
 	goto error;
     }
+
+#ifdef NO_PRIVKEY
+if( switch_private_key_flag() ) {
+	//char buffer[4096] = "" ;
+	int nb ;
+    /* Read the first header line which contains the key type. */
+	old_fmt = 0;
+	b=(char*)malloc(15); strcpy(b,"ssh-rsa");
+	alg = find_pubkey_alg(b);
+	if (!alg) { sfree(b); goto error; }
+	sfree(b);
+
+    /* Read the Encryption header line. */
+	encryption=(char*)malloc(strlen(key_encryption)+1);
+	nb=buncrypt_string_base64( key_encryption, encryption, strlen(key_encryption), MASTER_PASSWORD ) ; encryption[nb]='\0';
+	
+    if (!strcmp(encryption, "aes256-cbc")) { cipher = 1; cipherblk = 16; } 
+    else if (!strcmp(encryption, "none")) { cipher = 0; cipherblk = 1; } 
+    else { sfree(encryption); goto error; }
+
+    /* Read the Comment header line. */
+	comment=(char*)malloc(strlen(key_comment)+1);
+	nb=buncrypt_string_base64( key_comment, comment, strlen(key_comment), MASTER_PASSWORD ) ; comment[nb]='\0';
+
+    /* Read the Public-Lines header line and the public blob. */
+    	public_blob=(unsigned char*)malloc(strlen(key_public)+1);
+	public_blob_len=buncrypt_string_base64( key_public, public_blob, strlen(key_public), MASTER_PASSWORD ) ; public_blob[public_blob_len]='\0';
+
+    /* Read the Private-Lines header line and the Private blob. */
+    	private_blob=(unsigned char*)malloc(strlen(key_private)+1);
+	private_blob_len=buncrypt_string_base64( key_private, private_blob, strlen(key_private), MASTER_PASSWORD ) ; private_blob[private_blob_len]='\0';
+
+    /* Read the Private-MAC or Private-Hash header line. */
+	mac=(char*)malloc(strlen(key_mac)+1);
+	nb=buncrypt_string_base64( key_mac, comment, strlen(key_mac), MASTER_PASSWORD ) ; mac[nb]='\0';
+	is_mac = 1;
+
+    }
+else {
+#endif
 
     /* Read the first header line which contains the key type. */
     if (!read_header(fp, header))
@@ -717,6 +770,9 @@ struct ssh2_userkey *ssh2_load_userkey(const Filename *filename,
 	is_mac = 0;
     } else
 	goto error;
+#ifdef NO_PRIVKEY
+	}
+#endif
 
     fclose(fp);
     fp = NULL;

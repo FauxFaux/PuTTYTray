@@ -23,6 +23,42 @@ struct LogContext {
 
 static void xlatlognam(Filename *d, Filename s, char *hostname, struct tm *tm);
 
+#ifdef PERSOPORT
+int get_param( const char * val ) ;
+int mkdir(const char *path, int mode);
+// Test l'existance du répertoire, sinon le crée
+void test_dir( Filename *filename ) {
+	int i ; char * name ;
+	if( filename == NULL ) return ;
+	if( strlen( filename_to_str(filename) ) == 0 ) return ;
+	
+	if( ( name = (char*) malloc( strlen( filename_to_str(filename) ) + 1 ) ) != NULL ) {
+		strcpy( name, filename_to_str(filename) ) ;
+		for( i=strlen(name)-1; i>=0 ; i-- ) 
+			{ if( (name[i] == '\\') || (name[i]=='/' ) ) break ; }
+		if( i > 0 ) {
+			name[i] = '\0';
+			mkdir( name, 777 ) ;
+			}
+		free( name ) ;
+		}
+	}
+
+int log_writetimestamp( struct LogContext *ctx ) {
+// "%m/%d/%Y %H:%M:%S "
+	if( strlen(ctx->cfg.logtimestamp)==0 )  return 1 ;
+	
+	char buf[128] = "" ;
+	time_t temps = time( 0 ) ;
+	struct tm tm = * localtime( &temps ) ;
+	strftime( buf, 127, ctx->cfg.logtimestamp, &tm ) ;
+	fwrite(buf, 1, strlen(buf), ctx->lgfp);
+	return 1;
+	}
+
+static int timestamp_switch = 1 ;
+#endif
+
 /*
  * Internal wrapper function which must be called for _all_ output
  * to the log file. It takes care of opening the log file if it
@@ -43,6 +79,13 @@ static void logwrite(struct LogContext *ctx, void *data, int len)
 	bufchain_add(&ctx->queue, data, len);
     } else if (ctx->state == L_OPEN) {
 	assert(ctx->lgfp);
+#ifdef PERSOPORT
+	if( !get_param("PUTTY") ) {
+		if( timestamp_switch ) { log_writetimestamp( ctx ) ; timestamp_switch = 0 ; }
+		char * c = (char*)(data+len-1) ;
+		if( c[0]=='\n' ) timestamp_switch = 1 ;
+	}
+#endif
 	if (fwrite(data, 1, len, ctx->lgfp) < (size_t)len) {
 	    logfclose(ctx);
 	    ctx->state = L_ERROR;
@@ -155,6 +198,9 @@ void logfopen(void *handle)
 
     /* substitute special codes in file name */
     xlatlognam(&ctx->currlogfilename, ctx->cfg.logfilename,ctx->cfg.host, &tm);
+#ifdef PERSOPORT
+	test_dir( &ctx->currlogfilename ) ;
+#endif
 
     ctx->lgfp = f_open(ctx->currlogfilename, "r", FALSE);  /* file already present? */
     if (ctx->lgfp) {

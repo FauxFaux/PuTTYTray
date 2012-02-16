@@ -12,6 +12,32 @@
 #include "storage.h"
 #include "tree234.h"
 
+#ifdef PERSOPORT
+
+// Flag pour le fonctionnement en mode "portable" (gestion par fichiers)
+int IniFileFlag = 0 ;
+
+// Flag permettant la gestion de l'arborscence (dossier=folder) dans le cas d'un savemode=dir
+int DirectoryBrowseFlag = 0 ;
+
+#include "../../kitty_crypt.c"
+#include "../../kitty_commun.h"
+
+int get_param( const char * val ) {
+	if( !stricmp( val, "INIFILE" ) ) return IniFileFlag ;
+	else if( !stricmp( val, "DIRECTORYBROWSE" ) ) return DirectoryBrowseFlag ;
+	return 0 ;
+	}
+
+void SetPasswordInConfig( char * password ) {
+	int len ;
+	if( password!=NULL ) {
+		len = strlen( password ) ;
+		if( len > 126 ) len = 126 ;
+		}
+	}
+#endif
+
 #define WM_AGENT_CALLBACK (WM_APP + 4)
 
 struct agent_callback {
@@ -157,7 +183,11 @@ void agent_schedule_callback(void (*callback)(void *, void *, int),
  */
 static void usage(void)
 {
+#if (defined PERSOPORT) && (!defined FDJ)
+    printf("KiTTY Link: command-line connection utility\n");
+#else
     printf("PuTTY Link: command-line connection utility\n");
+#endif
     printf("%s\n", ver);
     printf("Usage: plink [options] [user@]host [command]\n");
     printf("       (\"host\" can also be a PuTTY saved session name)\n");
@@ -273,6 +303,66 @@ void stdouterr_sent(struct handle *h, int new_backlog)
     }
 }
 
+#ifdef PERSOPORT
+char * AutoCommand = NULL ;
+void ManageAutocommand( struct handle *h ) {
+	char c = '\n' ;
+	while( strlen(AutoCommand) > 0 ) {
+		c = (char)AutoCommand[0] ;
+		if( c=='\\' ) {
+			if( AutoCommand[1]=='n' ) stdin_gotdata(h, "\n", 1 ) ;
+			AutoCommand++ ;
+			c = '\n' ;
+			}
+		else stdin_gotdata(h, AutoCommand, 1 ) ;
+		AutoCommand++ ;
+		}
+	if( c != '\n' ) stdin_gotdata(h, "\n", 1 ) ;
+	}
+	
+int plink_main(int argc, char **argv) ;
+	
+int main(int argc, char **argv) {
+	int arc=0, ret=0, i ;
+	char **arv ;
+	
+	arv=(char**)malloc( argc*sizeof(char*) ) ;
+	for( i=0 ; i<argc ; i++ ) {
+		if( !strcmp(argv[i],"-folder" ) && (i<(argc-1)) ) {
+			i++ ;
+			printf( "Switching folder to %s\n", argv[i] ) ;
+			printf( "%s\n",SetSessPath( argv[i] ) );
+			SetSessPath( argv[i] ) ;
+			}
+		else {
+			arv[arc]=(char*)malloc( strlen(argv[i]) +1 ) ;
+			strcpy(arv[arc],argv[i]) ;
+			arc++ ;
+			}
+		}
+	ret = plink_main( arc, arv ) ;
+	for( i=0 ; i<arc ; i++ )  free( arv[i] ) ;
+	free( arv ) ;
+	return ret ;
+	}
+
+int plink_main(int argc, char **argv)
+{
+    int sending;
+    int portnumber = -1;
+    SOCKET *sklist;
+    int skcount, sksize;
+    int exitcode;
+    int errors;
+    int got_host = FALSE;
+    int use_subsystem = 0;
+    long now, next;
+	
+    IsPortableMode() ;
+    //if( IsPortableMode() ) { printf( "Portable mode on\n" ) ; }
+
+#else
+
 int main(int argc, char **argv)
 {
     int sending;
@@ -284,6 +374,7 @@ int main(int argc, char **argv)
     int got_host = FALSE;
     int use_subsystem = 0;
     long now, next;
+#endif
 
     sklist = NULL;
     skcount = sksize = 0;
@@ -554,6 +645,10 @@ int main(int argc, char **argv)
     logctx = log_init(NULL, &cfg);
     console_provide_logctx(logctx);
 
+#ifdef PERSOPORT
+    if( strlen( cfg.autocommand ) > 0 ) AutoCommand = cfg.autocommand ;
+#endif
+    
     /*
      * Start up the connection.
      */
@@ -613,6 +708,9 @@ int main(int argc, char **argv)
 					    0);
 	    sending = TRUE;
 	}
+#ifdef PERSOPORT
+	if( sending ) if( AutoCommand ) ManageAutocommand( backhandle ) ;
+#endif
 
 	if (run_timers(now, &next)) {
 	    ticks = next - GETTICKCOUNT();

@@ -17,6 +17,22 @@
 
 #include <shellapi.h>
 
+#ifdef PERSOPORT
+/******************************************************************************** 
+	Le patch SCPORT est incompatible avec le mode PORTABLE
+********************************************************************************/
+#undef SCPORT
+
+// Flag pour le fonctionnement en mode "portable" (gestion par fichiers)
+int IniFileFlag = 0 ;
+
+// Flag permettant la gestion de l'arborscence (dossier=folder) dans le cas d'un savemode=dir
+int DirectoryBrowseFlag = 0 ;
+
+#include "../../kitty_crypt.c"
+#include "../../kitty_commun.h"
+#endif
+
 #ifndef NO_SECURITY
 #include <aclapi.h>
 #ifdef DEBUG_IPC
@@ -66,7 +82,11 @@ static filereq *keypath = NULL;
 #define IDM_PUTTY         0x0060
 #define IDM_SESSIONS_BASE 0x1000
 #define IDM_SESSIONS_MAX  0x2000
+#if (defined PERSOPORT) && (!defined FDJ)
+#define PUTTY_REGKEY      "Software\\9bis.com\\KiTTY\\Sessions"
+#else
 #define PUTTY_REGKEY      "Software\\SimonTatham\\PuTTY\\Sessions"
+#endif
 #define PUTTY_DEFAULT     "Default%20Settings"
 static int initial_menuitems_count;
 
@@ -240,6 +260,73 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 }
 
 static HWND passphrase_box;
+
+#ifdef SCPORT
+sc_lib *sclib = NULL;
+char pkcs11_token_label[70];
+char pkcs11_cert_label[70];
+char sc_save_passphrase[PASSPHRASE_MAXLEN];
+int sc_activate_pwd_cache = 0;
+void logevent(void *f, const char *msg) {
+}
+static int CALLBACK sc_PassphraseProc(HWND hwnd, UINT msg,
+				      WPARAM wParam, LPARAM lParam) {
+  static char *passphrase = NULL;
+  struct PassphraseProcStruct *p;
+  switch (msg) {
+  case WM_INITDIALOG:
+    passphrase_box = hwnd;
+    /*
+     * Centre the window.
+     */
+    {			       /* centre the window */
+      RECT rs, rd;
+      HWND hw;
+      hw = GetDesktopWindow();
+      if (GetWindowRect(hw, &rs) && GetWindowRect(hwnd, &rd))
+	MoveWindow(hwnd,
+		   (rs.right + rs.left + rd.left - rd.right) / 2,
+		   (rs.bottom + rs.top + rd.top - rd.bottom) / 2,
+		   rd.right - rd.left, rd.bottom - rd.top, TRUE);
+    }
+    SetForegroundWindow(hwnd);
+    SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0,
+		 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+    p = (struct PassphraseProcStruct *) lParam;
+    passphrase = p->passphrase;
+    if (p->comment)
+      SetDlgItemText(hwnd, 101, p->comment);
+    *passphrase = 0;
+    SetDlgItemText(hwnd, 102, passphrase);
+    return 0;
+  case WM_COMMAND:
+    switch (LOWORD(wParam)) {
+    case IDOK:
+      if (*passphrase)
+	EndDialog(hwnd, 1);
+      else
+	MessageBeep(0);
+      return 0;
+    case IDCANCEL:
+      sc_activate_pwd_cache = 1;
+      EndDialog(hwnd, 0);
+      return 0;
+    case 102:		       /* edit box */
+      if ((HIWORD(wParam) == EN_CHANGE) && passphrase) {
+	GetDlgItemText(hwnd, 102, passphrase,
+		       PASSPHRASE_MAXLEN - 1);
+	passphrase[PASSPHRASE_MAXLEN - 1] = '\0';
+      }
+      return 0;
+    }
+    return 0;
+  case WM_CLOSE:
+    EndDialog(hwnd, 0);
+    return 0;
+  }
+  return 0;
+}
+#endif
 
 /*
  * Dialog-box function for the passphrase box.
@@ -1004,6 +1091,29 @@ static void answer_msg(void *msg)
 	    key = find234(ssh2keys, &b, cmpkeys_ssh2_asymm);
 	    if (!key)
 		goto failure;
+#ifdef SCPORT
+	    if((sclib != NULL) && (strcmp(key->comment, pkcs11_cert_label) == 0)) {
+	      char passphrase[PASSPHRASE_MAXLEN];
+	      struct PassphraseProcStruct pps1;
+	      pps1.passphrase = passphrase;
+	      pps1.comment = key->comment;
+	      if(strlen(sc_save_passphrase) == 0) {
+		/* password not in cache */
+		sc_activate_pwd_cache = 0;
+		DialogBoxParam(hinst, MAKEINTRESOURCE(215), NULL, sc_PassphraseProc, (LPARAM) &pps1);
+	      } else {
+		/* re-use existing pwd */
+		strcpy(pps1.passphrase, sc_save_passphrase);
+	      }
+	      signature = sc_sig(NULL, 0, sclib, pkcs11_token_label, pps1.passphrase, data, datalen, &siglen);
+	      if(siglen > 1 && sc_activate_pwd_cache) {
+		/* store password in cache (if requested and valid) */
+		strcpy(sc_save_passphrase, pps1.passphrase);
+	      }
+	      memset(pps1.passphrase, 0, PASSPHRASE_MAXLEN);
+	    }
+	    else
+#endif
 	    signature = key->alg->sign(key->data, data, datalen, &siglen);
 	    len = 5 + 4 + siglen;
 	    PUT_32BIT(ret, len - 4);
@@ -2012,6 +2122,14 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     hinst = inst;
     hwnd = NULL;
 
+#ifdef PERSOPORT
+	IsPortableMode() ;
+	//if( IsPortableMode() ) { printf( "Portable mode on\n" ) ; }
+#endif
+#ifdef SCPORT
+    HKEY hkey;
+#endif
+
     /*
      * Determine whether we're an NT system (should have security
      * APIs) or a non-NT system (don't do security).
@@ -2168,6 +2286,66 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     }
 
     keylist = NULL;
+
+#ifdef SCPORT
+    if(ERROR_SUCCESS == RegOpenKey(HKEY_CURRENT_USER, PUTTY_REGKEY, &hkey)) {
+      TCHAR buf[MAX_PATH + 1];
+      int index_key = 0;
+      memset(sc_save_passphrase, 0, PASSPHRASE_MAXLEN);
+      while(ERROR_SUCCESS == RegEnumKey(hkey, index_key, buf, MAX_PATH)) {
+	char kn[1024];
+	HKEY sesskey;
+	sprintf(kn, "%s\\%s", PUTTY_REGKEY, buf);
+	if(ERROR_SUCCESS == RegOpenKey(HKEY_CURRENT_USER, kn, &sesskey)) {
+	  Filename pkcs11_libfile;
+	  int ln = sizeof(pkcs11_token_label);
+	  if(read_setting_s(sesskey, "PKCS11CertLabel", pkcs11_cert_label, ln)) {
+	    if(strlen(pkcs11_cert_label) > 0) {
+	      read_setting_filename(sesskey, "PKCS11LibFile", &pkcs11_libfile);
+	      read_setting_s(sesskey, "PKCS11TokenLabel", pkcs11_token_label, ln);
+	      {
+		sclib = calloc(sizeof(sc_lib), 1);
+		if(sc_init_library(NULL, 1, sclib, &pkcs11_libfile)) {
+		  int bloblen;
+		  char *algorithm;
+		  unsigned char *blob = (unsigned char *)sc_get_pub(NULL, 0, sclib,
+								    pkcs11_token_label,
+								    pkcs11_cert_label,
+								    &algorithm,
+								    &bloblen);
+		  if(blob == NULL) {
+		    sc_free_sclib(sclib);
+		    sclib = NULL;
+		  } else {
+		    struct RSAKey *rkey = snew(struct RSAKey);
+		    struct ssh2_userkey *newKey = snew(struct ssh2_userkey);
+
+		    rkey->exponent = sclib->rsakey->exponent;
+		    rkey->modulus = sclib->rsakey->modulus;
+		    newKey->data = rkey;
+		    newKey->comment = pkcs11_cert_label;
+		    newKey->alg = find_pubkey_alg("ssh-rsa");
+
+		    if(add234(ssh2keys, newKey) != newKey) {
+		      MessageBox(NULL, "Failed to add token key", "Pageant Error",
+				 MB_ICONERROR | MB_OK);
+		    }
+		    break;
+		    // todo support multiple keys
+		    // --------------------
+		  }
+		}
+	      }
+	      RegCloseKey(sesskey);
+	    }
+	  }
+	  RegCloseKey(sesskey);
+	}
+	index_key++;
+      }
+      RegCloseKey(hkey);
+    }
+#endif
 
     hwnd = CreateWindow(APPNAME, APPNAME,
 			WS_OVERLAPPEDWINDOW | WS_VSCROLL,

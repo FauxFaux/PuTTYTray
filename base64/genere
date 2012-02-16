@@ -1,0 +1,5 @@
+gcc -c base64.c
+ar cr base64.a base64.o
+ranlib base64.a
+cp base64.h ..
+cp base64.a ..

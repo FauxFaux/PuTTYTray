@@ -23,6 +23,14 @@ char sshver[] = "PuTTY-Snapshot-" SNAPSHOT_TEXT;
 char ver[] = "Release " STR(RELEASE);
 char sshver[] = "PuTTY-Release-" STR(RELEASE);
 
+#elif defined PERSOPORT
+
+#include <string.h>
+char ver[] = "Custom build" ;
+char sshver[] = "PuTTY-KiTTY\0                        " ;
+
+void set_sshver( const char * vers ) { strcpy( sshver, vers ) ; }
+
 #elif defined PRERELEASE
 
 char ver[] = "Pre-release " STR(PRERELEASE) ":r" STR(SVN_REV);

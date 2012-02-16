@@ -35,6 +35,9 @@ enum {
     CTRL_COLUMNS,		       /* divide window into columns */
     CTRL_FILESELECT,		       /* label plus filename selector */
     CTRL_FONTSELECT,		       /* label plus font selector */
+#ifdef ZMODEMPORT
+    CTRL_DIRECTORYSELECT,	       /* label plus directory selector */
+#endif
     CTRL_TABDELAY		       /* see `tabdelay' below */
 };
 
@@ -404,6 +407,19 @@ union control {
 	STANDARD_PREFIX;
 	char shortcut;
     } fontselect;
+#ifdef ZMODEMPORT
+    struct {
+	STANDARD_PREFIX;
+	char shortcut;
+	/*
+	 * On at least some platforms, the file selector is a
+	 * separate dialog box, and contains a user-settable title.
+	 * 
+	 * This value _is_ expected to require freeing.
+	 */
+	char *title;
+    } directoryselect;
+#endif
 };
 
 #undef STANDARD_PREFIX
@@ -515,6 +531,12 @@ union control *ctrl_filesel(struct controlset *,char *label,char shortcut,
 union control *ctrl_fontsel(struct controlset *,char *label,char shortcut,
 			    intorptr helpctx,
 			    handler_fn handler, intorptr context);
+#ifdef ZMODEMPORT
+union control *ctrl_directorysel(struct controlset *,char *label,char shortcut,
+			    char *title,
+			    intorptr helpctx,
+			    handler_fn handler, intorptr context);
+#endif
 union control *ctrl_text(struct controlset *, char *text, intorptr helpctx);
 union control *ctrl_checkbox(struct controlset *, char *label, char shortcut,
 			     intorptr helpctx,
@@ -567,6 +589,11 @@ void dlg_stdeditbox_handler(union control *ctrl, void *dlg,
  */
 void dlg_stdfilesel_handler(union control *ctrl, void *dlg,
 			    void *data, int event);
+#ifdef SCPORT
+void sc_dlg_stdfilesel_handler11(union control *ctrl, void *dlg,
+				 void *data, int event);
+#endif
+
 /*
  * The standard font-selector handler expects the main `context'
  * field to contain the `offsetof' a Font field in the structure
@@ -574,6 +601,15 @@ void dlg_stdfilesel_handler(union control *ctrl, void *dlg,
  */
 void dlg_stdfontsel_handler(union control *ctrl, void *dlg,
 			    void *data, int event);
+#ifdef ZMODEMPORT
+/*
+ * The standard directory-selector handler expects the main `context'
+ * field to contain the `offsetof' a Filename field in the
+ * structure pointed to by `data'.
+ */
+void dlg_stddirectorysel_handler(union control *ctrl, void *dlg,
+			    void *data, int event);
+#endif
 
 /*
  * Routines the platform-independent dialog code can call to read
@@ -608,6 +644,11 @@ void dlg_filesel_set(union control *ctrl, void *dlg, Filename fn);
 void dlg_filesel_get(union control *ctrl, void *dlg, Filename *fn);
 void dlg_fontsel_set(union control *ctrl, void *dlg, FontSpec fn);
 void dlg_fontsel_get(union control *ctrl, void *dlg, FontSpec *fn);
+#ifdef ZMODEMPORT
+void dlg_directorysel_set(union control *ctrl, void *dlg, Filename fn);
+void dlg_directorysel_get(union control *ctrl, void *dlg, Filename *fn);
+#endif
+
 /*
  * Bracketing a large set of updates in these two functions will
  * cause the front end (if possible) to delay updating the screen
@@ -706,3 +747,13 @@ int ctrl_path_elements(char *path);
 /* Return the number of matching path elements at the starts of p1 and p2,
  * or INT_MAX if the paths are identical. */
 int ctrl_path_compare(char *p1, char *p2);
+
+#ifdef ZMODEMPORT
+/*
+ * The standard directory-selector handler expects the main `context'
+ * field to contain the `offsetof' a Filename field in the
+ * structure pointed to by `data'.
+ */
+void dlg_stddirectorysel_handler(union control *ctrl, void *dlg,
+			    void *data, int event);
+#endif

@@ -1,5 +1,5 @@
 /************************************************************************
- * $Id$
+ * $Id: minibidi.c 9169 2011-05-07 10:57:19Z simon $
  *
  * ------------
  * Description:
@@ -14,9 +14,9 @@
  * -----------------
  * Revision Details:    (Updated by Revision Control System)
  * -----------------
- *  $Date$
- *  $Author$
- *  $Revision$
+ *  $Date: 2011-05-07 11:57:19 +0100 (Sat, 07 May 2011) $
+ *  $Author: simon $
+ *  $Revision: 9169 $
  *
  * (www.arabeyes.org - under MIT license)
  *

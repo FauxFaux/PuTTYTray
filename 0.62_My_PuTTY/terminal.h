@@ -232,6 +232,10 @@ struct terminal_tag {
 
     struct unicode_data *ucsdata;
 
+#ifdef ZMODEMPORT
+    int xyz_transfering;
+    struct zModemInternals *xyz_Internals;
+#endif
     /*
      * We maintain a full _copy_ of a Config structure here, not
      * merely a pointer to it. That way, when we're passed a new
@@ -273,6 +277,12 @@ struct terminal_tag {
     int wcFromTo_size;
     struct bidi_cache_entry *pre_bidi_cache, *post_bidi_cache;
     int bidi_cache_size;
+#ifdef HYPERLINKPORT
+ 	/*
+	 * HACK: PuttyTray / Nutty
+	 */
+	int url_update;
+#endif
 };
 
 #define in_utf(term) ((term)->utf || (term)->ucsdata->line_codepage==CP_UTF8)

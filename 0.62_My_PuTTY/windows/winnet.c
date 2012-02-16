@@ -56,6 +56,9 @@ struct Socket_tag {
     void *private_ptr;
     bufchain output_data;
     int connected;
+#ifdef ZMODEMPORT
+	int closing; /* used when closing the connection, while we flush the remaining items */
+#endif
     int writable;
     int frozen; /* this causes readability notifications to be ignored */
     int frozen_readable; /* this means we missed at least one readability
@@ -117,6 +120,9 @@ struct SockAddr_tag {
 #endif
 
 static tree234 *sktree;
+#ifdef ZMODEMPORT
+static int curpass;
+#endif
 
 static int cmpfortree(void *av, void *bv)
 {
@@ -176,6 +182,10 @@ DECL_WINDOWS_FUNCTION(static, int, WSAIoctl,
 		      (SOCKET, DWORD, LPVOID, DWORD, LPVOID, DWORD,
 		       LPDWORD, LPWSAOVERLAPPED,
 		       LPWSAOVERLAPPED_COMPLETION_ROUTINE));
+#ifdef CYGTERMPORT
+DECL_WINDOWS_FUNCTION(static, int, getsockname,
+		      (SOCKET, const struct sockaddr FAR *, int FAR *));
+#endif
 #ifndef NO_IPV6
 DECL_WINDOWS_FUNCTION(static, int, getaddrinfo,
 		      (const char *nodename, const char *servname,
@@ -295,6 +305,9 @@ void sk_init(void)
     GET_WINDOWS_FUNCTION(winsock_module, accept);
     GET_WINDOWS_FUNCTION(winsock_module, recv);
     GET_WINDOWS_FUNCTION(winsock_module, WSAIoctl);
+#ifdef CYGTERMPORT
+    GET_WINDOWS_FUNCTION(winsock_module, getsockname);
+#endif
 
     /* Try to get the best WinSock version we can get */
     if (!sk_startup(2,2) &&
@@ -304,6 +317,9 @@ void sk_init(void)
     }
 
     sktree = newtree234(cmpfortree);
+#ifdef ZMODEMPORT
+    curpass = 1;
+#endif
 }
 
 void sk_cleanup(void)
@@ -778,6 +794,9 @@ Socket sk_register(void *sock, Plug plug)
     ret->error = NULL;
     ret->plug = plug;
     bufchain_init(&ret->output_data);
+#ifdef ZMODEMPORT
+	ret->closing = 0;
+#endif
     ret->writable = 1;		       /* to start with */
     ret->sending_oob = 0;
     ret->frozen = 1;
@@ -827,7 +846,11 @@ static DWORD try_connect(Actual_Socket sock)
         p_closesocket(sock->s);
     }
 
+#ifdef ZMODEMPORT
+	if (!sock->closing) plug_log(sock->plug, 0, sock->addr, sock->port, NULL, 0);
+#else
     plug_log(sock->plug, 0, sock->addr, sock->port, NULL, 0);
+#endif
 
     /*
      * Open socket.
@@ -994,7 +1017,11 @@ static DWORD try_connect(Actual_Socket sock)
      */
     add234(sktree, sock);
 
+#ifdef ZMODEMPORT
+	if (err && !sock->closing)
+#else
     if (err)
+#endif
 	plug_log(sock->plug, 1, sock->addr, sock->port, sock->error, err);
     return err;
 }
@@ -1026,6 +1053,9 @@ Socket sk_new(SockAddr addr, int port, int privport, int oobinline,
     ret->plug = plug;
     bufchain_init(&ret->output_data);
     ret->connected = 0;		       /* to start with */
+#ifdef ZMODEMPORT
+	ret->closing = 0;
+#endif
     ret->writable = 0;		       /* to start with */
     ret->sending_oob = 0;
     ret->frozen = 0;
@@ -1087,6 +1117,9 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only,
     ret->error = NULL;
     ret->plug = plug;
     bufchain_init(&ret->output_data);
+#ifdef ZMODEMPORT
+	ret->closing = 0;
+#endif
     ret->writable = 0;		       /* to start with */
     ret->sending_oob = 0;
     ret->frozen = 0;
@@ -1240,6 +1273,60 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only,
     return (Socket) ret;
 }
 
+#ifdef CYGTERMPORT
+int sk_getport(Socket sock)
+{
+    /* I won't even try to get IPv6 working here since it is apparently borken
+     * in this release of PuTTY */
+    SOCKADDR_IN a;
+    socklen_t salen;
+    int retcode;
+    Actual_Socket s = (Actual_Socket)sock;
+
+    salen = sizeof(a);
+    retcode = p_getsockname(s->s, (struct sockaddr *) &a, &salen);
+
+    if (retcode != 0)
+	return -1;
+
+    return p_ntohs(a.sin_port);
+}
+#endif
+#ifdef ZMODEMPORT
+static void sk_tcp_really_close(Actual_Socket s)
+{
+    extern char *do_select(SOCKET skt, int startup);
+
+	if (s->child) {
+	sk_tcp_close((Socket)s->child);
+	s->child = NULL;
+	}
+
+    del234(sktree, s);
+    do_select(s->s, 0);
+    p_closesocket(s->s);
+    if (s->addr)
+	sk_addr_free(s->addr);
+    sfree(s);
+}
+
+static void sk_tcp_close(Socket sock)
+{
+    Actual_Socket s = (Actual_Socket) sock;
+
+	if (s->pending_error != 0) {
+		sk_tcp_really_close(s);
+		return;
+	}
+
+	if (s->child) {
+	sk_tcp_close((Socket)s->child);
+	s->child = NULL;
+	}
+
+	s->closing = curpass;
+}
+#else
 static void sk_tcp_close(Socket sock)
 {
     extern char *do_select(SOCKET skt, int startup);
@@ -1255,6 +1342,7 @@ static void sk_tcp_close(Socket sock)
 	sk_addr_free(s->addr);
     sfree(s);
 }
+#endif
 
 /*
  * The function which tries to send on a socket once it's deemed
@@ -1389,13 +1477,20 @@ int select_result(WPARAM wParam, LPARAM lParam)
 	 * plug.
 	 */
 	if (s->addr) {
+#ifdef ZMODEMPORT
+		if (!s->closing) 
+#endif
 	    plug_log(s->plug, 1, s->addr, s->port,
 		     winsock_error_string(err), err);
 	    while (s->addr && sk_nextaddr(s->addr, &s->step)) {
 		err = try_connect(s);
 	    }
 	}
+#ifdef ZMODEMPORT
+	if (err != 0 && !s->closing)
+#else
 	if (err != 0)
+#endif
 	    return plug_closing(s->plug, winsock_error_string(err), err, 0);
 	else
 	    return 1;
@@ -1450,6 +1545,9 @@ int select_result(WPARAM wParam, LPARAM lParam)
 		break;
 	    }
 	}
+#ifdef ZMODEMPORT
+	if (!s->closing) {
+#endif
 	if (ret < 0) {
 	    return plug_closing(s->plug, winsock_error_string(err), err,
 				0);
@@ -1458,6 +1556,9 @@ int select_result(WPARAM wParam, LPARAM lParam)
 	} else {
 	    return plug_receive(s->plug, atmark ? 0 : 1, buf, ret);
 	}
+#ifdef ZMODEMPORT
+	}
+#endif
 	break;
       case FD_OOB:
 	/*
@@ -1475,6 +1576,10 @@ int select_result(WPARAM wParam, LPARAM lParam)
 	     * that the frontend handle is unnecessary. */
 	    logevent(NULL, str);
 	    fatalbox("%s", str);
+#ifdef ZMODEMPORT
+	} else if (s->closing) {
+		return 1;
+#endif
 	} else {
 	    return plug_receive(s->plug, 2, buf, ret);
 	}
@@ -1486,7 +1591,11 @@ int select_result(WPARAM wParam, LPARAM lParam)
 	    bufsize_before = s->sending_oob + bufchain_size(&s->output_data);
 	    try_send(s);
 	    bufsize_after = s->sending_oob + bufchain_size(&s->output_data);
+#ifdef ZMODEMPORT
+		if (bufsize_after < bufsize_before && !s->closing)
+#else
 	    if (bufsize_after < bufsize_before)
+#endif
 		plug_sent(s->plug, bufsize_after);
 	}
 	break;
@@ -1499,8 +1608,16 @@ int select_result(WPARAM wParam, LPARAM lParam)
 		err = p_WSAGetLastError();
 		if (err == WSAEWOULDBLOCK)
 		    break;
+#ifdef ZMODEMPORT
+		if (s->closing)
+			return 1;
+#endif
 		return plug_closing(s->plug, winsock_error_string(err),
 				    err, 0);
+#ifdef ZMODEMPORT
+		} else if (s->closing) {
+			open = 1;
+#endif
 	    } else {
 		if (ret)
 		    open &= plug_receive(s->plug, 0, buf, ret);
@@ -1537,7 +1654,11 @@ int select_result(WPARAM wParam, LPARAM lParam)
 #endif
 	    {
 		p_closesocket(t);      /* dodgy WinSock let nonlocal through */
+#ifdef ZMODEMPORT
+		} else if (!s->closing && plug_accepting(s->plug, (void*)t)) {
+#else
 	    } else if (plug_accepting(s->plug, (void*)t)) {
+#endif
 		p_closesocket(t);      /* denied or error */
 	    }
 	}
@@ -1546,12 +1667,70 @@ int select_result(WPARAM wParam, LPARAM lParam)
     return 1;
 }
 
+#ifdef ZMODEMPORT
+struct netscheduler_tag {
+    int interval;
+    int pending;
+    long next;
+};
+
+static void netscheduler_schedule(struct netscheduler_tag *netscheduler);
+
+static void netscheduler_timer(void *ctx, long now)
+{
+    struct netscheduler_tag *netscheduler = (struct netscheduler_tag *)ctx;
+
+    if (netscheduler->pending && now - netscheduler->next >= 0) {
+		net_pending_errors();
+		netscheduler->pending = FALSE;
+		netscheduler_schedule(netscheduler);
+    }
+}
+
+static void netscheduler_schedule(struct netscheduler_tag *netscheduler)
+{
+    int next;
+
+    if (!netscheduler->interval) {
+	netscheduler->pending = FALSE;       /* cancel any pending ping */
+	return;
+    }
+
+    next = schedule_timer(netscheduler->interval * TICKSPERSEC,
+			  netscheduler_timer, netscheduler);
+    if (!netscheduler->pending || next < netscheduler->next) {
+	netscheduler->next = next;
+	netscheduler->pending = TRUE;
+    }
+}
+
+struct netscheduler_tag* netscheduler_new()
+{
+    struct netscheduler_tag* netscheduler = snew(struct netscheduler_tag);
+
+    netscheduler->interval = 1;
+    netscheduler->pending = FALSE;
+    netscheduler_schedule(netscheduler);
+
+    return netscheduler;
+}
+
+void netscheduler_free(struct netscheduler_tag* netscheduler)
+{
+    expire_timer_context(netscheduler);
+    sfree(netscheduler);
+}
+#endif
+
 /*
  * Deal with socket errors detected in try_send().
  */
 void net_pending_errors(void)
 {
     int i;
+#ifdef ZMODEMPORT
+	int nextpass;
+#endif
     Actual_Socket s;
 
     /*
@@ -1568,6 +1747,13 @@ void net_pending_errors(void)
      * protected against the socket list changing under our feet.
      */
 
+#ifdef ZMODEMPORT
+	nextpass = curpass+1;
+	if (nextpass == 0) {
+		nextpass = 1;
+	}
+#endif
+
     do {
 	for (i = 0; (s = index234(sktree, i)) != NULL; i++) {
 	    if (s->pending_error) {
@@ -1575,6 +1761,31 @@ void net_pending_errors(void)
 		 * An error has occurred on this socket. Pass it to the
 		 * plug.
 		 */
+#ifdef ZMODEMPORT
+if (!s->closing) {
+				plug_closing(s->plug,
+			     winsock_error_string(s->pending_error),
+			     s->pending_error, 0);
+			break;
+			}
+	    }
+		/* now checks if we need to cleanup this socket */
+		if (s->closing == curpass) {
+			s->closing = nextpass;
+			if (s->pending_error != 0 || bufchain_size(&s->output_data) == 0) { /* errors or no buffer means we can close the socket */
+					sk_tcp_really_close(s);
+			} else { // otherwise, keep trying sending the data
+				try_send(s);
+			}
+
+			break;
+	    }
+
+	}
+    } while (s);
+
+	curpass = nextpass;
+#else
 		plug_closing(s->plug,
 			     winsock_error_string(s->pending_error),
 			     s->pending_error, 0);
@@ -1582,6 +1793,7 @@ void net_pending_errors(void)
 	    }
 	}
     } while (s);
+#endif
 }
 
 /*

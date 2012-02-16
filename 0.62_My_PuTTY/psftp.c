@@ -16,7 +16,11 @@
 #include "sftp.h"
 #include "int64.h"
 
+#if (defined PERSOPORT) && (!defined FDJ)
+char *appname = "PSFTP";
+#else
 const char *const appname = "PSFTP";
+#endif
 
 /*
  * Since SFTP is a request-response oriented protocol, it requires

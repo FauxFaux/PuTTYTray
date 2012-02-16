@@ -10,6 +10,14 @@
 #include "dialog.h"
 #include "storage.h"
 
+#ifdef PERSOPORT
+int get_param( const char * val ) ;
+char * get_param_str( const char * val ) ;
+#if (defined IMAGEPORT) && (!defined FDJ)
+void DisableBackgroundImage( void ) ;
+#endif
+#endif
+
 static void about_handler(union control *ctrl, void *dlg,
 			  void *data, int event)
 {
@@ -58,6 +66,9 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	if (has_help) {
 	    c = ctrl_pushbutton(s, "Help", 'h', HELPCTX(no_help),
 				help_handler, P(hwndp));
+#ifdef PERSOPORT
+		if( get_param("CONFIGBOXHEIGHT")>7 ) c->generic.column = 0 ; else 
+#endif
 	    c->generic.column = 1;
 	}
     }
@@ -109,7 +120,11 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     ctrl_checkbox(s, "Control-Alt is different from AltGr", 'd',
 		  HELPCTX(keyboard_ctrlalt),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,ctrlaltkeys)));
-
+#ifdef CYGTERMPORT
+    ctrl_checkbox(s, "Set meta bit on alt (instead of escape)", 'm',
+		  HELPCTX(no_help),
+		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_metabit)));
+#endif
     /*
      * Windows allows an arbitrary .WAV to be played as a bell, and
      * also the use of the PC speaker. For this we must search the
@@ -341,11 +356,69 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     ctrl_checkbox(s, "Ensure window is always on top", 'e',
 		  HELPCTX(behaviour_alwaysontop),
 		  dlg_stdcheckbox_handler, I(offsetof(Config,alwaysontop)));
+#ifdef PERSOPORT
+	if( !get_param("PUTTY") ) {
+		ctrl_checkbox(s, "Send to tray on startup", '`',
+		  HELPCTX(behaviour_sendtotray),
+		  dlg_stdcheckbox_handler, I(offsetof(Config,sendtotray)));
+		ctrl_checkbox(s, "Save position and size on exit", '=',
+		  HELPCTX(behaviour_saveonexit),
+		  dlg_stdcheckbox_handler, I(offsetof(Config,saveonexit)));
+		}
+#endif
     ctrl_checkbox(s, "Full screen on Alt-Enter", 'f',
 		  HELPCTX(behaviour_altenter),
 		  dlg_stdcheckbox_handler,
 		  I(offsetof(Config,fullscreenonaltenter)));
 
+#ifdef HYPERLINKPORT
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: The Window/Hyperlinks panel.
+	 */
+	if( !get_param("PUTTY") ) {
+	ctrl_settitle(b, "Window/Hyperlinks", "Options controlling behaviour of hyperlinks");
+	s = ctrl_getset(b, "Window/Hyperlinks", "general", "General options for hyperlinks");
+
+	ctrl_radiobuttons(s, "Underline hyperlinks:", NO_SHORTCUT, 1,
+			  HELPCTX(no_help),
+			  dlg_stdradiobutton_handler,
+ 			  I(offsetof(Config, url_underline)),
+			  "Always", NO_SHORTCUT, I(URLHACK_UNDERLINE_ALWAYS),
+			  "When hovered upon", NO_SHORTCUT, I(URLHACK_UNDERLINE_HOVER),
+			  "Never", NO_SHORTCUT, I(URLHACK_UNDERLINE_NEVER),
+			  NULL);
+
+	ctrl_checkbox(s, "Use ctrl+click to launch hyperlinks", 'l',
+		  HELPCTX(no_help),
+		  dlg_stdcheckbox_handler, I(offsetof(Config,url_ctrl_click)));
+
+	s = ctrl_getset(b, "Window/Hyperlinks", "browser", "Browser application");
+
+	ctrl_checkbox(s, "Use the default browser", 'b',
+		  HELPCTX(no_help),
+		  dlg_stdcheckbox_handler, I(offsetof(Config,url_defbrowser)));
+
+	ctrl_filesel(s, "or specify an application to open hyperlinks with:", 's',
+		"Application (*.exe)\0*.exe\0All files (*.*)\0*.*\0\0", TRUE,
+		"Select executable to open hyperlinks with", HELPCTX(no_help),
+		 dlg_stdfilesel_handler, I(offsetof(Config, url_browser)));
+
+	s = ctrl_getset(b, "Window/Hyperlinks", "regexp", "Regular expression");
+
+	ctrl_checkbox(s, "Use the default regular expression", 'r',
+		  HELPCTX(no_help),
+		  dlg_stdcheckbox_handler, I(offsetof(Config,url_defregex)));
+
+	ctrl_editbox(s, "or specify your own:", NO_SHORTCUT, 100,
+		 HELPCTX(no_help),
+		 dlg_stdeditbox_handler, I(offsetof(Config,url_regex)),
+		 I(sizeof(((Config *)0)->url_regex)));
+
+	ctrl_text(s, "The single white space will be cropped in front of the link, if exists.",
+		  HELPCTX(no_help));
+	}
+#endif
     /*
      * Windows supports a local-command proxy. This also means we
      * must adjust the text on the `Telnet command' control.
@@ -401,4 +474,41 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		     HELPCTX(ssh_tunnels_xauthority),
 		     dlg_stdfilesel_handler, I(offsetof(Config, xauthfile)));
     }
+#ifdef CYGTERMPORT
+    /*
+     * cygterm back end is available on Windows.
+     */
+    if (!midsession || (protocol == PROT_CYGTERM))
+        cygterm_setup_config_box(b, midsession);
+#endif
+#ifdef PERSOPORT
+	if( !get_param("PUTTY") && 0 ) {
+
+	ctrl_settitle(b, get_param_str("NAME"), "Specific program options");
+	s = ctrl_getset(b, get_param_str("NAME"), "general", "PATH definitions");
+
+	ctrl_filesel(s, "Full path to scp", 's',
+		"Application (*.exe)\0*.exe\0All files (*.*)\0*.*\0\0", TRUE,
+		"Select executable to scp/sftp transfer", HELPCTX(no_help),
+		 dlg_stdfilesel_handler, I(offsetof(Config, url_browser)));
+		
+	//ctrl_checkbox(s, "Use the default browser", 'b',
+	//	  HELPCTX(no_help),
+	//	  dlg_stdcheckbox_handler, I(offsetof(Config,url_defbrowser)));
+
+	//ctrl_text(s, "The single white space will be cropped in front of the link, if exists.",
+	//	  HELPCTX(no_help));
+	}
+
+#if (defined IMAGEPORT) && (!defined FDJ)
+	/* Le patch Background image ne marche plus bien sur la version PuTTY 0.61
+		- il est en erreur lorsqu'on passe par la config box
+		- il est ok lorsqu'on démarrer par -load ou par duplicate session
+	   On le désactive dans la config box
+	*/
+	// DisableBackgroundImage() ;
+	/* Un fix a été appliqué dans CONFIG.C. Lorsqu'on clique sur Open ou qu'on double-clique on charge la session par -load.
+	*/
+#endif
+#endif
 }

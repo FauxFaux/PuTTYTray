@@ -7,6 +7,10 @@
 #include "int64.h"
 #include "misc.h"
 
+#ifdef SCPORT
+#include "pkcs11.h"
+#endif
+
 struct ssh_channel;
 
 extern void sshfwd_close(struct ssh_channel *c);

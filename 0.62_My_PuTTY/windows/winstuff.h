@@ -120,11 +120,29 @@ typedef struct backend_tag Backend;
 typedef struct terminal_tag Terminal;
 #endif
 
+#ifdef PERSOPORT
+#ifdef FDJ
+#define PUTTY_REG_POS_SAVE "Software\\9bis.com\\PuTTY_save"
 #define PUTTY_REG_POS "Software\\SimonTatham\\PuTTY"
 #define PUTTY_REG_PARENT "Software\\SimonTatham"
 #define PUTTY_REG_PARENT_CHILD "PuTTY"
 #define PUTTY_REG_GPARENT "Software"
 #define PUTTY_REG_GPARENT_CHILD "SimonTatham"
+#else
+#define PUTTY_REG_POS "Software\\9bis.com\\KiTTY"
+#define PUTTY_REG_POS_SAVE "Software\\9bis.com\\KiTTY_save"
+#define PUTTY_REG_PARENT "Software\\9bis.com"
+#define PUTTY_REG_PARENT_CHILD "KiTTY"
+#define PUTTY_REG_GPARENT "Software"
+#define PUTTY_REG_GPARENT_CHILD "9bis.com"
+#endif
+#else
+#define PUTTY_REG_POS "Software\\SimonTatham\\PuTTY"
+#define PUTTY_REG_PARENT "Software\\SimonTatham"
+#define PUTTY_REG_PARENT_CHILD "PuTTY"
+#define PUTTY_REG_GPARENT "Software"
+#define PUTTY_REG_GPARENT_CHILD "SimonTatham"
+#endif
 
 /* Result values for the jumplist registry functions. */
 #define JUMPLISTREG_OK 0
@@ -232,6 +250,20 @@ GLOBAL void *logctx;
 			       "All Files (*.*)\0*\0\0\0")
 #define FILTER_DYNLIB_FILES ("Dynamic Library Files (*.dll)\0*.dll\0" \
 				 "All Files (*.*)\0*\0\0\0")
+#if (defined IMAGEPORT) && (!defined FDJ)
+#define FILTER_IMAGE_FILES ("Image Files\0*.BMP;*.JPG;*.JPEG\0" \
+			"BMP Files (*.bmp)\0*.BMP\0" \
+			"JPEG Files (*.jpg)\0*.JPG;*.JPEG\0" \
+			"All Files (*.*)\0*\0\0\0")
+#endif
+#ifdef PERSOPORT
+#define FILTER_ICON_FILES ("Icon Files (*.ico)\0*.ICO\0" \
+			"All Files (*.*)\0*\0\0\0")
+#endif
+#ifdef ZMODEMPORT
+#define FILTER_EXE_FILES ("Executable Files (*.exe)\0*.EXE\0" \
+			       "All Files (*.*)\0*\0\0\0")
+#endif
 
 /*
  * On some versions of Windows, it has been known for WM_TIMER to
