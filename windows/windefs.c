@@ -13,7 +13,7 @@ FontSpec *platform_default_fontspec(const char *name)
         versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
         GetVersionEx(&versioninfo);
 
-        if (versioninfo.dwMajorVersion >= 6) {
+        if (versioninfo.dwMajorVersion >= 6)
             return fontspec_new("Consolas", 0, 10, ANSI_CHARSET);
         return fontspec_new("Courier New", 0, 10, ANSI_CHARSET);
     } else
