@@ -673,7 +673,7 @@ int do_reconfig(HWND hwnd, int protcfginfo)
 
     ctrlbox = ctrl_new_box();
     protocol = conf_get_int(conf, CONF_protocol);
-    setup_config_box(ctrlbox, TRUE, protocol, protcfginfo, conf_get_int(conf, CONF_storagetype));
+    setup_config_box(ctrlbox, TRUE, protocol, protcfginfo, conf_get_int(conf, CONF_session_storagetype));
     win_setup_config_box(ctrlbox, &dp.hwnd, has_help(), TRUE, protocol);
     dp_init(&dp);
     winctrl_init(&ctrls_base);
