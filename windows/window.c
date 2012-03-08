@@ -5858,6 +5858,7 @@ static void flash_window(int mode)
 			 * HACK: PuttyTray
 			 * Reset trayicon
 			 */
+			puttyTray.hIcon = puttyTrayFlashIcon;
 			if (puttyTrayVisible) {
 				puttyTrayFlash = FALSE;
 				puttyTray.hIcon = puttyTrayFlashIcon;
@@ -5898,7 +5899,6 @@ static void flash_window(int mode)
 				if (!puttyTrayFlash) {
 					puttyTrayFlash = TRUE;
 
-					puttyTrayFlashIcon = puttyTray.hIcon;
 					puttyTray.hIcon	= NULL;
 					taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
 				} else {
