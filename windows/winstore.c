@@ -33,13 +33,6 @@ static HMODULE shell32_module = NULL;
 DECL_WINDOWS_FUNCTION(static, HRESULT, SHGetFolderPathA, 
 		      (HWND, int, HANDLE, DWORD, LPSTR));
 
-// Saved sessions enumeration.
-struct enumsettings {
-    HKEY key;
-    int i;
-	int fromFile;
-	HANDLE hFile;
-};
 
 // PUTTY Tray / PuTTY File - global storage type
 static int storagetype = 0;	// 0 = registry, 1 = file
@@ -171,10 +164,6 @@ void *open_settings_w(const char *sessionname, char **errmsg)
 	}
 }
 
-
-/*
- * STORAGETYPE SWITCHER
- */
 void write_setting_s(void *handle, const char *key, const char *value)
 {
 	if (storagetype == 1) {
@@ -184,9 +173,6 @@ void write_setting_s(void *handle, const char *key, const char *value)
 	}
 }
 
-/*
- * STORAGETYPE SWITCHER
- */
 void write_setting_i(void *handle, const char *key, int value)
 {
 	if (storagetype == 1) {
@@ -196,33 +182,6 @@ void write_setting_i(void *handle, const char *key, int value)
 	}
 }
 
-/*
- * STORAGETYPE SWITCHER
- */
-void write_setting_filename(void *handle, const char *name, Filename result)
-{
-	if (storagetype == 1) {
-		file_write_setting_filename(handle, name, result);
-	} else {
-		reg_write_setting_filename(handle, name, result);
-	}
-}
-
-/*
- * STORAGETYPE SWITCHER
- */
-void write_setting_fontspec(void *handle, const char *name, FontSpec font)
-{
-	if (storagetype == 1) {
-		file_write_setting_fontspec(handle, name, font);
-	} else {
-		reg_write_setting_fontspec(handle, name, font);
-	}
-}
-
-/*
- * STORAGETYPE SWITCHER
- */
 void close_settings_w(void *handle)
 {
 	if (storagetype == 1) {
@@ -232,25 +191,6 @@ void close_settings_w(void *handle)
 	}
 }
 
-/*
- * Read a saved session. The caller is expected to call
- * open_setting_r() to get a `void *' handle, then pass that to a
- * number of calls to read_setting_s() and read_setting_i(), and
- * then close it using close_settings_r().
- * 
- * read_setting_s() writes into the provided buffer and returns a
- * pointer to the same buffer.
- * 
- * If a particular string setting is not present in the session,
- * read_setting_s() can return NULL, in which case the caller
- * should invent a sensible default. If an integer setting is not
- * present, read_setting_i() returns its provided default.
- * 
- * read_setting_filename() and read_setting_fontspec() each read into
- * the provided buffer, and return zero if they failed to.
- *
- * STORAGETYPE SWITCHER
- */
 void *open_settings_r(const char *sessionname)
 {
 	if (storagetype == 1) {
@@ -260,9 +200,6 @@ void *open_settings_r(const char *sessionname)
 	}
 }
 
-/*
- * STORAGETYPE SWITCHER
- */
 char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
 {
 	if (storagetype == 1) {
@@ -272,9 +209,6 @@ char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
 	}
 }
 
-/*
- * STORAGETYPE SWITCHER
- */
 int read_setting_i(void *handle, const char *key, int defvalue)
 {
 	if (storagetype == 1) {
@@ -284,33 +218,66 @@ int read_setting_i(void *handle, const char *key, int defvalue)
 	}
 }
 
-/*
- * STORAGETYPE SWITCHER
- */
-int read_setting_fontspec(void *handle, const char *name, FontSpec *result)
+FontSpec *read_setting_fontspec(void *handle, const char *name)
 {
-	if (storagetype == 1) {
-		return file_read_setting_fontspec(handle, name, result);
-	} else {
-		return reg_read_setting_fontspec(handle, name, result);
-	}
+    char *settingname;
+    char *fontname;
+    int isbold, height, charset;
+
+    fontname = read_setting_s(handle, name);
+    if (!fontname)
+	return NULL;
+
+    settingname = dupcat(name, "IsBold", NULL);
+    isbold = read_setting_i(handle, settingname, -1);
+    sfree(settingname);
+    if (isbold == -1) return NULL;
+
+    settingname = dupcat(name, "CharSet", NULL);
+    charset = read_setting_i(handle, settingname, -1);
+    sfree(settingname);
+    if (charset == -1) return NULL;
+
+    settingname = dupcat(name, "Height", NULL);
+    height = read_setting_i(handle, settingname, INT_MIN);
+    sfree(settingname);
+    if (height == INT_MIN) return NULL;
+
+    return fontspec_new(fontname, isbold, height, charset);
 }
 
-/*
- * STORAGETYPE SWITCHER
- */
-int read_setting_filename(void *handle, const char *name, Filename *result)
+void write_setting_fontspec(void *handle, const char *name, FontSpec *font)
 {
-	if (storagetype == 1) {
-		return file_read_setting_filename(handle, name, result);
-	} else {
-		return reg_read_setting_filename(handle, name, result);
-	}
+    char *settingname;
+
+    write_setting_s(handle, name, font->name);
+    settingname = dupcat(name, "IsBold", NULL);
+    write_setting_i(handle, settingname, font->isbold);
+    sfree(settingname);
+    settingname = dupcat(name, "CharSet", NULL);
+    write_setting_i(handle, settingname, font->charset);
+    sfree(settingname);
+    settingname = dupcat(name, "Height", NULL);
+    write_setting_i(handle, settingname, font->height);
+    sfree(settingname);
 }
 
-/*
- * STORAGETYPE SWITCHER
- */
+Filename *read_setting_filename(void *handle, const char *name)
+{
+    char *tmp = read_setting_s(handle, name);
+    if (tmp) {
+        Filename *ret = filename_from_str(tmp);
+	sfree(tmp);
+	return ret;
+    } else
+	return NULL;
+}
+
+void write_setting_filename(void *handle, const char *name, Filename *result)
+{
+    write_setting_s(handle, name, result->path);
+}
+
 void close_settings_r(void *handle)
 {
 	if (storagetype == 1) {
@@ -320,11 +287,6 @@ void close_settings_r(void *handle)
 	}
 }
 
-/*
- * Delete a whole saved session.
- *
- * STORAGETYPE SWITCHER
- */
 void del_settings(const char *sessionname)
 {
 	if (storagetype == 1) {
@@ -334,9 +296,13 @@ void del_settings(const char *sessionname)
 	}
 }
 
-/*
- * STORAGETYPE SWITCHER
- */
+struct enumsettings {
+    HKEY key;
+    int i;
+	int fromFile;
+	HANDLE hFile;
+};
+
 void *enum_settings_start(int new_storagetype)
 {
 	storagetype = new_storagetype;
@@ -348,9 +314,6 @@ void *enum_settings_start(int new_storagetype)
 	}
 }
 
-/*
- * STORAGETYPE SWITCHER
- */
 char *enum_settings_next(void *handle, char *buffer, int buflen)
 {
 	if (storagetype == 1) {
@@ -360,9 +323,6 @@ char *enum_settings_next(void *handle, char *buffer, int buflen)
 	}
 }
 
-/*
- * STORAGETYPE SWITCHER
- */
 void enum_settings_finish(void *handle)
 {
 	if (storagetype == 1) {
@@ -372,16 +332,8 @@ void enum_settings_finish(void *handle)
 	}
 }
 
-
-/* ----------------------------------------------------------------------
- * Functions to access PuTTY's host key database.
- */
-
-/*
- * Helper for hostkey functions (not part of storage.h)
- * NO HACK: PuttyTray / PuTTY File - This is an original function (not patched)
- */
-static void hostkey_regname(char *buffer, const char *hostname, int port, const char *keytype)
+static void hostkey_regname(char *buffer, const char *hostname,
+			    int port, const char *keytype)
 {
     int len;
     strcpy(buffer, keytype);
@@ -391,14 +343,8 @@ static void hostkey_regname(char *buffer, const char *hostname, int port, const 
     mungestr(hostname, buffer + strlen(buffer));
 }
 
-/*
- * See if a host key matches the database entry. Return values can
- * be 0 (entry matches database), 1 (entry is absent in database),
- * or 2 (entry exists in database and is different).
- *
- * STORAGETYPE SWITCHER
- */
-int verify_host_key(const char *hostname, int port, const char *keytype, const char *key)
+int verify_host_key(const char *hostname, int port,
+		    const char *keytype, const char *key)
 {
 	if (storagetype == 1) {
 		return file_verify_host_key(hostname, port, keytype, key);
@@ -407,13 +353,8 @@ int verify_host_key(const char *hostname, int port, const char *keytype, const c
 	}
 }
 
-/*
- * Write a host key into the database, overwriting any previous
- * entry that might have been there.
- *
- * STORAGETYPE SWITCHER
- */
-void store_host_key(const char *hostname, int port, const char *keytype, const char *key)
+void store_host_key(const char *hostname, int port,
+		    const char *keytype, const char *key)
 {
 	if (storagetype == 1) {
 		file_store_host_key(hostname, port, keytype, key);
