@@ -5657,8 +5657,6 @@ static void flash_window_timer(void *ctx, long now)
  */
 static void flash_window(int mode)
 {
-	HINSTANCE inst;
-
 	if ((mode == 0) || (cfg.beep_ind == B_IND_DISABLED)) {
 		/* stop */
 		if (flashing) {
@@ -5670,8 +5668,6 @@ static void flash_window(int mode)
 			 * Reset trayicon
 			 */
 			if (puttyTrayVisible) {
-				inst = (HINSTANCE)GetWindowLong(hwnd, GWL_HINSTANCE);
-
 				puttyTrayFlash = FALSE;
 				puttyTray.hIcon = puttyTrayFlashIcon;
 				taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
@@ -5715,7 +5711,6 @@ static void flash_window(int mode)
 					puttyTray.hIcon	= NULL;
 					taskbar_addicon(cfg.win_name_always ? window_name : icon_name, TRUE);
 				} else {
-					inst = (HINSTANCE)GetWindowLong(hwnd, GWL_HINSTANCE);
 					puttyTrayFlash = FALSE;
 
 					puttyTray.hIcon = puttyTrayFlashIcon;
