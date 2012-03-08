@@ -5865,12 +5865,11 @@ static void flash_window(int mode)
 	    FlashWindow(hwnd, TRUE);	/* toggle */
 	    next_flash = schedule_timer(450, flash_window_timer, hwnd);
 
+            puttyTray.hIcon = puttyTrayFlashIcon;
 	    if (puttyTrayVisible) {
 		if (!puttyTrayFlash) {
 		    puttyTrayFlash = TRUE;
-
-		    puttyTrayFlashIcon = puttyTray.hIcon;
-		    puttyTray.hIcon	= NULL;
+		    puttyTray.hIcon = NULL;
 		    taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
 		} else {
 		    puttyTrayFlash = FALSE;
