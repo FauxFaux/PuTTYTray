@@ -5875,6 +5875,7 @@ static void flash_window(int mode)
 		/* start */
 		if (!flashing) {
 			flashing = 1;
+			puttyTrayFlashIcon = puttyTray.hIcon;
 			FlashWindow(hwnd, TRUE);
 			next_flash = schedule_timer(450, flash_window_timer, hwnd);
 
