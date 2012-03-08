@@ -33,11 +33,9 @@ static HMODULE shell32_module = NULL;
 DECL_WINDOWS_FUNCTION(static, HRESULT, SHGetFolderPathA, 
 		      (HWND, int, HANDLE, DWORD, LPSTR));
 
-
 // PUTTY Tray / PuTTY File - global storage type
 static int storagetype = 0;	// 0 = registry, 1 = file
 
-// PUTTY Tray / PuTTY File - extra variables / structs for file
 static char seedpath[2 * MAX_PATH + 10] = "\0";
 static char sesspath[2 * MAX_PATH] = "\0";
 static char sshkpath[2 * MAX_PATH] = "\0";
@@ -45,65 +43,18 @@ static char oldpath[2 * MAX_PATH] = "\0";
 static char sessionsuffix[16] = "\0";
 static char keysuffix[16] = "\0";
 
-/* JK: structures for handling settings in memory as linked list */
 struct setItem {
-	char* key;
-	char* value;
-	struct setItem* next;
+    char* key;
+    char* value;
+    struct setItem* next;
 };
+
 struct setPack {
-	unsigned int fromFile;
-	void* handle;
-	char* fileBuf;
+    unsigned int fromFile;
+    void* handle;
+    char* fileBuf;
 };
 
-// Forward declarations for helper functions
-static void registry_recursive_remove(HKEY key);
-
-// Forward declarations for file functions
-void *file_open_settings_w(const char *sessionname, char **errmsg);
-void file_write_setting_s(void *handle, const char *key, const char *value);
-void file_write_setting_i(void *handle, const char *key, int value);
-void file_write_setting_filename(void *handle, const char *key, Filename value);
-void file_write_setting_fontspec(void *handle, const char *key, FontSpec font);
-void file_close_settings_w(void *handle);
-void *file_open_settings_r(const char *sessionname);
-char *file_read_setting_s(void *handle, const char *key, char *buffer, int buflen);
-int file_read_setting_i(void *handle, const char *key, int defvalue);
-int file_read_setting_filename(void *handle, const char *key, Filename *value);
-int file_read_setting_fontspec(void *handle, const char *key, FontSpec *font);
-void file_close_settings_r(void *handle);
-void file_del_settings(const char *sessionname);
-void *file_enum_settings_start();
-char *file_enum_settings_next(void *handle, char *buffer, int buflen);
-void file_enum_settings_finish(void *handle);
-int file_verify_host_key(const char *hostname, int port, const char *keytype, const char *key);
-void file_store_host_key(const char *hostname, int port, const char *keytype, const char *key);
-
-// Forward declarations for registry functions
-void *reg_open_settings_w(const char *sessionname, char **errmsg);
-void reg_write_setting_s(void *handle, const char *key, const char *value);
-void reg_write_setting_i(void *handle, const char *key, int value);
-void reg_write_setting_filename(void *handle, const char *key, Filename value);
-void reg_write_setting_fontspec(void *handle, const char *key, FontSpec font);
-void reg_close_settings_w(void *handle);
-void *reg_open_settings_r(const char *sessionname);
-char *reg_read_setting_s(void *handle, const char *key, char *buffer, int buflen);
-int reg_read_setting_i(void *handle, const char *key, int defvalue);
-int reg_read_setting_filename(void *handle, const char *key, Filename *value);
-int reg_read_setting_fontspec(void *handle, const char *key, FontSpec *font);
-void reg_close_settings_r(void *handle);
-void reg_del_settings(const char *sessionname);
-void *reg_enum_settings_start();
-char *reg_enum_settings_next(void *handle, char *buffer, int buflen);
-void reg_enum_settings_finish(void *handle);
-int reg_verify_host_key(const char *hostname, int port, const char *keytype, const char *key);
-void reg_store_host_key(const char *hostname, int port, const char *keytype, const char *key);
-
-
-/*
- * Sets storage type
- */
 void set_storagetype(int new_storagetype)
 {
 	storagetype = new_storagetype;
@@ -155,67 +106,117 @@ static void unmungestr(const char *in, char *out, int outlen)
     return;
 }
 
-void *open_settings_w(const char *sessionname, char **errmsg)
+void *reg_open_settings_w(const char *sessionname, char **errmsg)
 {
-	if (storagetype == 1) {
-		return file_open_settings_w(sessionname, errmsg);
-	} else {
-		return reg_open_settings_w(sessionname, errmsg);
-	}
+    HKEY subkey1, sesskey;
+    int ret;
+    char *p;
+
+    *errmsg = NULL;
+
+    if (!sessionname || !*sessionname)
+	sessionname = "Default Settings";
+
+    p = snewn(3 * strlen(sessionname) + 1, char);
+    mungestr(sessionname, p);
+
+    ret = RegCreateKey(HKEY_CURRENT_USER, puttystr, &subkey1);
+    if (ret != ERROR_SUCCESS) {
+	sfree(p);
+        *errmsg = dupprintf("Unable to create registry key\n"
+                            "HKEY_CURRENT_USER\\%s", puttystr);
+	return NULL;
+    }
+    ret = RegCreateKey(subkey1, p, &sesskey);
+    RegCloseKey(subkey1);
+    if (ret != ERROR_SUCCESS) {
+        *errmsg = dupprintf("Unable to create registry key\n"
+                            "HKEY_CURRENT_USER\\%s\\%s", puttystr, p);
+	sfree(p);
+	return NULL;
+    }
+    sfree(p);
+    return (void *) sesskey;
 }
 
-void write_setting_s(void *handle, const char *key, const char *value)
+void reg_write_setting_s(void *handle, const char *key, const char *value)
 {
-	if (storagetype == 1) {
-		file_write_setting_s(handle, key, value);
-	} else {
-		reg_write_setting_s(handle, key, value);
-	}
+    if (handle)
+	RegSetValueEx((HKEY) handle, key, 0, REG_SZ, value,
+		      1 + strlen(value));
 }
 
-void write_setting_i(void *handle, const char *key, int value)
+void reg_write_setting_i(void *handle, const char *key, int value)
 {
-	if (storagetype == 1) {
-		file_write_setting_i(handle, key, value);
-	} else {
-		reg_write_setting_i(handle, key, value);
-	}
+    if (handle)
+	RegSetValueEx((HKEY) handle, key, 0, REG_DWORD,
+		      (CONST BYTE *) &value, sizeof(value));
 }
 
-void close_settings_w(void *handle)
+void reg_close_settings_w(void *handle)
 {
-	if (storagetype == 1) {
-		file_close_settings_w(handle);
-	} else {
-		reg_close_settings_w(handle);
-	}
+    RegCloseKey((HKEY) handle);
 }
 
-void *open_settings_r(const char *sessionname)
+void *reg_open_settings_r(const char *sessionname)
 {
-	if (storagetype == 1) {
-		return file_open_settings_r(sessionname);
-	} else {
-		return reg_open_settings_r(sessionname);
+    HKEY subkey1, sesskey;
+    char *p;
+
+    if (!sessionname || !*sessionname)
+	sessionname = "Default Settings";
+
+    p = snewn(3 * strlen(sessionname) + 1, char);
+    mungestr(sessionname, p);
+
+    if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS) {
+	sesskey = NULL;
+    } else {
+	if (RegOpenKey(subkey1, p, &sesskey) != ERROR_SUCCESS) {
+	    sesskey = NULL;
 	}
+	RegCloseKey(subkey1);
+    }
+
+    sfree(p);
+
+    return (void *) sesskey;
 }
 
-char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
+char *reg_read_setting_s(void *handle, const char *key)
 {
-	if (storagetype == 1) {
-		return file_read_setting_s(handle, key, buffer, buflen);
-	} else {
-		return reg_read_setting_s(handle, key, buffer, buflen);
-	}
+    DWORD type, size;
+    char *ret;
+
+    if (!handle)
+	return NULL;
+
+    /* Find out the type and size of the data. */
+    if (RegQueryValueEx((HKEY) handle, key, 0,
+			&type, NULL, &size) != ERROR_SUCCESS ||
+	type != REG_SZ)
+	return NULL;
+
+    ret = snewn(size+1, char);
+    if (RegQueryValueEx((HKEY) handle, key, 0,
+			&type, ret, &size) != ERROR_SUCCESS ||
+	type != REG_SZ) return NULL;
+
+    return ret;
 }
 
-int read_setting_i(void *handle, const char *key, int defvalue)
+int reg_read_setting_i(void *handle, const char *key, int defvalue)
 {
-	if (storagetype == 1) {
-		return file_read_setting_i(handle, key, defvalue);
-	} else {
-		return reg_read_setting_i(handle, key, defvalue);
-	}
+    DWORD type, val, size;
+    size = sizeof(val);
+
+    if (!handle ||
+	RegQueryValueEx((HKEY) handle, key, 0, &type,
+			(BYTE *) &val, &size) != ERROR_SUCCESS ||
+	size != sizeof(val) || type != REG_DWORD)
+	return defvalue;
+    else
+	return val;
 }
 
 FontSpec *read_setting_fontspec(void *handle, const char *name)
@@ -278,58 +279,73 @@ void write_setting_filename(void *handle, const char *name, Filename *result)
     write_setting_s(handle, name, result->path);
 }
 
-void close_settings_r(void *handle)
+void reg_close_settings_r(void *handle)
 {
-	if (storagetype == 1) {
-		return file_close_settings_r(handle);
-	} else {
-		return reg_close_settings_r(handle);
-	}
+    RegCloseKey((HKEY) handle);
 }
 
-void del_settings(const char *sessionname)
+void reg_del_settings(const char *sessionname)
 {
-	if (storagetype == 1) {
-		file_del_settings(sessionname);
-	} else {
-		reg_del_settings(sessionname);
-	}
+    HKEY subkey1;
+    char *p;
+
+    if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS)
+	return;
+
+    p = snewn(3 * strlen(sessionname) + 1, char);
+    mungestr(sessionname, p);
+    RegDeleteKey(subkey1, p);
+    sfree(p);
+
+    RegCloseKey(subkey1);
+
+    remove_session_from_jumplist(sessionname);
 }
 
 struct enumsettings {
     HKEY key;
     int i;
-	int fromFile;
-	HANDLE hFile;
+    int fromFile;
+    HANDLE hFile;
 };
 
-void *enum_settings_start(int new_storagetype)
+void *reg_enum_settings_start(void)
 {
-	storagetype = new_storagetype;
+    struct enumsettings *ret;
+    HKEY key;
 
-	if (storagetype == 1) {
-		return file_enum_settings_start();
-	} else {
-		return reg_enum_settings_start();
-	}
+    if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &key) != ERROR_SUCCESS)
+	return NULL;
+
+    ret = snew(struct enumsettings);
+    if (ret) {
+	ret->key = key;
+	ret->i = 0;
+    }
+
+    return ret;
 }
 
-char *enum_settings_next(void *handle, char *buffer, int buflen)
+char *reg_enum_settings_next(void *handle, char *buffer, int buflen)
 {
-	if (storagetype == 1) {
-		return file_enum_settings_next(handle, buffer, buflen);
-	} else {
-		return reg_enum_settings_next(handle, buffer, buflen);
-	}
+    struct enumsettings *e = (struct enumsettings *) handle;
+    char *otherbuf;
+    otherbuf = snewn(3 * buflen, char);
+    if (RegEnumKey(e->key, e->i++, otherbuf, 3 * buflen) == ERROR_SUCCESS) {
+	unmungestr(otherbuf, buffer, buflen);
+	sfree(otherbuf);
+	return buffer;
+    } else {
+	sfree(otherbuf);
+	return NULL;
+    }
 }
 
-void enum_settings_finish(void *handle)
+void reg_enum_settings_finish(void *handle)
 {
-	if (storagetype == 1) {
-		file_enum_settings_finish(handle);
-	} else {
-		reg_enum_settings_finish(handle);
-	}
+    struct enumsettings *e = (struct enumsettings *) handle;
+    RegCloseKey(e->key);
+    sfree(e);
 }
 
 static void hostkey_regname(char *buffer, const char *hostname,
@@ -343,30 +359,130 @@ static void hostkey_regname(char *buffer, const char *hostname,
     mungestr(hostname, buffer + strlen(buffer));
 }
 
-int verify_host_key(const char *hostname, int port,
+int reg_verify_host_key(const char *hostname, int port,
 		    const char *keytype, const char *key)
 {
-	if (storagetype == 1) {
-		return file_verify_host_key(hostname, port, keytype, key);
-	} else {
-		return reg_verify_host_key(hostname, port, keytype, key);
+    char *otherstr, *regname;
+    int len;
+    HKEY rkey;
+    DWORD readlen;
+    DWORD type;
+    int ret, compare;
+
+    len = 1 + strlen(key);
+
+    /*
+     * Now read a saved key in from the registry and see what it
+     * says.
+     */
+    otherstr = snewn(len, char);
+    regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
+
+    hostkey_regname(regname, hostname, port, keytype);
+
+    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys",
+		   &rkey) != ERROR_SUCCESS)
+	return 1;		       /* key does not exist in registry */
+
+    readlen = len;
+    ret = RegQueryValueEx(rkey, regname, NULL, &type, otherstr, &readlen);
+
+    if (ret != ERROR_SUCCESS && ret != ERROR_MORE_DATA &&
+	!strcmp(keytype, "rsa")) {
+	/*
+	 * Key didn't exist. If the key type is RSA, we'll try
+	 * another trick, which is to look up the _old_ key format
+	 * under just the hostname and translate that.
+	 */
+	char *justhost = regname + 1 + strcspn(regname, ":");
+	char *oldstyle = snewn(len + 10, char);	/* safety margin */
+	readlen = len;
+	ret = RegQueryValueEx(rkey, justhost, NULL, &type,
+			      oldstyle, &readlen);
+
+	if (ret == ERROR_SUCCESS && type == REG_SZ) {
+	    /*
+	     * The old format is two old-style bignums separated by
+	     * a slash. An old-style bignum is made of groups of
+	     * four hex digits: digits are ordered in sensible
+	     * (most to least significant) order within each group,
+	     * but groups are ordered in silly (least to most)
+	     * order within the bignum. The new format is two
+	     * ordinary C-format hex numbers (0xABCDEFG...XYZ, with
+	     * A nonzero except in the special case 0x0, which
+	     * doesn't appear anyway in RSA keys) separated by a
+	     * comma. All hex digits are lowercase in both formats.
+	     */
+	    char *p = otherstr;
+	    char *q = oldstyle;
+	    int i, j;
+
+	    for (i = 0; i < 2; i++) {
+		int ndigits, nwords;
+		*p++ = '0';
+		*p++ = 'x';
+		ndigits = strcspn(q, "/");	/* find / or end of string */
+		nwords = ndigits / 4;
+		/* now trim ndigits to remove leading zeros */
+		while (q[(ndigits - 1) ^ 3] == '0' && ndigits > 1)
+		    ndigits--;
+		/* now move digits over to new string */
+		for (j = 0; j < ndigits; j++)
+		    p[ndigits - 1 - j] = q[j ^ 3];
+		p += ndigits;
+		q += nwords * 4;
+		if (*q) {
+		    q++;	       /* eat the slash */
+		    *p++ = ',';	       /* add a comma */
+		}
+		*p = '\0';	       /* terminate the string */
+	    }
+
+	    /*
+	     * Now _if_ this key matches, we'll enter it in the new
+	     * format. If not, we'll assume something odd went
+	     * wrong, and hyper-cautiously do nothing.
+	     */
+	    if (!strcmp(otherstr, key))
+		RegSetValueEx(rkey, regname, 0, REG_SZ, otherstr,
+			      strlen(otherstr) + 1);
 	}
+    }
+
+    RegCloseKey(rkey);
+
+    compare = strcmp(otherstr, key);
+
+    sfree(otherstr);
+    sfree(regname);
+
+    if (ret == ERROR_MORE_DATA ||
+	(ret == ERROR_SUCCESS && type == REG_SZ && compare))
+	return 2;		       /* key is different in registry */
+    else if (ret != ERROR_SUCCESS || type != REG_SZ)
+	return 1;		       /* key does not exist in registry */
+    else
+	return 0;		       /* key matched OK in registry */
 }
 
-void store_host_key(const char *hostname, int port,
+void reg_store_host_key(const char *hostname, int port,
 		    const char *keytype, const char *key)
 {
-	if (storagetype == 1) {
-		file_store_host_key(hostname, port, keytype, key);
-	} else {
-		reg_store_host_key(hostname, port, keytype, key);
-	}
+    char *regname;
+    HKEY rkey;
+
+    regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
+
+    hostkey_regname(regname, hostname, port, keytype);
+
+    if (RegCreateKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys",
+		     &rkey) == ERROR_SUCCESS) {
+	RegSetValueEx(rkey, regname, 0, REG_SZ, key, strlen(key) + 1);
+	RegCloseKey(rkey);
+    } /* else key does not exist in registry */
+
+    sfree(regname);
 }
-
-
-/* ----------------------------------------------------------------------
- * Functions to access PuTTY's random number seed file.
- */
 
 /* ----------------------------------------------------------------------
  * PUTTY FILE HELPERS (not part of storage.h)
@@ -1487,372 +1603,6 @@ void file_store_host_key(const char *hostname, int port,
 	sfree(regname);
 }
 
-
-/* ---------------------------------------------------------------------------------------------------------
- * ---------------------------------------------------------------------------------------------------------
- * REGISTRY FUNCTIONS
- * ---------------------------------------------------------------------------------------------------------
- * -------------------------------------------------------------------------------------------------------*/
-void *reg_open_settings_w(const char *sessionname, char **errmsg)
-{
-    HKEY subkey1, sesskey;
-    int ret;
-    char *p;
-
-    *errmsg = NULL;
-
-    if (!sessionname || !*sessionname)
-	sessionname = "Default Settings";
-
-    p = snewn(3 * strlen(sessionname) + 1, char);
-    mungestr(sessionname, p);
-
-    ret = RegCreateKey(HKEY_CURRENT_USER, puttystr, &subkey1);
-    if (ret != ERROR_SUCCESS) {
-	sfree(p);
-        *errmsg = dupprintf("Unable to create registry key\n"
-                            "HKEY_CURRENT_USER\\%s", puttystr);
-	return NULL;
-    }
-    ret = RegCreateKey(subkey1, p, &sesskey);
-    RegCloseKey(subkey1);
-    if (ret != ERROR_SUCCESS) {
-        *errmsg = dupprintf("Unable to create registry key\n"
-                            "HKEY_CURRENT_USER\\%s\\%s", puttystr, p);
-	sfree(p);
-	return NULL;
-    }
-    sfree(p);
-    return (void *) sesskey;
-}
-
-void reg_write_setting_s(void *handle, const char *key, const char *value)
-{
-    if (handle)
-	RegSetValueEx((HKEY) handle, key, 0, REG_SZ, value,
-		      1 + strlen(value));
-}
-
-void reg_write_setting_i(void *handle, const char *key, int value)
-{
-    if (handle)
-	RegSetValueEx((HKEY) handle, key, 0, REG_DWORD,
-		      (CONST BYTE *) &value, sizeof(value));
-}
-
-void reg_close_settings_w(void *handle)
-{
-    RegCloseKey((HKEY) handle);
-}
-
-void *reg_open_settings_r(const char *sessionname)
-{
-    HKEY subkey1, sesskey;
-    char *p;
-
-    if (!sessionname || !*sessionname)
-	sessionname = "Default Settings";
-
-    p = snewn(3 * strlen(sessionname) + 1, char);
-    mungestr(sessionname, p);
-
-    if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS) {
-	sesskey = NULL;
-    } else {
-	if (RegOpenKey(subkey1, p, &sesskey) != ERROR_SUCCESS) {
-	    sesskey = NULL;
-	}
-	RegCloseKey(subkey1);
-    }
-
-    sfree(p);
-
-    return (void *) sesskey;
-}
-
-char *reg_read_setting_s(void *handle, const char *key)
-{
-    DWORD type, size;
-    char *ret;
-
-    if (!handle)
-	return NULL;
-
-    /* Find out the type and size of the data. */
-    if (RegQueryValueEx((HKEY) handle, key, 0,
-			&type, NULL, &size) != ERROR_SUCCESS ||
-	type != REG_SZ)
-	return NULL;
-
-    ret = snewn(size+1, char);
-    if (RegQueryValueEx((HKEY) handle, key, 0,
-			&type, ret, &size) != ERROR_SUCCESS ||
-	type != REG_SZ) return NULL;
-
-    return ret;
-}
-
-int reg_read_setting_i(void *handle, const char *key, int defvalue)
-{
-    DWORD type, val, size;
-    size = sizeof(val);
-
-    if (!handle ||
-	RegQueryValueEx((HKEY) handle, key, 0, &type,
-			(BYTE *) &val, &size) != ERROR_SUCCESS ||
-	size != sizeof(val) || type != REG_DWORD)
-	return defvalue;
-    else
-	return val;
-}
-
-FontSpec *reg_read_setting_fontspec(void *handle, const char *name)
-{
-    char *settingname;
-    char *fontname;
-    int isbold, height, charset;
-
-    fontname = read_setting_s(handle, name);
-    if (!fontname)
-	return NULL;
-
-    settingname = dupcat(name, "IsBold", NULL);
-    isbold = read_setting_i(handle, settingname, -1);
-    sfree(settingname);
-    if (isbold == -1) return NULL;
-
-    settingname = dupcat(name, "CharSet", NULL);
-    charset = read_setting_i(handle, settingname, -1);
-    sfree(settingname);
-    if (charset == -1) return NULL;
-
-    settingname = dupcat(name, "Height", NULL);
-    height = read_setting_i(handle, settingname, INT_MIN);
-    sfree(settingname);
-    if (height == INT_MIN) return NULL;
-
-    return fontspec_new(fontname, isbold, height, charset);
-}
-
-void reg_write_setting_fontspec(void *handle, const char *name, FontSpec *font)
-{
-    char *settingname;
-
-    write_setting_s(handle, name, font->name);
-    settingname = dupcat(name, "IsBold", NULL);
-    write_setting_i(handle, settingname, font->isbold);
-    sfree(settingname);
-    settingname = dupcat(name, "CharSet", NULL);
-    write_setting_i(handle, settingname, font->charset);
-    sfree(settingname);
-    settingname = dupcat(name, "Height", NULL);
-    write_setting_i(handle, settingname, font->height);
-    sfree(settingname);
-}
-
-Filename *reg_read_setting_filename(void *handle, const char *name)
-{
-    char *tmp = read_setting_s(handle, name);
-    if (tmp) {
-        Filename *ret = filename_from_str(tmp);
-	sfree(tmp);
-	return ret;
-    } else
-	return NULL;
-}
-
-void reg_write_setting_filename(void *handle, const char *name, Filename *result)
-{
-    write_setting_s(handle, name, result->path);
-}
-
-void reg_close_settings_r(void *handle)
-{
-    RegCloseKey((HKEY) handle);
-}
-
-void reg_del_settings(const char *sessionname)
-{
-    HKEY subkey1;
-    char *p;
-
-    if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS)
-	return;
-
-    p = snewn(3 * strlen(sessionname) + 1, char);
-    mungestr(sessionname, p);
-    RegDeleteKey(subkey1, p);
-    sfree(p);
-
-    RegCloseKey(subkey1);
-
-    remove_session_from_jumplist(sessionname);
-}
-
-void *reg_enum_settings_start(int storagetype)
-{
-    struct enumsettings *ret;
-    HKEY key;
-
-    if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &key) != ERROR_SUCCESS)
-	return NULL;
-
-    ret = snew(struct enumsettings);
-    if (ret) {
-	ret->key = key;
-	ret->i = 0;
-    }
-
-    return ret;
-}
-
-char *reg_enum_settings_next(void *handle, char *buffer, int buflen)
-{
-    struct enumsettings *e = (struct enumsettings *) handle;
-    char *otherbuf;
-    otherbuf = snewn(3 * buflen, char);
-    if (RegEnumKey(e->key, e->i++, otherbuf, 3 * buflen) == ERROR_SUCCESS) {
-	unmungestr(otherbuf, buffer, buflen);
-	sfree(otherbuf);
-	return buffer;
-    } else {
-	sfree(otherbuf);
-	return NULL;
-    }
-}
-
-void reg_enum_settings_finish(void *handle)
-{
-    struct enumsettings *e = (struct enumsettings *) handle;
-    RegCloseKey(e->key);
-    sfree(e);
-}
-
-int reg_verify_host_key(const char *hostname, int port,
-		    const char *keytype, const char *key)
-{
-    char *otherstr, *regname;
-    int len;
-    HKEY rkey;
-    DWORD readlen;
-    DWORD type;
-    int ret, compare;
-
-    len = 1 + strlen(key);
-
-    /*
-     * Now read a saved key in from the registry and see what it
-     * says.
-     */
-    otherstr = snewn(len, char);
-    regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
-
-    hostkey_regname(regname, hostname, port, keytype);
-
-    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys",
-		   &rkey) != ERROR_SUCCESS)
-	return 1;		       /* key does not exist in registry */
-
-    readlen = len;
-    ret = RegQueryValueEx(rkey, regname, NULL, &type, otherstr, &readlen);
-
-    if (ret != ERROR_SUCCESS && ret != ERROR_MORE_DATA &&
-	!strcmp(keytype, "rsa")) {
-	/*
-	 * Key didn't exist. If the key type is RSA, we'll try
-	 * another trick, which is to look up the _old_ key format
-	 * under just the hostname and translate that.
-	 */
-	char *justhost = regname + 1 + strcspn(regname, ":");
-	char *oldstyle = snewn(len + 10, char);	/* safety margin */
-	readlen = len;
-	ret = RegQueryValueEx(rkey, justhost, NULL, &type,
-			      oldstyle, &readlen);
-
-	if (ret == ERROR_SUCCESS && type == REG_SZ) {
-	    /*
-	     * The old format is two old-style bignums separated by
-	     * a slash. An old-style bignum is made of groups of
-	     * four hex digits: digits are ordered in sensible
-	     * (most to least significant) order within each group,
-	     * but groups are ordered in silly (least to most)
-	     * order within the bignum. The new format is two
-	     * ordinary C-format hex numbers (0xABCDEFG...XYZ, with
-	     * A nonzero except in the special case 0x0, which
-	     * doesn't appear anyway in RSA keys) separated by a
-	     * comma. All hex digits are lowercase in both formats.
-	     */
-	    char *p = otherstr;
-	    char *q = oldstyle;
-	    int i, j;
-
-	    for (i = 0; i < 2; i++) {
-		int ndigits, nwords;
-		*p++ = '0';
-		*p++ = 'x';
-		ndigits = strcspn(q, "/");	/* find / or end of string */
-		nwords = ndigits / 4;
-		/* now trim ndigits to remove leading zeros */
-		while (q[(ndigits - 1) ^ 3] == '0' && ndigits > 1)
-		    ndigits--;
-		/* now move digits over to new string */
-		for (j = 0; j < ndigits; j++)
-		    p[ndigits - 1 - j] = q[j ^ 3];
-		p += ndigits;
-		q += nwords * 4;
-		if (*q) {
-		    q++;	       /* eat the slash */
-		    *p++ = ',';	       /* add a comma */
-		}
-		*p = '\0';	       /* terminate the string */
-	    }
-
-	    /*
-	     * Now _if_ this key matches, we'll enter it in the new
-	     * format. If not, we'll assume something odd went
-	     * wrong, and hyper-cautiously do nothing.
-	     */
-	    if (!strcmp(otherstr, key))
-		RegSetValueEx(rkey, regname, 0, REG_SZ, otherstr,
-			      strlen(otherstr) + 1);
-	}
-    }
-
-    RegCloseKey(rkey);
-
-    compare = strcmp(otherstr, key);
-
-    sfree(otherstr);
-    sfree(regname);
-
-    if (ret == ERROR_MORE_DATA ||
-	(ret == ERROR_SUCCESS && type == REG_SZ && compare))
-	return 2;		       /* key is different in registry */
-    else if (ret != ERROR_SUCCESS || type != REG_SZ)
-	return 1;		       /* key does not exist in registry */
-    else
-	return 0;		       /* key matched OK in registry */
-}
-
-void reg_store_host_key(const char *hostname, int port,
-		    const char *keytype, const char *key)
-{
-    char *regname;
-    HKEY rkey;
-
-    regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
-
-    hostkey_regname(regname, hostname, port, keytype);
-
-    if (RegCreateKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys",
-		     &rkey) == ERROR_SUCCESS) {
-	RegSetValueEx(rkey, regname, 0, REG_SZ, key, strlen(key) + 1);
-	RegCloseKey(rkey);
-    } /* else key does not exist in registry */
-
-    sfree(regname);
-}
-
 /*
  * Open (or delete) the random seed file.
  */
@@ -2256,4 +2006,134 @@ void cleanup_all(void)
     /*
      * Now we're done.
      */
+}
+
+void *open_settings_w(const char *sessionname, char **errmsg)
+{
+	if (storagetype == 1) {
+		return file_open_settings_w(sessionname, errmsg);
+	} else {
+		return reg_open_settings_w(sessionname, errmsg);
+	}
+}
+
+void write_setting_s(void *handle, const char *key, const char *value)
+{
+	if (storagetype == 1) {
+		file_write_setting_s(handle, key, value);
+	} else {
+		reg_write_setting_s(handle, key, value);
+	}
+}
+
+void write_setting_i(void *handle, const char *key, int value)
+{
+	if (storagetype == 1) {
+		file_write_setting_i(handle, key, value);
+	} else {
+		reg_write_setting_i(handle, key, value);
+	}
+}
+
+void close_settings_w(void *handle)
+{
+	if (storagetype == 1) {
+		file_close_settings_w(handle);
+	} else {
+		reg_close_settings_w(handle);
+	}
+}
+
+void *open_settings_r(const char *sessionname)
+{
+	if (storagetype == 1) {
+		return file_open_settings_r(sessionname);
+	} else {
+		return reg_open_settings_r(sessionname);
+	}
+}
+
+char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
+{
+	if (storagetype == 1) {
+		return file_read_setting_s(handle, key, buffer, buflen);
+	} else {
+		return reg_read_setting_s(handle, key, buffer, buflen);
+	}
+}
+
+int read_setting_i(void *handle, const char *key, int defvalue)
+{
+	if (storagetype == 1) {
+		return file_read_setting_i(handle, key, defvalue);
+	} else {
+		return reg_read_setting_i(handle, key, defvalue);
+	}
+}
+
+void close_settings_r(void *handle)
+{
+	if (storagetype == 1) {
+		return file_close_settings_r(handle);
+	} else {
+		return reg_close_settings_r(handle);
+	}
+}
+
+void del_settings(const char *sessionname)
+{
+	if (storagetype == 1) {
+		file_del_settings(sessionname);
+	} else {
+		reg_del_settings(sessionname);
+	}
+}
+
+void *enum_settings_start(int new_storagetype)
+{
+	storagetype = new_storagetype;
+
+	if (storagetype == 1) {
+		return file_enum_settings_start();
+	} else {
+		return reg_enum_settings_start();
+	}
+}
+
+char *enum_settings_next(void *handle, char *buffer, int buflen)
+{
+	if (storagetype == 1) {
+		return file_enum_settings_next(handle, buffer, buflen);
+	} else {
+		return reg_enum_settings_next(handle, buffer, buflen);
+	}
+}
+
+void enum_settings_finish(void *handle)
+{
+	if (storagetype == 1) {
+		file_enum_settings_finish(handle);
+	} else {
+		reg_enum_settings_finish(handle);
+	}
+}
+
+int verify_host_key(const char *hostname, int port,
+		    const char *keytype, const char *key)
+{
+	if (storagetype == 1) {
+		return file_verify_host_key(hostname, port, keytype, key);
+	} else {
+		return reg_verify_host_key(hostname, port, keytype, key);
+	}
+}
+
+void store_host_key(const char *hostname, int port,
+		    const char *keytype, const char *key)
+{
+	if (storagetype == 1) {
+		file_store_host_key(hostname, port, keytype, key);
+	} else {
+		reg_store_host_key(hostname, port, keytype, key);
+	}
 }
