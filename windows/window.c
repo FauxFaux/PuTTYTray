@@ -5846,8 +5846,7 @@ static void flash_window_timer(void *ctx, long now)
  */
 static void flash_window(int mode)
 {
-    int beep_ind = conf_get_int(conf, CONF_beep_ind);
-	HINSTANCE inst;
+	int beep_ind = conf_get_int(conf, CONF_beep_ind);
 
 	if ((mode == 0) || (beep_ind == B_IND_DISABLED)) {
 		/* stop */
@@ -5860,8 +5859,6 @@ static void flash_window(int mode)
 			 * Reset trayicon
 			 */
 			if (puttyTrayVisible) {
-				inst = (HINSTANCE)GetWindowLong(hwnd, GWL_HINSTANCE);
-
 				puttyTrayFlash = FALSE;
 				puttyTray.hIcon = puttyTrayFlashIcon;
 				taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
@@ -5905,7 +5902,6 @@ static void flash_window(int mode)
 					puttyTray.hIcon	= NULL;
 					taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
 				} else {
-					inst = (HINSTANCE)GetWindowLong(hwnd, GWL_HINSTANCE);
 					puttyTrayFlash = FALSE;
 
 					puttyTray.hIcon = puttyTrayFlashIcon;
