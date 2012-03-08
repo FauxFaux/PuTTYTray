@@ -65,8 +65,6 @@ struct setPack {
 };
 
 // Forward declarations for helper functions
-static void mungestr(const char *in, char *out);
-static void unmungestr(const char *in, char *out, int outlen);
 static void registry_recursive_remove(HKEY key);
 
 // Forward declarations for file functions
@@ -119,22 +117,51 @@ void set_storagetype(int new_storagetype)
 }
 
 
-/*
- * Write a saved session. The caller is expected to call
- * open_setting_w() to get a `void *' handle, then pass that to a
- * number of calls to write_setting_s() and write_setting_i(), and
- * then close it using close_settings_w(). At the end of this call
- * sequence the settings should have been written to the PuTTY
- * persistent storage area.
- *
- * A given key will be written at most once while saving a session.
- * Keys may be up to 255 characters long.  String values have no length
- * limit.
- * 
- * Any returned error message must be freed after use.
- *
- * STORAGETYPE SWITCHER
- */
+static void mungestr(const char *in, char *out)
+{
+    int candot = 0;
+
+    while (*in) {
+	if (*in == ' ' || *in == '\\' || *in == '*' || *in == '?' ||
+	    *in == '%' || *in < ' ' || *in > '~' || (*in == '.'
+						     && !candot)) {
+	    *out++ = '%';
+	    *out++ = hex[((unsigned char) *in) >> 4];
+	    *out++ = hex[((unsigned char) *in) & 15];
+	} else
+	    *out++ = *in;
+	in++;
+	candot = 1;
+    }
+    *out = '\0';
+    return;
+}
+
+static void unmungestr(const char *in, char *out, int outlen)
+{
+    while (*in) {
+	if (*in == '%' && in[1] && in[2]) {
+	    int i, j;
+
+	    i = in[1] - '0';
+	    i -= (i > 9 ? 7 : 0);
+	    j = in[2] - '0';
+	    j -= (j > 9 ? 7 : 0);
+
+	    *out++ = (i << 4) + j;
+	    if (!--outlen)
+		return;
+	    in += 3;
+	} else {
+	    *out++ = *in++;
+	    if (!--outlen)
+		return;
+	}
+    }
+    *out = '\0';
+    return;
+}
+
 void *open_settings_w(const char *sessionname, char **errmsg)
 {
 	if (storagetype == 1) {
@@ -668,57 +695,6 @@ int loadPath() {
 
 	sfree(puttypath);
 	return 1;
-}
-
-
-/* ----------------------------------------------------------------------
- * OTHER HELPERS (not part of storage.h)
- *
- * NO HACK: PuttyTray / PuTTY File - these are original functions (not patched)
- */
-static void mungestr(const char *in, char *out)
-{
-    int candot = 0;
-
-    while (*in) {
-	if (*in == ' ' || *in == '\\' || *in == '*' || *in == '?' ||
-	    *in == '%' || *in < ' ' || *in > '~' || (*in == '.'
-						     && !candot)) {
-	    *out++ = '%';
-	    *out++ = hex[((unsigned char) *in) >> 4];
-	    *out++ = hex[((unsigned char) *in) & 15];
-	} else
-	    *out++ = *in;
-	in++;
-	candot = 1;
-    }
-    *out = '\0';
-    return;
-}
-
-static void unmungestr(const char *in, char *out, int outlen)
-{
-    while (*in) {
-	if (*in == '%' && in[1] && in[2]) {
-	    int i, j;
-
-	    i = in[1] - '0';
-	    i -= (i > 9 ? 7 : 0);
-	    j = in[2] - '0';
-	    j -= (j > 9 ? 7 : 0);
-
-	    *out++ = (i << 4) + j;
-	    if (!--outlen)
-		return;
-	    in += 3;
-	} else {
-	    *out++ = *in++;
-	    if (!--outlen)
-		return;
-	}
-    }
-    *out = '\0';
-    return;
 }
 
 
