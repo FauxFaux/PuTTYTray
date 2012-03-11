@@ -1551,7 +1551,7 @@ void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
 		case CTRL_ICON: {
 			Conf *cfg = (Conf *)dp->data;
 			num_ids = 1;
-			staticicon(&pos, ctrl->icon.label, conf_get_str(cfg, ctrl->icon.context.i), base_id);
+			staticicon(&pos, ctrl->icon.label, conf_get_filename(cfg, ctrl->icon.context.i)->path, base_id);
 			break;
 		}
 		//-----------------------------------------------------

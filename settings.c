@@ -845,11 +845,11 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "Tray", TRAY_NEVER, conf, CONF_tray);
     gppi(sesskey, "StartTray", 0, conf, CONF_start_tray);
     gppi(sesskey, "TrayRestore", 0, conf, CONF_tray_restore);
-    gpps(sesskey, "WinIcon", "", conf, CONF_win_icon);
+    gppfile(sesskey, "WinIcon", conf, CONF_win_icon);
     gppi(sesskey, "HyperlinkUnderline", 1, conf, CONF_url_underline);
     gppi(sesskey, "HyperlinkUseCtrlClick", 0, conf, CONF_url_ctrl_click);
     gppi(sesskey, "HyperlinkBrowserUseDefault", 1, conf, CONF_url_defbrowser);
-    gpps(sesskey, "HyperlinkBrowser", "", conf, CONF_url_browser);
+    gppfile(sesskey, "HyperlinkBrowser", conf, CONF_url_browser);
     gppi(sesskey, "HyperlinkRegularExpressionUseDefault", 1, conf, CONF_url_defregex);
     gpps(sesskey, "HyperlinkRegularExpression", urlhack_default_regex, conf, CONF_url_regex);
     gppi(sesskey, "AltF4", 1, conf, CONF_alt_f4);

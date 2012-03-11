@@ -6033,7 +6033,7 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 			unlineptr(urldata);
 		}
 		
-		urlhack_launch_url(!conf_get_int(term->conf, CONF_url_defbrowser) ? conf_get_str(term->conf, CONF_url_browser) : NULL, linkbuf);
+		urlhack_launch_url(!conf_get_int(term->conf, CONF_url_defbrowser) ? conf_get_filename(term->conf, CONF_url_browser)->path : NULL, linkbuf);
 		
 		sfree(linkbuf);
 	}

@@ -456,7 +456,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	ctrl_editbox(s, "or specify your own:", NO_SHORTCUT, 100,
 		 HELPCTX(no_help),
 		 conf_editbox_handler, I(CONF_url_regex),
-		 I(-1));
+		 I(1));
 
 	ctrl_text(s, "The single white space will be cropped in front of the link, if exists.",
 		  HELPCTX(no_help));

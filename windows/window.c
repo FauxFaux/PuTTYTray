@@ -728,6 +728,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	 * Changes below: wndclassEX and some additions for the 2 icon sizes
 	 */ 
     if (!prev) {
+		Filename *win_icon;
 		wndclass.cbSize = sizeof(WNDCLASSEX);
 		wndclass.style = 0;
 		wndclass.lpfnWndProc = WndProc;
@@ -735,9 +736,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 		wndclass.cbWndExtra = 0;
 		wndclass.hInstance = inst;
 
-		if (conf_get_str(conf, CONF_win_icon)[0]) {
-			wndclass.hIcon = extract_icon(conf_get_str(conf, CONF_win_icon), FALSE);
-			wndclass.hIconSm = extract_icon(conf_get_str(conf, CONF_win_icon), TRUE);
+		win_icon = conf_get_filename(conf, CONF_win_icon);
+		if (win_icon->path[0]) {
+			wndclass.hIcon = extract_icon(win_icon->path, FALSE);
+			wndclass.hIconSm = extract_icon(win_icon->path, TRUE);
 		} else {
 			wndclass.hIcon = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED);
 			wndclass.hIconSm = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
@@ -936,7 +938,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	puttyTray.uID	= 1983; 
 	puttyTray.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP; 
 	puttyTray.uCallbackMessage = WM_NOTIFY_PUTTYTRAY;
-	if (conf_get_str(conf, CONF_win_icon)[0]) {
+	if (conf_get_filename(conf, CONF_win_icon)->path[0]) {
 		puttyTray.hIcon	= wndclass.hIconSm;
 	} else {
 		puttyTray.hIcon	= LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
@@ -2469,11 +2471,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		 * HACK: PuttyTray / Session Icon
 		 * Reconfigure
 		 */
-		if (conf_get_str(conf, CONF_win_icon)[0]) {
-			hIcon = extract_icon(conf_get_str(conf, CONF_win_icon), TRUE);
+		if (conf_get_filename(conf, CONF_win_icon)->path[0]) {
+			hIcon = extract_icon(conf_get_filename(conf, CONF_win_icon)->path, TRUE);
 			DestroyIcon(puttyTray.hIcon);
 			puttyTray.hIcon = hIcon;
-			SetClassLongPtr(hwnd, GCLP_HICON, (LONG_PTR)extract_icon(conf_get_str(conf, CONF_win_icon), FALSE));
+			SetClassLongPtr(hwnd, GCLP_HICON, (LONG_PTR)extract_icon(conf_get_filename(conf, CONF_win_icon)->path, FALSE));
 			SetClassLongPtr(hwnd, GCLP_HICONSM, (LONG_PTR)hIcon);
 		} else {
 			inst = (HINSTANCE) GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
