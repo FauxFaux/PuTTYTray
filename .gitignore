@@ -8,6 +8,7 @@ charset/sbcsdat.c
 *.res
 *.map
 *.pdb
+/empty.h
 *.o
 unix/plink
 unix/pscp
