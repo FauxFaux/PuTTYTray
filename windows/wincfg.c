@@ -399,7 +399,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     c = ctrl_icon(s, HELPCTX(appearance_title),
 		  I(CONF_win_icon));
     c->generic.column = 1;
-    c = ctrl_pushbutton(s, "Change Icon...", 'h', HELPCTX(appearance_title),
+    c = ctrl_pushbutton(s, "Change Icon...", NO_SHORTCUT, HELPCTX(appearance_title),
 			window_icon_handler, P(c));
     c->generic.column = 2;
     ctrl_columns(s, 1, 100);
