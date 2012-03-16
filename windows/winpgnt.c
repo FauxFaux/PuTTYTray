@@ -1800,6 +1800,24 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    if (passphrase_box)
 		SendMessage(passphrase_box, WM_CLOSE, 0, 0);
 	    SendMessage(hwnd, WM_CLOSE, 0, 0);
+
+        // GD: For some reasons, just sending a close message does not exit cleanly
+        //     This patch is copied from the main exit function at the bottom of this file
+
+        /* Clean up the system tray icon */
+        {
+	    NOTIFYICONDATA tnid;
+
+	    tnid.cbSize = sizeof(NOTIFYICONDATA);
+	    tnid.hWnd = hwnd;
+	    tnid.uID = 1;
+
+	    Shell_NotifyIcon(NIM_DELETE, &tnid);
+
+	    DestroyMenu(systray_menu);
+        }
+        // GD: End of modification
+
 	    break;
 	  case IDM_VIEWKEYS:
 	    if (!keylist) {
