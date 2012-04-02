@@ -8,3 +8,11 @@ charset/sbcsdat.c
 *.res
 *.map
 *.pdb
+*.o
+unix/plink
+unix/pscp
+unix/psftp
+unix/puttygen
+unix/pterm
+unix/putty
+unix/puttytel

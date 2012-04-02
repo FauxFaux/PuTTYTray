@@ -282,11 +282,11 @@ TERMINAL = terminal wcwidth ldiscucs logging tree234 minibidi
 GUITERM  = TERMINAL window windlg winctrls sizetip winucs winprint
          + winutils wincfg sercfg winhelp winjump
          + pickicondialog
-         + urlhack regexp
+         + urlhack urlhack_win regexp
 
 # Same thing on Unix.
-UXTERM   = TERMINAL uxcfg sercfg uxucs uxprint timing
-GTKTERM  = UXTERM gtkwin gtkcfg gtkdlg gtkfont gtkcols xkeysym
+UXTERM   = TERMINAL uxcfg sercfg uxucs uxprint timing urlhack urlhack_unix regexp
+GTKTERM  = UXTERM gtkwin gtkcfg gtkdlg gtkfont gtkcols xkeysym urlhack urlhack_unix regexp
 OSXTERM  = UXTERM osxwin osxdlg osxctrls
 
 # Non-SSH back ends (putty, puttytel, plink).
