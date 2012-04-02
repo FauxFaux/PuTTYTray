@@ -174,15 +174,15 @@ STATIC void regoptail( char* p,  char* val);
 STATIC int strcspn();
 #endif
 
-static void (*regerror_func)( char* s) = 0;
+static void (*regerror_func)( const char* s) = 0;
 
-void regerror( char* s)
+void regerror( const char* s)
 {
 	if( regerror_func)
 		(*regerror_func)( s);
 }
 
-void set_regerror_func( void (*func)( char*))
+void set_regerror_func( void (*func)( const char*))
 {
 	regerror_func = func;
 }
@@ -208,7 +208,7 @@ regcomp( char* exp)
 	register regexp *r;
 	register char *scan;
 	register char *longest;
-	register int len;
+	register size_t len;
 	int flags;
 
 	if (exp == NULL)
@@ -294,7 +294,7 @@ reg( int paren, int* flagp)	/* paren - Parenthesized? */
 	register char *ret;
 	register char *br;
 	register char *ender;
-	register int parno;
+	register int parno = 0;
 	int flags;
 
 	*flagp = HASWIDTH;	/* Tentatively. */

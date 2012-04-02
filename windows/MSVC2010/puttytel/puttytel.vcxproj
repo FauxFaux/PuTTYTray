@@ -34,12 +34,12 @@
     <ClCompile Include="..\..\..\terminal.c" />
     <ClCompile Include="..\..\..\timing.c" />
     <ClCompile Include="..\..\..\tree234.c" />
+    <ClCompile Include="..\..\..\urlhack.c" />
     <ClCompile Include="..\..\..\version.c" />
     <ClCompile Include="..\..\..\wcwidth.c" />
     <ClCompile Include="..\..\..\windows\pickicondialog.c" />
     <ClCompile Include="..\..\..\windows\re_lib\regexp.c" />
     <ClCompile Include="..\..\..\windows\sizetip.c" />
-    <ClCompile Include="..\..\..\windows\urlhack.c" />
     <ClCompile Include="..\..\..\windows\urlhack_win.c" />
     <ClCompile Include="..\..\..\windows\wincfg.c" />
     <ClCompile Include="..\..\..\windows\winctrls.c" />
