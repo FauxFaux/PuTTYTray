@@ -502,6 +502,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 		i--;
 	    p[i] = '\0';
 	    do_defaults(p + 1, &cfg);
+
+	    if (!cfg_launchable(&cfg))
+		do_defaults_file(p + 1, &cfg);
+
 	    if (!cfg_launchable(&cfg) && !do_config()) {
 		cleanup_exit(0);
 	    }
