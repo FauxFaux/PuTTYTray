@@ -6,6 +6,24 @@
 
 #include "ssh.h"
 
+
+#ifdef TEST
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <assert.h>
+#undef snew
+#undef smalloc
+#undef sfree
+#define snew(type) ( (type *) malloc(sizeof(type)) )
+#define snewn(n, type) ( (type *) malloc(n * sizeof(type)) )
+#define smalloc malloc
+#define sfree(x) ( free((x)) )
+#undef min
+#undef max
+
+#endif
+
 /* ----------------------------------------------------------------------
  * Core SHA256 algorithm: processes 16-word blocks into a message digest.
  */
@@ -218,11 +236,129 @@ const struct ssh_hash ssh_sha256 = {
     sha256_init, sha256_bytes, sha256_final, 32, "SHA-256"
 };
 
-#ifdef TEST
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <assert.h>
+static void *sha256_make_context(void)
+{
+    return snewn(3, SHA256_State);
+}
+
+static void sha256_free_context(void *handle)
+{
+    sfree(handle);
+}
+
+static void sha256_key_internal(void *handle, unsigned char *key, int len)
+{
+    SHA256_State *keys = (SHA256_State *)handle;
+    unsigned char foo[64];
+    int i;
+
+    memset(foo, 0x36, 64);
+    for (i = 0; i < len && i < 64; i++)
+	foo[i] ^= key[i];
+    SHA256_Init(&keys[0]);
+    SHA256_Bytes(&keys[0], foo, 64);
+
+    memset(foo, 0x5C, 64);
+    for (i = 0; i < len && i < 64; i++)
+	foo[i] ^= key[i];
+    SHA256_Init(&keys[1]);
+    SHA256_Bytes(&keys[1], foo, 64);
+
+    memset(foo, 0, 64);		       /* burn the evidence */
+}
+
+static void sha256_key(void *handle, unsigned char *key)
+{
+    sha256_key_internal(handle, key, 32);
+}
+
+static void hmacsha256_start(void *handle)
+{
+    SHA256_State *keys = (SHA256_State *)handle;
+
+    keys[2] = keys[0];		      /* structure copy */
+}
+
+static void hmacsha256_bytes(void *handle, unsigned char const *blk, int len)
+{
+    SHA256_State *keys = (SHA256_State *)handle;
+    SHA256_Bytes(&keys[2], (void *)blk, len);
+}
+
+static void hmacsha256_genresult(void *handle, unsigned char *hmac)
+{
+    SHA256_State *keys = (SHA256_State *)handle;
+    SHA256_State s;
+    unsigned char intermediate[32];
+
+    s = keys[2];		       /* structure copy */
+    SHA256_Final(&s, intermediate);
+    s = keys[1];		       /* structure copy */
+    SHA256_Bytes(&s, intermediate, 32);
+    SHA256_Final(&s, hmac);
+}
+
+static void sha256_do_hmac(void *handle, unsigned char *blk, int len,
+			 unsigned long seq, unsigned char *hmac)
+{
+    unsigned char seqbuf[4];
+
+    seqbuf[0] = (unsigned char) ((seq >> 24) & 0xFF);
+    seqbuf[1] = (unsigned char) ((seq >> 16) & 0xFF);
+    seqbuf[2] = (unsigned char) ((seq >> 8) & 0xFF);
+    seqbuf[3] = (unsigned char) ((seq) & 0xFF);
+
+    hmacsha256_start(handle);
+    hmacsha256_bytes(handle, seqbuf, 4);
+    hmacsha256_bytes(handle, blk, len);
+    hmacsha256_genresult(handle, hmac);
+}
+
+static void sha256_generate(void *handle, unsigned char *blk, int len,
+			  unsigned long seq)
+{
+    sha256_do_hmac(handle, blk, len, seq, blk + len);
+}
+
+static int hmacsha256_verresult(void *handle, unsigned char const *hmac)
+{
+    unsigned char correct[32];
+    hmacsha256_genresult(handle, correct);
+    return !memcmp(correct, hmac, 32);
+}
+
+static int sha256_verify(void *handle, unsigned char *blk, int len,
+		       unsigned long seq)
+{
+    unsigned char correct[32];
+    sha256_do_hmac(handle, blk, len, seq, correct);
+    return !memcmp(correct, blk + len, 32);
+}
+
+void hmac_sha256_simple(void *key, int keylen, void *data, int datalen,
+		      unsigned char *output) {
+    SHA256_State states[2];
+    unsigned char intermediate[32];
+
+    sha256_key_internal(states, key, keylen);
+    SHA256_Bytes(&states[0], data, datalen);
+    SHA256_Final(&states[0], intermediate);
+
+    SHA256_Bytes(&states[1], intermediate, 32);
+    SHA256_Final(&states[1], output);
+}
+
+const struct ssh_mac ssh_hmac_sha2_256 = {
+    sha256_make_context, sha256_free_context, sha256_key,
+    sha256_generate, sha256_verify,
+    hmacsha256_start, hmacsha256_bytes, hmacsha256_genresult, hmacsha256_verresult,
+    "hmac-sha2-256",
+    32,
+    "HMAC-SHA2-256"
+};
+
+#ifdef TEST
 
 int main(void) {
     unsigned char digest[32];
@@ -246,6 +382,12 @@ int main(void) {
 	} },
     };
 
+    unsigned char mac[] = {
+        0xf7, 0xbc, 0x83, 0xf4, 0x30, 0x53, 0x84, 0x24, 0xb1,
+	0x32, 0x98, 0xe6, 0xaa, 0x6f, 0xb1, 0x43, 0xef, 0x4d,
+	0x59, 0xa1, 0x49, 0x46, 0x17, 0x59, 0x97, 0x47, 0x9d,
+	0xbc, 0x2d, 0x1a, 0x3c, 0xd8 };
+
     errors = 0;
 
     for (i = 0; i < sizeof(tests) / sizeof(*tests); i++) {
@@ -260,6 +402,11 @@ int main(void) {
 	    }
 	}
     }
+
+    hmac_sha256_simple("key", 3, "The quick brown fox jumps over the lazy dog", 43, digest);
+
+    if (memcmp(digest, mac, 32))
+        ++errors;
 
     printf("%d errors\n", errors);
 
