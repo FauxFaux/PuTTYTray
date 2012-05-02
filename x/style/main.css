@@ -258,3 +258,16 @@ h2 a:hover {
 	width: 100px;
 	height: 100px;
 	}
+
+div.content_pane {
+	margin-bottom: 10em;
+}
+
+div#content_source {
+	margin-bottom: 0;
+}
+
+p.largespace {
+	margin-bottom: 50em;
+}
+

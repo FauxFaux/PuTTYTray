@@ -5,6 +5,10 @@
 
 ------------------------------------------------------------------*/
 
+function jsMode() {
+	return window.location.hash == '';
+}
+
 var PuTTYTray = {
 
 	/*
@@ -39,7 +43,18 @@ var PuTTYTray = {
 	 */
 	uiStart: function()
 	{
+		if (!jsMode())
+			return;
+
 		$('content_features').style.display = 'block';
+		$('content_features').style.marginBottom = 0;
+
+		var blocks = ['content_download', 'content_authors', 'content_source'];
+		for (var i = 0; i < blocks.length; ++i) {
+			$(blocks[i]).style.display = 'none';
+			$(blocks[i]).style.marginBottom = 0;
+		}
+
 		$('content_wrap').visibleContent = 'content_features';
 		$('content_wrap').animating = false;
 

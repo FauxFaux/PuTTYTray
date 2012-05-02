@@ -43,16 +43,16 @@
 		</div>
 		
 		<ul id="navigation">
-			<li id="nav_features"><a href="#features" onclick="return false;"><span>Features</span></a></li>
-			<li id="nav_download"><a href="#download" onclick="return false;"><span>Download</span></a></li>
-			<li id="nav_authors"><a href="#authors" onclick="return false;"><span>Authors</span></a></li>
-			<li id="nav_source"><a href="#source" onclick="return false;"><span>Source</span></a></li>
+			<li id="nav_features"><a href="#features" onclick="return !jsMode();"><span>Features</span></a></li>
+			<li id="nav_download"><a href="#download" onclick="return !jsMode();"><span>Download</span></a></li>
+			<li id="nav_authors"><a href="#authors" onclick="return !jsMode();"><span>Authors</span></a></li>
+			<li id="nav_source"><a href="#source" onclick="return !jsMode();"><span>Source</span></a></li>
 		</ul>
 
 		<div id="content_wrap">
 			<div id="iefix"><!-- IE stops showing the content_wrap background without this --></div>
 			
-			<div id="content_features" style="display:none">
+			<div id="content_features" class="content_pane">
 				<h2><a id="features">Features</a></h2>
 								
 				<ul>
@@ -151,7 +151,7 @@
 				</ul>
 			</div>
 
-			<div id="content_download" style="display:none">
+			<div id="content_download" class="content_pane">
 				<h2><a id="download">Download</a></h2>
 
 				<p>The current version is 0.62-t010.<br />
@@ -188,7 +188,7 @@
 				</ul>
 			</div>
 
-			<div id="content_authors" style="display:none">
+			<div id="content_authors" class="content_pane">
 				<h2><a id="authors">Authors</a></h2>
 				
 				<ul>
@@ -211,7 +211,7 @@
 				<a href="http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html">the original version</a>.</p>
 			</div>
 
-			<div id="content_source" style="display:none">
+			<div id="content_source" class="content_pane">
 				<h2><a id="source">Source</a></h2>
 				<p><strong>github</strong></p>
 				<p>
@@ -241,5 +241,6 @@
 	</div>
 </div>
 
+<p class="largespace"></p>
 </body>
 </html>
