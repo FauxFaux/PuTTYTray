@@ -50,7 +50,6 @@ static void window_icon_handler(union control *ctrl, void *dlg, void *data, int 
     if (event == EVENT_ACTION) {
 		char buf[512], iname[512], *ipointer;
 		int iindex;
-
 		memset(&iname, 0, sizeof(iname));
 		memset(&buf, 0, sizeof(buf));
 		iindex = 0;
@@ -62,7 +61,7 @@ static void window_icon_handler(union control *ctrl, void *dlg, void *data, int 
 				sprintf(buf, "%s", iname);
 			}
 			dlg_icon_set((union control *) ctrl->button.context.p, dlg, buf);
-                        conf_set_str(cfg, CONF_win_icon, buf);
+			conf_set_filename(cfg, CONF_win_icon, filename_from_str(buf));
 		};
 	};
 };
