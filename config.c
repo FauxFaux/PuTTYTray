@@ -1843,6 +1843,12 @@ void setup_config_box(struct controlbox *b, int midsession,
     ctrl_checkbox(s, "Shift overrides application's use of mouse", 'p',
 		  HELPCTX(selection_shiftdrag),
 		  conf_checkbox_handler, I(CONF_mouse_override));
+
+    /* url-cut */
+    ctrl_checkbox(s, "Detect URLs on selection and launch in browser", 'u',
+		  HELPCTX(selection_shiftdrag),
+		  conf_checkbox_handler, I(CONF_copy_clipbd_url_reg));
+
     ctrl_radiobuttons(s,
 		      "Default selection mode (Alt+drag does the other one):",
 		      NO_SHORTCUT, 2,

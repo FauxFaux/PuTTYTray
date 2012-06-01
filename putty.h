@@ -830,6 +830,7 @@ void cleanup_exit(int);
     X(INT, NONE, rawcnp) \
     X(INT, NONE, rtf_paste) \
     X(INT, NONE, mouse_override) \
+    X(INT, NONE, copy_clipbd_url_reg) /* url-cut */ \
     X(INT, INT, wordness) \
     /* translations */ \
     X(INT, NONE, vtmode) \
