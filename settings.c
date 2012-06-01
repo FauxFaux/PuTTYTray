@@ -526,7 +526,7 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "Tray", conf_get_int(conf, CONF_tray));
     write_setting_i(sesskey, "StartTray", conf_get_int(conf, CONF_start_tray));
     write_setting_i(sesskey, "TrayRestore", conf_get_int(conf, CONF_tray_restore));
-    write_setting_filename(sesskey, "WinIcon", conf_get_filename(conf, CONF_win_icon));
+    write_setting_filename(sesskey, "WindowIcon", conf_get_filename(conf, CONF_win_icon));
     write_setting_i(sesskey, "HyperlinkUnderline", conf_get_int(conf, CONF_url_underline));
     write_setting_i(sesskey, "HyperlinkUseCtrlClick", conf_get_int(conf, CONF_url_ctrl_click));
     write_setting_i(sesskey, "HyperlinkBrowserUseDefault", conf_get_int(conf, CONF_url_defbrowser));
@@ -848,7 +848,7 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "Tray", TRAY_NEVER, conf, CONF_tray);
     gppi(sesskey, "StartTray", 0, conf, CONF_start_tray);
     gppi(sesskey, "TrayRestore", 0, conf, CONF_tray_restore);
-    gppfile(sesskey, "WinIcon", conf, CONF_win_icon);
+    gppfile(sesskey, "WindowIcon", conf, CONF_win_icon);
     gppi(sesskey, "HyperlinkUnderline", 1, conf, CONF_url_underline);
     gppi(sesskey, "HyperlinkUseCtrlClick", 0, conf, CONF_url_ctrl_click);
     gppi(sesskey, "HyperlinkBrowserUseDefault", 1, conf, CONF_url_defbrowser);
