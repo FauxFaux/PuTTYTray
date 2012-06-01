@@ -290,6 +290,7 @@ GUITERM  = TERMINAL window windlg winctrls sizetip winucs winprint
          + winutils wincfg sercfg winhelp winjump
          + pickicondialog
          + urlhack urlhack_win regexp
+         + cygcfg
 
 # Same thing on Unix.
 UXTERM   = TERMINAL uxcfg sercfg uxucs uxprint timing urlhack urlhack_unix regexp
@@ -333,7 +334,9 @@ BE_SSH   = be_ssh cproxy
 BE_NONE  = be_none nocproxy
 # More backend sets, with the additional Windows serial-port module.
 W_BE_ALL = be_all_s winser cproxy
+         + cygterm
 W_BE_NOSSH = be_nos_s winser nocproxy
+           + cygterm
 # And with the Unix serial-port module.
 U_BE_ALL = be_all_s uxser cproxy
 U_BE_NOSSH = be_nos_s uxser nocproxy

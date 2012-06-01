@@ -37,6 +37,8 @@
     <ClCompile Include="..\..\..\urlhack.c" />
     <ClCompile Include="..\..\..\version.c" />
     <ClCompile Include="..\..\..\wcwidth.c" />
+    <ClCompile Include="..\..\..\windows\cygcfg.c" />
+    <ClCompile Include="..\..\..\windows\cygterm.c" />
     <ClCompile Include="..\..\..\windows\pickicondialog.c" />
     <ClCompile Include="..\..\..\windows\re_lib\regexp.c" />
     <ClCompile Include="..\..\..\windows\sizetip.c" />
@@ -76,6 +78,8 @@
     <ClInclude Include="..\..\..\terminal.h" />
     <ClInclude Include="..\..\..\tree234.h" />
     <ClInclude Include="..\..\..\unix\unix.h" />
+    <ClInclude Include="..\..\..\windows\cthelper\cthelper.h" />
+    <ClInclude Include="..\..\..\windows\cthelper\message.h" />
     <ClInclude Include="..\..\..\windows\pickicondialog.h" />
     <ClInclude Include="..\..\..\windows\rcstuff.h" />
     <ClInclude Include="..\..\..\windows\re_lib\regexp.h" />
@@ -86,8 +90,8 @@
     <ClInclude Include="..\..\..\windows\winstuff.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\..\windows\putty.ico" />
     <None Include="..\..\..\windows\puttycfg.ico" />
+    <None Include="..\..\..\windows\puttycyg.ico" />
     <None Include="..\..\..\windows\puttytel.rc" />
   </ItemGroup>
   <ItemGroup>
