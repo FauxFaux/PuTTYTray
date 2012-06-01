@@ -5375,6 +5375,56 @@ void write_aclip(void *frontend, char *data, int len, int must_deselect)
 	SendMessage(hwnd, WM_IGNORE_CLIP, FALSE, 0);
 }
 
+/* url-cut */
+static void detect_and_launch_url(char *urldata) {
+	char *pc;
+	int len;
+	int urlbegin;
+	int hostend;
+	int i;
+	urlbegin = 0;
+	len = strlen(urldata);
+	pc = urldata;
+	// "ftp://" is shortest detected begining of URL
+	if (len<=6)
+		return;
+
+	// skip whitespaces at the begining
+	while (len > 6 && isspace(*pc)) {
+		len--;
+		pc++;
+	}
+
+	// detect urls
+	if (!strncmp(pc, "ftp://", 6))
+		urlbegin = 6;
+	else if (!strncmp(pc, "http://", 7))
+		urlbegin = 7;
+	else if (!strncmp(pc, "https://", 8))
+		urlbegin = 8;
+	else
+		return;
+
+	// skip whitespaces at the end
+	while (len > urlbegin && isspace(pc[len-1])) {
+		len--;
+		pc[len]=0;
+	}
+
+	if (len <= urlbegin)
+		return;
+
+	// find first '/' or end
+	for (hostend = urlbegin; pc[hostend] && pc[hostend] != '/'; hostend++);
+
+	// check for spaces in hostname
+	for (i = urlbegin; i < hostend; i++)
+		if (isspace(pc[i]))
+			return;
+
+	ShellExecute(hwnd, NULL, pc, NULL, NULL, SW_SHOWDEFAULT);
+}
+
 /*
  * Note: unlike write_aclip() this will not append a nul.
  */
@@ -5383,6 +5433,7 @@ void write_clip(void *frontend, wchar_t * data, int *attr, int len, int must_des
     HGLOBAL clipdata, clipdata2, clipdata3;
     int len2;
     void *lock, *lock2, *lock3;
+    char *urldata;  /* url-cut */
 
     len2 = WideCharToMultiByte(CP_ACP, 0, data, len, 0, 0, NULL, NULL);
 
@@ -5411,6 +5462,12 @@ void write_clip(void *frontend, wchar_t * data, int *attr, int len, int must_des
 
     memcpy(lock, data, len * sizeof(wchar_t));
     WideCharToMultiByte(CP_ACP, 0, data, len, lock2, len2, NULL, NULL);
+
+    /* url-cut */
+    if (conf_get_int(conf, CONF_copy_clipbd_url_reg))
+        urldata = strdup((char*)lock2);
+    else
+        urldata = 0;
 
     if (conf_get_int(conf, CONF_rtf_paste)) {
 	wchar_t unitab[256];
@@ -5703,6 +5760,12 @@ void write_clip(void *frontend, wchar_t * data, int *attr, int len, int must_des
 	GlobalFree(clipdata);
 	GlobalFree(clipdata2);
     }
+
+	/* url-cut */
+	if (urldata && conf_get_int(conf, CONF_copy_clipbd_url_reg)) {
+		detect_and_launch_url(urldata);
+		free(urldata);
+	}
 
     if (!must_deselect)
 	SendMessage(hwnd, WM_IGNORE_CLIP, FALSE, 0);
