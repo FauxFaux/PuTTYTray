@@ -178,6 +178,8 @@ DECL_WINDOWS_FUNCTION(static, int, WSAIoctl,
 		      (SOCKET, DWORD, LPVOID, DWORD, LPVOID, DWORD,
 		       LPDWORD, LPWSAOVERLAPPED,
 		       LPWSAOVERLAPPED_COMPLETION_ROUTINE));
+DECL_WINDOWS_FUNCTION(static, int, getsockname,
+		      (SOCKET, const struct sockaddr FAR *, int FAR *));
 #ifndef NO_IPV6
 DECL_WINDOWS_FUNCTION(static, int, getaddrinfo,
 		      (const char *nodename, const char *servname,
@@ -298,6 +300,7 @@ void sk_init(void)
     GET_WINDOWS_FUNCTION(winsock_module, accept);
     GET_WINDOWS_FUNCTION(winsock_module, recv);
     GET_WINDOWS_FUNCTION(winsock_module, WSAIoctl);
+    GET_WINDOWS_FUNCTION(winsock_module, getsockname);
 
     /* Try to get the best WinSock version we can get */
     if (!sk_startup(2,2) &&
@@ -1255,6 +1258,24 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only,
 #endif
 
     return (Socket) ret;
+}
+
+int sk_getport(Socket sock)
+{
+    /* I won't even try to get IPv6 working here since it is apparently borken
+     * in this release of PuTTY */
+    SOCKADDR_IN a;
+    socklen_t salen;
+    int retcode;
+    Actual_Socket s = (Actual_Socket)sock;
+
+    salen = sizeof(a);
+    retcode = p_getsockname(s->s, (struct sockaddr *) &a, &salen);
+
+    if (retcode != 0)
+	return -1;
+
+    return p_ntohs(a.sin_port);
 }
 
 static void sk_tcp_close(Socket sock)
