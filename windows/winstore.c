@@ -1071,12 +1071,11 @@ void *file_open_settings_r(const char *sessionname)
 	return sp;
 }
 
-char *file_read_setting_s(void *handle, const char *key, char *buffer, int buflen)
+char *file_read_setting_s(void *handle, const char *key)
 {
-    DWORD type;
+	DWORD type;
 	struct setItem *st;
 	char *p;
-	DWORD size = buflen;
 
 	if (!handle) return NULL;	/* JK: new in 0.1.3 */
 
@@ -1088,23 +1087,21 @@ char *file_read_setting_s(void *handle, const char *key, char *buffer, int bufle
 		st = ((struct setPack*) handle)->handle;
 		while (st->key) {
 			if ( strcmp(st->key, p) == 0) {
+				const size_t buflen = 1024*16;
+				char *buffer = snewn(1024*16, char);
+				char *ret;
 				unmungestr(st->value, buffer, buflen);
-				return st->value;				
+				ret = snewn(strlen(buffer) + 1, char);
+				strcpy(ret, buffer);
+				sfree(buffer);
+				return ret;
 			}
 			st = st->next;
 		}
 	}
 	else {
-		handle = ((struct setPack*) handle)->handle;
-
-		if (!handle || RegQueryValueEx((HKEY) handle, key, 0, &type, buffer, &size) != ERROR_SUCCESS ||	type != REG_SZ) {
-			return NULL;
-		}
-		else {
-			return buffer;
-		}
+		return reg_read_setting_s(((struct setPack*) handle)->handle, key);
 	}
-	/* JK: should not end here -> value not found in file */
 	return NULL;
 }
 
@@ -1137,55 +1134,6 @@ int file_read_setting_i(void *handle, const char *key, int defvalue)
 	}
 	/* JK: should not end here -> value not found in file */
 	return defvalue;
-}
-
-int file_read_setting_fontspec(void *handle, const char *name, FontSpec *result)
-{
-    char *settingname;
-    FontSpec ret;
-
-    if (!file_read_setting_s(handle, name, ret.name, sizeof(ret.name)))
-	return 0;
-    settingname = dupcat(name, "IsBold", NULL);
-    ret.isbold = file_read_setting_i(handle, settingname, -1);
-    sfree(settingname);
-    if (ret.isbold == -1) return 0;
-    settingname = dupcat(name, "CharSet", NULL);
-    ret.charset = file_read_setting_i(handle, settingname, -1);
-    sfree(settingname);
-    if (ret.charset == -1) return 0;
-    settingname = dupcat(name, "Height", NULL);
-    ret.height = file_read_setting_i(handle, settingname, INT_MIN);
-    sfree(settingname);
-    if (ret.height == INT_MIN) return 0;
-    *result = ret;
-    return 1;
-}
-
-void file_write_setting_fontspec(void *handle, const char *name, FontSpec font)
-{
-    char *settingname;
-
-    file_write_setting_s(handle, name, font.name);
-    settingname = dupcat(name, "IsBold", NULL);
-    file_write_setting_i(handle, settingname, font.isbold);
-    sfree(settingname);
-    settingname = dupcat(name, "CharSet", NULL);
-    file_write_setting_i(handle, settingname, font.charset);
-    sfree(settingname);
-    settingname = dupcat(name, "Height", NULL);
-    file_write_setting_i(handle, settingname, font.height);
-    sfree(settingname);
-}
-
-int file_read_setting_filename(void *handle, const char *name, Filename *result)
-{
-    return !!file_read_setting_s(handle, name, result->path, sizeof(result->path));
-}
-
-void file_write_setting_filename(void *handle, const char *name, Filename result)
-{
-    file_write_setting_s(handle, name, result.path);
 }
 
 void file_close_settings_r(void *handle)
@@ -2053,12 +2001,12 @@ void *open_settings_r(const char *sessionname)
 	}
 }
 
-char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
+char *read_setting_s(void *handle, const char *key)
 {
 	if (storagetype == 1) {
-		return file_read_setting_s(handle, key, buffer, buflen);
+		return file_read_setting_s(handle, key);
 	} else {
-		return reg_read_setting_s(handle, key, buffer, buflen);
+		return reg_read_setting_s(handle, key);
 	}
 }
 
@@ -2074,9 +2022,9 @@ int read_setting_i(void *handle, const char *key, int defvalue)
 void close_settings_r(void *handle)
 {
 	if (storagetype == 1) {
-		return file_close_settings_r(handle);
+		file_close_settings_r(handle);
 	} else {
-		return reg_close_settings_r(handle);
+		reg_close_settings_r(handle);
 	}
 }
 
