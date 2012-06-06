@@ -1459,12 +1459,20 @@ void timer_change_notify(unsigned long next);
 #endif
 
 /* SURROGATE PAIR */
-#ifndef IS_HIGH_SURROGATE
+#ifndef HIGH_SURROGATE_START
 #define HIGH_SURROGATE_START 0xd800
+#endif
+#ifndef HIGH_SURROGATE_END
 #define HIGH_SURROGATE_END 0xdbff
+#endif
+#ifndef LOW_SURROGATE_START
 #define LOW_SURROGATE_START 0xdc00
+#endif
+#ifndef LOW_SURROGATE_END
 #define LOW_SURROGATE_END 0xdfff
+#endif
 
+#ifndef IS_HIGH_SURROGATE
 #define IS_HIGH_SURROGATE(wch) (((wch) >= HIGH_SURROGATE_START) && \
                                 ((wch) <= HIGH_SURROGATE_END))
 #define IS_LOW_SURROGATE(wch) (((wch) >= LOW_SURROGATE_START) && \
