@@ -317,9 +317,10 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		      HELPCTX(selection_buttons),
 		      conf_radiobutton_handler,
 		      I(CONF_mouse_is_xterm),
+		      "Default (Middle pastes, Right brings up menu)", I(3),
 		      "Windows (Middle extends, Right brings up menu)", I(2),
 		      "Compromise (Middle extends, Right pastes)", I(0),
-		      "xterm (Right extends, Middle pastes)", I(1), NULL);
+		      "xterm (Middle pastes, Right extends)", I(1), NULL);
     /*
      * This really ought to go at the _top_ of its box, not the
      * bottom, so we'll just do some shuffling now we've set it

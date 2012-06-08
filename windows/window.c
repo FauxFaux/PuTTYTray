@@ -2185,12 +2185,12 @@ static Mouse_Button translate_button(Mouse_Button button)
     if (button == MBT_LEFT)
 	return MBT_SELECT;
     if (button == MBT_MIDDLE)
-	return conf_get_int(conf, CONF_mouse_is_xterm) == 1 ?
+	return conf_get_int(conf, CONF_mouse_is_xterm) == 1 || conf_get_int(conf, CONF_mouse_is_xterm) == 3 ?
 	MBT_PASTE : MBT_EXTEND;
     if (button == MBT_RIGHT)
-	return conf_get_int(conf, CONF_mouse_is_xterm) == 1 ?
+	return conf_get_int(conf, CONF_mouse_is_xterm) == 1 || conf_get_int(conf, CONF_mouse_is_xterm) == 3 ?
 	MBT_EXTEND : MBT_PASTE;
-    return 0;			       /* shouldn't happen */
+    return MBT_EXTEND;	/* shouldn't happen */
 }
 
 static void show_mouseptr(int show)
@@ -2767,7 +2767,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
       case WM_MBUTTONUP:
       case WM_RBUTTONUP:
 	if (message == WM_RBUTTONDOWN &&
-	    ((wParam & MK_CONTROL) ||
+	    ((wParam & MK_CONTROL) || (conf_get_int(conf, CONF_mouse_is_xterm) == 3) || 
 	     (conf_get_int(conf, CONF_mouse_is_xterm) == 2))) {
 	    POINT cursorpos;
 
