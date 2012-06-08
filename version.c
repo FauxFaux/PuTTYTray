@@ -49,6 +49,11 @@ char sshver[] = "PuTTY-Prerelease-" STR(PRERELEASE) ":r" STR(SVN_REV);
 char ver[] = "Custom build r" STR(SVN_REV) ", " __DATE__ " " __TIME__;
 char sshver[] = "PuTTY-Custom-r" STR(SVN_REV);
 
+#elif defined GIT_REV && defined GIT_BRANCH
+
+char ver[] = "git build: " STR(GIT_BRANCH) ", " STR(GIT_REV) ", " __DATE__ " " __TIME__;
+char sshver[] = "FuTTY-" STR(GIT_BRANCH) ":" STR(GIT_REV) "_" __DATE__ " " __TIME__;
+
 #elif defined PUTTYCYG
 
 char ver[] = "PuTTYcyg " STR(PUTTYCYG);

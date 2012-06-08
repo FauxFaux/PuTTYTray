@@ -1,7 +1,7 @@
 #include "rcstuff.h"
 
-#define APPNAME "PuTTYtel"
-#define APPDESC "Telnet and Rlogin client"
+#define APPNAME "FuTTYtel"
+#define APPDESC "Telnet, Rlogin, Cygterm, and Adb client"
 
 #include "win_res.rc2"
 

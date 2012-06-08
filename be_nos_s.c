@@ -8,7 +8,7 @@
 
 const int be_default_protocol = PROT_TELNET;
 
-const char *const appname = "PuTTYtel";
+const char *const appname = "FuTTYtel";
 
 Backend *backends[] = {
     &telnet_backend,

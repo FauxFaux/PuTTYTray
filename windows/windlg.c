@@ -213,7 +213,7 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 	  case IDA_WEB:
 	    /* Load web browser */
 	    ShellExecute(hwnd, "open",
-			 "http://puttytray.goeswhere.com/",
+			 "http://code.google.com/p/futty/",
 			 0, 0, SW_SHOWDEFAULT);
 	    return 0;
 	}
