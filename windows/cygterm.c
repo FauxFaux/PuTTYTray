@@ -15,7 +15,7 @@
 #define CTHELPER "cthelper"
 #endif
 
-#if !defined(DEBUG)
+#if !defined(CYGTERM_DEBUG)
 #define cygterm_debug(f,...)
 #elif !defined(cygterm_debug)
 #define cygterm_debug(f,...) debug(("%s:%d:%s: "f"\n",__FILE__,__LINE__,__FUNCTION__,##__VA_ARGS__))
