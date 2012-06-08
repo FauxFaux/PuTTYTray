@@ -822,6 +822,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	int exwinmode = 0;
 	if (!conf_get_int(conf, CONF_scrollbar))
 	    winmode &= ~(WS_VSCROLL);
+	if (conf_get_int(conf, CONF_resize_action) == RESIZE_MAXTERM)
+	    winmode &= ~WS_THICKFRAME;
 	if (conf_get_int(conf, CONF_resize_action) == RESIZE_DISABLED)
 	    winmode &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
 	if (conf_get_int(conf, CONF_alwaysontop))
@@ -1874,7 +1876,7 @@ void request_resize(void *frontend, int w, int h)
 
     /* If the window is maximized supress resizing attempts */
     if (IsZoomed(hwnd)) {
-	if (conf_get_int(conf, CONF_resize_action) == RESIZE_TERM)
+	  if (conf_get_int(conf, CONF_resize_action) == RESIZE_MAXTERM || conf_get_int(conf, CONF_resize_action) == RESIZE_TERM)
 	    return;
     }
 
@@ -1986,7 +1988,7 @@ static void reset_window(int reinit) {
 	extra_width = wr.right - wr.left - cr.right + cr.left;
 	extra_height = wr.bottom - wr.top - cr.bottom + cr.top;
 
-	if (resize_action != RESIZE_TERM) {
+	if (resize_action != RESIZE_MAXTERM && resize_action != RESIZE_TERM && resize_action != RESIZE_DISABLED) {
 	    if (font_width != win_width/term->cols || 
 		font_height != win_height/term->rows) {
 		deinit_fonts();
@@ -2052,6 +2054,7 @@ static void reset_window(int reinit) {
      * to change the terminal.
      */
     if ((resize_action == RESIZE_TERM && reinit<=0) ||
+        (resize_action == RESIZE_MAXTERM && reinit<=0) ||
         (resize_action == RESIZE_EITHER && reinit<0) ||
 	    reinit>0) {
 	offset_width = offset_height = window_border;
@@ -2591,7 +2594,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    else
 			nflg &= ~WS_VSCROLL;
 
-		    if (resize_action == RESIZE_DISABLED ||
+		    if (resize_action == RESIZE_DISABLED || resize_action == RESIZE_MAXTERM ||
                         is_full_screen())
 			nflg &= ~WS_THICKFRAME;
 		    else
@@ -3289,7 +3292,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
                 was_zoomed = 1;
                 prev_rows = term->rows;
                 prev_cols = term->cols;
-                if (resize_action == RESIZE_TERM) {
+                if (resize_action == RESIZE_TERM || resize_action == RESIZE_MAXTERM) {
                     w = width / font_width;
                     if (w < 1) w = 1;
                     h = height / font_height;
@@ -3314,7 +3317,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
                 reset_window(0);
             } else if (wParam == SIZE_RESTORED && was_zoomed) {
                 was_zoomed = 0;
-                if (resize_action == RESIZE_TERM) {
+                if (resize_action == RESIZE_TERM || resize_action == RESIZE_MAXTERM) {
                     w = (width-window_border*2) / font_width;
                     if (w < 1) w = 1;
                     h = (height-window_border*2) / font_height;
@@ -6327,8 +6330,8 @@ static void clear_full_screen()
     /* Reinstate the window furniture. */
     style = oldstyle = GetWindowLongPtr(hwnd, GWL_STYLE);
     style |= WS_CAPTION | WS_BORDER;
-    if (conf_get_int(conf, CONF_resize_action) == RESIZE_DISABLED)
-        style &= ~WS_THICKFRAME;
+    if (conf_get_int(conf, CONF_resize_action) == RESIZE_MAXTERM || conf_get_int(conf, CONF_resize_action) == RESIZE_DISABLED)
+        style &= ~(WS_THICKFRAME);
     else
         style |= WS_THICKFRAME;
     if (conf_get_int(conf, CONF_scrollbar))

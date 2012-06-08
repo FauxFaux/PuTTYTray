@@ -349,7 +349,7 @@ enum {
 
 enum {
     /* Resize actions (CONF_resize_action) */
-    RESIZE_TERM, RESIZE_DISABLED, RESIZE_FONT, RESIZE_EITHER
+    RESIZE_TERM, RESIZE_DISABLED, RESIZE_FONT, RESIZE_EITHER, RESIZE_MAXTERM
 };
 
 enum {
