@@ -10,7 +10,8 @@ BOOL SelectIconW(HWND hWndParent, LPWSTR lpszFilename, DWORD dwBufferSize, DWORD
 BOOL SelectIconA(HWND hWndParent, LPSTR lpszFilename, DWORD dwBufferSize, DWORD * pdwIndex);
 
 #ifdef _UNICODE
-#define SelectIcon SelectIconW
+#define SelectIcon SelectIconA
+// Was SelectIconW, but it doesn't work when you use it.
 #else
 #define SelectIcon SelectIconA
 #endif
