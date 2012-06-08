@@ -348,6 +348,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		      conf_radiobutton_handler,
 		      I(CONF_resize_action),
 		      "Change the number of rows and columns", I(RESIZE_TERM),
+		      "Change rows and columns only when maximised", I(RESIZE_MAXTERM),
 		      "Change the size of the font", I(RESIZE_FONT),
 		      "Change font size only when maximised", I(RESIZE_EITHER),
 		      "Forbid resizing completely", I(RESIZE_DISABLED), NULL);
