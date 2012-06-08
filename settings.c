@@ -736,8 +736,8 @@ void load_open_settings(void *sesskey, Conf *conf)
     }
     gppi(sesskey, "TCPNoDelay", 1, conf, CONF_tcp_nodelay);
     gppi(sesskey, "TCPKeepalives", 0, conf, CONF_tcp_keepalives);
-    gpps(sesskey, "TerminalType", "xterm", conf, CONF_termtype);
-    gpps(sesskey, "TerminalSpeed", "38400,38400", conf, CONF_termspeed);
+    gpps(sesskey, "TerminalType", "xterm-256color", conf, CONF_termtype);
+    gpps(sesskey, "TerminalSpeed", "115200,115200", conf, CONF_termspeed);
     if (!gppmap(sesskey, "TerminalModes", conf, CONF_ttymodes)) {
 	/* This hardcodes a big set of defaults in any new saved
 	 * sessions. Let's hope we don't change our mind. */
@@ -780,7 +780,7 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "UserNameFromEnvironment", 0, conf, CONF_username_from_env);
     gpps(sesskey, "LocalUserName", "", conf, CONF_localusername);
     gppi(sesskey, "NoPTY", 0, conf, CONF_nopty);
-    gppi(sesskey, "Compression", 0, conf, CONF_compression);
+    gppi(sesskey, "Compression", 1, conf, CONF_compression);
     gppi(sesskey, "TryAgent", 1, conf, CONF_tryagent);
     gppi(sesskey, "AgentFwd", 0, conf, CONF_agentfwd);
     gppi(sesskey, "ChangeUsername", 0, conf, CONF_change_username);
@@ -803,7 +803,7 @@ void load_open_settings(void *sesskey, Conf *conf)
     }
     gppi(sesskey, "RekeyTime", 60, conf, CONF_ssh_rekey_time);
     gpps(sesskey, "RekeyBytes", "1G", conf, CONF_ssh_rekey_data);
-    gppi(sesskey, "SshProt", 2, conf, CONF_sshprot);
+    gppi(sesskey, "SshProt", 3, conf, CONF_sshprot);
     gpps(sesskey, "LogHost", "", conf, CONF_loghost);
     gppi(sesskey, "SSH2DES", 0, conf, CONF_ssh2_des_cbc);
     gppi(sesskey, "SshNoAuth", 0, conf, CONF_ssh_no_userauth);
@@ -849,9 +849,9 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "WakeupReconnect", 0, conf, CONF_wakeup_reconnect);
     gppi(sesskey, "FailureReconnect", 0, conf, CONF_failure_reconnect);
     gppi(sesskey, "StorageType", 0, conf, CONF_session_storagetype);
-    gppi(sesskey, "Tray", TRAY_NEVER, conf, CONF_tray);
+    gppi(sesskey, "Tray", TRAY_NORMAL, conf, CONF_tray);
     gppi(sesskey, "StartTray", 0, conf, CONF_start_tray);
-    gppi(sesskey, "TrayRestore", 0, conf, CONF_tray_restore);
+    gppi(sesskey, "TrayRestore", 1, conf, CONF_tray_restore);
     gppfile(sesskey, "WindowIcon", conf, CONF_win_icon);
     gppi(sesskey, "HyperlinkUnderline", 1, conf, CONF_url_underline);
     gppi(sesskey, "HyperlinkUseCtrlClick", 0, conf, CONF_url_ctrl_click);
@@ -872,15 +872,15 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "LocalEdit", AUTO, conf, CONF_localedit);
     gpps(sesskey, "Answerback", "PuTTY", conf, CONF_answerback);
     gppi(sesskey, "AlwaysOnTop", 0, conf, CONF_alwaysontop);
-    gppi(sesskey, "FullScreenOnAltEnter", 0, conf, CONF_fullscreenonaltenter);
+    gppi(sesskey, "FullScreenOnAltEnter", 1, conf, CONF_fullscreenonaltenter);
     gppi(sesskey, "HideMousePtr", 0, conf, CONF_hide_mouseptr);
     gppi(sesskey, "SunkenEdge", 0, conf, CONF_sunken_edge);
-    gppi(sesskey, "WindowBorder", 1, conf, CONF_window_border);
+    gppi(sesskey, "WindowBorder", 0, conf, CONF_window_border);
     gppi(sesskey, "CurType", 0, conf, CONF_cursor_type);
-    gppi(sesskey, "BlinkCur", 0, conf, CONF_blink_cur);
+    gppi(sesskey, "BlinkCur", 1, conf, CONF_blink_cur);
     /* pedantic compiler tells me I can't use conf, CONF_beep as an int * :-) */
     gppi(sesskey, "Beep", 1, conf, CONF_beep);
-    gppi(sesskey, "BeepInd", 0, conf, CONF_beep_ind);
+    gppi(sesskey, "BeepInd", 1, conf, CONF_beep_ind);
     gppfile(sesskey, "BellWaveFile", conf, CONF_bell_wavefile);
     gppi(sesskey, "BellOverload", 1, conf, CONF_bellovl);
     gppi(sesskey, "BellOverloadN", 5, conf, CONF_bellovl_n);
@@ -904,7 +904,7 @@ void load_open_settings(void *sesskey, Conf *conf)
 		 / 1000
 #endif
     );
-    gppi(sesskey, "ScrollbackLines", 1000, conf, CONF_savelines);
+    gppi(sesskey, "ScrollbackLines", 4000, conf, CONF_savelines);
     gppi(sesskey, "LinesAtAScroll", -1, conf, CONF_scrolllines);
     gppi(sesskey, "DECOriginMode", 0, conf, CONF_dec_om);
     gppi(sesskey, "AutoWrapMode", 1, conf, CONF_wrap_mode);
@@ -912,12 +912,12 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "CRImpliesLF", 0, conf, CONF_crhaslf);
     gppi(sesskey, "DisableArabicShaping", 0, conf, CONF_arabicshaping);
     gppi(sesskey, "DisableBidi", 0, conf, CONF_bidi);
-    gppi(sesskey, "WinNameAlways", 1, conf, CONF_win_name_always);
+    gppi(sesskey, "WinNameAlways", 0, conf, CONF_win_name_always);
     gpps(sesskey, "WinTitle", "", conf, CONF_wintitle);
     gppi(sesskey, "TermWidth", 80, conf, CONF_width);
-    gppi(sesskey, "TermHeight", 24, conf, CONF_height);
+    gppi(sesskey, "TermHeight", 25, conf, CONF_height);
     gppfont(sesskey, "Font", conf, CONF_font);
-    gppi(sesskey, "FontQuality", FQ_DEFAULT, conf, CONF_font_quality);
+    gppi(sesskey, "FontQuality", FQ_CLEARTYPE, conf, CONF_font_quality);
     gppi(sesskey, "FontVTMode", VT_UNICODE, conf, CONF_vtmode);
     gppi(sesskey, "UseSystemColours", 0, conf, CONF_system_colour);
     gppi(sesskey, "TryPalette", 0, conf, CONF_try_palette);
@@ -927,28 +927,28 @@ void load_open_settings(void *sesskey, Conf *conf)
 
     for (i = 0; i < 22; i++) {
 	static const char *const defaults[] = {
-            "0,0,0",        /* Default Foreground */
-            "0,0,0",        /* Default Bold Foreground */
-            "255,255,255",  /* Default Background */
-            "255,255,255",  /* Default Bold Background */
+            "194,198,199",        /* Default Foreground */
+            "255,255,255",        /* Default Bold Foreground */
+            "0,0,0",  /* Default Background */
+            "77,73,97",  /* Default Bold Background */
             "0,0,0",        /* Cursor Text */
-            "0,80,0",       /* Cursor Colour */
+            "2,162,238",       /* Cursor Colour */
             "0,0,0",        /* ANSI Black */
-            "47,47,47",     /* ANSI Black Bold */
-            "156,29,29",    /* ANSI Red */
-            "205,87,87",    /* ANSI Red Bold */
-            "108,148,70",   /* ANSI Green */
-            "143,195,91",   /* ANSI Green Bold */
-            "172,154,71",   /* ANSI Yellow */
-            "209,196,94",   /* ANSI Yellow Bold */
-            "51,87,134",    /* ANSI Blue */
-            "92,129,169",   /* ANSI Blue Bold */
-            "143,100,150",  /* ANSI Magenta */
-            "188,149,183",  /* ANSI Magenta Bold */
-            "72,103,104",   /* ANSI Cyan */
-            "118,203,203",  /* ANSI Cyan Bold */
-            "224,220,220",  /* ANSI White */
-            "238,238,236"   /* ANSI White Bold */
+            "95,95,75",     /* ANSI Black Bold */
+            "156,41,41",    /* ANSI Red */
+            "255,108,108",    /* ANSI Red Bold */
+            "0,151,64",   /* ANSI Green */
+            "100,253,162",   /* ANSI Green Bold */
+            "218,170,3",   /* ANSI Yellow */
+            "244,248,139",   /* ANSI Yellow Bold */
+            "39,46,139",    /* ANSI Blue */
+            "120,167,255",   /* ANSI Blue Bold */
+            "137,0,187",  /* ANSI Magenta */
+            "200,125,250",  /* ANSI Magenta Bold */
+            "60,170,183",   /* ANSI Cyan */
+            "142,242,253",  /* ANSI Cyan Bold */
+            "197,197,197",  /* ANSI White */
+            "254,254,254"   /* ANSI White Bold */
 	};
 	char buf[20], *buf2;
 	int c0, c1, c2;
@@ -963,7 +963,7 @@ void load_open_settings(void *sesskey, Conf *conf)
     }
     gppi(sesskey, "RawCNP", 0, conf, CONF_rawcnp);
     gppi(sesskey, "PasteRTF", 0, conf, CONF_rtf_paste);
-    gppi(sesskey, "MouseIsXterm", 0, conf, CONF_mouse_is_xterm);
+    gppi(sesskey, "MouseIsXterm", 3, conf, CONF_mouse_is_xterm);
     gppi(sesskey, "RectSelect", 0, conf, CONF_rect_select);
     gppi(sesskey, "MouseOverride", 1, conf, CONF_mouse_override);
     gppi(sesskey, "CopyURLDetection", 0, conf, CONF_copy_clipbd_url_reg); /* url-cut */
@@ -1005,7 +1005,7 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "ScrollBar", 1, conf, CONF_scrollbar);
     gppi(sesskey, "ScrollBarFullScreen", 0, conf, CONF_scrollbar_in_fullscreen);
     gppi(sesskey, "ScrollOnKey", 0, conf, CONF_scroll_on_key);
-    gppi(sesskey, "ScrollOnDisp", 1, conf, CONF_scroll_on_disp);
+    gppi(sesskey, "ScrollOnDisp", 0, conf, CONF_scroll_on_disp);
     gppi(sesskey, "EraseToScrollback", 1, conf, CONF_erase_to_scrollback);
     gppi(sesskey, "LockSize", 0, conf, CONF_resize_action);
     gppi(sesskey, "BCE", 1, conf, CONF_bce);
