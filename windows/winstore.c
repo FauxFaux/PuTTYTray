@@ -7,6 +7,16 @@
  * Added file support for PuTTY Tray
  */
 
+/*
+ * JK: disk config 0.5 from 22. 2. 2012
+ *
+ * rewritten for storing information primary to disk
+ * reasonable error handling and reporting except for
+ * memory allocation errors (not enough memory)
+ *
+ * http://jakub.kotrla.net/putty/
+*/
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,13 +46,16 @@ DECL_WINDOWS_FUNCTION(static, HRESULT, SHGetFolderPathA,
 // PUTTY Tray / PuTTY File - global storage type
 static int storagetype = 0;	// 0 = registry, 1 = file
 
+/* JK: path of settings saved in files */
 static char seedpath[2 * MAX_PATH + 10] = "\0";
 static char sesspath[2 * MAX_PATH] = "\0";
 static char sshkpath[2 * MAX_PATH] = "\0";
 static char oldpath[2 * MAX_PATH] = "\0";
 static char sessionsuffix[16] = "\0";
 static char keysuffix[16] = "\0";
+static char jumplistpath[2 * MAX_PATH] = "\0";
 
+/* JK: structures for handling settings in memory as linked list */
 struct setItem {
     char* key;
     char* value;
@@ -493,8 +506,13 @@ DWORD errorShow(const char* pcErrText, const char* pcErrParam) {
 	HWND hwRodic;
 	DWORD erChyba;
 	char pcBuf[16];
-	char* pcHlaska = snewn(strlen(pcErrParam) + strlen(pcErrText) + 31, char);
-	
+	char* pcHlaska;
+	if (pcErrParam != NULL)	{
+		pcHlaska = snewn(strlen(pcErrParam) + strlen(pcErrText) + 31, char);
+	} else {
+		pcHlaska = snewn(strlen(pcErrText) + 31, char);
+	}
+
 	erChyba = GetLastError();		
 	ltoa(erChyba, pcBuf, 10);
 
@@ -580,7 +598,7 @@ char* joinPath(char* pcDest, char* pcMain, char* pcSuf) {
 
 	/* at first ExpandEnvironmentStrings */
 	if (0 == ExpandEnvironmentStrings(pcSuf, pcBuf, MAX_PATH)) {
-		/* JK: failure -> revert back - but it ussualy won't work, so report error to user! */
+		/* JK: failure -> revert back - but it usually won't work, so report error to user! */
 		errorShow("Unable to ExpandEnvironmentStrings for session path", pcSuf);
 		strncpy(pcBuf, pcSuf, strlen(pcSuf));
 	}
@@ -608,7 +626,7 @@ char* joinPath(char* pcDest, char* pcMain, char* pcSuf) {
 		}
 	}*/
 
-	/* expand done, resutl in pcBuf */
+	/* expand done, result in pcBuf */
 
 	if ((*pcBuf == '/') || (*pcBuf == '\\')) {
 		/* everything ok */
@@ -643,23 +661,35 @@ int loadPath() {
 	char *p = NULL;
 	char *p2 = NULL;
 	HANDLE hFile;
+	int jumplistdefined = 0;
 
 	char* puttypath = snewn( (MAX_PATH*2), char);
 
 	/* JK:  save path/curdir */
 	GetCurrentDirectory( (MAX_PATH*2), oldpath);
 
-	/* JK: get where putty.exe is */
-	if (GetModuleFileName(NULL, puttypath, (MAX_PATH*2)) != 0)
+	
+	/* JK: try curdir for putty.conf first */
+	hFile = CreateFile("putty.conf",GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
+
+	if (hFile != INVALID_HANDLE_VALUE)
 	{
-		p = strrchr(puttypath, '\\');
-		if (p)
+		/* JK: there is a putty.conf in curdir - use it and use curdir as puttypath */
+		GetCurrentDirectory( (MAX_PATH*2), puttypath);
+		CloseHandle(hFile);
+	} else {
+		/* JK: get where putty.exe is */
+		if (GetModuleFileName(NULL, puttypath, (MAX_PATH*2)) != 0)
 		{
-			*p = '\0';
+			p = strrchr(puttypath, '\\');
+			if (p)
+			{
+				*p = '\0';
+			}
+			SetCurrentDirectory(puttypath);
 		}
-		SetCurrentDirectory(puttypath);
+		else GetCurrentDirectory( (MAX_PATH*2), puttypath);
 	}
-	else GetCurrentDirectory( (MAX_PATH*2), puttypath);
 
 	/* JK: set default values - if there is a config file, it will be overwitten */
 	strcpy(sesspath, puttypath);
@@ -668,6 +698,8 @@ int loadPath() {
 	strcat(sshkpath, "\\sshhostkeys");
 	strcpy(seedpath, puttypath);
 	strcat(seedpath, "\\putty.rnd");
+	strcpy(jumplistpath, puttypath);
+	strcat(jumplistpath, "\\jumplist.txt");
 
 	hFile = CreateFile("putty.conf",GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
 
@@ -678,14 +710,15 @@ int loadPath() {
 		fileSize = GetFileSize(hFile, NULL);
 		fileCont = snewn(fileSize+16, char);
 
-		if (!ReadFile(hFile, fileCont, fileSize, &bytesRead, NULL)) {
+		if (!ReadFile(hFile, fileCont, fileSize, &bytesRead, NULL))
+		{
 			errorShow("Unable to read configuration file, falling back to defaults", NULL);
-		
 			/* JK: default values are already there and clean-up at end */
 		}
 		else {
 			/* JK: parse conf file to path variables */
-			*(fileCont+fileSize) = '\0';
+			*(fileCont+fileSize+1) = '\0';
+			*(fileCont+fileSize) = '\n';
 			p = fileCont;
 			while (p) {
 				if (*p == ';') {	/* JK: comment -> skip line */
@@ -738,17 +771,29 @@ int loadPath() {
 					while ((*p2 == ' ')||(*p2 == '\n')||(*p2 == '\r')||(*p2 == '\t')) --p2;
 					*(p2+1) = '\0';
 				}
+				else if (!strcmp(p, "jumplist")) {
+					p = strchr(p2, '\n');
+					*p = '\0';
+					joinPath(jumplistpath, puttypath, p2);			
+					p2 = jumplistpath+strlen(jumplistpath)-1;
+					while ((*p2 == ' ')||(*p2 == '\n')||(*p2 == '\r')||(*p2 == '\t')) --p2;
+					*(p2+1) = '\0';
+					jumplistdefined = 1;
+				}
 				++p;
 			}
+			
+			if (jumplistdefined == 0) { strcpy(jumplistpath, ":"); }
 		}
 		CloseHandle(hFile);
 		sfree(fileCont);
 	}
-	/* else - INVALID_HANDLE {
+	else { /* INVALID_HANDLE
 		 * JK: unable to read conf file - probably doesn't exists
 		 * we won't create one, user wants putty light, just fall back to defaults
-		 * and defaults are already there
-	}*/
+		 * and defaults are already there */
+		strcpy(jumplistpath, ":");
+	}
 
 	sfree(puttypath);
 	return 1;
@@ -875,9 +920,9 @@ void file_close_settings_w(void *handle)
 	GetCurrentDirectory( (MAX_PATH*2), oldpath);
 	SetCurrentDirectory(sesspath);
 
-	hFile = CreateFile( ((struct setPack*) handle)->fileBuf, GENERIC_WRITE,0,NULL,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
+	hFile = CreateFile( ((struct setPack*) handle)->fileBuf, GENERIC_WRITE,0,NULL,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL|FILE_FLAG_WRITE_THROUGH,NULL);
 	if (hFile == INVALID_HANDLE_VALUE) {
-		errorShow("Unable to open file for writing", ((struct setPack*) handle)->fileBuf );
+		errorShow("Unable to open session file for writing", ((struct setPack*) handle)->fileBuf );
 		return;
 	}
 
@@ -897,28 +942,45 @@ void file_close_settings_w(void *handle)
 		writeok = writeok && WriteFile( (HANDLE) hFile, p, strlen(p), &written, NULL);
 		writeok = writeok && WriteFile( (HANDLE) hFile, "\\\n", 2, &written, NULL);
 
-		if (!writeok) {
-			errorShow("Unable to save settings", st1->key);
-			return;
-			/* JK: memory should be freed here - fixme */
-		}
-
 		st2 = st1->next;
 		sfree(st1->key);
 		sfree(st1->value);
 		sfree(st1);
 		st1 = st2;
-	}
 
+		if (!writeok) {
+			errorShow("Unable to save settings", st1->key);
+			sfree(st1->key);
+			break;
+		}
+	}
 	sfree(((struct setPack*) handle)->fileBuf);
 	CloseHandle( (HANDLE)hFile );
 	SetCurrentDirectory(oldpath);
 }
 
+/* JK: Ahead declaration for logical order of functions open_settings_r_inner, open_settings_r */
+void *open_settings_r_inner(const char *sessionname);
+
 void *file_open_settings_r(const char *sessionname)
+{
+	void *p = open_settings_r_inner(sessionname);
+	char *ses;
+	if (p == NULL) /* JK: try to find session with [registry] suffix*/
+	{
+		ses = snewn(strlen(sessionname)+16, char);
+		strcpy(ses, sessionname);
+		strcat(ses, " [registry]");
+		p = open_settings_r_inner(ses);
+	}
+	return p;
+}
+
+void *open_settings_r_inner(const char *sessionname)
 {
     HKEY subkey1, sesskey;
     char *p;
+	char *p2;
 	char *ses;
 	char *fileCont;
 	DWORD fileSize;
@@ -951,14 +1013,25 @@ void *file_open_settings_r(const char *sessionname)
 		sfree(ses);
 
 		sp->fromFile = 0;
-	}
-	else {*/
-		p = snewn(3 * strlen(sessionname) + 1 + 16, char);
-		mungestr(sessionname, p);
-		strcat(p, sessionsuffix);
-
+	}*/
+	hFile = CreateFile(sessionname, GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
+	if (hFile != INVALID_HANDLE_VALUE) {
+		/* JK: 6.3.2009 - 0.3.5 - for running putty for session files */
+		p = snewn(2 * strlen(sessionname) + 1, char);
+		strcpy(p, sessionname);
 		sp->fromFile = 1;
-	//}
+		CloseHandle(hFile);
+	}
+	else {
+		p2 = snewn(3 * strlen(sessionname) + 1 + 16, char);
+		mungestr(sessionname, p2);
+		/* JK: secure pack for filename */
+		p = snewn(3 * strlen(p2) + 1 + 16, char);
+		packstr(p2, p);
+		strcat(p, sessionsuffix);
+		sfree(p2);
+		sp->fromFile = 1;
+	}
 
 	/* JK: default settings must be read from registry */
 	/* 8.1.2007 - 0.1.6 try to load them from file if exists - nasty code duplication */
@@ -995,14 +1068,14 @@ void *file_open_settings_r(const char *sessionname)
 		if (hFile == INVALID_HANDLE_VALUE) {
 			/* JK: some error occured -> just report and fail */
 
-			/* JK: PSCP/PLINK always try to load settings for sessionname=hostname (to what PSCP/PLINK is just connecting)
+			/* JK: PSCP/PSFTP/PLINK always try to load settings for sessionname=hostname (to what PSCP/PLINK is just connecting)
 			   These settings usually doesn't exist.
-			   So for PSCP/PLINK, do not report error - so when compiling PSCP/PLINK, comment line below
-			   (errorShow("Unable to load file for reading", p);)
+			   So for PSCP/PSFTP/PLINK, do not report error - so report error only for PuTTY
+			   assume only PuTTY project has PUTTY_WIN_RES_H defined
 			*/
-//#error read comment above
+#ifdef PUTTY_WIN_RES_H	
 			errorShow("Unable to load file for reading", p);
-
+#endif
 			sfree(p);
 			return NULL;
 		}
@@ -1025,7 +1098,7 @@ void *file_open_settings_r(const char *sessionname)
 		p = fileCont;
 		sp->fileBuf = fileCont; /* JK: remeber for memory freeing */
 
-		/* pJK: arse file in format:
+		/* JK: parse file in format:
 		 * key1\value1\
 		 * ...
 		*/
@@ -1073,24 +1146,33 @@ void *file_open_settings_r(const char *sessionname)
 
 char *file_read_setting_s(void *handle, const char *key)
 {
-	DWORD type;
-	struct setItem *st;
-	char *p;
-
 	if (!handle) return NULL;	/* JK: new in 0.1.3 */
 
 	if (((struct setPack*) handle)->fromFile) {
-		
+		struct setItem *st;
+		char *p;
+		char *p2;
+		char *buffer = snewn(1024*16, char);
+		char *ret;
+		const size_t buflen = 1024*16;
+
 		p = snewn(3 * strlen(key) + 1, char);
 		mungestr(key, p);
+		p2 = snewn(buflen, char);
 
 		st = ((struct setPack*) handle)->handle;
 		while (st->key) {
 			if ( strcmp(st->key, p) == 0) {
-				const size_t buflen = 1024*16;
-				char *buffer = snewn(1024*16, char);
-				char *ret;
-				unmungestr(st->value, buffer, buflen);
+				sfree(p);
+				unmungestr(st->value, p2, buflen);
+
+				/* JK: at first ExpandEnvironmentStrings */
+				if (0 == ExpandEnvironmentStrings(p2, buffer, buflen)) {
+					/* JK: failure -> revert back - but it usually won't work, so report error to user! */
+					errorShow("Unable to ExpandEnvironmentStrings for session path", p2);
+					unmungestr(st->value, buffer, buflen);
+				}
+				sfree(p2);
 				ret = snewn(strlen(buffer) + 1, char);
 				strcpy(ret, buffer);
 				sfree(buffer);
@@ -1162,10 +1244,12 @@ void file_del_settings(const char *sessionname)
 {
     HKEY subkey1;
     char *p;
+	char *pss;
 	char *p2;
+	char *p2ss;
 
 	/* JK: if sessionname contains [registry] -> cut it off and delete from registry */
-	/*if ( *(sessionname+strlen(sessionname)-1) == ']') {
+	if ( *(sessionname+strlen(sessionname)-1) == ']') {
 
 		p = strrchr(sessionname, '[');
 		*(p-1) = '\0';
@@ -1178,25 +1262,41 @@ void file_del_settings(const char *sessionname)
 		RegDeleteKey(subkey1, p);
 		RegCloseKey(subkey1);
 	}
-	else {*/
+	else {
 		/* JK: delete from file - file itself */
 
 		p = snewn(3 * strlen(sessionname) + 1, char);
-		mungestr(sessionname, p);
+		pss = snewn(3 * (strlen(sessionname) + strlen(sessionsuffix)) + 1, char);
+		strcpy(p, sessionname);
+		strcpy(pss, sessionname);
+		strcat(pss, sessionsuffix);
 		p2 = snewn(3 * strlen(p) + 1, char);
+		p2ss = snewn(3 * strlen(pss) + 1, char);
+		
+		mungestr(p, p2);
+		strcpy(p, p2);
 		packstr(p, p2);
+		mungestr(pss, p2ss);
+		strcpy(pss, p2ss);
+		packstr(pss, p2ss);
 
 		GetCurrentDirectory( (MAX_PATH*2), oldpath);
 		if (SetCurrentDirectory(sesspath)) {
-			if (!DeleteFile(p2))
+			if (!DeleteFile(p2ss))
 			{
-				errorShow("Unable to delete settings.", NULL);
+				if (!DeleteFile(p2))
+				{
+					errorShow("Unable to delete settings.", NULL);
+				}
 			}
 			SetCurrentDirectory(oldpath);
 		}
-	//}
+		sfree(p2);
+	}
 
 	sfree(p);
+
+	remove_session_from_jumplist(sessionname);
 }
 
 void *file_enum_settings_start(void)
@@ -1463,10 +1563,10 @@ int file_verify_host_key(const char *hostname, int port,
 	else { /* key matched OK in registry */
 		/* JK: matching key found in registry -> warn user, ask what to do */
 		p = snewn(256, char);
-		userMB = MessageBox(NULL, "The host key is cached in the Windows registry. "
-			"Do you want to move it to a file? \n\n"
-			"Yes \t-> Move to file (and delete from registry)\n"
-			"No \t-> Copy to file (and keep in registry)\n"
+		userMB = MessageBox(NULL, "Host key is cached but in registry. "
+			"Do you want to move it to file? \n\n"
+			"Yes \t-> Move (delete key in registry)\n"
+			"No \t-> Copy (keep key in registry)\n"
 			"Cancel \t-> nothing will be done\n", "Security risk", MB_YESNOCANCEL|MB_ICONWARNING);
 
 		if ((userMB == IDYES) || (userMB == IDNO)) {
@@ -1475,6 +1575,7 @@ int file_verify_host_key(const char *hostname, int port,
 				createPath(sshkpath);
 			}
 			FindClose(hFile);
+			GetCurrentDirectory( (MAX_PATH*2), oldpath);
 			SetCurrentDirectory(sshkpath);
 
 			p = snewn(3*strlen(regname) + 1 + 16, char);
@@ -1494,6 +1595,7 @@ int file_verify_host_key(const char *hostname, int port,
 				}
 				CloseHandle(hFile);
 			}
+			SetCurrentDirectory(oldpath);
 		}
 		if (userMB == IDYES) {
 			/* delete from registry */
@@ -1580,7 +1682,19 @@ static HANDLE access_random_seed(int action)
     HKEY rkey;
     DWORD type, size;
     HANDLE rethandle;
-    char seedpath[2 * MAX_PATH + 10] = "\0";
+//char seedpath[2 * MAX_PATH + 10] = "\0";
+
+	/* JK: settings in conf file are the most prior */
+	if (seedpath != "\0") {
+		/* JK: In PuTTY 0.58 this won't ever happen - this function was called only if (!seedpath[0])
+		 * This changed in PuTTY 0.59 - read the long comment below
+		 */
+//		return;
+		if (try_random_seed(seedpath, action, &rethandle)) {
+			return rethandle;
+		}
+	}
+	/* JK: ok, try registry and etc. as in original PuTTY */
 
 	/* PuttyTray / PuTTY File - HACK STARTS HERE */
 	assert(seedpath != '\0'); {
@@ -1607,16 +1721,16 @@ static HANDLE access_random_seed(int action)
      * Registry, if any.
      */
     size = sizeof(seedpath);
-    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS, &rkey) ==
-	ERROR_SUCCESS) {
-	int ret = RegQueryValueEx(rkey, "RandSeedFile",
-				  0, &type, seedpath, &size);
-	if (ret != ERROR_SUCCESS || type != REG_SZ)
-	    seedpath[0] = '\0';
-	RegCloseKey(rkey);
+    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS, &rkey) == ERROR_SUCCESS) {
+		int ret = RegQueryValueEx(rkey, "RandSeedFile",
+					  0, &type, seedpath, &size);
+		if (ret != ERROR_SUCCESS || type != REG_SZ)
+			seedpath[0] = '\0';
+		RegCloseKey(rkey);
 
-	if (*seedpath && try_random_seed(seedpath, action, &rethandle))
-	    return rethandle;
+		if (*seedpath && try_random_seed(seedpath, action, &rethandle)) {
+			return rethandle;
+		}
     }
 
     /*
@@ -1632,44 +1746,43 @@ static HANDLE access_random_seed(int action)
 	 * on older versions of Windows if we cared enough.
 	 * However, the invocation below requires IE5+ anyway,
 	 * so stuff that. */
-	shell32_module = load_system32_dll("shell32.dll");
-	GET_WINDOWS_FUNCTION(shell32_module, SHGetFolderPathA);
-	tried_shgetfolderpath = TRUE;
+		shell32_module = load_system32_dll("shell32.dll");
+		GET_WINDOWS_FUNCTION(shell32_module, SHGetFolderPathA);
+		tried_shgetfolderpath = TRUE;
     }
     if (p_SHGetFolderPathA) {
-	if (SUCCEEDED(p_SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA,
-					 NULL, SHGFP_TYPE_CURRENT, seedpath))) {
-	    strcat(seedpath, "\\PUTTY.RND");
-	    if (try_random_seed(seedpath, action, &rethandle))
-		return rethandle;
-	}
+		if (SUCCEEDED(p_SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA,
+						 NULL, SHGFP_TYPE_CURRENT, seedpath))) {
+			strcat(seedpath, "\\PUTTY.RND");
+			if (try_random_seed(seedpath, action, &rethandle))
+			return rethandle;
+		}
 
-	if (SUCCEEDED(p_SHGetFolderPathA(NULL, CSIDL_APPDATA,
-					 NULL, SHGFP_TYPE_CURRENT, seedpath))) {
-	    strcat(seedpath, "\\PUTTY.RND");
-	    if (try_random_seed(seedpath, action, &rethandle))
-		return rethandle;
+		if (SUCCEEDED(p_SHGetFolderPathA(NULL, CSIDL_APPDATA,
+						 NULL, SHGFP_TYPE_CURRENT, seedpath))) {
+			strcat(seedpath, "\\PUTTY.RND");
+			if (try_random_seed(seedpath, action, &rethandle))
+			return rethandle;
+		}
 	}
-    }
-
     /*
      * Failing that, try %HOMEDRIVE%%HOMEPATH% as a guess at the
      * user's home directory.
      */
-    {
-	int len, ret;
+    
+	{	int len, ret;
 
-	len =
-	    GetEnvironmentVariable("HOMEDRIVE", seedpath,
-				   sizeof(seedpath));
-	ret =
-	    GetEnvironmentVariable("HOMEPATH", seedpath + len,
-				   sizeof(seedpath) - len);
-	if (ret != 0) {
-	    strcat(seedpath, "\\PUTTY.RND");
-	    if (try_random_seed(seedpath, action, &rethandle))
-		return rethandle;
-	}
+		len =
+			GetEnvironmentVariable("HOMEDRIVE", seedpath,
+					   sizeof(seedpath));
+		ret =
+			GetEnvironmentVariable("HOMEPATH", seedpath + len,
+					   sizeof(seedpath) - len);
+		if (ret != 0) {
+			strcat(seedpath, "\\PUTTY.RND");
+			if (try_random_seed(seedpath, action, &rethandle))
+			return rethandle;
+		}
     }
 
     /*
@@ -1725,7 +1838,8 @@ void write_random_seed(void *data, int len)
  * returning the resulting concatenated list of strings in 'out' (if
  * non-null).
  */
-static int transform_jumplist_registry
+
+static int reg_transform_jumplist_registry
     (const char *add, const char *rem, char **out)
 {
     int ret;
@@ -1851,6 +1965,138 @@ static int transform_jumplist_registry
     } else {
         return JUMPLISTREG_OK;
     }
+}
+
+/*
+ * JK: rewritten to store jumplist to one file
+ * configurable via putty.conf
+*/
+static int file_transform_jumplist_registry
+    (const char *add, const char *rem, char **out)
+{
+    int ret;
+	char *fileCont = NULL;
+	DWORD fileSize;
+	HANDLE hFile;
+	DWORD bytesRW;
+    int value_length = 0;
+    char *old_value, *new_value;
+    char *piterator_old, *piterator_new;
+	void *psettings_tmp;
+	int new_value_size = 0;
+
+	if (*jumplistpath == '\0') {
+		loadPath();
+	}
+	
+	hFile = CreateFile(jumplistpath,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		/* JK: there is a no jumplist, so check if user requested it */
+		if (jumplistpath[0] != ':'){
+			hFile = CreateFile(jumplistpath,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
+			if (hFile == INVALID_HANDLE_VALUE) {
+				errorShow("Unable to create jumplist file", jumplistpath);
+				return JUMPLISTREG_ERROR_KEYOPENCREATE_FAILURE;
+			}
+		} else {
+			return JUMPLISTREG_ERROR_KEYOPENCREATE_FAILURE;
+		}
+	}
+
+	fileSize = GetFileSize(hFile, NULL);
+	fileCont = snewn(fileSize+16, char);
+
+	if (!ReadFile(hFile, fileCont, fileSize, &bytesRW, NULL))
+	{
+		errorShow("Unable to load jumplist file", jumplistpath);
+		CloseHandle(hFile);
+		sfree(fileCont);
+		return JUMPLISTREG_ERROR_KEYOPENCREATE_FAILURE;
+	}
+	CloseHandle(hFile);
+
+	/* JK: parse jump list file, items separated by \0 */
+	/* if data does not end in \0\0 -> corruptted or empty data -> start with empty data */
+	if (*(fileCont+fileSize-1) != '\0' || *(fileCont+fileSize-2) != '\0'){
+		*(fileCont) = '\0';
+		*(fileCont+1) = '\0';
+	}
+
+	old_value = fileCont;
+	new_value_size = fileSize + (add ? strlen(add) + 1 : 0) + 2;
+	new_value = snewn(new_value_size, char);
+
+	/* Walk through the existing list and construct the new list of saved sessions. */
+    piterator_new = new_value;
+    piterator_old = old_value;
+
+    /* First add the new item to the beginning of the list. */
+    if (add) {
+        strcpy(piterator_new, add);
+        piterator_new += strlen(piterator_new) + 1;
+		value_length += strlen(add) + 1;
+    }
+    /* Now add the existing list, taking care to leave out the removed item, if it was already in the existing list. */
+    while (*piterator_old != '\0') {
+
+        if (!rem || strcmp(piterator_old, rem) != 0) {
+            /* Check if this is a valid session, otherwise don't add. */
+            psettings_tmp = open_settings_r(piterator_old);
+            if (psettings_tmp != NULL) {
+                close_settings_r(psettings_tmp);
+ 				strcpy(piterator_new, piterator_old);
+                piterator_new += strlen(piterator_old) + 1;
+				value_length += strlen(piterator_old) + 1;
+            }
+        }
+        piterator_old += strlen(piterator_old) + 1;
+    }
+    *piterator_new = '\0';
+	value_length++;
+    ++piterator_new;
+
+
+   
+	hFile = CreateFile(jumplistpath , GENERIC_WRITE,0,NULL,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
+	if (hFile == INVALID_HANDLE_VALUE) {
+		errorShow("Unable to open jumplist file for writing", jumplistpath );
+		return JUMPLISTREG_ERROR_VALUEWRITE_FAILURE;
+	}
+	if (! WriteFile( (HANDLE) hFile, new_value, value_length, &bytesRW, NULL)) {
+		CloseHandle( (HANDLE)hFile );
+		errorShow("Unable to save jumplist", jumplistpath);
+		return JUMPLISTREG_ERROR_VALUEWRITE_FAILURE;
+		/* JK: memory should be freed here - fixme */
+	}
+	CloseHandle( (HANDLE)hFile );
+
+	sfree(fileCont);
+
+    /*
+     * Either return or free the result.
+     */
+    if (out)
+        *out = new_value;
+	else
+		sfree(new_value);
+
+	ret = ERROR_SUCCESS;
+    if (ret != ERROR_SUCCESS) {
+        return JUMPLISTREG_ERROR_VALUEWRITE_FAILURE;
+    } else {
+        return JUMPLISTREG_OK;
+    }
+}
+
+static int transform_jumplist_registry
+		    (const char *add, const char *rem, char **out)
+{
+	if (storagetype == 1) {
+		return file_transform_jumplist_registry(add, rem, out);
+	} else {
+		return reg_transform_jumplist_registry(add, rem, out);
+	}
 }
 
 /* Adds a new entry to the jumplist entries in the registry. */
@@ -2085,3 +2331,4 @@ void store_host_key(const char *hostname, int port,
 		reg_store_host_key(hostname, port, keytype, key);
 	}
 }
+

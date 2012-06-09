@@ -752,9 +752,9 @@ int verify_ssh_host_key(void *frontend, char *host, int port, char *keytype,
     int ret;
 
     static const char absentmsg[] =
-	"The server's host key is not cached in the registry. You\n"
-	"have no guarantee that the server is the computer you\n"
-	"think it is.\n"
+	"The server's host key is not cached.\n"
+	"You have no guarantee that the server\n"
+	"is the computer you think it is.\n"
 	"The server's %s key fingerprint is:\n"
 	"%s\n"
 	"If you trust this host, hit Yes to add the key to\n"
@@ -768,10 +768,9 @@ int verify_ssh_host_key(void *frontend, char *host, int port, char *keytype,
 	"WARNING - POTENTIAL SECURITY BREACH!\n"
 	"\n"
 	"The server's host key does not match the one %s has\n"
-	"cached in the registry. This means that either the\n"
-	"server administrator has changed the host key, or you\n"
-	"have actually connected to another computer pretending\n"
-	"to be the server.\n"
+	"cached. This means that either the server administrator\n"
+	"has changed the host key, or you have actually connected\n"
+	"to another computer pretending to be the server.\n"
 	"The new %s key fingerprint is:\n"
 	"%s\n"
 	"If you were expecting this change and trust the new key,\n"
