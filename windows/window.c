@@ -3749,9 +3749,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 				reset_window(2);
 			} else {
 				/* trigger a scroll */
+			 int scrolllines = conf_get_int(conf, CONF_scrolllines);
+          int scrollLines = scrolllines == -1 ? term->rows/2
+                          : scrolllines == -2 ? term->rows
+                          : scrolllines <  -2 ? 3
+                          : scrolllines;
 				term_scroll(term, 0,
 					b == MBT_WHEEL_UP ?
-					-term->rows / 2 : term->rows / 2);
+					-scrollLines : scrollLines);
 			}
 		}
 	    }

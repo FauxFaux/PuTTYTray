@@ -782,6 +782,7 @@ void cleanup_exit(int);
     X(STR, NONE, wintitle) /* initial window title */ \
     /* Terminal options */ \
     X(INT, NONE, savelines) \
+    X(INT, NONE, scrolllines) \
     X(INT, NONE, dec_om) \
     X(INT, NONE, wrap_mode) \
     X(INT, NONE, lfhascr) \
