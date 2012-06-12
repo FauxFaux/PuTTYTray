@@ -4460,7 +4460,7 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 	(HIWORD(lParam) & (KF_UP | KF_REPEAT)) == KF_REPEAT)
 	return 0;
 
-    if ((HIWORD(lParam) & KF_ALTDOWN) && (keystate[VK_RMENU] & 0x80) == 0)
+    if ((HIWORD(lParam) & KF_ALTDOWN) && (conf_get_int(conf, CONF_rightaltkey) || (keystate[VK_RMENU] & 0x80) == 0))
 	left_alt = 1;
 
     key_down = ((HIWORD(lParam) & KF_UP) == 0);
@@ -4554,7 +4554,7 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
     }
 
     /* If a key is pressed and AltGr is not active */
-    if (key_down && (keystate[VK_RMENU] & 0x80) == 0 && !compose_state) {
+    if (key_down && (conf_get_int(conf, CONF_rightaltkey) || (keystate[VK_RMENU] & 0x80) == 0) && !compose_state) {
 	/* Okay, prepare for most alts then ... */
 	if (left_alt)
 	    *p++ = '\033';
