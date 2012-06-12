@@ -848,7 +848,7 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "Transparency", 255, conf, CONF_transparency);
     gppi(sesskey, "WakeupReconnect", 0, conf, CONF_wakeup_reconnect);
     gppi(sesskey, "FailureReconnect", 0, conf, CONF_failure_reconnect);
-    gppi(sesskey, "StorageType", 0, conf, CONF_session_storagetype);
+    gppi(sesskey, "StorageType", get_storagetype(), conf, CONF_session_storagetype);
     gppi(sesskey, "Tray", TRAY_NORMAL, conf, CONF_tray);
     gppi(sesskey, "StartTray", 0, conf, CONF_start_tray);
     gppi(sesskey, "TrayRestore", 1, conf, CONF_tray_restore);
@@ -1102,10 +1102,14 @@ int get_sesslist(struct sesslist *list, int allocate, int storagetype) // HACK: 
     void *handle;
 	
 	// HACK: PUTTY FILE
-	int autoswitch = 0;
+	int autoswitch = -1;
 	if (storagetype > 1) {
+		// autoswitch holds the alternative storage type, if any:
+		autoswitch = storagetype == 3 ? 0 :
+			         storagetype == 2 ? 1 :
+			         storagetype > 2 ? 1 :
+			         -1;
 		storagetype = storagetype - 2;
-		autoswitch = 1;
 	}
 
     if (allocate) {
@@ -1131,15 +1135,13 @@ int get_sesslist(struct sesslist *list, int allocate, int storagetype) // HACK: 
 
 	/*
 	 * HACK: PuttyTray / PuTTY File
-	 * Switch to file mode if registry is empty (and in registry mode)
+	 * Switch to the other session storage type if the previous one was empty..
 	 */
-	if (autoswitch == 1 && storagetype != 1 && buflen == 0) {
-		storagetype = 1;
-
+	if (autoswitch != -1 && buflen == 0) {
 		// Ok, this is a copy of the code above. Crude but working
 		buflen = bufsize = 0;
 		list->buffer = NULL;
-		if ((handle = enum_settings_start(1)) != NULL) { // Force file storage type
+		if ((handle = enum_settings_start(autoswitch)) != NULL) {
 			do {
 			ret = enum_settings_next(handle, otherbuf, sizeof(otherbuf));
 			if (ret) {
@@ -1156,17 +1158,12 @@ int get_sesslist(struct sesslist *list, int allocate, int storagetype) // HACK: 
 		}
 		list->buffer = sresize(list->buffer, buflen + 1, char);
 		list->buffer[buflen] = '\0';
-	}
-
-	/*
-	 * HACK: PuttyTray / PuTTY File
-	 * If registry is empty AND file store is empty, show empty registry
-	 */
-	if (autoswitch == 1 && storagetype == 1 && buflen == 0) {
-		storagetype = 0;
+		if (buflen != 0) {
+			// Found some!  Make this the one we use:
+			storagetype = autoswitch;
+		}
 		set_storagetype(storagetype);
 	}
-
 
 	/*
 	 * Now set up the list of sessions. Note that "Default

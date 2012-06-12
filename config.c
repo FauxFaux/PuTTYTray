@@ -328,34 +328,21 @@ void storagetype_handler(union control *ctrl, void *dlg, void *data, int event)
      * is the one selected.
      */
     if (event == EVENT_REFRESH) {
-		// Button index = same as storagetype number. Set according to config
-		button = conf_get_int(conf, CONF_session_storagetype);
-		dlg_radiobutton_set(ctrl, dlg, button);
+		// Note: Change storagetype near the top of settings.c to change the default storage type.
+		button = conf_get_int(conf, CONF_session_storagetype) + 2;
+		// The +2 makes it tell get_sesslist() to "autoswitch" (fallback to either registry or file sessions)..
 	} else if (event == EVENT_VALCHANGE) {
+		// Button index = same as storagetype number. Set according to config
 		button = dlg_radiobutton_get(ctrl, dlg);
-
-		// Switch between registry and file
-		if (ctrl->radio.buttondata[button].i == 0) {
-			get_sesslist(&ssd->sesslist, FALSE, 0);
-			get_sesslist(&ssd->sesslist, TRUE, 0);
-			dlg_refresh(ssd->editbox, dlg);
-			dlg_refresh(ssd->treeselect, dlg);
-
-			// Save setting into config (the whole *(int *)ATOFFSET(data, ctrl->radio.context.i) = ctrl->radio.buttondata[button].i; didn't work)
-			// and I don't see why I shouldn't do it this way (it works?)
-			conf_set_int(conf, CONF_session_storagetype, 0);
-		} else {
-			get_sesslist(&ssd->sesslist, FALSE, 1);
-			get_sesslist(&ssd->sesslist, TRUE, 1);
-			dlg_refresh(ssd->editbox, dlg);
-			dlg_refresh(ssd->treeselect, dlg);
-
-			// Here as well
-			conf_set_int(conf, CONF_session_storagetype, 1);
-		}
+		button = ctrl->radio.buttondata[button].i;
 	}
+	get_sesslist(&ssd->sesslist, FALSE, button);
+	button = get_sesslist(&ssd->sesslist, TRUE, button);
+	if (event == EVENT_REFRESH) dlg_radiobutton_set(ctrl, dlg, button);
+	dlg_refresh(ssd->editbox, dlg);
+	dlg_refresh(ssd->treeselect, dlg); // Note: This was ssd->listbox before the "tree view" patch.
+	conf_set_int(conf, CONF_session_storagetype, button);
 }
-/** HACK: END **/
 
 static void loggingbuttons_handler(union control *ctrl, void *dlg,
 				   void *data, int event)
@@ -1411,25 +1398,12 @@ void setup_config_box(struct controlbox *b, int midsession,
 	/*
 	 * HACK: PuttyTray / PuTTY File
 	 * Add radio buttons
-	 *
-	 * Couldn't get the default selection to switch, so I switched the button position instead.
-	 * Must be the lamest solution I ever came up with.
-	 *
-	 * In midsession, changing causes it to be reversed again (wrong). So don't.
 	 */
-	if (midsession || current_storagetype == 0 || session_storagetype == 0) {
 		c = ctrl_radiobuttons(s, NULL, 'f', 2,
 				  HELPCTX(no_help),
 				  storagetype_handler,
 				  P(ssd), "Sessions from registry", I(0), "Sessions from file", I(1), NULL);
-	} else {
-		c = ctrl_radiobuttons(s, NULL, 'f', 2,
-				  HELPCTX(no_help),
-				  storagetype_handler,
-				  P(ssd), "Sessions from file", I(1), "Sessions from registry", I(0), NULL);
-	}
 	/** HACK: END **/
-
 
     ssd->editbox = ctrl_editbox(s, "Saved Sessions", 'e', 100,
 				HELPCTX(session_saved),

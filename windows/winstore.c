@@ -44,7 +44,7 @@ DECL_WINDOWS_FUNCTION(static, HRESULT, SHGetFolderPathA,
 		      (HWND, int, HANDLE, DWORD, LPSTR));
 
 // PUTTY Tray / PuTTY File - global storage type
-static int storagetype = 0;	// 0 = registry, 1 = file
+static int storagetype = 1;	// 0 = registry, 1 = file
 
 /* JK: path of settings saved in files */
 static char seedpath[2 * MAX_PATH + 10] = "\0";
@@ -73,6 +73,9 @@ void set_storagetype(int new_storagetype)
 	storagetype = new_storagetype;
 }
 
+int get_storagetype(void) {
+	return storagetype;
+}
 
 static void mungestr(const char *in, char *out)
 {
