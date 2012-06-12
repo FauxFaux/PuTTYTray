@@ -762,6 +762,7 @@ void cleanup_exit(int);
     X(INT, NONE, alt_space) /* is it special? */ \
     X(INT, NONE, alt_only) /* is it special? */ \
     X(INT, NONE, alt_metabit) /* set meta instead of escape */ \
+    X(INT, NONE, ctrl_tab_switch)	/* switch PuTTY windows with Ctrl+Tab. Taken from gdi-20120211 */ \
     X(INT, NONE, localecho) \
     X(INT, NONE, localedit) \
     X(INT, NONE, alwaysontop) \

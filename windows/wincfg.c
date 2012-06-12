@@ -380,6 +380,11 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		  conf_checkbox_handler,
 		  I(CONF_fullscreenonaltenter));
 
+    if (!midsession)
+	    ctrl_checkbox(s, "Switch FuTTY windows with Ctrl+Tab", 's',
+		  HELPCTX(no_help),
+		  conf_checkbox_handler, I(CONF_ctrl_tab_switch));
+
 	/*
 	 * HACK: PuttyTray / Transparency
 	 */
