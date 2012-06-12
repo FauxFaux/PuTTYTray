@@ -135,6 +135,9 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     ctrl_checkbox(s, "Control-Alt is different from AltGr", 'd',
 		  HELPCTX(keyboard_ctrlalt),
 		  conf_checkbox_handler, I(CONF_ctrlaltkeys));
+    ctrl_checkbox(s, "Right-Alt acts as it is", 'l',
+		  HELPCTX(no_help),
+		  conf_checkbox_handler, I(CONF_rightaltkey));
     ctrl_checkbox(s, "Set meta bit on alt (instead of escape)", 'm',
 		  HELPCTX(no_help),
 		  conf_checkbox_handler, I(CONF_alt_metabit));
