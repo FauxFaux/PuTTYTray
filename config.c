@@ -1407,6 +1407,30 @@ void setup_config_box(struct controlbox *b, int midsession,
     // HACK: PuttyTray / PuTTY File - The +2 triggers storagetype autoswitching
     lol = (midsession ? session_storagetype : (session_storagetype + 2));
     current_storagetype = get_sesslist(&ssd->sesslist, TRUE, lol);
+
+	/*
+	 * HACK: PuttyTray / PuTTY File
+	 * Add radio buttons
+	 *
+	 * Couldn't get the default selection to switch, so I switched the button position instead.
+	 * Must be the lamest solution I ever came up with.
+	 *
+	 * In midsession, changing causes it to be reversed again (wrong). So don't.
+	 */
+	if (midsession || current_storagetype == 0 || session_storagetype == 0) {
+		c = ctrl_radiobuttons(s, NULL, 'f', 2,
+				  HELPCTX(no_help),
+				  storagetype_handler,
+				  P(ssd), "Sessions from registry", I(0), "Sessions from file", I(1), NULL);
+	} else {
+		c = ctrl_radiobuttons(s, NULL, 'f', 2,
+				  HELPCTX(no_help),
+				  storagetype_handler,
+				  P(ssd), "Sessions from file", I(1), "Sessions from registry", I(0), NULL);
+	}
+	/** HACK: END **/
+
+
     ssd->editbox = ctrl_editbox(s, "Saved Sessions", 'e', 100,
 				HELPCTX(session_saved),
 				sessionsaver_handler, P(ssd), P(NULL));
@@ -1419,7 +1443,7 @@ void setup_config_box(struct controlbox *b, int midsession,
                                       HELPCTX(session_saved),
                                       sessionsaver_handler, P(ssd));
     ssd->treeselect->generic.column = 0;
-    ssd->treeselect->listbox.height = 7;
+    ssd->treeselect->listbox.height = 13;
     if (!midsession) {
 	ssd->loadbutton = ctrl_pushbutton(s, "Load", 'l',
 					  HELPCTX(session_saved),
@@ -1447,37 +1471,6 @@ void setup_config_box(struct controlbox *b, int midsession,
 	ssd->delbutton = NULL;
     }
     ctrl_columns(s, 1, 100);
-
-	/*
-	 * HACK: PuttyTray / PuTTY File
-	 * Add radio buttons
-	 *
-     * Couldn't get the default selection to switch, so I switched the button position instead.
-	 * Must be the lamest solution I ever came up with.
-	 *
-	 * In midsession, changing causes it to be reversed again (wrong). So don't.
-	 */
-	if (midsession || current_storagetype == 0) {
-		c = ctrl_radiobuttons(s, NULL, 'f', 2,
-				  HELPCTX(no_help),
-				  storagetype_handler,
-				  P(ssd), "Sessions from registry", I(0), "Sessions from file", I(1), NULL);
-	} else {
-		c = ctrl_radiobuttons(s, NULL, 'f', 2,
-				  HELPCTX(no_help),
-				  storagetype_handler,
-				  P(ssd), "Sessions from file", I(1), "Sessions from registry", I(0), NULL);
-	}
-	/** HACK: END **/
-
-    s = ctrl_getset(b, "Session", "otheropts", NULL);
-    c = ctrl_radiobuttons(s, "Close window on exit:", 'x', 4,
-			  HELPCTX(session_coe),
-			  conf_radiobutton_handler,
-			  I(CONF_close_on_exit),
-			  "Always", I(FORCE_ON),
-			  "Never", I(FORCE_OFF),
-			  "Only on clean exit", I(AUTO), NULL);
 
     /*
      * The Session/Logging panel.
@@ -1806,6 +1799,15 @@ void setup_config_box(struct controlbox *b, int midsession,
     ctrl_checkbox(s, "Warn before closing window", 'w',
 		  HELPCTX(behaviour_closewarn),
 		  conf_checkbox_handler, I(CONF_warn_on_close));
+
+    s = ctrl_getset(b, "Window/Behaviour", "otheropts", NULL);
+    c = ctrl_radiobuttons(s, "Close window on exit:", 'x', 4,
+			  HELPCTX(session_coe),
+			  conf_radiobutton_handler,
+			  I(CONF_close_on_exit),
+			  "Always", I(FORCE_ON),
+			  "Never", I(FORCE_OFF),
+			  "Only on clean exit", I(AUTO), NULL);
 
     /*
      * The Window/Translation panel.

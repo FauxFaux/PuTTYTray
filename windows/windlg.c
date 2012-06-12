@@ -341,7 +341,7 @@ static void create_controls(HWND hwnd, char *path)
 	/*
 	 * Here we must create the basic standard controls.
 	 */
-	ctlposinit(&cp, hwnd, 3, 3, 245);
+	ctlposinit(&cp, hwnd, 100, 3, 292);
 	wc = &ctrls_base;
 	base_id = IDCX_STDBASE;
     } else {
@@ -349,7 +349,7 @@ static void create_controls(HWND hwnd, char *path)
 	 * Otherwise, we're creating the controls for a particular
 	 * panel.
 	 */
-	ctlposinit(&cp, hwnd, 100, 3, 13);
+	ctlposinit(&cp, hwnd, 100, 3, 3);
 	wc = &ctrls_panel;
 	base_id = IDCX_PANELBASE;
     }
@@ -430,7 +430,7 @@ static int CALLBACK GenericMainDlgProc(HWND hwnd, UINT msg,
 	    r.left = 3;
 	    r.right = r.left + 95;
 	    r.top = 13;
-	    r.bottom = r.top + 229;
+	    r.bottom = r.top + 293;
 	    MapDialogRect(hwnd, &r);
 	    treeview = CreateWindowEx(WS_EX_CLIENTEDGE, WC_TREEVIEW, "",
 				      WS_CHILD | WS_VISIBLE |
