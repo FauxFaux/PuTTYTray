@@ -1417,7 +1417,7 @@ void setup_config_box(struct controlbox *b, int midsession,
                                       HELPCTX(session_saved),
                                       sessionsaver_handler, P(ssd));
     ssd->treeselect->generic.column = 0;
-    ssd->treeselect->listbox.height = 13;
+    ssd->treeselect->listbox.height = 18;
     if (!midsession) {
 	ssd->loadbutton = ctrl_pushbutton(s, "Load", 'l',
 					  HELPCTX(session_saved),
