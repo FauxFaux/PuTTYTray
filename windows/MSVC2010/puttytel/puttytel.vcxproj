@@ -90,8 +90,8 @@
     <ClInclude Include="..\..\..\windows\winstuff.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\..\windows\putty.ico" />
     <None Include="..\..\..\windows\puttycfg.ico" />
-    <None Include="..\..\..\windows\puttycyg.ico" />
     <None Include="..\..\..\windows\puttytel.rc" />
   </ItemGroup>
   <ItemGroup>

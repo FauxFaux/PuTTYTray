@@ -121,9 +121,9 @@
     <ClInclude Include="..\..\..\windows\winstuff.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\..\windows\putty.ico" />
     <None Include="..\..\..\windows\putty.rc" />
     <None Include="..\..\..\windows\puttycfg.ico" />
-    <None Include="..\..\..\windows\puttycyg.ico" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\..\putty.rc" />
