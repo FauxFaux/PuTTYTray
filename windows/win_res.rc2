@@ -11,7 +11,7 @@
 
 #include "win_res.h"
 
-IDI_MAINICON ICON "puttycyg.ico"
+IDI_MAINICON ICON "putty.ico"
 
 IDI_CFGICON ICON "puttycfg.ico"
 
