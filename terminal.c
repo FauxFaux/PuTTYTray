@@ -6023,6 +6023,8 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 				// Jump to next line?
 				if (((i + 1) % term->cols) == 0) {
 					row++;
+					if (row >= term->rows)
+						break;
 					urldata = lineptr(row);
 				}
 			}
