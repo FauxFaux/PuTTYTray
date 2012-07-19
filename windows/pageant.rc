@@ -8,7 +8,6 @@
 #define APPDESC "PuTTY SSH authentication agent"
 
 200 ICON "pageant.ico"
-201 ICON "pageants.ico"
 
 210 DIALOG DISCARDABLE 0, 0, 140, 60
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
