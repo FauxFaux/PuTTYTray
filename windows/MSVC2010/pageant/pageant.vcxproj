@@ -51,7 +51,6 @@
   <ItemGroup>
     <None Include="..\..\..\windows\pageant.ico" />
     <None Include="..\..\..\windows\pageant.rc" />
-    <None Include="..\..\..\windows\pageants.ico" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\..\pageant.rc" />
