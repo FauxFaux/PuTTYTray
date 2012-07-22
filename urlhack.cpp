@@ -109,15 +109,18 @@ void urlhack_reset()
 	text_mass.clear();
 }
 
-
-
-void urlhack_putchar(char ch)
+static void urlhack_putchar(char ch)
 {
 	char r00fles[2] = { ch, 0 };
 	text_mass.append(r00fles);
 }
 
-
+void urlhack_putchar(char ch, int width)
+{
+    while (width --> 1)
+        urlhack_putchar(' ');
+    urlhack_putchar(ch);
+}
 
 void urlhack_set_regular_expression(const char* expression)
 {

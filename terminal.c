@@ -2525,6 +2525,17 @@ static void term_print_finish(Terminal *term)
     term->printing = term->only_printing = FALSE;
 }
 
+int find_width(unsigned long c) {
+    int width = 0;
+    if (DIRECT_CHAR(c))
+	width = 1;
+    if (!width)
+	width = (term->cfg.cjk_ambig_wide ?
+		 mk_wcwidth_cjk((wchar_t) c) :
+		 mk_wcwidth((wchar_t) c));
+    return width;
+}
+
 /*
  * Remove everything currently in `inbuf' and stick it up on the
  * in-memory display. There's a big state machine in here to
@@ -2949,13 +2960,7 @@ static void term_out(Terminal *term)
 		 * ctrls are stripped above */
 		{
 		    termline *cline = scrlineptr(term->curs.y);
-		    int width = 0;
-		    if (DIRECT_CHAR(c))
-			width = 1;
-		    if (!width)
-			width = (term->cfg.cjk_ambig_wide ?
-				 mk_wcwidth_cjk((wchar_t) c) :
-				 mk_wcwidth((wchar_t) c));
+		    int width = find_width(c);
 
 		    if (term->wrapnext && term->wrap && width > 0) {
 			cline->lattr |= LATTR_WRAPPED;
@@ -4712,10 +4717,12 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 		urlhack_reset();
 
 		for (i = 0; i < term->rows; i++) {
-			termline *lp = lineptr(term->disptop + i);
+			termline *lp = scrlineptr(term->disptop + i);
 
-			for (j = 0; j < term->cols; j++) {
-				urlhack_putchar((char)(lp->chars[j].chr & CHAR_MASK));
+			for (j = 0; j < lp->cols; j++) {
+				urlhack_putchar((char)(lp->chars[j].chr & CHAR_MASK),
+				    find_width(lp->chars[j].chr));
+				j += lp->chars[j].cc_next;
 			}
 
 			unlineptr(lp);
