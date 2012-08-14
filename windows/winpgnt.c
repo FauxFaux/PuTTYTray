@@ -78,6 +78,7 @@ static BOOL confirm_mode = FALSE;
 #define PAGEANT_REG_KEYS  PAGEANT_REG "\\" PAGEANT_KEYS
 #define PUTTY_DEFAULT     "Default%20Settings"
 static int initial_menuitems_count;
+static BOOL lazy_key_passprahses = 0;
 
 /*
  * Print a modal (Really Bad) message box and perform a fatal exit.
@@ -2340,7 +2341,11 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
      */
     split_into_argv(cmdline, &argc, &argv, &argstart);
     for (i = 0; i < argc; i++) {
-	if (!strcmp(argv[i], "-pgpfp")) {
+	if (!strcmp(argv[i], "-lazy") || !strcmp(argv[i], "--lazy")) {
+	    lazy_key_passprahses = TRUE;
+	} else if (!strcmp(argv[i], "-no-lazy") || !strcmp(argv[i], "--no-lazy")) {
+	    lazy_key_passprahses = FALSE;
+	} else if (!strcmp(argv[i], "-pgpfp")) {
 	    pgp_fingerprints();
 	    return 1;
 	} else if (!strcmp(argv[i], "-c")) {
