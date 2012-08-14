@@ -652,6 +652,7 @@ static void add_keyfile(Filename *filename)
 		    return;		       /* operation cancelled */
 		}
 
+                addpos234(passphrases, passphrase, 0);
                 assert(passphrase != NULL);
 	    }
 	} else
@@ -674,13 +675,6 @@ static void add_keyfile(Filename *filename)
 	attempts++;
     } while (ret == -1);
 
-    if(original_pass && ret) {
-        /* If they typed in an ok passphrase, remember it */
-	addpos234(passphrases, passphrase, 0);
-    } else {
-        /* Otherwise, destroy it */
-        burnstr(passphrase);
-    }
     passphrase = NULL;
 
     if (comment)
