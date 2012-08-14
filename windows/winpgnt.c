@@ -675,8 +675,8 @@ static void add_keyfile(Filename *filename)
 
     if (comment)
 	sfree(comment);
-    if (ret == 0) {
-	char *msg = dupprintf("Couldn't load private key (%s)", error);
+    if (already_running && ret == 0) {
+	char *msg = dupprintf("Couldn't load private key (%s); can't pass to parent", error);
 	message_box(msg, APPNAME, MB_OK | MB_ICONERROR,
 		    HELPCTXID(errors_cantloadkey));
 	sfree(msg);
