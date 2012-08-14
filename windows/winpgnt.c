@@ -633,7 +633,7 @@ static void add_keyfile(Filename *filename)
 	    char *pp = index234(passphrases, attempts);
 	    if(pp) {
 		passphrase = dupstr(pp);
-	    } else {
+	    } else if (!lazy_key_passprahses) {
 		int dlgret;
                 struct PassphraseProcStruct pps;
 
@@ -644,16 +644,10 @@ static void add_keyfile(Filename *filename)
 		dlgret = DialogBoxParam(hinst, MAKEINTRESOURCE(210),
 					NULL, PassphraseProc, (LPARAM) &pps);
 		passphrase_box = NULL;
-		if (!dlgret) {
-		    if (comment)
-			sfree(comment);
-		    if (type == SSH_KEYTYPE_SSH1)
-			sfree(rkey);
-		    return;		       /* operation cancelled */
-		}
 
-                addpos234(passphrases, passphrase, 0);
-                assert(passphrase != NULL);
+                if (dlgret) {
+                    addpos234(passphrases, passphrase, 0);
+                }
 	    }
 	} else
 	    passphrase = dupstr("");
