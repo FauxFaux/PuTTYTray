@@ -652,7 +652,9 @@ static void add_keyfile(Filename *filename)
 	} else
 	    passphrase = dupstr("");
 
-	if (type == SSH_KEYTYPE_SSH1)
+        if (NULL == passphrase)
+            ret = 0;
+        else if (type == SSH_KEYTYPE_SSH1)
 	    ret = loadrsakey(filename, rkey, passphrase, &error);
 	else {
             if (realtype == type)
