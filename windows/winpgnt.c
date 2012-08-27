@@ -80,6 +80,12 @@ static BOOL confirm_mode = FALSE;
 static int initial_menuitems_count;
 static BOOL lazy_key_passprahses = 0;
 
+typedef struct lazy_key_t {
+    unsigned char *pubkey;
+    int pubkey_len;
+    Filename *file;
+};
+
 /*
  * Print a modal (Really Bad) message box and perform a fatal exit.
  */
@@ -123,7 +129,7 @@ static void unmungestr(char *in, char *out, int outlen)
     return;
 }
 
-static tree234 *rsakeys, *ssh2keys;
+static tree234 *rsakeys, *ssh2keys, *lazykeys;
 
 static int has_security;
 #ifndef NO_SECURITY
@@ -684,7 +690,12 @@ static void add_keyfile(Filename *filename)
 	    sfree(rkey);
 	return;
     }
-    
+
+    if (ret == 0) {
+        if (add234(rsakeys, rkey) != rkey)
+            sfree(rkey);
+    }
+
     save_filename(filename);
 
     if (type == SSH_KEYTYPE_SSH1) {
@@ -1537,6 +1548,14 @@ static int cmpkeys_ssh2_asymm(void *av, void *bv)
     return c;
 }
 
+static int cmpkeys_lazy(void *av, void *bv) {
+    struct lazy_key_t *a = (struct lazy_key_t *) av;
+    struct lazy_key_t *b = (struct lazy_key_t *) bv;
+    if (a->pubkeylen == b->pubkeylen)
+        return memcmp(a->pubkey, b->pubkey, a->pubkeylen);
+    return a->pubkeylen - b->pubkeylen;
+}
+
 /*
  * Prompt for a key file to add, and add it.
  */
@@ -2319,6 +2338,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     if (!already_running) {
 	rsakeys = newtree234(cmpkeys_rsa);
 	ssh2keys = newtree234(cmpkeys_ssh2);
+        lazykeys = newtree234(cmpkeys_lazy);
     }
 
     /*
