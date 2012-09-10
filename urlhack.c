@@ -142,7 +142,7 @@ void urlhack_cleanup()
     sfree(window_text);
 }
 
-void urlhack_putchar(char ch, int wide)
+void urlhack_putchar(char ch)
 {
     if (window_text_current_pos >= window_text_len) {
         window_text = sresize(window_text, 2 * window_text_len, char);
@@ -150,8 +150,6 @@ void urlhack_putchar(char ch, int wide)
         window_text_len *= 2;
     }
     window_text[window_text_current_pos++] = ch;
-    if (wide)
-        window_text[window_text_current_pos++] = ch;
 }
 
 void urlhack_reset()
