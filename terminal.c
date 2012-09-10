@@ -4715,7 +4715,8 @@ static void do_paint(Terminal *term, Context ctx, int may_optimise)
 			termline *lp = lineptr(term->disptop + i);
 
 			for (j = 0; j < term->cols; j++) {
-				urlhack_putchar((char)(lp->chars[j].chr & CHAR_MASK), j < term->cols-1 && lp->chars[j+1].chr == UCSWIDE ? 1 : 0);
+				unsigned long tchar = lp->chars[j].chr;
+				urlhack_putchar(tchar & CHAR_MASK ? (char)(tchar & CHAR_MASK) : ' ');
 			}
 
 			unlineptr(lp);

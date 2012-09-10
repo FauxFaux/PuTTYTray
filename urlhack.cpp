@@ -111,9 +111,9 @@ void urlhack_reset()
 
 
 
-void urlhack_putchar(char ch, int wide)
+void urlhack_putchar(char ch)
 {
-	char r00fles[3] = { ch, wide ? ch : 0, 0 };
+	char r00fles[2] = { ch, 0 };
 	text_mass.append(r00fles);
 }
 
