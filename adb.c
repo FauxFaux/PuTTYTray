@@ -208,6 +208,8 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
 	    sprintf(sendbuf,"%04x" ADB_SHELL_SERIAL_PREFIX, len+ADB_SHELL_SERIAL_PREFIX_LEN);
 	    memcpy(sendbuf+4+ADB_SHELL_SERIAL_PREFIX_LEN, host, len);
 	    sk_write(adb->s,sendbuf,len+4+ADB_SHELL_SERIAL_PREFIX_LEN);
+	    sk_flush(adb->s);
+	    adb->state = 1;
 	}
     } while (0);
     return NULL;
