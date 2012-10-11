@@ -200,6 +200,8 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
 	size_t len = strlen(host);
 	if (len == 0) {
 	    sk_write(adb->s, ADB_SHELL_DEFAULT_STR, ADB_SHELL_DEFAULT_STR_LEN);
+	    sk_flush(adb->s);
+	    adb->state = 1;
 	} else {
 	    char sendbuf[512];
 #define ADB_SHELL_HOST_MAX_LEN (sizeof(sendbuf)-4-ADB_SHELL_SERIAL_PREFIX_LEN)
