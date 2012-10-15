@@ -80,7 +80,7 @@ static int adb_receive(Plug plug, int urgent, char *data, int len)
 				char* d = (char*)smalloc(len+1);
 				memcpy(d,data,len);
 				d[len]='\0';
-				connection_fatal(adb->frontend, "%s", d+8);
+				connection_fatal(adb->frontend, "adb failure message: '%s'", d+8);
 				sfree(d);
 			} else {
 				connection_fatal(adb->frontend, "Bad response");
