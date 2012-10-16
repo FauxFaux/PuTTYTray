@@ -192,7 +192,7 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
     }
 
     /* send initial data to adb server */
-#define ADB_SHELL_DEFAULT_STR "0012" "host:transport-usb"
+#define ADB_SHELL_DEFAULT_STR "0012" "host:transport-any"
 #define ADB_SHELL_DEFAULT_STR_LEN (sizeof(ADB_SHELL_DEFAULT_STR)-1)
 #define ADB_SHELL_SERIAL_PREFIX "host:transport:"
 #define ADB_SHELL_SERIAL_PREFIX_LEN (sizeof(ADB_SHELL_SERIAL_PREFIX)-1)
