@@ -632,10 +632,18 @@ if (defined $makefiles{'vc'}) {
       "MAKEFILE = Makefile.vc\n".
       "\n".
       "# C compilation flags\n".
-      "CFLAGS = /nologo /W3 /O1 " .
+      "CFLAGS = /nologo /W3 /GS /Zi " .
+      "/D_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=1 ".
+      "/D_CRT_SECURE_NO_WARNINGS=1 ".
       (join " ", map {"-I$dirpfx$_"} @srcdirs) .
       " /D_WINDOWS /D_WIN32_WINDOWS=0x500 /DWINVER=0x500\n".
-      "LFLAGS = /incremental:no /fixed\n".
+      "LFLAGS = /dynamicbase /nxcompat /debug\n".
+      "!if \"\$(DEBUG)\" == \"1\"\n".
+      "CFLAGS=\$(CFLAGS) /Od /DDEBUG /RTC1\n".
+      "!else\n".
+      "CFLAGS=\$(CFLAGS) /O1 /GL /Gy\n".
+      "LFLAGS=\$(LFLAGS) /incremental:no /release /ltcg\n".
+      "!endif\n".
       "RCFLAGS = -DWIN32 -D_WIN32 -DWINVER=0x0400\n".
       "!if \"\$(PROCESSOR_ARCHITECTURE)\" == \"AMD64\"\n".
       "RCFLAGS = \$(RCFLAGS) -D_WIN64=1\n".
