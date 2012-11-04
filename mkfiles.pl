@@ -634,10 +634,11 @@ if (defined $makefiles{'vc'}) {
       "# C compilation flags\n".
       "CFLAGS = /nologo /W3 /GS /Zi " .
       "/D_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=1 ".
+      "/D_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES_MEMORY=1 ".
       "/D_CRT_SECURE_NO_WARNINGS=1 ".
       (join " ", map {"-I$dirpfx$_"} @srcdirs) .
       " /D_WINDOWS /D_WIN32_WINDOWS=0x500 /DWINVER=0x500\n".
-      "LFLAGS = /dynamicbase /nxcompat /debug\n".
+      "LFLAGS = /dynamicbase /nxcompat /debug /SAFESEH\n".
       "!if \"\$(DEBUG)\" == \"1\"\n".
       "CFLAGS=\$(CFLAGS) /Od /DDEBUG /RTC1\n".
       "!else\n".
