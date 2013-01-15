@@ -1,5 +1,10 @@
 
 // Essai de compilation séparée
+#ifdef FDJ
+#undef IMAGEPORT
+#endif
+
+#ifdef IMAGEPORT
 #ifdef NO
 #include <windows.h>
 #include "putty.h"
@@ -1314,4 +1319,6 @@ void BackgroundImagePatch( int num ) {
 		keybd_event(VK_LMENU, 0, KEYEVENTF_KEYUP, 0) ;
 		}
 	}
+#endif
+
 #endif

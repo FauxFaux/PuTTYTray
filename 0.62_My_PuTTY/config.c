@@ -438,9 +438,6 @@ void CleanFolderName( char * folder ) ;
 int GetSessionField( const char * session_in, const char * folder, const char * field, char * result ) ;
 char *stristr (const char *meule_de_foin, const char *aiguille) ;
 void RunSession( HWND hwnd, const char * folder_in, char * session_in ) ;
-#if (!defined FDJ) && (defined STARTBUTTON)
-void BackgroundImagePatch( int num ) ;
-#endif
 
 extern int ConfigBoxHeight ;
 extern char ** FolderList ;
@@ -503,8 +500,13 @@ static void folder_handler(union control *ctrl, void *dlg,
 		else
 			i = dlg_listbox_getid(ctrl, dlg, i);
 		*(int *)ATOFFSET(data, ctrl->listbox.context.i) = i;
-		
+
 		dlg_editbox_get( ctrlSessionEdit, dlg, buffer, 1024 ) ;
+		
+		//if( strcmp(buffer, "" ) ) { dlg_editbox_set(ctrlSessionEdit, dlg,"" ) ; strcpy(buffer,"") ; }
+		// Impossible de reinitialiser le champ "Saved Sessions" sur un changement de folder
+		// sinon on n'est pas capable de modifier le folder associee a une session
+		
 		if( !strcmp( buffer, "" ) ) 
 			sessionsaver_handler( ctrlSessionList, dlg, data, EVENT_REFRESH ) ;
 		}
@@ -531,7 +533,7 @@ else if (event == EVENT_VALCHANGE) {
 
 struct sessionsaver_data {
 #ifdef PERSOPORT
-    union control *editbox, *listbox, *loadbutton, *savebutton, *delbutton, *createbutton, *delfolderbutton, *arrangebutton
+    union control *editbox, *listbox, *clearbutton, *loadbutton, *savebutton, *delbutton, *createbutton, *delfolderbutton, *arrangebutton
 #if (defined PERSOPORT) && (!defined FDJ) && (defined STARTBUTTON)
 	, *startbutton 
 #endif
@@ -789,6 +791,8 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
 	    dlg_listbox_clear(ctrl, dlg);
 #ifdef PERSOPORT
 		ctrlSessionList = ctrl ;
+		if(get_param("INIFILE")==SAVEMODE_DIR) CleanFolderName( CurrentFolder ) ;
+		
 		for (i = 0; i < ssd->sesslist.nsessions; i++) {
 			char folder[1024] ;
 			char host[1024] ;
@@ -816,6 +820,8 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
 				|| (stristr(host,savedsession)!=NULL)
 				|| (stristr(ssd->sesslist.sessions[i],savedsession)!=NULL) )*/
 //if( strstr(ssd->sesslist.sessions[i],"CMD")) MessageBox(NULL,ssd->sesslist.sessions[i],folder,MB_OK);
+
+//debug_log( "savedsession=%s| CurrentFolder=%s| folder=%s| ssd->sesslist.sessions[%d]=%s|\n", savedsession, CurrentFolder, folder, i, ssd->sesslist.sessions[i] );
 				if (!strcmp( savedsession, "" )) {
 					if( (!strcmp(CurrentFolder,folder))
 						|| (!strcmp("",folder))
@@ -901,16 +907,18 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
 		(mbl && ctrl == ssd->listbox && cfg_launchable(cfg))) {
 #if (defined IMAGEPORT) && (!defined FDJ) && (defined STARTBUTTON)
 		/*
-		if( (!get_param("PUTTY"))&&get_param("BACKGROUNDIMAGE")&&(strlen(savedsession)>0)
-			&&(cfg->bg_type>0) ) { 	// bug de l'affichage de la background image en PuTTY 0.61
+			if( (!get_param("PUTTY"))&&(strlen(savedsession)>0) ) {
 			RunSession( hwnd, CurrentFolder, savedsession ) ;	// On charge avec -load
-			dlg_end(dlg, 0) ;
+			//dlg_end(dlg, 0) ;
 			}
+		
 		else
-		*/
+		
+		
 		if( (!get_param("PUTTY"))&&get_param("BACKGROUNDIMAGE")&&(strlen(savedsession)>0)&&(cfg->bg_type>0) )
 			BackgroundImagePatch( 1 ) ;
 		else
+			*/
 #endif
 		dlg_end(dlg, 1);       /* it's all over, and succeeded */
 	    }
@@ -973,6 +981,11 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
 		get_sesslist(&ssd->sesslist, TRUE);
 		dlg_refresh(ssd->listbox, dlg);
 	    }
+#ifdef PERSOPORT
+	savedsession[0]='\0' ;
+	dlg_refresh(ssd->editbox, dlg) ;
+	sessionsaver_handler( ctrlSessionList, dlg, data, EVENT_REFRESH ) ;
+#endif
 	} else if (ctrl == ssd->okbutton) {
             if (ssd->midsession) {
                 /* In a mid-session Change Settings, Apply is always OK. */
@@ -1012,14 +1025,12 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
 	    if (cfg_launchable(cfg)) {
 #if (defined IMAGEPORT) && (!defined FDJ) && (defined STARTBUTTON)
 		/*
-		if( (!get_param("PUTTY"))&&get_param("BACKGROUNDIMAGE")&&(strlen(savedsession)>0)
-			&&(cfg->bg_type>0) ) { 	// bug de l'affichage de la background image en PuTTY 0.61
+		if( (!get_param("PUTTY"))&&(strlen(savedsession)>0) ) {
 			RunSession( hwnd, CurrentFolder, savedsession ) ;	// On charge avec -load
-			dlg_end(dlg, 0) ;
+			//dlg_end(dlg, 0) ;
 			}
 		else
-		*/
-		//BackgroundImagePatch() ;
+		    */
 #endif
 		dlg_end(dlg, 1);
 	    } else
@@ -1030,10 +1041,41 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
 #ifdef PERSOPORT
 #if (defined IMAGEPORT) && (!defined FDJ) && (defined STARTBUTTON)
 	else if (ctrl == ssd->startbutton) {
-		if (cfg_launchable(cfg)) BackgroundImagePatch( 1 ) ;
-	    //if (cfg_launchable(cfg)) { dlg_end(dlg, 1); } else { dlg_beep(dlg); }
+	    if( strlen(savedsession)>0 ) {
+		if (cfg_launchable(cfg)) { RunSession( hwnd, CurrentFolder, savedsession ) ; }
+		else { dlg_beep(dlg); }
+		}
+	   else {
+		if( dlg_last_focused(ctrl, dlg) == ssd->listbox && !cfg_launchable(cfg)) {
+		Config cfg2;
+		int mbl = FALSE;
+		if (!load_selected_session(ssd, savedsession, dlg, &cfg2, &mbl)) { dlg_beep(dlg); }
+		/* If at this point we have a valid session, go! */
+		if (mbl && cfg_launchable(&cfg2)) {
+		    *cfg = cfg2;       /* structure copy */
+		    cfg->remote_cmd_ptr = NULL;
+		} else
+		    dlg_beep(dlg);
+		    
+		if (cfg_launchable(cfg)) { 
+			RunSession( hwnd, CurrentFolder, savedsession ) ; 
+			}
+	    }
+		}
+	    //if (cfg_launchable(cfg)) /* { dlg_end(dlg, 1); } else */ { RunSession( hwnd, CurrentFolder, savedsession ) ; dlg_beep(dlg); }
 	}
 #endif
+	else if (!ssd->midsession && // vide le nom de la session
+		   ssd->clearbutton && ctrl == ssd->clearbutton) {
+			SetInitCurrentFolder( "Default" );
+			folder_handler( ctrlFolderList, dlg, data, EVENT_REFRESH ) ;
+			do_defaults("Default Settings", cfg) ;
+			if( strlen(savedsession) > 0 ) {
+				savedsession[0]='\0' ;
+				dlg_refresh(ssd->editbox, dlg) ;
+				}
+			sessionsaver_handler( ctrlSessionList, dlg, data, EVENT_REFRESH ) ;
+			}
 	else if (!ssd->midsession && // creer un nouveau folder
 		   ssd->createbutton && ctrl == ssd->createbutton) {
 			if( strlen(savedsession) > 0 ) {
@@ -1672,7 +1714,7 @@ void setup_config_box(struct controlbox *b, int midsession,
 #endif
     ssd->okbutton->generic.column = 3;
 #if (defined IMAGEPORT) && (!defined FDJ) && (defined STARTBUTTON)
-	if( (!midsession)&&(!get_param("PUTTY"))&&get_param("BACKGROUNDIMAGE") ) {
+	if( (!midsession)&&(!get_param("PUTTY")) ) {
 		ssd->startbutton = ctrl_pushbutton(s, "Start", NO_SHORTCUT, HELPCTX(no_help), sessionsaver_handler, P(ssd));
 		if( ConfigBoxHeight>7 ) ssd->startbutton->generic.column = 0 ; else ssd->startbutton->generic.column = 3;
 	}
@@ -1741,10 +1783,27 @@ void setup_config_box(struct controlbox *b, int midsession,
 		    "Load, save or delete a stored session");
     ctrl_columns(s, 2, 75, 25);
     get_sesslist(&ssd->sesslist, TRUE);
+#ifdef PERSOPORT
+    ssd->editbox = ctrl_editbox(s, "Saved Sessions/New Folder", 'e', 100,
+				HELPCTX(session_saved),
+				sessionsaver_handler, P(ssd), P(NULL));
+    ssd->editbox->generic.column = 0;
+    if( !midsession && ( (get_param("INIFILE")!=2)||(!get_param("DIRECTORYBROWSE")) ) ) {
+	ssd->clearbutton = ctrl_pushbutton(s, "Clear", NO_SHORTCUT,
+					  HELPCTX(session_saved),
+					  sessionsaver_handler, P(ssd));
+  
+	ssd->clearbutton->generic.column = 1;
+	} else {
+		ssd->clearbutton = NULL ;
+	}
+#else
     ssd->editbox = ctrl_editbox(s, "Saved Sessions", 'e', 100,
 				HELPCTX(session_saved),
 				sessionsaver_handler, P(ssd), P(NULL));
     ssd->editbox->generic.column = 0;
+#endif
+
     /* Reset columns so that the buttons are alongside the list, rather
      * than alongside that edit box. */
     ctrl_columns(s, 1, 100);
@@ -1888,6 +1947,9 @@ void setup_config_box(struct controlbox *b, int midsession,
 	      " &T for time, and &H for host name)",
 	      HELPCTX(logging_filename));
 #ifdef PERSOPORT
+    ctrl_editbox(s, "Log rotation delay (sec)", NO_SHORTCUT, 50,
+		 HELPCTX(logging_logtimestamp),
+		 dlg_stdeditbox_handler, I(offsetof(Config,logtimerotation)), I(-1));
     ctrl_editbox(s, "Timestamp", NO_SHORTCUT, 100,
 		 HELPCTX(logging_logtimestamp),
 		 dlg_stdeditbox_handler, I(offsetof(Config,logtimestamp)),
@@ -2014,6 +2076,11 @@ void setup_config_box(struct controlbox *b, int midsession,
 		      "None (bell disabled)", I(BELL_DISABLED),
 		      "Make default system alert sound", I(BELL_DEFAULT),
 		      "Visual bell (flash window)", I(BELL_VISUAL), NULL);
+#ifdef PERSOPORT
+   ctrl_checkbox(s, "Put window on foreground on bell", NO_SHORTCUT,
+		  HELPCTX(bell_foregroundonbell),
+		  dlg_stdcheckbox_handler, I(offsetof(Config,foreground_on_bell)));
+#endif
 
     s = ctrl_getset(b, "Terminal/Bell", "overload",
 		    "Control the bell overload behaviour");

@@ -233,6 +233,7 @@ void SaveDumpConfig( FILE *fp, Config cfg ) {
 	,cfg.width,cfg.height,cfg.font_quality,cfg.logtype,cfg.logxfovr,cfg.logflush,cfg.logomitpass,cfg.logomitdata,cfg.hide_mouseptr);
 	fprintf( fp, "sunken_edge=%d\nwindow_border=%d\n", cfg.sunken_edge, cfg.window_border);
 	fprintf( fp, "saveonexit=%d\nXPos=%d\nYPos=%d\n",cfg.saveonexit,cfg.xpos,cfg.ypos);
+	fprintf( fp, "foreground_on_bell=%d\n", cfg.foreground_on_bell );
 	//Filename bell_wavefile;
 	//FontSpec font;
 	//Filename logfilename;

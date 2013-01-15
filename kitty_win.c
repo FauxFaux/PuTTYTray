@@ -18,13 +18,17 @@ void GetOSInfo( char * version ) {
 	sprintf( version, "%ld.%ld %ld %ld %s %dx%d", osvi.dwMajorVersion, osvi.dwMinorVersion, osvi.dwBuildNumber, osvi.dwPlatformId, osvi.szCSDVersion, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN) ) ;
 	}
 /*
-Operating system 	Version number
-Windows Server 2008 	6.0
-Windows Vista 	6.0
-Windows Server 2003 R2 	5.2
-Windows Server 2003 	5.2
-Windows XP 	5.1
-Windows 2000 	5.0
+http://msdn.microsoft.com/en-us/library/windows/desktop/ms724832%28v=vs.85%29.aspx
+Operating system 		Version number
+Windows 7			6.1
+Windows Server 2008 R2		6.1
+Windows Server 2008		6.0
+Windows Vista			6.0
+Windows Server 2003 R2		5.2
+Windows Server 2003		5.2
+Windows XP 64-Bit Edition	5.2
+Windows XP			5.1
+Windows 2000			5.0
 */
 
 

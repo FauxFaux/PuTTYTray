@@ -182,6 +182,9 @@ static int NoKittyFileFlag = 0 ;
 // Hauteur de la boîte de configuration
 int ConfigBoxHeight = 21 ;
 
+// Flag permettant de desactiver la sauvegarde automatique des informations de connexion (user/password) à la connexion SSH
+static int UserPassSSHNoSave = 0 ;
+
 // Hauteur de la fenêtre de la boîte de configuration (0=valeur par defaut)
 static int ConfigBoxWindowHeight = 0 ;
 
@@ -199,7 +202,7 @@ static int BackgroundImageFlag = 0 ;
 #endif
 
 // Flag pour inhiber les fonctions ZMODEM
-static int ZModemFlag = 1 ;
+static int ZModemFlag = 0 ;
 
 // Flag pour inhiber le filtre sur la liste des sessions de la boîte de configuration
 static int SessionFilterFlag = 1 ;
@@ -259,6 +262,7 @@ void SetNewIcon( HWND hwnd, Config cfg, const int mode ) ;
 #define TIMER_REDRAW 12344
 #define TIMER_AUTOPASTE 12345
 #define TIMER_BLINKTRAYICON 12346
+#define TIMER_LOGROTATION 12347
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -283,9 +287,9 @@ char BuildVersionTime[256] = "0.0.0.0 @ 0" ;
 // Gestion des raccourcis
 #define SHIFTKEY 500
 #define CONTROLKEY 1000
-#define ALTKEY 1500
-#define ALTGRKEY 2000
-#define WINKEY 2500
+#define ALTKEY 2000
+#define ALTGRKEY 4000
+#define WINKEY 8000
 
 // F1=0x70 (112) => F12=0x7B (123)
 	
@@ -342,6 +346,7 @@ int ResizeWinList( HWND hwnd, int width, int height ) ;
 int SendCommandAllWindows( HWND hwnd, char * cmd ) ;
 int decode64 (char *buffer) ;
 void RunCommand( HWND hwnd, char * cmd ) ;
+void timestamp_change_filename( void ) ;
 
 static char * InputBoxResult = NULL ;
 
@@ -376,6 +381,10 @@ void debug_log( const char *fmt, ...) {
 	va_end( ap ) ;
 	}
 
+// Procedure d'affichage d'un message
+void debug_msg( const char * msg ) {
+	MessageBox( NULL, msg, "Info", MB_OK ) ;
+	}
 
 #ifdef CYGTERMPORT
 void cygterm_set_flag( int flag ) ;
@@ -425,6 +434,7 @@ char * get_param_str( const char * val ) {
 #ifdef ZMODEMPORT
 void xyz_updateMenuItems(Terminal *term)
 {
+	if( !ZModemFlag ) return ;
 	HMENU m = GetSystemMenu(hwnd, FALSE);
 	EnableMenuItem(m, IDM_XYZSTART, term->xyz_transfering?MF_GRAYED:MF_ENABLED);
 	EnableMenuItem(m, IDM_XYZUPLOAD, term->xyz_transfering?MF_GRAYED:MF_ENABLED);
@@ -708,6 +718,7 @@ int GetSessionField( const char * session_in, const char * folder_in, const char
 	
 void MASKPASS( char * password ) ;
 void RenewPassword( Config * cfg ) {
+	if( !UserPassSSHNoSave )
 	if( 1 || (strlen( cfg->password ) == 0) ) {
 		char buffer[1024] = "", host[1024], termtype[1024] ;
 		if( GetSessionField( cfg->sessionname, cfg->folder, "Password", buffer ) ) {
@@ -724,12 +735,22 @@ void RenewPassword( Config * cfg ) {
 
 void SetPasswordInConfig( char * password ) {
 	int len ;
-	if( (password!=NULL)&&(strlen(cfg.username)>0) ) {
+	if( (!UserPassSSHNoSave)&&(password!=NULL)&&(strlen(cfg.username)>0) ) {
 		len = strlen( password ) ;
 		if( len > 126 ) len = 126 ;
 		memcpy( cfg.password, password, len+1 ) ;
 		MASKPASS(cfg.password) ;
 		cfg.password[len] = '\0' ;
+		}
+	}
+	
+void SetUsernameInConfig( char * username ) {
+	int len ;
+	if( (!UserPassSSHNoSave)&&(username!=NULL) ) {
+		len = strlen( username ) ;
+		if( len > 126 ) len = 126 ;
+		memcpy( cfg.username, username, len+1 ) ;
+		cfg.username[len] = '\0' ;
 		}
 	}
 
@@ -1013,9 +1034,10 @@ void CreateDefaultIniFile( void ) {
 			writeINI( KittyIniFile, INIT_SECTION, "#pscpdir", "" ) ;
 			writeINI( KittyIniFile, INIT_SECTION, "#winscpdir", "" ) ;
 			writeINI( KittyIniFile, INIT_SECTION, "#antiidle=", " \\k08\\" ) ;
-			writeINI( KittyIniFile, INIT_SECTION, "#antiidledelay=", "60" ) ;
-			writeINI( KittyIniFile, INIT_SECTION, "#sshversion=", "OpenSSH_5.5" ) ;
-
+			writeINI( KittyIniFile, INIT_SECTION, "#antiidledelay", "60" ) ;
+			writeINI( KittyIniFile, INIT_SECTION, "#sshversion", "OpenSSH_5.5" ) ;
+			writeINI( KittyIniFile, INIT_SECTION, "#WinSCPProtocol", "sftp" ) ;
+			writeINI( KittyIniFile, INIT_SECTION, "#UserPassSSHNoSave", "no" ) ;
 #ifdef PORTABLE
 			writeINI( KittyIniFile, INIT_SECTION, "savemode", "dir" ) ;
 #else
@@ -1962,6 +1984,7 @@ void RunCmd( HWND hwnd ) {
 // Gestion de commandes à dstance
 static char * RemotePath = NULL ;
 void StartWinSCP( HWND hwnd, char * directory ) ;
+void StartNewSession( HWND hwnd, char * directory ) ;
 /* Execution de commande en local
 cmd()
 {
@@ -1998,6 +2021,14 @@ int ManageLocalCmd( HWND hwnd, char * cmd ) {
 		RemotePath = (char*) malloc( strlen( cmd ) - 2 ) ;
 		strcpy( RemotePath, cmd+3 ) ;
 		StartWinSCP( hwnd, RemotePath ) ;
+		free( RemotePath ) ;
+		return 1 ;
+		}
+	else if( (cmd[0]=='d')&&(cmd[1]=='s')&&(cmd[2]==':') ) { // Lance une session dupliquée dans le même répertoire
+		if( RemotePath!= NULL ) free( RemotePath ) ;
+		RemotePath = (char*) malloc( strlen( cmd ) - 2 ) ;
+		strcpy( RemotePath, cmd+3 ) ;
+		StartNewSession( hwnd, RemotePath ) ;
 		free( RemotePath ) ;
 		return 1 ;
 		}
@@ -2664,6 +2695,7 @@ int ReadSpecialMenu( HMENU menu, char * KeyName, int * nbitem, int separator ) {
 			achValue[0] = '\0';
 
 			if( RegEnumValue(hKey,i,achValue,&cchValue,NULL,&lpType,lpData,&dwDataSize) == ERROR_SUCCESS ) {
+			if( strcmp(achValue,"Default Settings") || strcmp(KeyName,"Software\\9bis.com\\KiTTY\\Launcher") ) { 
 				if( ShortcutsFlag ) {
 					if( nb < 26 ) 
 						sprintf( buffer, "%s\tCtrl+Shift+%c", achValue, ('A'+nb) ) ;
@@ -2677,6 +2709,7 @@ int ReadSpecialMenu( HMENU menu, char * KeyName, int * nbitem, int separator ) {
 				strcpy( SpecialMenu[nb], lpData ) ;
 				nb++ ;
 				local_nb++ ;
+				}
 				}
 			}
     		}
@@ -2717,9 +2750,11 @@ int ReadSpecialMenu( HMENU menu, char * KeyName, int * nbitem, int separator ) {
 			nb = (*nbitem) ;
 			while( ( de = readdir(dir) ) != NULL ) { // Recherche de clé
 				if( strcmp(de->d_name,".") && strcmp(de->d_name,"..") ) {
+				if( strcmp(de->d_name,"Default%20Settings") || strcmp(KeyName,"Launcher") ) { // Default Settings ne doit pas apparître dans le Launcher
+					
 					sprintf( buffer, "%s\\%s", fullpath, de->d_name ) ;
 					if( !(GetFileAttributes( buffer ) & FILE_ATTRIBUTE_DIRECTORY) ) {
-						if( ( fp=fopen(buffer,"rb")) != NULL ){
+						if( ( fp=fopen(buffer,"rb")) != NULL ) {
 							while( fgets( buffer, 4096, fp )!=NULL ){
 								while( (buffer[strlen(buffer)-1]=='\n')
 									||(buffer[strlen(buffer)-1]=='\r') ) buffer[strlen(buffer)-1]='\0';
@@ -2728,12 +2763,12 @@ int ReadSpecialMenu( HMENU menu, char * KeyName, int * nbitem, int separator ) {
 									
 									if( (p=strstr(buffer,"\\"))!=NULL ){
 										p[0]='\0';
-				AppendMenu(menu, MF_ENABLED, IDM_USERCMD+nb, buffer ) ;
-				SpecialMenu[nb]=(char*)malloc( strlen( p+1 ) + 1 ) ;
-				strcpy( SpecialMenu[nb], p+1 ) ;
-				nb++ ;
-				local_nb++ ;
-									}
+										AppendMenu(menu, MF_ENABLED, IDM_USERCMD+nb, buffer ) ;
+										SpecialMenu[nb]=(char*)malloc( strlen( p+1 ) + 1 ) ;
+										strcpy( SpecialMenu[nb], p+1 ) ;
+										nb++ ;
+										local_nb++ ;
+										}
 									}
 								}
 							fclose(fp) ;
@@ -2745,6 +2780,7 @@ int ReadSpecialMenu( HMENU menu, char * KeyName, int * nbitem, int separator ) {
 							
 							}
 						}*/
+					}
 					}
 				}
 			(*nbitem)=nb ;
@@ -2995,6 +3031,7 @@ int InternalCommand( HWND hwnd, char * st ) {
 	else if( !strcmp( st, "/wintitle" ) ) { TitleBarFlag = abs(TitleBarFlag -1) ; return 1 ; }
 	else if( strstr( st, "/command " ) == st ) { SendCommandAllWindows( hwnd, st+9 ) ; return 1 ; }
 	else if( !strcmp( st, "/sizeall" ) ) { ResizeWinList( hwnd, cfg.width, cfg.height ) ; return 1 ; }
+	else if( !strcmp( st, "/zmodem" ) ) { ZModemFlag = abs(ZModemFlag-1) ; }
 	return 0 ;
 	}
 
@@ -3064,6 +3101,67 @@ int SearchWinSCP( void ) {
 	return 0 ;
 	}
 
+// Lance une session dupliquée au même endroit
+/* ALIAS UNIX A DEFINIR POUR DUPLIQUER LA SESSION COURANTE Dans le repertoire courant
+dupsess()
+{
+printf "\033]0;__ds:"`pwd`"\007"
+}
+Il faut ensuite simplement taper: dupsess
+C'est traité dans KiTTY par la fonction ManageLocalCmd
+*/	
+void StartNewSession( HWND hwnd, char * directory ) {
+	char cmd[4096], shortpath[1024], buffer[256], proto[10] ;
+	
+	if( directory == NULL ) { directory = kitty_current_dir(); } 
+	
+	if( GetModuleFileName( NULL, (LPTSTR)cmd, 4096 ) ) {
+		if( !GetShortPathName( cmd, shortpath, 4095 ) ) return ;
+		}
+
+	if( cfg.protocol == PROT_SSH ) {
+		sprintf( cmd, "%s -ssh ", shortpath ) ;
+		if( cfg.sshprot == 2 ) strcat( cmd, "-2 " ) ;
+		strcat( cmd, cfg.username ) ;
+		strcat( cmd, "@" ) ; strcat( cmd, cfg.host ) ; 
+		if( strlen( cfg.password ) > 0 ) {
+			strcat( cmd, " -pw " ) ; 
+			MASKPASS(cfg.password) ; 
+			strcat(cmd,"\"") ; strcat(cmd,cfg.password) ; strcat(cmd,"\"") ;
+			MASKPASS(cfg.password) ;
+			}
+		strcat( cmd, " -P " ) ; sprintf( buffer, "%d", cfg.port ); strcat( cmd, buffer ) ;
+		/*if( strlen( cfg.keyfile.path ) > 0 ) {
+				if( GetShortPathName( cfg.keyfile.path, shortpath, 4095 ) ) {
+				strcat( cmd, " /privatekey=\"" ) ;
+				strcat( cmd, shortpath ) ;
+				strcat( cmd, "\"" ) ;
+				}
+			}*/
+		}
+	else if( cfg.protocol == PROT_TELNET ){
+		sprintf( cmd, "%s -telnet %s", shortpath, cfg.username ) ;
+		strcat( cmd, "@" ) ; strcat( cmd, cfg.host ) ; 
+		if( strlen( cfg.password ) > 0 ) {
+			strcat( cmd, " -pw " ) ; 
+			MASKPASS(cfg.password) ; 
+			strcat(cmd,"\"") ; strcat(cmd,cfg.password) ; strcat(cmd,"\"") ;
+			MASKPASS(cfg.password) ;
+			}
+		strcat( cmd, " -P " ) ; sprintf( buffer, "%d", cfg.port ); strcat( cmd, buffer ) ;
+		}
+
+	if( directory!=NULL ) if( strlen(directory)>0 ) {
+		strcat( cmd, " -cmd \"cd " ) ; strcat( cmd, directory ) ; strcat( cmd, "\"" ) ;
+		}
+		
+	// set_debug_text( cmd ) ;
+	//MessageBox( hwnd, cmd, "Command",MB_OK);
+	//debug_log( cmd ) ;
+	RunCommand( hwnd, cmd ) ;
+	memset(cmd,0,strlen(cmd));
+	}	
+
 // Lance WinSCP à partir de la sesson courante eventuellement dans le repertoire courant
 /* ALIAS UNIX A DEFINIR POUR DEMARRER WINSCP Dans le repertoire courant
 winscp()
@@ -3075,8 +3173,8 @@ C'est traité dans KiTTY par la fonction ManageLocalCmd
 */	
 // winscp.exe [(sftp|ftp|scp)://][user[:password]@]host[:port][/path/[file]] [/privatekey=key_file]
 void StartWinSCP( HWND hwnd, char * directory ) {
-	char cmd[4096], shortpath[1024], buffer[256] ;
-
+	char cmd[4096], shortpath[1024], buffer[256], proto[10] ;
+	
 	if( directory == NULL ) { directory = kitty_current_dir(); } 
 	if( WinSCPPath==NULL ) {
 		if( IniFileFlag == SAVEMODE_REG ) return ;
@@ -3090,8 +3188,14 @@ void StartWinSCP( HWND hwnd, char * directory ) {
 	if( !GetShortPathName( WinSCPPath, shortpath, 4095 ) ) return ;
 
 	if( cfg.protocol == PROT_SSH ) {
+		strcpy( proto, "sftp" ) ;
+		if( ReadParameter( INIT_SECTION, "WinSCPProtocol", buffer ) ) { 
+			if( (!strcmp( buffer, "scp" )) || (!strcmp( buffer, "sftp" )) || (!strcmp( buffer, "ftp" )) ) 
+				strcpy( proto, buffer) ;
+			}
+
 		//sprintf( cmd, "start %s sftp://%s", shortpath, cfg.username ) ;
-		sprintf( cmd, "%s sftp://%s", shortpath, cfg.username ) ;
+		sprintf( cmd, "%s %s://%s", shortpath, proto, cfg.username ) ;
 		if( strlen( cfg.password ) > 0 ) 
 			{ strcat( cmd, ":" ); MASKPASS(cfg.password);strcat(cmd,cfg.password);MASKPASS(cfg.password); }
 		strcat( cmd, "@" ) ; strcat( cmd, cfg.host ) ; 
@@ -3120,7 +3224,8 @@ void StartWinSCP( HWND hwnd, char * directory ) {
 			}
 		}
 
-	//set_debug_text( cmd ) ;
+	// set_debug_text( cmd ) ;
+	// MessageBox( hwnd, cmd, "Command",MB_OK);
 	RunCommand( hwnd, cmd ) ;
 	memset(cmd,0,strlen(cmd));
 	}
@@ -3639,6 +3744,7 @@ int DefineShortcuts( char * buf ) {
 	else if( strstr( pst, "{NUMPAD7}" )==pst ) { key = key + VK_NUMPAD7 ; pst += 9 ; }
 	else if( strstr( pst, "{NUMPAD8}" )==pst ) { key = key + VK_NUMPAD8 ; pst += 9 ; }
 	else if( strstr( pst, "{NUMPAD9}" )==pst ) { key = key + VK_NUMPAD9 ; pst += 9 ; }
+	else if( strstr( pst, "{DECIMAL}" )==pst ) { key = key + VK_DECIMAL ; pst += 9 ; }
 	else if( strstr( pst, "{BREAK}" )==pst ) { key = key + VK_CANCEL ; pst += 7 ; }
 	
 	else if( pst[0] == '{' ) {key = 0 ; }
@@ -3930,6 +4036,9 @@ void LoadParameters( void ) {
 	if( ReadParameter( INIT_SECTION, "size", buffer ) ) { if( !stricmp( buffer, "YES" ) ) SizeFlag = 1 ; }
 	if( ReadParameter( INIT_SECTION, "slidedelay", buffer ) ) { ImageSlideDelay = atoi( buffer ) ; }
 	if( ReadParameter( INIT_SECTION, "sshversion", buffer ) ) { set_sshver( buffer ) ; }
+	
+	if( ReadParameter( INIT_SECTION, "userpasssshnosave", buffer ) ) { if( !stricmp( buffer, "NO" ) ) UserPassSSHNoSave = 1 ; }
+	
 	if( ReadParameter( INIT_SECTION, "wintitle", buffer ) ) {  if( !stricmp( buffer, "NO" ) ) TitleBarFlag = 0 ; }
 	if( ReadParameter( INIT_SECTION, "paste", buffer ) ) {  if( !stricmp( buffer, "YES" ) ) PasteCommandFlag = 1 ; }
 	
@@ -3992,13 +4101,26 @@ void LoadParameters( void ) {
 		}
 #endif
 #ifdef ZMODEMPORT
-	if( ReadParameter( INIT_SECTION, "zmodem", buffer ) ) {  if( !stricmp( buffer, "NO" ) ) ZModemFlag = 0 ; }
+	if( ReadParameter( INIT_SECTION, "zmodem", buffer ) ) { 
+		if( !stricmp( buffer, "NO" ) ) ZModemFlag = 0 ; 
+		if( !stricmp( buffer, "YES" ) ) ZModemFlag = 1 ; 
+		}
 #endif
 	}
 
 // Initialisation de noms de fichiers de configuration kitty.ini et kitty.sav
 // APPDATA = 	C:\Documents and Settings\U502190\Application Data sur XP
 //		C:\Users\Cyril\AppData\Roaming sur Vista
+//
+// En mode base de registre on cherche le fichier de configuration
+// - kitty.ini dans le répertoire de lancement de kitty.exe s'il existe
+// - sinon putty.ini dans le répertoire de lancement de kitty.exe s'il existe
+// - sinon kitty.ini dans le répertoire %APPDATA%/KiTTY s'il existe
+//
+// En mode portable on cherche le fichier de configuration
+// - kitty.ini dans le répertoire de lancement de kitty.exe s'il existe
+// - sinon putty.ini dans le répertoire de lancement de kitty.exe s'il existe
+// 
 void InitNameConfigFile( void ) {
 	char buffer[4096] ;
 	if( KittyIniFile != NULL ) free( KittyIniFile ) ; KittyIniFile=NULL ;
@@ -4103,7 +4225,20 @@ void InitWinMain( void ) {
 	appname = KiTTYClassName ;
 #endif
 
-	// Initialiste le tableau des menus
+	// Teste l'intégrité du programme
+#ifndef NO_TRANSPARENCY
+	FILE *fp = fopen( "kitty.err.log","r" ) ;
+	if( fp==NULL ) {
+		if( !CheckMD5Integrity() ) {
+			fprintf(stderr,"La signature du programme n'est pas bonne\n");
+			MessageBox( NULL, "Wrong program signature !\n\nThe program is irremediably altered.\nDownload a new version from official web site:\n", "Error", MB_OK|MB_ICONERROR ) ;
+			exit(1);
+			}
+		}
+	else { fclose( fp ) ; }
+#endif
+
+	// Initialise le tableau des menus
 	for( i=0 ; i < NB_MENU_MAX ; i++ ) SpecialMenu[i] = NULL ;
 	
 	// Test le mode de fonctionnement de la sauvegarde des sessions

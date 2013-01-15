@@ -1634,7 +1634,7 @@ void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
 	    editbutton(&pos, escaped, base_id, base_id+1,
 		       "Bro&wse...", base_id+2);
 #ifndef ZMODEMPORT
-	    shortcuts[nshortcuts++] = 'w';
+	    if(get_param( "ZMODEM" )) shortcuts[nshortcuts++] = 'w';
 #endif
 	    sfree(escaped);
 	    break;

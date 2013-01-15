@@ -247,7 +247,7 @@ else
 			sfree(cygwinBinPath);
 		}
 	}
-//MessageBox( NULL, cmdline, "Command", MB_OK);
+// MessageBox( NULL, cmdline, "Command", MB_OK);
 	
 	cygterm_debug("starting cthelper: %s", cmdline);
 	{ char buffer[1024] ; sprintf( buffer,"starting cthelper: %s", cmdline ) ; logevent( NULL,buffer ) ; }

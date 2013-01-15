@@ -33,6 +33,14 @@ void SetPasswordInConfig( char * password ) {
 		if( len > 126 ) len = 126 ;
 		}
 	}
+	
+void SetUsernameInConfig( char * username ) {
+	int len ;
+	if( username!=NULL ) {
+		len = strlen( username ) ;
+		if( len > 126 ) len = 126 ;
+		}
+	}
 #endif
 
 char *get_ttymode(void *frontend, const char *mode) { return NULL; }

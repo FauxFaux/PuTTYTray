@@ -198,6 +198,7 @@
 #define WINHELP_CTX_connection_class "connection.class:config-class"
 #define WINHELP_CTX_scriptfile "connection.scriptfile:config-scriptfile"
 #define WINHELP_CTX_logging_logtimestamp "connection.logging.logtimestamp"
+#define WINHELP_CTX_bell_foregroundonbell "bell.foregroundonbell:config-foregroundonbell"
 #endif
 
 #if (defined IMAGEPORT) && (!defined FDJ)

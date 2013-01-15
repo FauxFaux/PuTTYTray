@@ -1,17 +1,5 @@
 #include "kitty_tools.h"
 
-int strgrep( const char * pattern, const char * str ) {
-	int return_code = 1 ;
-	regex_t preg ;
-
-	if( (return_code = regcomp (&preg, pattern, REG_NOSUB | REG_EXTENDED ) ) == 0 ) {
-		return_code = regexec( &preg, str, 0, NULL, 0 ) ;
-		regfree( &preg ) ;
-		}
-
-	return return_code ;
-	}
-
 char *stristr (const char *meule_de_foin, const char *aiguille) {
 	char *c1, *c2, *res = NULL ; int i ;
 	c1=(char*)malloc( strlen(meule_de_foin) + 1 ) ; strcpy( c1, meule_de_foin ) ;
@@ -69,6 +57,16 @@ int poss( const char * c, const char * ch ) {
 	free( ch1 ) ;
 	free( c1 ) ;
 	return res ; 
+	}
+	
+/* Fonction permettant de retrouver la position d'une chaîne de caracteres dans une chaine a partir d'une position donnee */
+int posi( const char * c, const char * ch, const int ipos ) {
+	int res ;
+	if( ( c == NULL ) || ( ch == NULL ) ) return -1 ;
+	if( ( ipos <= 0 ) || ( (size_t) ipos > strlen( ch ) ) ) return 0 ;
+	res = poss( c, ch + ( ipos - 1 ) ) ;
+	if( res > 0 ) return res + ( ipos -1 ) ;
+	else return 0 ;
 	}
 
 // Teste l'existance d'un fichier

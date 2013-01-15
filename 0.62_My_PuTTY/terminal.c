@@ -11,6 +11,14 @@
 #include "putty.h"
 #include "terminal.h"
 
+#ifdef EXTENDEDMOUSEPORT
+#include "charset.h"
+#include "SBCS.C"
+#include "UTF8.C"
+#include "SBCSDAT.C"
+#include "FROMUCS.C"
+#include "SLOOKUP.C"
+#endif
 #ifdef PERSOPORT
 int get_param( const char * val ) ;
 #endif
@@ -1239,6 +1247,10 @@ static void power_on(Terminal *term, int clear)
     term->alt_which = 0;
     term_print_finish(term);
     term->xterm_mouse = 0;
+#ifdef EXTENDEDMOUSEPORT
+	term->xterm_extended_mouse = 0;
+	term->urxvt_extended_mouse = 0;
+#endif
     set_raw_mouse_mode(term->frontend, FALSE);
     {
 	int i;
@@ -2422,6 +2434,14 @@ static void toggle_mode(Terminal *term, int mode, int query, int state)
 	    term->xterm_mouse = state ? 2 : 0;
 	    set_raw_mouse_mode(term->frontend, state);
 	    break;
+#ifdef EXTENDEDMOUSEPORT
+	  case 1006:		       /* xterm extended mouse */
+	    term->xterm_extended_mouse = state ? 1 : 0;
+	    break;
+	  case 1015:		       /* urxvt extended mouse */
+	    term->urxvt_extended_mouse = state ? 1 : 0;
+	    break;
+#endif
 	  case 1047:                   /* alternate screen */
 	    compatibility(OTHER);
 	    deselect(term);
@@ -5819,11 +5839,33 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
     if (raw_mouse &&
 	(term->selstate != ABOUT_TO) && (term->selstate != DRAGGING)) {
 	int encstate = 0, r, c;
+#ifdef EXTENDEDMOUSEPORT
+	char abuf[32];
+	int len = 0;
+#else
 	char abuf[16];
+#endif
 
 	if (term->ldisc) {
 
 	    switch (braw) {
+#ifdef EXTENDEDMOUSEPORT
+	      case MBT_LEFT:
+		encstate = 0x00;	       /* left button down */
+		break;
+	      case MBT_MIDDLE:
+		encstate = 0x01;
+		break;
+	      case MBT_RIGHT:
+		encstate = 0x02;
+		break;
+	      case MBT_WHEEL_UP:
+		encstate = 0x40;
+		break;
+	      case MBT_WHEEL_DOWN:
+		encstate = 0x41;
+		break;
+#else
 	      case MBT_LEFT:
 		encstate = 0x20;	       /* left button down */
 		break;
@@ -5839,6 +5881,7 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 	      case MBT_WHEEL_DOWN:
 		encstate = 0x61;
 		break;
+#endif
 	      default: break;	       /* placate gcc warning about enum use */
 	    }
 	    switch (a) {
@@ -5855,7 +5898,14 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 		encstate += 0x20;
 		break;
 	      case MA_RELEASE:
+#ifdef EXTENDEDMOUSEPORT
+		/* If multiple extensions are enabled, the xterm 1006 is used, so it's okay to check for only that */
+		if (!term->xterm_extended_mouse)
+		    encstate = 0x03;
+	        else
+#endif
 		encstate = 0x23;
+
 		term->mouse_is_down = 0;
 		break;
 	      case MA_CLICK:
@@ -5876,11 +5926,25 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 		encstate += 0x04;
 	    if (ctrl)
 		encstate += 0x10;
+#ifdef EXTENDEDMOUSEPORT
+	    r = y + 1;
+	    c = x + 1;
+	    /* Check the extensions in decreasing order of preference. Encoding the release event above assumes that 1006 comes first. */
+	    if (term->xterm_extended_mouse) {
+		len = sprintf(abuf, "\033[<%d;%d;%d%c", encstate, c, r, a == MA_RELEASE ? 'm' : 'M');
+	    } else if (term->urxvt_extended_mouse) {
+		len = sprintf(abuf, "\033[%d;%d;%dM", encstate + 32, c, r);
+	    } else if (c <= 223 && r <= 223) {
+		len = sprintf(abuf, "\033[M%c%c%c", encstate + 32, c + 32, r + 32);
+	    }
+	    if (len > 0) ldisc_send(term->ldisc, abuf, len, 0);
+#else
 	    r = y + 33;
 	    c = x + 33;
 
 	    sprintf(abuf, "\033[M%c%c%c", encstate, c, r);
 	    ldisc_send(term->ldisc, abuf, 6, 0);
+#endif
 	}
 #ifdef HYPERLINKPORT
 	unlineptr(ldata); // HACK: ADDED FOR hyperlink stuff
@@ -6611,12 +6675,10 @@ int term_ldisc(Terminal *term, int option)
 int term_data(Terminal *term, int is_stderr, const char *data, int len)
 {
 #ifdef ZMODEMPORT
-	if (term->xyz_transfering && !is_stderr)
-    {
-	return xyz_ReceiveData(term, data, len);
-    }
-    else
-    {
+	if ( get_param( "ZMODEM" ) && term->xyz_transfering && !is_stderr)
+		{ return xyz_ReceiveData(term, data, len) ; }
+	else
+	{
 #endif
     bufchain_add(&term->inbuf, data, len);
 

@@ -152,6 +152,10 @@ struct terminal_tag {
     int big_cursor;
 
     int xterm_mouse;		       /* send mouse messages to host */
+#ifdef EXTENDEDMOUSEPORT
+    int xterm_extended_mouse;
+    int urxvt_extended_mouse;
+#endif
     int mouse_is_down;		       /* used while tracking mouse buttons */
 
     int cset_attr[2];

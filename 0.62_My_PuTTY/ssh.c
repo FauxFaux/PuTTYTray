@@ -206,6 +206,7 @@ static const char *const ssh2_disconnect_reasons[] = {
 #ifdef PERSOPORT
 int stricmp(const char *s1, const char *s2) ;
 void SetPasswordInConfig( char * password ) ;
+void SetUsernameInConfig( char * username ) ;
 char * ManagePassPhrase( const char * st ) ;
 void MASKPASS( char * password ) ;
 void SetSSHConnected( void ) ;
@@ -3523,6 +3524,9 @@ static int do_ssh1_login(Ssh ssh, unsigned char *in, int inlen,
 	    }
 	    memcpy(s->username, s->cur_prompt->prompts[0]->result,
 		   lenof(s->username));
+#ifdef PERSOPORT
+	SetUsernameInConfig( s->username ) ;
+#endif
 	    free_prompts(s->cur_prompt);
 	}
 
@@ -7657,6 +7661,9 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 	    }
 	    memcpy(s->username, s->cur_prompt->prompts[0]->result,
 		   lenof(s->username));
+#ifdef PERSOPORT
+	SetUsernameInConfig( s->username ) ;
+#endif
 	    free_prompts(s->cur_prompt);
 	} else {
 	    char *stuff;

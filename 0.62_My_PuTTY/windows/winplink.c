@@ -36,6 +36,14 @@ void SetPasswordInConfig( char * password ) {
 		if( len > 126 ) len = 126 ;
 		}
 	}
+
+void SetUsernameInConfig( char * username ) {
+	int len ;
+	if( username!=NULL ) {
+		len = strlen( username ) ;
+		if( len > 126 ) len = 126 ;
+		}
+	}
 #endif
 
 #define WM_AGENT_CALLBACK (WM_APP + 4)

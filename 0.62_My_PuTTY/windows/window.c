@@ -528,6 +528,11 @@ InitWinMain();
 			i++ ;
 			strcpy( cfg.password, argv[i] ) ;
 			memset( argv[i], 0, strlen(argv[i]) ) ;
+		} else if( !strcmp(p, "-cc") ) {
+			strcpy( cfg.host, "cmd.exe /k" ) ;
+			cfg.port = 0 ;
+			cfg.protocol = PROT_CYGTERM ;
+			got_host = 1 ;
 		} else if( !strcmp(p, "-cmd") ) {
 			i++ ;
 			strcpy( cfg.autocommand, argv[i] ) ;
@@ -802,7 +807,6 @@ InitWinMain();
 
 	if (loaded_session || got_host)
 	    allow_launch = TRUE;
-
 	if ((!allow_launch || !cfg_launchable(&cfg)) && !do_config()) {
 	    cleanup_exit(0);
 	}
@@ -1209,7 +1213,10 @@ TrayIcone.hWnd = hwnd ;
 			}
 
 		// Lancement du rafraichissement toutes les 10 secondes (pour l'image de fond, pour pallier bug d'affichage)
-		SetTimer(hwnd, TIMER_REDRAW, (int)(10*1000), NULL) ;
+		if( ReadParameter( INIT_SECTION, "redraw", reg_buffer ) ) {
+			if( stricmp( reg_buffer, "NO" ) ) SetTimer(hwnd, TIMER_REDRAW, (int)(10*1000), NULL) ;
+			}
+		else SetTimer(hwnd, TIMER_REDRAW, (int)(10*1000), NULL) ;
 #endif
 			
 		} // fin de if( !PuttyFlag )
@@ -1270,7 +1277,7 @@ TrayIcone.hWnd = hwnd ;
 		close_session();
 #endif
 #ifdef ZMODEMPORT
-	     continue;
+	     if( ZModemFlag ) continue;
 #endif
 
 	} else
@@ -1285,7 +1292,7 @@ TrayIcone.hWnd = hwnd ;
 	    /* Send the paste buffer if there's anything to send */
 	    term_paste(term);
 #ifdef ZMODEMPORT
-	    	    if (xyz_Process(back, backhandle, term))
+	    	    if (ZModemFlag && xyz_Process(back, backhandle, term))
 		    continue;
 #endif
 	    /* If there's nothing new in the queue then we can do everything
@@ -2553,6 +2560,10 @@ else if((UINT_PTR)wParam == TIMER_INIT) {  // Initialisation
 		SetTimer(hwnd, TIMER_AUTOCOMMAND, (int)(autocommand_delay*1000), NULL) ;
 		logevent(NULL, "Send automatic command" );
 		}
+	if( cfg.logtimerotation > 0 ) {
+		SetTimer(hwnd, TIMER_LOGROTATION, (int)(cfg.logtimerotation*1000), NULL) ;
+		logevent(NULL, "Start log rotation" );
+		}
 
 	RefreshBackground( hwnd ) ;
 	}
@@ -2633,7 +2644,7 @@ else if((UINT_PTR)wParam == TIMER_REDRAW) {  // rafraichissement automatique (bu
 		else if( strlen( AntiIdleStr ) > 0 ) SendAutoCommand( hwnd, AntiIdleStr ) ;
 		}
 	}
-else if((UINT_PTR)wParam == TIMER_BLINKTRAYICON) {  // Clignotement de l'icone dans le systeme tray sur reception d'un signal BELL
+else if((UINT_PTR)wParam == TIMER_BLINKTRAYICON) {  // Clignotement de l'icone dans le systeme tray sur reception d'un signal BELL (print '\007' pour simuler)
 	static int BlinkingState = 0 ;
 	static hBlinkingIcon = NULL ; 
 
@@ -2652,6 +2663,9 @@ else if((UINT_PTR)wParam == TIMER_BLINKTRAYICON) {  // Clignotement de l'icone d
 			BlinkingState = 0 ;
 			}
 		}
+	}
+else if((UINT_PTR)wParam == TIMER_LOGROTATION) {  // log rotation
+	timestamp_change_filename() ;
 	}
 #endif
 	return 0;
@@ -3286,7 +3300,8 @@ else if((UINT_PTR)wParam == TIMER_BLINKTRAYICON) {  // Clignotement de l'icone d
 #ifdef PERSOPORT
         if(!PuttyFlag) {
 	if((message == WM_LBUTTONUP) && ((wParam & MK_SHIFT)&&(wParam & MK_CONTROL) ) ) { // shift + CTRL + bouton gauche => duplicate session
-		SendMessage( hwnd, WM_COMMAND, IDM_DUPSESS, 0 ) ; 
+		if( back ) SendMessage( hwnd, WM_COMMAND, IDM_DUPSESS, 0 ) ;
+		else SendMessage( hwnd, WM_COMMAND, IDM_RESTART, 0 ) ;
 		break ;
 		}
 
@@ -6857,8 +6872,23 @@ void do_beep(void *frontend, int mode)
     /* Otherwise, either visual bell or disabled; do nothing here */
     if (!term->has_focus) {
 #ifdef PERSOPORT
-	if( VisibleFlag==VISIBLE_TRAY ) {
-		SetTimer(hwnd, TIMER_BLINKTRAYICON, (int)500, NULL) ;
+	if( VisibleFlag!=VISIBLE_TRAY ) {
+		if( cfg.foreground_on_bell ) {					// Tester avec   sleep 4 ; echo -e '\a'
+			if( IsIconic(hwnd) ) SwitchToThisWindow( hwnd, TRUE ) ; 
+			else SetForegroundWindow( MainHwnd ) ;
+			}
+		else { 
+			//if( IsIconic(hwnd) && (mode == BELL_VISUAL) ) 
+			if( mode == BELL_VISUAL ) {
+				if( IsIconic(hwnd) ) 
+					FlashWindow(hwnd, TRUE) ;
+				else 
+					flash_window(2) ; 
+				}
+			}
+	} else if( VisibleFlag==VISIBLE_TRAY ) {
+		if( cfg.foreground_on_bell ) { SendMessage( MainHwnd, WM_COMMAND, IDM_FROMTRAY, 0 ); }
+		else if(mode == BELL_VISUAL) SetTimer(hwnd, TIMER_BLINKTRAYICON, (int)500, NULL) ;
 		//SendMessage( MainHwnd, WM_COMMAND, IDM_FROMTRAY, 0 );
 		//flash_window(2);	       /* start */
 	    	//ShowWindow( MainHwnd, SW_MINIMIZE);

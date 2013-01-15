@@ -617,6 +617,7 @@ void save_open_settings(void *sesskey, Config *cfg)
     write_setting_filename(sesskey, "Scriptfile", cfg->scriptfile);
     write_setting_s(sesskey, "AntiIdle", cfg->antiidle);
     write_setting_s(sesskey, "LogTimestamp", cfg->logtimestamp);
+    write_setting_i(sesskey, "LogTimeRotation", cfg->logtimerotation) ;
     write_setting_s(sesskey, "AutocommandOut", cfg->autocommandout);
     write_setting_s(sesskey, "Autocommand", cfg->autocommand);
     write_setting_s(sesskey, "Folder", cfg->folder) ;
@@ -624,6 +625,7 @@ void save_open_settings(void *sesskey, Config *cfg)
     write_setting_i(sesskey, "TermYPos", cfg->ypos) ;
     write_setting_i(sesskey, "WindowState", cfg->windowstate) ;
     write_setting_i(sesskey, "SaveWindowPos", cfg->save_windowpos); /* BKG */
+    write_setting_i(sesskey, "ForegroundOnBell", cfg->foreground_on_bell);
 #endif
 #ifdef ZMODEMPORT
     write_setting_s(sesskey, "rzCommand", cfg->rzcommand);
@@ -1046,6 +1048,7 @@ void load_open_settings(void *sesskey, Config *cfg)
     gpps(sesskey, "AutocommandOut", "", cfg->autocommandout, sizeof(cfg->autocommandout));
     gpps(sesskey, "AntiIdle", "", cfg->antiidle, sizeof(cfg->antiidle));
     gpps(sesskey, "LogTimestamp", "", cfg->logtimestamp, sizeof(cfg->logtimestamp));
+    gppi(sesskey, "LogTimeRotation", 0, &cfg->logtimerotation);
 
     gppfile(sesskey, "Scriptfile", &cfg->scriptfile);
 	
@@ -1053,6 +1056,7 @@ void load_open_settings(void *sesskey, Config *cfg)
     gppi(sesskey, "TermYPos", -1, &cfg->ypos);
     gppi(sesskey, "WindowState", 0, &cfg->windowstate);
     gppi(sesskey, "SaveWindowPos", 0, &cfg->save_windowpos); /* BKG */
+    gppi(sesskey, "ForegroundOnBell", 0, &cfg->foreground_on_bell);
 #endif
 #ifdef RECONNECTPORT
     gppi(sesskey, "WakeupReconnect", 0, &cfg->wakeup_reconnect);

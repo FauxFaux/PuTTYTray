@@ -176,10 +176,15 @@ HMENU InitLauncherMenu( char * Key ) {
 				CheckMenuItem( HideMenu, IDM_GOHIDE+i, MF_BYCOMMAND | MF_UNCHECKED) ;
 			}
 		}
+	AppendMenu( HideMenu, MF_SEPARATOR, 0, 0 ) ;
+	AppendMenu( HideMenu, MF_ENABLED, IDM_ABOUT, "&About" ) ;
+	AppendMenu( HideMenu, MF_ENABLED, IDM_QUIT, "&Quit" ) ;
+
 	
 	AppendMenu( menu, MF_POPUP, (UINT_PTR)HideMenu, "&Opened sessions" ) ;
 	AppendMenu( menu, MF_SEPARATOR, 0, 0 ) ;
 	
+	AppendMenu( menu, MF_ENABLED, IDM_LAUNCHER+7, "&Refresh" ) ;
 	AppendMenu( menu, MF_ENABLED, IDM_LAUNCHER+1, "&Configuration" ) ;
 	AppendMenu( menu, MF_ENABLED, IDM_LAUNCHER+2, "&TTY-ed" ) ;
 	AppendMenu( menu, MF_SEPARATOR, 0, 0 ) ;
@@ -730,7 +735,7 @@ LRESULT CALLBACK Launcher_WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		case WM_COMMAND: {//Commandes du menu
 			switch( LOWORD(wParam) ) {
 				case IDM_ABOUT:
-					MessageBox(hwnd,"     TTY Launcher\nSession launcher for TTY terminal emulator\n(c)bis, 2009/2011","About", MB_OK ) ;
+					MessageBox(hwnd,"     TTY Launcher\nSession launcher for TTY terminal emulator\n(c), 2009/2011","About", MB_OK ) ;
 					break ;
 				case IDM_QUIT:
 					ResShell = Shell_NotifyIcon(NIM_DELETE, &TrayIcone) ;
@@ -764,6 +769,10 @@ LRESULT CALLBACK Launcher_WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 					break ;
 				case IDM_LAUNCHER+6:
 					IsUnique = abs( IsUnique -1 ) ;
+					RefreshMenuLauncher() ;
+					break ;
+				case IDM_LAUNCHER+7:
+					if( LauncherConfReload ) InitLauncherRegistry() ;
 					RefreshMenuLauncher() ;
 					break ;
 				case IDM_GONEXT:

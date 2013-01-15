@@ -6,10 +6,8 @@
 #include <windows.h>
 #include <sys/stat.h>
 #include <ctype.h>
-#include "regex.h"
 
 // Procedures de traitement de chaines
-int strgrep( const char * pattern, const char * str ) ;
 int stricmp(const char *s1, const char *s2) ;
 
 char *stristr (const char *meule_de_foin, const char *aiguille) ;
@@ -22,6 +20,9 @@ int del( char * ch, const int start, const int length ) ;
 
 /* Fonction permettant de retrouver la position d'une chaine dans une autre chaine */
 int poss( const char * c, const char * ch ) ;
+
+/* Fonction permettant de retrouver la position d'une chaîne de caracteres dans une chaine a partir d'une position donnee */
+int posi( const char * c, const char * ch, const int ipos ) ;
 
 // Teste l'existance d'un fichier
 int existfile( const char * filename ) ;
