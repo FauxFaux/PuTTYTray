@@ -414,12 +414,18 @@ int main(int argc, char **argv)
 			Config cfg2;
 			do_defaults(host, &cfg2);
 			if (loaded_session || !cfg_launchable(&cfg2)) {
-			    /* No settings for this host; use defaults */
-			    /* (or session was already loaded with -load) */
-			    strncpy(cfg.host, host, sizeof(cfg.host) - 1);
-			    cfg.host[sizeof(cfg.host) - 1] = '\0';
-			    cfg.port = default_port;
-			    got_host = TRUE;
+                            do_defaults_file(host, &cfg2);
+                            if (!cfg_launchable(&cfg2)) {
+                                /* No settings for this host; use defaults */
+                                /* (or session was already loaded with -load) */
+                                strncpy(cfg.host, host, sizeof(cfg.host) - 1);
+                                cfg.host[sizeof(cfg.host) - 1] = '\0';
+                                cfg.port = default_port;
+                                got_host = TRUE;
+                            } else {
+                                cfg = cfg2;
+                                loaded_session = TRUE;                                
+                            }
 			} else {
 			    cfg = cfg2;
 			    loaded_session = TRUE;
