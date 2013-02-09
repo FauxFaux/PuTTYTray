@@ -1551,9 +1551,9 @@ static int cmpkeys_ssh2_asymm(void *av, void *bv)
 static int cmpkeys_lazy(void *av, void *bv) {
     struct lazy_key_t *a = (struct lazy_key_t *) av;
     struct lazy_key_t *b = (struct lazy_key_t *) bv;
-    if (a->pubkeylen == b->pubkeylen)
-        return memcmp(a->pubkey, b->pubkey, a->pubkeylen);
-    return a->pubkeylen - b->pubkeylen;
+    if (a->pubkey_len == b->pubkey_len)
+        return memcmp(a->pubkey, b->pubkey, a->pubkey_len);
+    return a->pubkey_len - b->pubkey_len;
 }
 
 /*
