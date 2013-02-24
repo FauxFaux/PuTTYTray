@@ -61,7 +61,7 @@ static void window_icon_handler(union control *ctrl, void *dlg, void *data, int 
 				sprintf(buf, "%s", iname);
 			}
 			dlg_icon_set((union control *) ctrl->button.context.p, dlg, buf);
-			conf_set_filename(cfg, CONF_win_icon, filename_from_str(buf));
+			conf_set_filename(conf, CONF_win_icon, filename_from_str(buf));
 		};
 	};
 };
