@@ -1,0 +1,1 @@
+nmake /F Makefile.vc clean
