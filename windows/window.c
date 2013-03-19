@@ -1066,7 +1066,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 /*
  * Clean up and exit.
  */
-void cleanup_exit(int code)
+static void cleanup_exit(int code)
 {
     /* HACK: PuttyTray 
      * Remove trayicon on close 
