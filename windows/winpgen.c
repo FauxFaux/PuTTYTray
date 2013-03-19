@@ -24,6 +24,7 @@
 
 static char *cmdline_keyfile = NULL;
 
+#ifndef FATTY
 /*
  * Print a modal (Really Bad) message box and perform a fatal exit.
  */
@@ -40,6 +41,7 @@ void modalfatalbox(char *fmt, ...)
     sfree(stuff);
     exit(1);
 }
+#endif
 
 /* ----------------------------------------------------------------------
  * Progress report code. This is really horrible :-)
@@ -1394,13 +1396,19 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
     return 0;
 }
 
-void cleanup_exit(int code)
+static void cleanup_exit(int code)
 {
     shutdown_help();
     exit(code);
 }
 
-int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+int
+#ifdef FATTY
+    winfatgen
+#else
+    WINAPI WinMain
+#endif
+(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
     int argc;
     char **argv;

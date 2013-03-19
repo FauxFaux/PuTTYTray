@@ -5,6 +5,9 @@
 
 #include "win_res.rc2"
 
+#define FATTY
+#include "puttygen.rc"
+
 #ifndef NO_MANIFESTS
 #ifndef _WIN64
 1 RT_MANIFEST "putty.mft"

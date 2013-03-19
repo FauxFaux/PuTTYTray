@@ -4,8 +4,10 @@
 
 #include "rcstuff.h"
 
+#ifndef FATTY
 #define APPNAME "PuTTYgen"
 #define APPDESC "PuTTY SSH key generation utility"
+#endif
 
 800 ICON "puttygen.ico"
 
@@ -81,6 +83,7 @@ BEGIN
 
 END
 
+#ifndef FATTY
 #include "version.rc2"
 
 #ifndef NO_MANIFESTS
@@ -90,3 +93,4 @@ END
 1 RT_MANIFEST "puttygen64.mft"
 #endif
 #endif /* NO_MANIFESTS */
+#endif

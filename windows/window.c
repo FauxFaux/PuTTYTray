@@ -428,6 +428,11 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     HRESULT hr;
     int guess_width, guess_height;
 
+#   define AS_GEN_LEN 8
+    if (!strncmp(cmdline, "--as-gen", AS_GEN_LEN)) {
+        return winfatgen(inst, prev, cmdline+AS_GEN_LEN, show);
+    }
+
     hinst = inst;
     hwnd = NULL;
     flags = FLAG_VERBOSE | FLAG_INTERACTIVE;
