@@ -433,6 +433,12 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
         return winfatgen(inst, prev, cmdline+AS_GEN_LEN, show);
     }
 
+#   define AS_AGENT_LEN 10
+    if (!strncmp(cmdline, "--as-agent", AS_GEN_LEN)) {
+        return winfatagent(inst, prev, cmdline+AS_AGENT_LEN, show);
+    }
+
+    
     hinst = inst;
     hwnd = NULL;
     flags = FLAG_VERBOSE | FLAG_INTERACTIVE;

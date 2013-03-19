@@ -4,12 +4,14 @@
 
 #include "rcstuff.h"
 
+#ifndef FATTY
 #define APPNAME "Pageant"
 #define APPDESC "PuTTY SSH authentication agent"
+#endif
 
-200 ICON "pageant.ico"
+900 ICON "pageant.ico"
 
-210 DIALOG DISCARDABLE 0, 0, 140, 60
+910 DIALOG DISCARDABLE 0, 0, 140, 60
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Pageant: Enter Passphrase"
 FONT 8, "MS Shell Dlg"
@@ -21,7 +23,7 @@ BEGIN
     PUSHBUTTON "&Cancel", IDCANCEL, 80, 42, 40, 14
 END
 
-211 DIALOG DISCARDABLE 0, 0, 330, 200
+911 DIALOG DISCARDABLE 0, 0, 330, 200
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Pageant Key List"
 FONT 8, "MS Shell Dlg"
@@ -35,7 +37,7 @@ BEGIN
 END
 
 /* Accelerators used: cl */
-213 DIALOG DISCARDABLE 140, 40, 136, 70
+913 DIALOG DISCARDABLE 140, 40, 136, 70
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About Pageant"
 FONT 8, "MS Shell Dlg"
@@ -49,7 +51,7 @@ BEGIN
 END
 
 /* No accelerators used */
-214 DIALOG DISCARDABLE 50, 50, 226, 263
+914 DIALOG DISCARDABLE 50, 50, 226, 263
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "PuTTY Licence"
 FONT 8, "MS Shell Dlg"
@@ -87,6 +89,7 @@ BEGIN
 
 END
 
+#ifndef FATTY
 #include "version.rc2"
 
 #ifndef NO_MANIFESTS
@@ -96,3 +99,4 @@ END
 1 RT_MANIFEST "pageant64.mft"
 #endif
 #endif /* NO_MANIFESTS */
+#endif

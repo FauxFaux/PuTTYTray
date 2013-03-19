@@ -25,7 +25,7 @@
 #endif
 #endif
 
-#define IDI_MAINICON 200
+#define IDI_MAINICON 900
 
 #define WM_SYSTRAY   (WM_APP + 6)
 #define WM_SYSTRAY2  (WM_APP + 7)
@@ -69,6 +69,7 @@ static filereq *keypath = NULL;
 #define PUTTY_DEFAULT     "Default%20Settings"
 static int initial_menuitems_count;
 
+#ifndef FATTY
 /*
  * Print a modal (Really Bad) message box and perform a fatal exit.
  */
@@ -85,6 +86,7 @@ void modalfatalbox(char *fmt, ...)
     sfree(buf);
     exit(1);
 }
+#endif
 
 /* Un-munge session names out of the registry. */
 static void unmungestr(char *in, char *out, int outlen)
@@ -140,7 +142,7 @@ static void *get_keylist2(int *length);
  * won't generate true random numbers. So we must scream, panic,
  * and exit immediately if that should happen.
  */
-int random_byte(void)
+static int random_byte(void)
 {
     MessageBox(hwnd, "Internal Error", APPNAME, MB_OK | MB_ICONERROR);
     exit(0);
@@ -222,7 +224,7 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 	    return 0;
 	  case 101:
 	    EnableWindow(hwnd, 0);
-	    DialogBox(hinst, MAKEINTRESOURCE(214), hwnd, LicenceProc);
+	    DialogBox(hinst, MAKEINTRESOURCE(914), hwnd, LicenceProc);
 	    EnableWindow(hwnd, 1);
 	    SetActiveWindow(hwnd);
 	    return 0;
@@ -305,7 +307,7 @@ static int CALLBACK PassphraseProc(HWND hwnd, UINT msg,
 /*
  * Warn about the obsolescent key file format.
  */
-void old_keyfile_warning(void)
+static void old_keyfile_warning(void)
 {
     static const char mbtitle[] = "PuTTY Key File Warning";
     static const char message[] =
@@ -538,7 +540,7 @@ static void add_keyfile(Filename *filename)
                 pps.comment = comment;
 
 		original_pass = 1;
-		dlgret = DialogBoxParam(hinst, MAKEINTRESOURCE(210),
+		dlgret = DialogBoxParam(hinst, MAKEINTRESOURCE(910),
 					NULL, PassphraseProc, (LPARAM) &pps);
 		passphrase_box = NULL;
 		if (!dlgret) {
@@ -1630,7 +1632,7 @@ static BOOL AddTrayIcon(HWND hwnd)
     tnid.uID = 1;	       /* unique within this systray use */
     tnid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
     tnid.uCallbackMessage = WM_SYSTRAY;
-    tnid.hIcon = hicon = LoadIcon(hinst, MAKEINTRESOURCE(200));
+    tnid.hIcon = hicon = LoadIcon(hinst, MAKEINTRESOURCE(900));
     strcpy(tnid.szTip, "Pageant (PuTTY authentication agent)");
 
     res = Shell_NotifyIcon(NIM_ADD, &tnid);
@@ -1820,7 +1822,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    break;
 	  case IDM_VIEWKEYS:
 	    if (!keylist) {
-		keylist = CreateDialog(hinst, MAKEINTRESOURCE(211),
+		keylist = CreateDialog(hinst, MAKEINTRESOURCE(911),
 				       NULL, KeyListProc);
 		ShowWindow(keylist, SW_SHOWNORMAL);
 	    }
@@ -1845,7 +1847,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    break;
 	  case IDM_ABOUT:
 	    if (!aboutbox) {
-		aboutbox = CreateDialog(hinst, MAKEINTRESOURCE(213),
+		aboutbox = CreateDialog(hinst, MAKEINTRESOURCE(913),
 					NULL, AboutProc);
 		ShowWindow(aboutbox, SW_SHOWNORMAL);
 		/* 
@@ -2012,7 +2014,7 @@ void spawn_cmd(char *cmdline, char * args, int show)
  * This is a can't-happen stub, since Pageant never makes
  * asynchronous agent requests.
  */
-void agent_schedule_callback(void (*callback)(void *, void *, int),
+static void agent_schedule_callback(void (*callback)(void *, void *, int),
 			     void *callback_ctx, void *data, int len)
 {
     assert(!"We shouldn't get here");
@@ -2026,7 +2028,13 @@ void cleanup_exit(int code)
 
 int flags = FLAG_SYNCAGENT;
 
-int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+int 
+#ifdef FATTY
+    winfatagent
+#else
+    WINAPI WinMain
+#endif
+(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
     WNDCLASS wndclass;
     MSG msg;
