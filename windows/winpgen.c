@@ -286,7 +286,7 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 	    return 0;
 	  case 101:
 	    EnableWindow(hwnd, 0);
-	    DialogBox(hinst, MAKEINTRESOURCE(214), hwnd, LicenceProc);
+	    DialogBox(hinst, MAKEINTRESOURCE(814), hwnd, LicenceProc);
 	    EnableWindow(hwnd, 1);
 	    SetActiveWindow(hwnd);
 	    return 0;
@@ -420,7 +420,7 @@ static int save_ssh1_pubkey(char *filename, struct RSAKey *key)
 /*
  * Warn about the obsolescent key file format.
  */
-void old_keyfile_warning(void)
+static void old_keyfile_warning(void)
 {
     static const char mbtitle[] = "PuTTY Key File Warning";
     static const char message[] =
@@ -661,7 +661,7 @@ void load_key_file(HWND hwnd, struct MainDlgState *state,
             pps.passphrase = &passphrase;
             pps.comment = comment;
 	    dlgret = DialogBoxParam(hinst,
-				    MAKEINTRESOURCE(210),
+				    MAKEINTRESOURCE(810),
 				    NULL, PassphraseProc,
 				    (LPARAM) &pps);
 	    if (!dlgret) {
@@ -811,7 +811,7 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
              */
         }
 	SendMessage(hwnd, WM_SETICON, (WPARAM) ICON_BIG,
-		    (LPARAM) LoadIcon(hinst, MAKEINTRESOURCE(200)));
+		    (LPARAM) LoadIcon(hinst, MAKEINTRESOURCE(800)));
 
 	state = snew(struct MainDlgState);
 	state->generation_thread_exists = FALSE;
@@ -1028,7 +1028,7 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 	    break;
 	  case IDC_ABOUT:
 	    EnableWindow(hwnd, 0);
-	    DialogBox(hinst, MAKEINTRESOURCE(213), hwnd, AboutProc);
+	    DialogBox(hinst, MAKEINTRESOURCE(813), hwnd, AboutProc);
 	    EnableWindow(hwnd, 1);
 	    SetActiveWindow(hwnd);
 	    return 0;
@@ -1431,7 +1431,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     }
 
     random_ref();
-    ret = DialogBox(hinst, MAKEINTRESOURCE(201), NULL, MainDlgProc) != IDOK;
+    ret = DialogBox(hinst, MAKEINTRESOURCE(801), NULL, MainDlgProc) != IDOK;
 
     cleanup_exit(ret);
     return ret;			       /* just in case optimiser complains */
