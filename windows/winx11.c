@@ -9,7 +9,9 @@
 #include "putty.h"
 #include "ssh.h"
 
-void platform_get_x11_auth(struct X11Display *disp, Conf *conf)
+void (*platform_get_x11_auth)(struct X11Display *display, Conf *);
+
+void gui_platform_get_x11_auth(struct X11Display *disp, Conf *conf)
 {
     char *xauthpath = conf_get_filename(conf, CONF_xauthfile)->path;
     if (xauthpath[0])

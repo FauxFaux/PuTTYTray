@@ -836,7 +836,7 @@ static void *sk_tcp_get_private_ptr(Socket s);
 static void sk_tcp_set_frozen(Socket s, int is_frozen);
 static const char *sk_tcp_socket_error(Socket s);
 
-extern char *do_select(SOCKET skt, int startup);
+char *(*do_select)(SOCKET skt, int startup);
 
 Socket sk_register(void *sock, Plug plug)
 {
@@ -1359,7 +1359,6 @@ int sk_getport(Socket sock)
 
 static void sk_tcp_close(Socket sock)
 {
-    extern char *do_select(SOCKET skt, int startup);
     Actual_Socket s = (Actual_Socket) sock;
 
     if (s->child)

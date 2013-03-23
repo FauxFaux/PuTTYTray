@@ -405,7 +405,7 @@ extern void x11_unthrottle(Socket s);
 extern void x11_override_throttle(Socket s, int enable);
 char *x11_display(const char *display);
 /* Platform-dependent X11 functions */
-extern void platform_get_x11_auth(struct X11Display *display, Conf *);
+extern void (*platform_get_x11_auth)(struct X11Display *display, Conf *);
     /* examine a mostly-filled-in X11Display and fill in localauth* */
 extern const int platform_uses_x11_unix_by_default;
     /* choose default X transport in the absence of a specified one */

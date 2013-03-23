@@ -7,14 +7,18 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
+#ifndef FATTY
 #include "putty.h"
 #include "storage.h"
 #include "ssh.h"
+#endif
+
 
 int console_batch_mode = FALSE;
 
 static void *console_logctx = NULL;
 
+#ifndef FATTY
 /*
  * Clean up and exit.
  */
@@ -286,16 +290,19 @@ void pgp_fingerprints(void)
 	  "PuTTY Master Key (DSA), 1024-bit:\n"
 	  "  " PGP_DSA_MASTER_KEY_FP "\n", stdout);
 }
+#endif
 
 void console_provide_logctx(void *logctx)
 {
     console_logctx = logctx;
 }
 
+#ifndef FATTY
 void logevent(void *frontend, const char *string)
 {
     log_eventlog(console_logctx, string);
 }
+#endif
 
 static void console_data_untrusted(HANDLE hout, const char *data, int len)
 {
@@ -419,6 +426,7 @@ int console_get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
     return 1; /* success */
 }
 
+#ifndef FATTY
 void frontend_keypress(void *handle)
 {
     /*
@@ -426,3 +434,4 @@ void frontend_keypress(void *handle)
      */
     return;
 }
+#endif

@@ -51,7 +51,7 @@ static void source(char *src);
 static void rsource(char *src);
 static void sink(char *targ, char *src);
 
-const char *const appname = "PSCP";
+static const char *const appname = "PSCP";
 
 /*
  * The maximum amount of queued data we accept before we stop and
@@ -99,7 +99,7 @@ static void tell_user(FILE * stream, char *fmt, ...)
 /*
  *  Print an error message and perform a fatal exit.
  */
-void fatalbox(char *fmt, ...)
+static void fatalbox(char *fmt, ...)
 {
     char *str, *str2;
     va_list ap;
@@ -114,7 +114,7 @@ void fatalbox(char *fmt, ...)
 
     cleanup_exit(1);
 }
-void modalfatalbox(char *fmt, ...)
+static void modalfatalbox(char *fmt, ...)
 {
     char *str, *str2;
     va_list ap;
@@ -129,7 +129,7 @@ void modalfatalbox(char *fmt, ...)
 
     cleanup_exit(1);
 }
-void connection_fatal(void *frontend, char *fmt, ...)
+static void connection_fatal(void *frontend, char *fmt, ...)
 {
     char *str, *str2;
     va_list ap;
@@ -316,6 +316,8 @@ static void bump(char *fmt, ...)
 	ssh_scp_recv((unsigned char *) &ch, 1);
     }
 
+    Sleep(500);
+    
     cleanup_exit(1);
 }
 
@@ -2227,7 +2229,7 @@ void version(void)
     cleanup_exit(1);
 }
 
-void cmdline_error(char *p, ...)
+static void cmdline_error(char *p, ...)
 {
     va_list ap;
     fprintf(stderr, "pscp: ");

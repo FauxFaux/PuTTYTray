@@ -293,7 +293,7 @@ void ldisc_update(void *frontend, int echo, int edit)
 {
 }
 
-char *get_ttymode(void *frontend, const char *mode)
+char *gui_get_ttymode(void *frontend, const char *mode)
 {
     return term_get_ttymode(term, mode);
 }
@@ -434,10 +434,27 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     }
 
 #   define AS_AGENT_LEN 10
-    if (!strncmp(cmdline, "--as-agent", AS_GEN_LEN)) {
+    if (!strncmp(cmdline, "--as-agent", AS_AGENT_LEN)) {
         return winfatagent(inst, prev, cmdline+AS_AGENT_LEN, show);
     }
 
+#   define AS_GUISCP_LEN 11
+    if (!strncmp(cmdline, "--as-guiscp", AS_GUISCP_LEN)) {
+        return winfatsftp(cmdline);
+    } else {
+        extern void (*platform_get_x11_auth)(struct X11Display *display, Conf *);
+        void gui_platform_get_x11_auth(struct X11Display *disp, Conf *conf);
+        
+        extern char *(*do_select)(SOCKET skt, int startup);
+        char *gui_do_select(SOCKET skt, int startup);
+        
+        extern int (*get_userpass_input)(prompts_t *p, unsigned char *in, int inlen);
+        int gui_get_userpass_input(prompts_t *p, unsigned char *in, int inlen);
+
+        platform_get_x11_auth = &gui_platform_get_x11_auth;
+        do_select = &gui_do_select;
+        get_userpass_input = &gui_get_userpass_input;
+    }
     
     hinst = inst;
     hwnd = NULL;
@@ -1137,7 +1154,7 @@ static void cleanup_exit(int code)
 /*
  * Set up, or shut down, an AsyncSelect. Called from winnet.c.
  */
-char *do_select(SOCKET skt, int startup)
+char *gui_do_select(SOCKET skt, int startup)
 {
     int msg, events;
     if (startup) {
@@ -6409,7 +6426,7 @@ int from_backend_eof(void *frontend)
     return TRUE;   /* do respond to incoming EOF with outgoing */
 }
 
-int get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
+int gui_get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
 {
     int ret;
     ret = cmdline_get_passwd_input(p, in, inlen);

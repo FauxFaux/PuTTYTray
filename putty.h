@@ -635,13 +635,13 @@ int from_backend_eof(void *frontend);
 void notify_remote_exit(void *frontend);
 /* Get a sensible value for a tty mode. NULL return = don't set.
  * Otherwise, returned value should be freed by caller. */
-char *get_ttymode(void *frontend, const char *mode);
+extern char *(*get_ttymode)(void *frontend, const char *mode);
 /*
  * >0 = `got all results, carry on'
  * 0  = `user cancelled' (FIXME distinguish "give up entirely" and "next auth"?)
  * <0 = `please call back later with more in/inlen'
  */
-int get_userpass_input(prompts_t *p, unsigned char *in, int inlen);
+extern int (*get_userpass_input)(prompts_t *p, unsigned char *in, int inlen);
 #define OPTIMISE_IS_SCROLL 1
 
 void set_iconic(void *frontend, int iconic);

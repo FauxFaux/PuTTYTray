@@ -273,6 +273,9 @@ static const struct {
 #define SSH2_TTY_OP_ISPEED	128
 #define SSH2_TTY_OP_OSPEED	129
 
+int (*get_userpass_input)(prompts_t *p, unsigned char *in, int inlen);
+char *(*get_ttymode)(void *frontend, const char *mode);
+
 /* Helper functions for parsing tty-related config. */
 static unsigned int ssh_tty_parse_specchar(char *s)
 {

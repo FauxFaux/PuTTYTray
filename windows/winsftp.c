@@ -9,9 +9,9 @@
 #include "ssh.h"
 #include "int64.h"
 
-char *get_ttymode(void *frontend, const char *mode) { return NULL; }
+char *sftp_get_ttymode(void *frontend, const char *mode) { return NULL; }
 
-int get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
+int sftp_get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
 {
     int ret;
     ret = cmdline_get_passwd_input(p, in, inlen);
@@ -20,11 +20,14 @@ int get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
     return ret;
 }
 
-void platform_get_x11_auth(struct X11Display *display, Conf *conf)
+void sftp_platform_get_x11_auth(struct X11Display *display, Conf *conf)
 {
     /* Do nothing, therefore no auth. */
 }
+
+#ifndef FATTY
 const int platform_uses_x11_unix_by_default = TRUE;
+#endif
 
 /* ----------------------------------------------------------------------
  * File access abstraction.
@@ -454,7 +457,7 @@ char *dir_file_cat(char *dir, char *file)
  */
 static SOCKET sftp_ssh_socket = INVALID_SOCKET;
 static HANDLE netevent = INVALID_HANDLE_VALUE;
-char *do_select(SOCKET skt, int startup)
+char *sftp_do_select(SOCKET skt, int startup)
 {
     int events;
     if (startup)
@@ -721,6 +724,7 @@ char *ssh_sftp_get_cmdline(char *prompt, int no_fds_ok)
     return ctx->line;
 }
 
+#ifndef FATTY
 /* ----------------------------------------------------------------------
  * Main program. Parse arguments etc.
  */
@@ -732,3 +736,4 @@ int main(int argc, char *argv[])
 
     return ret;
 }
+#endif
