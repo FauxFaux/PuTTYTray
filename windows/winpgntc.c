@@ -31,6 +31,9 @@ int agent_exists(void)
  */
 #ifdef WINDOWS_ASYNC_AGENT
 
+void (*agent_schedule_callback)(void (*callback)(void *, void *, int),
+			     void *callback_ctx, void *data, int len)
+
 struct agent_query_data {
     COPYDATASTRUCT cds;
     unsigned char *mapping;

@@ -625,14 +625,14 @@ void ldisc_update(void *frontend, int echo, int edit);
  * special commands changes. It does not need to invoke it at session
  * shutdown. */
 void update_specials_menu(void *frontend);
-int from_backend(void *frontend, int is_stderr, const char *data, int len);
-int from_backend_untrusted(void *frontend, const char *data, int len);
+extern int (*from_backend)(void *frontend, int is_stderr, const char *data, int len);
+extern int (*from_backend_untrusted)(void *frontend, const char *data, int len);
 /* Called when the back end wants to indicate that EOF has arrived on
  * the server-to-client stream. Returns FALSE to indicate that we
  * intend to keep the session open in the other direction, or TRUE to
  * indicate that if they're closing so are we. */
-int from_backend_eof(void *frontend);
-void notify_remote_exit(void *frontend);
+extern int (*from_backend_eof)(void *frontend);
+extern void (*notify_remote_exit)(void *frontend);
 /* Get a sensible value for a tty mode. NULL return = don't set.
  * Otherwise, returned value should be freed by caller. */
 extern char *(*get_ttymode)(void *frontend, const char *mode);
@@ -1114,7 +1114,8 @@ void cygterm_setup_config_box(struct controlbox *b, int midsession);
 void *ldisc_create(Conf *, Terminal *, Backend *, void *, void *);
 void ldisc_configure(void *, Conf *);
 void ldisc_free(void *);
-void ldisc_send(void *handle, char *buf, int len, int interactive);
+void gui_ldisc_send(void *handle, char *buf, int len, int interactive);
+extern void (*ldisc_send)(void *handle, char *buf, int len, int interactive);
 
 /*
  * Exports from ldiscucs.c.

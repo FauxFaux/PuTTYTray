@@ -41,9 +41,13 @@ void set_busy_status(void *frontend, int status)
 {
 }
 
-void notify_remote_exit(void *frontend)
+#endif
+
+void cons_notify_remote_exit(void *frontend)
 {
 }
+
+#ifndef FATTY
 
 void timer_change_notify(unsigned long next)
 {

@@ -444,16 +444,29 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     } else {
         extern void (*platform_get_x11_auth)(struct X11Display *display, Conf *);
         void gui_platform_get_x11_auth(struct X11Display *disp, Conf *conf);
-        
+
         extern char *(*do_select)(SOCKET skt, int startup);
         char *gui_do_select(SOCKET skt, int startup);
-        
+
         extern int (*get_userpass_input)(prompts_t *p, unsigned char *in, int inlen);
         int gui_get_userpass_input(prompts_t *p, unsigned char *in, int inlen);
+
+        int gui_from_backend(void *frontend, int is_stderr, const char *data, int len);
+        int gui_from_backend_untrusted(void *frontend, const char *data, int len);
+        int gui_from_backend_eof(void *frontend);
+
+        void gui_notify_remote_exit(void *fe);
 
         platform_get_x11_auth = &gui_platform_get_x11_auth;
         do_select = &gui_do_select;
         get_userpass_input = &gui_get_userpass_input;
+        ldisc_send = &gui_ldisc_send;
+
+        from_backend = &gui_from_backend;
+        from_backend_untrusted = &gui_from_backend_untrusted;
+        from_backend_eof = &gui_from_backend_eof;
+
+        notify_remote_exit = &gui_notify_remote_exit;
     }
     
     hinst = inst;
@@ -2238,7 +2251,7 @@ static int is_alt_pressed(void)
 
 static int resizing;
 
-void notify_remote_exit(void *fe)
+void gui_notify_remote_exit(void *fe)
 {
     int exitcode, close_on_exit;
 
@@ -6411,17 +6424,17 @@ void frontend_keypress(void *handle)
     return;
 }
 
-int from_backend(void *frontend, int is_stderr, const char *data, int len)
+int gui_from_backend(void *frontend, int is_stderr, const char *data, int len)
 {
     return term_data(term, is_stderr, data, len);
 }
 
-int from_backend_untrusted(void *frontend, const char *data, int len)
+int gui_from_backend_untrusted(void *frontend, const char *data, int len)
 {
     return term_data_untrusted(term, data, len);
 }
 
-int from_backend_eof(void *frontend)
+int gui_from_backend_eof(void *frontend)
 {
     return TRUE;   /* do respond to incoming EOF with outgoing */
 }
@@ -6435,7 +6448,7 @@ int gui_get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
     return ret;
 }
 
-void agent_schedule_callback(void (*callback)(void *, void *, int),
+void gui_agent_schedule_callback(void (*callback)(void *, void *, int),
 			     void *callback_ctx, void *data, int len)
 {
     struct agent_callback *c = snew(struct agent_callback);

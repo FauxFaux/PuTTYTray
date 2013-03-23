@@ -21,6 +21,8 @@
                       (ldisc->back->ldisc(ldisc->backhandle, LD_EDIT) || \
 			   term_ldisc(ldisc->term, LD_EDIT))))
 
+void (*ldisc_send)(void *handle, char *buf, int len, int interactive);
+                           
 static void c_write(Ldisc ldisc, char *buf, int len)
 {
     from_backend(ldisc->frontend, 0, buf, len);
@@ -127,7 +129,7 @@ void ldisc_free(void *handle)
     sfree(ldisc);
 }
 
-void ldisc_send(void *handle, char *buf, int len, int interactive)
+void gui_ldisc_send(void *handle, char *buf, int len, int interactive)
 {
     Ldisc ldisc = (Ldisc) handle;
     int keyflag = 0;

@@ -59,7 +59,7 @@ static const char *const appname = "PSCP";
  */
 #define MAX_SCP_BUFSIZE 16384
 
-void ldisc_send(void *handle, char *buf, int len, int interactive)
+void sftp_ldisc_send(void *handle, char *buf, int len, int interactive)
 {
     /*
      * This is only here because of the calls to ldisc_send(NULL,
@@ -149,7 +149,7 @@ static void connection_fatal(void *frontend, char *fmt, ...)
  * In pscp, all agent requests should be synchronous, so this is a
  * never-called stub.
  */
-void agent_schedule_callback(void (*callback)(void *, void *, int),
+void sftp_agent_schedule_callback(void (*callback)(void *, void *, int),
 			     void *callback_ctx, void *data, int len)
 {
     assert(!"We shouldn't be here");
@@ -168,7 +168,7 @@ static unsigned char *outptr;	       /* where to put the data */
 static unsigned outlen;		       /* how much data required */
 static unsigned char *pending = NULL;  /* any spare data */
 static unsigned pendlen = 0, pendsize = 0;	/* length and phys. size of buffer */
-int from_backend(void *frontend, int is_stderr, const char *data, int datalen)
+int sftp_from_backend(void *frontend, int is_stderr, const char *data, int datalen)
 {
     unsigned char *p = (unsigned char *) data;
     unsigned len = (unsigned) datalen;
@@ -206,7 +206,7 @@ int from_backend(void *frontend, int is_stderr, const char *data, int datalen)
 
     return 0;
 }
-int from_backend_untrusted(void *frontend_handle, const char *data, int len)
+int sftp_from_backend_untrusted(void *frontend_handle, const char *data, int len)
 {
     /*
      * No "untrusted" output should get here (the way the code is
@@ -215,7 +215,7 @@ int from_backend_untrusted(void *frontend_handle, const char *data, int len)
     assert(!"Unexpected call to from_backend_untrusted()");
     return 0; /* not reached */
 }
-int from_backend_eof(void *frontend)
+int sftp_from_backend_eof(void *frontend)
 {
     /*
      * We expect to be the party deciding when to close the
