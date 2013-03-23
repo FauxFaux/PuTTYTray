@@ -24,15 +24,15 @@ int agent_exists(void)
 	return TRUE;
 }
 
+void (*agent_schedule_callback)(void (*callback)(void *, void *, int),
+			     void *callback_ctx, void *data, int len);
+
 /*
  * Unfortunately, this asynchronous agent request mechanism doesn't
  * appear to work terribly well. I'm going to comment it out for
  * the moment, and see if I can come up with a better one :-/
  */
 #ifdef WINDOWS_ASYNC_AGENT
-
-void (*agent_schedule_callback)(void (*callback)(void *, void *, int),
-			     void *callback_ctx, void *data, int len)
 
 struct agent_query_data {
     COPYDATASTRUCT cds;

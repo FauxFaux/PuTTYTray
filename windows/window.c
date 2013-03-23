@@ -9,6 +9,7 @@
 #include <time.h>
 #include <limits.h>
 #include <assert.h>
+#include <process.h>
 
 /*
  * HACK: PuttyTray / Nutty
@@ -455,17 +456,23 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
         int gui_from_backend_untrusted(void *frontend, const char *data, int len);
         int gui_from_backend_eof(void *frontend);
 
+        void gui_agent_schedule_callback(void (*callback)(void *, void *, int),
+			     void *callback_ctx, void *data, int len);
+        
         void gui_notify_remote_exit(void *fe);
 
         platform_get_x11_auth = &gui_platform_get_x11_auth;
         do_select = &gui_do_select;
         get_userpass_input = &gui_get_userpass_input;
         ldisc_send = &gui_ldisc_send;
-
+        get_ttymode = &gui_get_ttymode;
+        
         from_backend = &gui_from_backend;
         from_backend_untrusted = &gui_from_backend_untrusted;
         from_backend_eof = &gui_from_backend_eof;
 
+        agent_schedule_callback = &gui_agent_schedule_callback;
+        
         notify_remote_exit = &gui_notify_remote_exit;
     }
     
@@ -2325,6 +2332,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	}
 	return 0;
       case WM_CREATE:
+          DragAcceptFiles(hwnd, TRUE);
 	break;
       case WM_CLOSE:
 	{
@@ -2785,6 +2793,64 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    }
 	}
 	break;
+        
+        case WM_DROPFILES:
+          {
+#             define BIG 32000
+              char to_upload[BIG], module[MAX_PATH], buf[BIG];
+              HDROP drop = wParam;
+              if (!DragQueryFile(drop, 0, to_upload, BIG)) {
+                  MessageBox(hwnd, "Couldn't accept drag..", "Something went wrong.", MB_ICONEXCLAMATION);
+              } else {
+                  char b[2048];
+                  STARTUPINFO si;
+                  PROCESS_INFORMATION pi;
+                  HANDLE filemap = NULL;
+                  SECURITY_ATTRIBUTES sa;
+                  void *p;
+                  int size;
+
+                  size = conf_serialised_size(conf);
+
+                  sa.nLength = sizeof(sa);
+                  sa.lpSecurityDescriptor = NULL;
+                  sa.bInheritHandle = TRUE;
+                  filemap = CreateFileMapping(INVALID_HANDLE_VALUE,
+                                              &sa,
+                                              PAGE_READWRITE,
+                                              0, size, NULL);
+                  if (filemap && filemap != INVALID_HANDLE_VALUE) {
+                      p = MapViewOfFile(filemap, FILE_MAP_WRITE, 0, 0, size);
+                      if (p) {
+                          conf_serialise(conf, p);
+                          UnmapViewOfFile(p);
+                      }
+                  }
+
+                  GetModuleFileName(NULL, b, sizeof(b) - 1);
+                  si.cb = sizeof(si);
+                  si.lpReserved = NULL;
+                  si.lpDesktop = NULL;
+                  si.lpTitle = NULL;
+                  si.dwFlags = 0;
+                  si.cbReserved2 = 0;
+                  si.lpReserved2 = NULL;
+                  CreateProcess(b, cl, NULL, NULL, TRUE,
+                                NORMAL_PRIORITY_CLASS, NULL, NULL, &si, &pi);
+                  CloseHandle(pi.hProcess);
+                  CloseHandle(pi.hThread);
+
+                  if (filemap)
+                      CloseHandle(filemap);
+                  if (freecl)
+                      sfree(cl);
+                  
+                  _spawnl(_P_NOWAIT, module, "--as-guiscp", to_upload, "faux@goeswhere.com:", NULL);
+              }
+              DragFinish(drop);
+#             undef BIG              
+          }
+          break;
 
 #define X_POS(l) ((int)(short)LOWORD(l))
 #define Y_POS(l) ((int)(short)HIWORD(l))

@@ -349,19 +349,36 @@ static void do_cmd(char *host, char *user, char *cmd)
      * try looking for a session called "host".
      */
     if (!loaded_session) {
-	/* Try to load settings for `host' into a temporary config */
-	Conf *conf2 = conf_new();
-	conf_set_str(conf2, CONF_host, "");
-	do_defaults(host, conf2);
-	if (conf_get_str(conf2, CONF_host)[0] != '\0') {
-	    /* Settings present and include hostname */
-	    /* Re-load data into the real config. */
-	    do_defaults(host, conf);
-	} else {
-	    /* Session doesn't exist or mention a hostname. */
-	    /* Use `host' as a bare hostname. */
-	    conf_set_str(conf, CONF_host, host);
-	}
+        if ('&' == host[0]) {
+            // TODO copypasta
+            HANDLE filemap;
+            void *cp;
+            unsigned cpsize;
+            if (sscanf(host + 1, "%p:%u", &filemap, &cpsize) == 2 &&
+                (cp = MapViewOfFile(filemap, FILE_MAP_READ,
+                                    0, 0, cpsize)) != NULL) {
+                conf_deserialise(conf, cp, cpsize);
+                UnmapViewOfFile(cp);
+                CloseHandle(filemap);
+            } else {
+                modalfatalbox("host %s couldn't be depointered", host);
+                cleanup_exit(1);
+            }
+        } else {
+            /* Try to load settings for `host' into a temporary config */
+            Conf *conf2 = conf_new();
+            conf_set_str(conf2, CONF_host, "");
+            do_defaults(host, conf2);
+            if (conf_get_str(conf2, CONF_host)[0] != '\0') {
+                /* Settings present and include hostname */
+                /* Re-load data into the real config. */
+                do_defaults(host, conf);
+            } else {
+                /* Session doesn't exist or mention a hostname. */
+                /* Use `host' as a bare hostname. */
+                conf_set_str(conf, CONF_host, host);
+            }
+        }
     } else {
 	/* Patch in hostname `host' to session details. */
 	conf_set_str(conf, CONF_host, host);

@@ -11,6 +11,10 @@ int winfatsftp(char *cmdline) {
     int sftp_from_backend(void *frontend, int is_stderr, const char *data, int len);
     int sftp_from_backend_untrusted(void *frontend, const char *data, int len);
     int sftp_from_backend_eof(void *frontend);
+    
+    void sftp_agent_schedule_callback(void (*callback)(void *, void *, int),
+			     void *callback_ctx, void *data, int len);
+    
     void cons_notify_remote_exit(void *frontend);
     
     AllocConsole();
@@ -28,6 +32,8 @@ int winfatsftp(char *cmdline) {
     from_backend = &sftp_from_backend;
     from_backend_untrusted = &sftp_from_backend_untrusted;
     from_backend_eof = &sftp_from_backend_eof;
+    
+    agent_schedule_callback = &sftp_agent_schedule_callback;
     
     notify_remote_exit = &cons_notify_remote_exit;
     
