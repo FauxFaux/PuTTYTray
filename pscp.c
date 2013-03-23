@@ -354,7 +354,7 @@ static void do_cmd(char *host, char *user, char *cmd)
             HANDLE filemap;
             void *cp;
             unsigned cpsize;
-            if (sscanf(host + 1, "%p:%u", &filemap, &cpsize) == 2 &&
+            if (sscanf(host + 1, "%p_%u", &filemap, &cpsize) == 2 &&
                 (cp = MapViewOfFile(filemap, FILE_MAP_READ,
                                     0, 0, cpsize)) != NULL) {
                 conf_deserialise(conf, cp, cpsize);
@@ -2000,8 +2000,9 @@ static void sink(char *targ, char *src)
 static void toremote(int argc, char *argv[])
 {
     char *src, *targ, *host, *user;
-    char *cmd;
-    int i, wc_type;
+    char *cmd, *extrafiles = NULL;
+    HANDLE filemap;
+    int i, wc_type, skip_argc;
 
     targ = argv[argc - 1];
 
@@ -2029,13 +2030,28 @@ static void toremote(int argc, char *argv[])
 
     if (argc == 2) {
 	if (colon(argv[0]) != NULL)
-	    bump("%s: Remote to remote not supported", argv[0]);
-
-	wc_type = test_wildcard(argv[0], 1);
-	if (wc_type == WCTYPE_NONEXISTENT)
-	    bump("%s: No such file or directory\n", argv[0]);
-	else if (wc_type == WCTYPE_WILDCARD)
-	    targetshouldbedirectory = 1;
+            bump("%s: Remote to remote not supported", argv[0]);
+        if (argv[0][0] == '&') {
+            void *p;
+            unsigned cpsize;
+            if (sscanf(argv[0] + 1, "%p_%u", &filemap, &cpsize) == 2 &&
+                (p = MapViewOfFile(filemap, FILE_MAP_READ,
+                                    0, 0, cpsize)) != NULL) {
+                extrafiles = strdup(p);
+                extrafiles[cpsize] = 0;
+                // exactly one newline: one file
+                targetshouldbedirectory = strchr(strchr(extrafiles, '\n'), '\n') == NULL ? 0 : 1;
+                skip_argc = 1;
+            } else {
+                bump("%s: couldn't depointer", argv[0]);
+            }
+        } else {
+            wc_type = test_wildcard(argv[0], 1);
+            if (wc_type == WCTYPE_NONEXISTENT)
+                bump("%s: No such file or directory\n", argv[0]);
+            else if (wc_type == WCTYPE_WILDCARD)
+                targetshouldbedirectory = 1;
+        }
     }
 
     cmd = dupprintf("scp%s%s%s%s -t %s",
@@ -2049,7 +2065,7 @@ static void toremote(int argc, char *argv[])
     if (scp_source_setup(targ, targetshouldbedirectory))
 	return;
 
-    for (i = 0; i < argc - 1; i++) {
+    for (i = skip_argc; i < argc - 1; i++) {
 	src = argv[i];
 	if (colon(src) != NULL) {
 	    tell_user(stderr, "%s: Remote to remote not supported\n", src);
@@ -2081,6 +2097,14 @@ static void toremote(int argc, char *argv[])
 
 	    finish_wildcard_matching(wc);
 	}
+    }
+    
+    if (extrafiles) {
+        char *file = strtok(extrafiles, "\n");
+        do {
+            source(file);
+        } while (file = strtok(NULL, "\n"));
+        free(extrafiles);
     }
 }
 

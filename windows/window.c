@@ -2256,6 +2256,49 @@ static int is_alt_pressed(void)
     return FALSE;
 }
 
+HANDLE inheretable_handle_to(void *data, unsigned int size, char *name, char sep) {
+    SECURITY_ATTRIBUTES sa;
+    HANDLE filemap;
+
+    sa.nLength = sizeof(sa);
+    sa.lpSecurityDescriptor = NULL;
+    sa.bInheritHandle = TRUE;
+    filemap = CreateFileMapping(INVALID_HANDLE_VALUE,
+                                &sa,
+                                PAGE_READWRITE,
+                                0, size, NULL);
+    if (filemap && filemap != INVALID_HANDLE_VALUE) {
+        void *p  = MapViewOfFile(filemap, FILE_MAP_WRITE, 0, 0, size);
+        if (p) {
+            memcpy(p, data, size);
+            UnmapViewOfFile(p);
+        }
+    }
+    if (name)
+        sprintf(name, "&%p%c%u", filemap, sep, (unsigned)size);
+
+    return filemap;
+}
+
+char *list_of_files_in(HDROP drop) {
+    char *ret = malloc(1);
+    char *curr = malloc(1);
+    int file, files = DragQueryFile(drop, 0xFFFFFFFF, NULL, 0);
+    
+    ret[0] = 0;
+    
+    for (file = 0; file < files; ++file) {
+        int len = DragQueryFile(drop, file, NULL, 0) + 2;
+        curr = realloc(curr, len);
+        DragQueryFile(drop, file, curr, len);
+        ret = realloc(ret, strlen(ret) + len);
+        strcat(ret, curr);
+        strcat(ret, "\n");
+    }
+    free(curr);
+    return ret;
+}
+
 static int resizing;
 
 void gui_notify_remote_exit(void *fe)
@@ -2389,28 +2432,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		     * Allocate a file-mapping memory chunk for the
 		     * config structure.
 		     */
-		    SECURITY_ATTRIBUTES sa;
-		    void *p;
-		    int size;
+		    char buf[32];
+		    int size = conf_serialised_size(conf);
+                    void *p = malloc(size);
 
-		    size = conf_serialised_size(conf);
-
-		    sa.nLength = sizeof(sa);
-		    sa.lpSecurityDescriptor = NULL;
-		    sa.bInheritHandle = TRUE;
-		    filemap = CreateFileMapping(INVALID_HANDLE_VALUE,
-						&sa,
-						PAGE_READWRITE,
-						0, size, NULL);
-		    if (filemap && filemap != INVALID_HANDLE_VALUE) {
-			p = MapViewOfFile(filemap, FILE_MAP_WRITE, 0, 0, size);
-			if (p) {
-			    conf_serialise(conf, p);
-			    UnmapViewOfFile(p);
-			}
-		    }
+		    filemap = inheretable_handle_to(p, size, buf, ':');
 		    inherit_handles = TRUE;
-		    sprintf(c, "putty &%p:%u", filemap, (unsigned)size);
+		    sprintf(c, "putty %s", buf);
 		    cl = c;
 		} else if (wParam == IDM_SAVEDSESS) {
 		    unsigned int sessno = ((lParam - IDM_SAVED_MIN)
@@ -2796,57 +2824,47 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
         
         case WM_DROPFILES:
           {
-#             define BIG 32000
-              char to_upload[BIG], module[MAX_PATH], buf[BIG];
-              HDROP drop = wParam;
-              if (!DragQueryFile(drop, 0, to_upload, BIG)) {
-                  MessageBox(hwnd, "Couldn't accept drag..", "Something went wrong.", MB_ICONEXCLAMATION);
-              } else {
-                  char b[2048];
-                  STARTUPINFO si;
-                  PROCESS_INFORMATION pi;
-                  HANDLE filemap = NULL;
-                  SECURITY_ATTRIBUTES sa;
-                  void *p;
-                  int size;
+              char cl[MAX_PATH];
+              HDROP drop = (HDROP)wParam;
+              char b[2048], arg[32];
+              STARTUPINFO si;
+              PROCESS_INFORMATION pi;
+              HANDLE serialised_conf, dropped_files;
 
-                  size = conf_serialised_size(conf);
-
-                  sa.nLength = sizeof(sa);
-                  sa.lpSecurityDescriptor = NULL;
-                  sa.bInheritHandle = TRUE;
-                  filemap = CreateFileMapping(INVALID_HANDLE_VALUE,
-                                              &sa,
-                                              PAGE_READWRITE,
-                                              0, size, NULL);
-                  if (filemap && filemap != INVALID_HANDLE_VALUE) {
-                      p = MapViewOfFile(filemap, FILE_MAP_WRITE, 0, 0, size);
-                      if (p) {
-                          conf_serialise(conf, p);
-                          UnmapViewOfFile(p);
-                      }
-                  }
-
-                  GetModuleFileName(NULL, b, sizeof(b) - 1);
-                  si.cb = sizeof(si);
-                  si.lpReserved = NULL;
-                  si.lpDesktop = NULL;
-                  si.lpTitle = NULL;
-                  si.dwFlags = 0;
-                  si.cbReserved2 = 0;
-                  si.lpReserved2 = NULL;
-                  CreateProcess(b, cl, NULL, NULL, TRUE,
-                                NORMAL_PRIORITY_CLASS, NULL, NULL, &si, &pi);
-                  CloseHandle(pi.hProcess);
-                  CloseHandle(pi.hThread);
-
-                  if (filemap)
-                      CloseHandle(filemap);
-                  if (freecl)
-                      sfree(cl);
-                  
-                  _spawnl(_P_NOWAIT, module, "--as-guiscp", to_upload, "faux@goeswhere.com:", NULL);
+              strcpy(cl, "pscp.exe --as-guiscp ");
+              {
+                  void *p = list_of_files_in(drop);
+                  dropped_files = inheretable_handle_to(p, strlen(p), arg, '_');
+                  strcat(cl, arg);
+                  strcat(cl, " ");
               }
+
+              {
+                  int size = conf_serialised_size(conf);
+                  void *p = malloc(size);
+                  conf_serialise(conf, p);
+                  serialised_conf = inheretable_handle_to(p, size, arg, '_');
+                  free(p);
+                  strcat(cl, arg);
+                  strcat(cl, ":");  
+              }                  
+
+              GetModuleFileName(NULL, b, sizeof(b) - 1);
+              si.cb = sizeof(si);
+              si.lpReserved = NULL;
+              si.lpDesktop = NULL;
+              si.lpTitle = NULL;
+              si.dwFlags = 0;
+              si.cbReserved2 = 0;
+              si.lpReserved2 = NULL;
+              CreateProcess(b, cl, NULL, NULL, TRUE,
+                            NORMAL_PRIORITY_CLASS, NULL, NULL, &si, &pi);
+              CloseHandle(pi.hProcess);
+              CloseHandle(pi.hThread);
+
+              CloseHandle(serialised_conf);
+              CloseHandle(dropped_files);
+              
               DragFinish(drop);
 #             undef BIG              
           }
