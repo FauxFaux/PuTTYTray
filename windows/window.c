@@ -149,6 +149,8 @@ static void *ldisc;
 static Backend *back;
 static void *backhandle;
 
+extern char *get_osc_pwd();
+
 static struct unicode_data ucsdata;
 static int must_close_session, session_closed;
 static int reconfiguring = FALSE;
@@ -2824,7 +2826,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
         
         case WM_DROPFILES:
           {
-              char cl[MAX_PATH];
+              char cl[2048];
               HDROP drop = (HDROP)wParam;
               char b[2048], arg[32];
               STARTUPINFO si;
@@ -2846,8 +2848,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
                   serialised_conf = inheretable_handle_to(p, size, arg, '_');
                   free(p);
                   strcat(cl, arg);
-                  strcat(cl, ":");  
-              }                  
+                  strcat(cl, ":");
+                  strcat(cl, get_osc_pwd());
+              }
 
               GetModuleFileName(NULL, b, sizeof(b) - 1);
               si.cb = sizeof(si);

@@ -77,6 +77,13 @@ const char sco2ansicolour[] = { 0, 4, 2, 6, 1, 5, 3, 7 };
 #define sel_nl_sz  (sizeof(sel_nl)/sizeof(wchar_t))
 const wchar_t sel_nl[] = SEL_NL;
 
+#define PWD_MAX_LEN 1024
+char osc_pwd[PWD_MAX_LEN] = {0};
+
+char *get_osc_pwd() {
+    return osc_pwd;
+}
+
 /*
  * Fetch the character at a particular position in a line array,
  * for purposes of `wordtype'. The reason this isn't just a simple
@@ -2578,6 +2585,9 @@ static void do_osc(Terminal *term)
 	    if (!term->no_remote_wintitle)
 		set_title(term->frontend, term->osc_string);
 	    break;
+          case 82: // entirely made up
+            strncpy(osc_pwd, term->osc_string, PWD_MAX_LEN - 1);
+            break;
 	}
     }
 }
