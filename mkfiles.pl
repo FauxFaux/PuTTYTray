@@ -257,7 +257,7 @@ sub mfval($) {
     # Returns true if the argument is a known makefile type. Otherwise,
     # prints a warning and returns false;
     if (grep { $type eq $_ }
-	("vc","vcproj","cygwin","borland","lcc","devcppproj","gtk","unix",
+	("vc","vcproj","vcproj2010","cygwin","borland","lcc","devcppproj","gtk","unix",
 	 "am","osx",)) {
 	    return 1;
 	}
@@ -672,7 +672,7 @@ if (defined $makefiles{'vc'}) {
         print &splitline(sprintf("%s: %s", $d->{obj},
                                  join " ", @$extradeps, @{$d->{deps}})), "\n";
         if ($d->{obj} =~ /.obj$/) {
-	    print "\tcl \$(COMPAT) \$(CFLAGS) \$(XFLAGS) /c ".$d->{deps}->[0],"\n\n";
+	    print "\t\@cl \$(COMPAT) \$(CFLAGS) \$(XFLAGS) /c ".$d->{deps}->[0],"\n\n";
 	} else {
 	    print "\trc \$(RCFL) -r \$(RCFLAGS) ".$d->{deps}->[0],"\n\n";
 	}
@@ -959,6 +959,264 @@ if (defined $makefiles{'vcproj'}) {
     	"# End Project\r\n";
     	select STDOUT; close OUT;
     	chdir "..";
+    }
+}
+
+if (defined $makefiles{'vcproj2010'}) {
+    $dirpfx = &dirpfx($makefiles{'vcproj2010'}, "\\");
+
+    ##-- MSVC 1 Workspace and projects
+    #
+    # Note: All files created in this section are written in binary
+    # mode, because although MSVC's command-line make can deal with
+    # LF-only line endings, MSVC project files really _need_ to be
+    # CRLF. Hence, in order for mkfiles.pl to generate usable project
+    # files even when run from Unix, I make sure all files are binary
+    # and explicitly write the CRLFs.
+    #
+    # Create directories if necessary
+    mkdir $makefiles{'vcproj2010'}
+        if(! -d $makefiles{'vcproj2010'});
+    chdir $makefiles{'vcproj2010'};
+    @deps = &deps("X.obj", "X.res", $dirpfx, "\\", "vcproj2010");
+    %all_object_deps = map {$_->{obj} => $_->{deps}} @deps;
+    # Create the project files
+    # Get names of all Windows projects (GUI and console)
+    my @prognames = &prognames("G:C");
+    foreach $progname (@prognames) {
+      create_vc2010_project(\%all_object_deps, $progname);
+    }
+    # Create the workspace file
+    open OUT, ">../../$project_name.sln"; binmode OUT; select OUT;
+    #utf-8 bom
+    syswrite(OUT,chr(0xEF));
+    syswrite(OUT,chr(0xBB));
+    syswrite(OUT,chr(0xBF));
+    print
+    "\r\n".
+    "Microsoft Visual Studio Solution File, Format Version 11.00\r\n".
+    "# Visual C++ Express 2010\r\n";
+    # List projects
+    # move putty itself to the top so the solution picks it as the default to run (*faceslap*)
+    if (grep { $_ eq 'putty,G' } @prognames) {
+        @prognames = ('putty,G', grep { ! ($_ eq 'putty,G') } @prognames);
+    }
+
+    foreach $progname (@prognames) {
+        ($windows_project, $type) = split ",", $progname;
+        my $loc = $makefiles{'vcproj2010'};
+        $loc =~ s,/,\\,g;
+        $vcproject = "{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}";
+        print 
+        "Project(\"$vcproject\") = \"$windows_project\", \"$loc\\$windows_project\\$windows_project.vcxproj\", \"".guid($windows_project)."\"\r\n".
+        "EndProject\r\n";
+    }
+    print
+    "Global\r\n".
+    "\tGlobalSection(SolutionConfigurationPlatforms) = preSolution\r\n".
+    "\t\tDebug|Win32 = Debug|Win32\r\n".
+    "\t\tRelease|Win32 = Release|Win32\r\n".
+    "\tEndGlobalSection\r\n".
+    "\tGlobalSection(ProjectConfigurationPlatforms) = postSolution\r\n";
+    foreach $progname (@prognames) {
+        ($windows_project, $type) = split ",", $progname;
+        $uid = guid($windows_project);
+        print
+        "\t\t$uid.Debug|Win32.ActiveCfg = Debug|Win32\r\n".
+        "\t\t$uid.Debug|Win32.Build.0 = Debug|Win32\r\n".
+        "\t\t$uid.Release|Win32.ActiveCfg = Release|Win32\r\n".
+        "\t\t$uid.Release|Win32.Build.0 = Release|Win32\r\n";
+    }
+    print
+    "\tEndGlobalSection\r\n".
+    "\tGlobalSection(SolutionProperties) = preSolution\r\n".
+    "\t\tHideSolutionNode = FALSE\r\n".
+    "\tEndGlobalSection\r\n".
+    "EndGlobal\r\n";
+    select STDOUT; close OUT;
+    chdir $orig_dir;
+
+    sub create_vc2010_project {
+    	my ($all_object_deps, $progname) = @_;
+        ($windows_project, $type) = split ",", $progname;
+    	# Construct program's dependency info
+    	%seen_objects = ();
+    	%lib_files = ();
+    	%source_files = ();
+    	%header_files = ();
+    	%resource_files = ();
+    	@object_files = split " ", &objects($progname, "X.obj", "X.res", "X.lib");
+    	foreach $object_file (@object_files) {
+	    next if defined $seen_objects{$object_file};
+	    $seen_objects{$object_file} = 1;
+	    if($object_file =~ /\.lib$/io) {
+		$lib_files{$object_file} = 1;
+		next;
+	    }
+	    $object_deps = $all_object_deps{$object_file};
+	    foreach $object_dep (@$object_deps) {
+		if($object_dep =~ /\.c$/io) {
+		    $source_files{$object_dep} = 1;
+		    next;
+		}
+		if($object_dep =~ /\.h$/io) {
+		    $header_files{$object_dep} = 1;
+		    next;
+		}
+		if($object_dep =~ /\.(rc|ico)$/io) {
+		    $resource_files{$object_dep} = 1;
+		    next;
+		}
+	    }
+    	}
+    	$libs = join " ", sort keys %lib_files;
+    	@source_files = sort keys %source_files;
+    	@header_files = sort keys %header_files;
+    	@resources = sort keys %resource_files;
+	($windows_project, $type) = split ",", $progname;
+    	mkdir $windows_project
+	    if(! -d $windows_project);
+    	chdir $windows_project;
+	$subsys = ($type eq "G") ? "windows" : "console";
+    	open OUT, ">$windows_project.vcxproj"; binmode OUT; select OUT;
+        syswrite(OUT,chr(0xEF));
+        syswrite(OUT,chr(0xBB));
+        syswrite(OUT,chr(0xBF));
+    	print
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n".
+        "<Project DefaultTargets=\"Build\" ToolsVersion=\"4.0\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">\r\n".
+        "  <ItemGroup Label=\"ProjectConfigurations\">\r\n".
+        "    <ProjectConfiguration Include=\"Debug|Win32\">\r\n".
+        "      <Configuration>Debug</Configuration>\r\n".
+        "      <Platform>Win32</Platform>\r\n".
+        "    </ProjectConfiguration>\r\n".
+        "    <ProjectConfiguration Include=\"Release|Win32\">\r\n".
+        "      <Configuration>Release</Configuration>\r\n".
+        "      <Platform>Win32</Platform>\r\n".
+        "    </ProjectConfiguration>\r\n".
+        "  </ItemGroup>\r\n".
+        "  <ItemGroup>\r\n";
+        foreach $source_file (@source_files) {
+	    print
+              "    <ClCompile Include=\"..\\..\\" . $source_file . "\"";
+	    if($source_file =~ /ssh\.c/io) {
+		# Disable 'Edit and continue' as Visual Studio can't handle the macros
+		print
+		  ">\r\n".
+                  "      <DebugInformationFormat Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|Win32'\">ProgramDatabase</DebugInformationFormat>\r\n".
+                  "    </ClCompile>\r\n";
+	    } else {
+                print " />\r\n";
+            }
+    	}
+    	print
+        "  </ItemGroup>\r\n".
+        "  <ItemGroup>\r\n";
+    	foreach $header_file (@header_files) {
+	    print
+              "    <ClInclude Include=\"..\\..\\" . $header_file. "\" />\r\n";
+	}
+    	print
+        "  </ItemGroup>\r\n".
+        "  <ItemGroup>\r\n";
+    	foreach $resource_file (@resources) {
+	    print
+              "    <None Include=\"..\\..\\" . $resource_file . "\" />\r\n";
+	}
+
+        print
+        "  </ItemGroup>\r\n".
+        "  <ItemGroup>\r\n".
+        "    <ResourceCompile Include=\"..\\..\\" . $windows_project . ".rc\" />\r\n".
+        "  </ItemGroup>\r\n".
+        "  <PropertyGroup Label=\"Globals\">\r\n".
+        "    <ProjectGuid>" . guid($windows_project) . "</ProjectGuid>\r\n".
+        "    <Keyword>Win32Proj</Keyword>\r\n".
+        "    <RootNamespace>" . $windows_project . "</RootNamespace>\r\n".
+        "  </PropertyGroup>\r\n".
+        "  <Import Project=\"\$(VCTargetsPath)\\Microsoft.Cpp.Default.props\" />\r\n".
+        "  <PropertyGroup Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|Win32'\" Label=\"Configuration\">\r\n".
+        "    <ConfigurationType>Application</ConfigurationType>\r\n".
+        "    <UseDebugLibraries>true</UseDebugLibraries>\r\n".
+        "    <CharacterSet>MultiByte</CharacterSet>\r\n".
+        "  </PropertyGroup>\r\n".
+        "  <PropertyGroup Condition=\"'\$(Configuration)|\$(Platform)'=='Release|Win32'\" Label=\"Configuration\">\r\n".
+        "    <ConfigurationType>Application</ConfigurationType>\r\n".
+        "    <UseDebugLibraries>false</UseDebugLibraries>\r\n".
+        "    <WholeProgramOptimization>true</WholeProgramOptimization>\r\n".
+        "    <CharacterSet>MultiByte</CharacterSet>\r\n".
+        "  </PropertyGroup>\r\n".
+        "  <Import Project=\"\$(VCTargetsPath)\\Microsoft.Cpp.props\" />\r\n".
+        "  <ImportGroup Label=\"ExtensionSettings\">\r\n".
+        "  </ImportGroup>\r\n".
+        "  <ImportGroup Label=\"PropertySheets\" Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|Win32'\">\r\n".
+        "    <Import Project=\"\$(UserRootDir)\\Microsoft.Cpp.\$(Platform).user.props\" Condition=\"exists('\$(UserRootDir)\\Microsoft.Cpp.\$(Platform).user.props')\" Label=\"LocalAppDataPlatform\" />\r\n".
+        "  </ImportGroup>\r\n".
+        "  <ImportGroup Label=\"PropertySheets\" Condition=\"'\$(Configuration)|\$(Platform)'=='Release|Win32'\">\r\n".
+        "    <Import Project=\"\$(UserRootDir)\\Microsoft.Cpp.\$(Platform).user.props\" Condition=\"exists('\$(UserRootDir)\\Microsoft.Cpp.\$(Platform).user.props')\" Label=\"LocalAppDataPlatform\" />\r\n".
+        "  </ImportGroup>\r\n".
+        "  <PropertyGroup Label=\"UserMacros\" />\r\n".
+        "  <PropertyGroup Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|Win32'\">\r\n".
+        "    <LinkIncremental>true</LinkIncremental>\r\n".
+        "    <EmbedManifest>false</EmbedManifest>\r\n".
+        "  </PropertyGroup>\r\n".
+        "  <PropertyGroup Condition=\"'\$(Configuration)|\$(Platform)'=='Release|Win32'\">\r\n".
+        "    <LinkIncremental>false</LinkIncremental>\r\n".
+        "    <EmbedManifest>false</EmbedManifest>\r\n".
+        "  </PropertyGroup>\r\n".
+        "  <ItemDefinitionGroup Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|Win32'\">\r\n".
+        "    <ClCompile>\r\n".
+        "      <PrecompiledHeader>\r\n".
+        "      </PrecompiledHeader>\r\n".
+        "      <WarningLevel>Level3</WarningLevel>\r\n".
+        "      <Optimization>Disabled</Optimization>\r\n".
+        "      <PreprocessorDefinitions>WIN32;HAS_GSSAPI;SECURITY_WIN32;_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES=1;_CRT_SECURE_NO_WARNINGS=1;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>\r\n";
+        my $inc = (join ";", map {"..\\..\\$dirpfx$_"} @srcdirs);
+        $subsys = ($type eq "G") ? "Windows" : "Console";
+        print
+        "      <AdditionalIncludeDirectories>$inc</AdditionalIncludeDirectories>\r\n".
+        "    </ClCompile>\r\n".
+        "    <Link>\r\n".
+        "      <SubSystem>$subsys</SubSystem>\r\n".
+        "      <GenerateDebugInformation>true</GenerateDebugInformation>\r\n".
+        "      <AdditionalDependencies>advapi32.lib;comctl32.lib;imm32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>\r\n".
+        "    </Link>\r\n".
+        "  </ItemDefinitionGroup>\r\n".
+        "  <ItemDefinitionGroup Condition=\"'\$(Configuration)|\$(Platform)'=='Release|Win32'\">\r\n".
+        "    <ClCompile>\r\n".
+        "      <WarningLevel>Level3</WarningLevel>\r\n".
+        "      <PrecompiledHeader>\r\n".
+        "      </PrecompiledHeader>\r\n".
+        "      <Optimization>MaxSpeed</Optimization>\r\n".
+        "      <FunctionLevelLinking>true</FunctionLevelLinking>\r\n".
+        "      <IntrinsicFunctions>true</IntrinsicFunctions>\r\n".
+        "      <PreprocessorDefinitions>WIN32;HAS_GSSAPI;SECURITY_WIN32;_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES=1;_CRT_SECURE_NO_WARNINGS=1;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>\r\n".
+        "      <AdditionalIncludeDirectories>$inc</AdditionalIncludeDirectories>\r\n".
+        "    </ClCompile>\r\n".
+        "    <Link>\r\n".
+        "      <SubSystem>$subsys</SubSystem>\r\n".
+        "      <GenerateDebugInformation>true</GenerateDebugInformation>\r\n".
+        "      <EnableCOMDATFolding>true</EnableCOMDATFolding>\r\n".
+        "      <OptimizeReferences>true</OptimizeReferences>\r\n".
+        "      <AdditionalDependencies>advapi32.lib;comctl32.lib;imm32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>\r\n".
+        "    </Link>\r\n".
+        "  </ItemDefinitionGroup>\r\n".
+        "  <Import Project=\"\$(VCTargetsPath)\\Microsoft.Cpp.targets\" />\r\n".
+        "  <ImportGroup Label=\"ExtensionTargets\">\r\n".
+        "  </ImportGroup>\r\n".
+        "</Project>";
+    	select STDOUT; close OUT;
+    	chdir "..";
+    }
+    
+    sub guid {
+        my $app = shift;
+        my $h = 1;
+        for my $char (split(//, $app)) {
+            $h = ((31*$h + ord($char)) % 0xffffffff);
+        }
+
+        return sprintf("{D6B97AF3-E53D-4020-B852-0000%08X}", $h);
     }
 }
 
