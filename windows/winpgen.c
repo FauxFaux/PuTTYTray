@@ -420,7 +420,7 @@ static int save_ssh1_pubkey(char *filename, struct RSAKey *key)
 /*
  * Warn about the obsolescent key file format.
  */
-static void old_keyfile_warning(void)
+void old_keyfile_warning(void)
 {
     static const char mbtitle[] = "PuTTY Key File Warning";
     static const char message[] =
