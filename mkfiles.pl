@@ -1168,11 +1168,12 @@ if (defined $makefiles{'vcproj2010'}) {
         "      <Optimization>Disabled</Optimization>\r\n".
         "      <PreprocessorDefinitions>WIN32;HAS_GSSAPI;SECURITY_WIN32;_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES=1;_CRT_SECURE_NO_WARNINGS=1;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>\r\n";
         my $inc = (join ";", map {"..\\..\\$dirpfx$_"} @srcdirs);
+        $subsys = ($type eq "G") ? "Windows" : "Console";
         print
         "      <AdditionalIncludeDirectories>$inc</AdditionalIncludeDirectories>\r\n".
         "    </ClCompile>\r\n".
         "    <Link>\r\n".
-        "      <SubSystem>Windows</SubSystem>\r\n".
+        "      <SubSystem>$subsys</SubSystem>\r\n".
         "      <GenerateDebugInformation>true</GenerateDebugInformation>\r\n".
         "      <AdditionalDependencies>advapi32.lib;comctl32.lib;imm32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>\r\n".
         "    </Link>\r\n".
@@ -1189,7 +1190,7 @@ if (defined $makefiles{'vcproj2010'}) {
         "      <AdditionalIncludeDirectories>$inc</AdditionalIncludeDirectories>\r\n".
         "    </ClCompile>\r\n".
         "    <Link>\r\n".
-        "      <SubSystem>Windows</SubSystem>\r\n".
+        "      <SubSystem>$subsys</SubSystem>\r\n".
         "      <GenerateDebugInformation>true</GenerateDebugInformation>\r\n".
         "      <EnableCOMDATFolding>true</EnableCOMDATFolding>\r\n".
         "      <OptimizeReferences>true</OptimizeReferences>\r\n".
