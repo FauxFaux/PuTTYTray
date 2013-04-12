@@ -496,7 +496,7 @@ DWORD errorShow(const char* pcErrText, const char* pcErrParam) {
 	char* pcHlaska = snewn(strlen(pcErrParam) + strlen(pcErrText) + 31, char);
 	
 	erChyba = GetLastError();		
-	ltoa(erChyba, pcBuf, 10);
+	_ltoa(erChyba, pcBuf, 10);
 
 	strcpy(pcHlaska, "Error: ");
 	strcat(pcHlaska, pcErrText);
@@ -837,7 +837,7 @@ void file_write_setting_i(void *handle, const char *key, int value)
 				/* this key already set -> reset */
 				sfree(st->value);
 				st->value = snewn(16, char);
-				itoa(value, st->value, 10);
+				_itoa(value, st->value, 10);
 				return;
 			}
 			st = st->next;
@@ -847,7 +847,7 @@ void file_write_setting_i(void *handle, const char *key, int value)
 		st->key = snewn( strlen(key)+1, char);
 		strcpy(st->key, key);
 		st->value = snewn(16, char);
-		itoa(value, st->value, 10);
+		_itoa(value, st->value, 10);
 		st->next = ((struct setPack*) handle)->handle;
 		((struct setPack*) handle)->handle = st;
 	}

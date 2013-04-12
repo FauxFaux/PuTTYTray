@@ -1351,6 +1351,7 @@ int filename_serialise(const Filename *f, void *data);
 Filename *filename_deserialise(void *data, int maxsize, int *used);
 char *get_username(void);	       /* return value needs freeing */
 char *get_random_data(int bytes);      /* used in cmdgen.c */
+HICON extract_icon(char *iconpath, int smallicon);
 
 /*
  * Exports and imports from timing.c.

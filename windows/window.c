@@ -5515,7 +5515,7 @@ void write_clip(void *frontend, wchar_t * data, int *attr, int len, int must_des
 
     /* url-cut */
     if (conf_get_int(conf, CONF_copy_clipbd_url_reg))
-        urldata = strdup((char*)lock2);
+        urldata = _strdup((char*)lock2);
     else
         urldata = 0;
 
