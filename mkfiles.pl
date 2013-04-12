@@ -156,7 +156,7 @@ foreach $aux (sort keys %auxfiles) {
 # Now retrieve the complete list of objects and resource files, and
 # construct dependency data for them. While we're here, expand the
 # object list for each program, and complain if its type isn't set.
-@prognames = keys %programs;
+@prognames = sort keys %programs;
 %depends = ();
 @scanlist = ();
 foreach $i (@prognames) {
@@ -1001,6 +1001,11 @@ if (defined $makefiles{'vcproj2010'}) {
     "Microsoft Visual Studio Solution File, Format Version 11.00\r\n".
     "# Visual C++ Express 2010\r\n";
     # List projects
+    # move putty itself to the top so the solution picks it as the default to run (*faceslap*)
+    if (grep { $_ eq 'putty,G' } @prognames) {
+        @prognames = ('putty,G', grep { ! ($_ eq 'putty,G') } @prognames);
+    }
+
     foreach $progname (@prognames) {
         ($windows_project, $type) = split ",", $progname;
         print 
