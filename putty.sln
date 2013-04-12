@@ -1,0 +1,56 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual C++ Express 2010
+Project("{D6B97AF3-E53D-4020-B852-000000023194}") = "puttygen", "windows/MSVC2010\puttygen\puttygen.vcxproj", "{D6B97AF3-E53D-4020-B852-0000008E87AA}"
+EndProject
+Project("{D6B97AF3-E53D-4020-B852-000000023194}") = "psftp", "windows/MSVC2010\psftp\psftp.vcxproj", "{D6B97AF3-E53D-4020-B852-00000814F51E}"
+EndProject
+Project("{D6B97AF3-E53D-4020-B852-000000023194}") = "putty", "windows/MSVC2010\putty\putty.vcxproj", "{D6B97AF3-E53D-4020-B852-000008161273}"
+EndProject
+Project("{D6B97AF3-E53D-4020-B852-000000023194}") = "pscp", "windows/MSVC2010\pscp\pscp.vcxproj", "{D6B97AF3-E53D-4020-B852-00000042BD31}"
+EndProject
+Project("{D6B97AF3-E53D-4020-B852-000000023194}") = "pageant", "windows/MSVC2010\pageant\pageant.vcxproj", "{D6B97AF3-E53D-4020-B852-000037FC05F5}"
+EndProject
+Project("{D6B97AF3-E53D-4020-B852-000000023194}") = "plink", "windows/MSVC2010\plink\plink.vcxproj", "{D6B97AF3-E53D-4020-B852-00000811D109}"
+EndProject
+Project("{D6B97AF3-E53D-4020-B852-000000023194}") = "puttytel", "windows/MSVC2010\puttytel\puttytel.vcxproj", "{D6B97AF3-E53D-4020-B852-0000008EB875}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D6B97AF3-E53D-4020-B852-0000008E87AA}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-0000008E87AA}.Debug|Win32.Build.0 = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-0000008E87AA}.Release|Win32.ActiveCfg = Release|Win32
+		{D6B97AF3-E53D-4020-B852-0000008E87AA}.Release|Win32.Build.0 = Release|Win32
+		{D6B97AF3-E53D-4020-B852-00000814F51E}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-00000814F51E}.Debug|Win32.Build.0 = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-00000814F51E}.Release|Win32.ActiveCfg = Release|Win32
+		{D6B97AF3-E53D-4020-B852-00000814F51E}.Release|Win32.Build.0 = Release|Win32
+		{D6B97AF3-E53D-4020-B852-000008161273}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-000008161273}.Debug|Win32.Build.0 = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-000008161273}.Release|Win32.ActiveCfg = Release|Win32
+		{D6B97AF3-E53D-4020-B852-000008161273}.Release|Win32.Build.0 = Release|Win32
+		{D6B97AF3-E53D-4020-B852-00000042BD31}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-00000042BD31}.Debug|Win32.Build.0 = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-00000042BD31}.Release|Win32.ActiveCfg = Release|Win32
+		{D6B97AF3-E53D-4020-B852-00000042BD31}.Release|Win32.Build.0 = Release|Win32
+		{D6B97AF3-E53D-4020-B852-000037FC05F5}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-000037FC05F5}.Debug|Win32.Build.0 = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-000037FC05F5}.Release|Win32.ActiveCfg = Release|Win32
+		{D6B97AF3-E53D-4020-B852-000037FC05F5}.Release|Win32.Build.0 = Release|Win32
+		{D6B97AF3-E53D-4020-B852-00000811D109}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-00000811D109}.Debug|Win32.Build.0 = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-00000811D109}.Release|Win32.ActiveCfg = Release|Win32
+		{D6B97AF3-E53D-4020-B852-00000811D109}.Release|Win32.Build.0 = Release|Win32
+		{D6B97AF3-E53D-4020-B852-0000008EB875}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-0000008EB875}.Debug|Win32.Build.0 = Debug|Win32
+		{D6B97AF3-E53D-4020-B852-0000008EB875}.Release|Win32.ActiveCfg = Release|Win32
+		{D6B97AF3-E53D-4020-B852-0000008EB875}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
