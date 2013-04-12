@@ -288,15 +288,15 @@ static unsigned int ssh_tty_parse_specchar(char *s)
 }
 static unsigned int ssh_tty_parse_boolean(char *s)
 {
-    if (stricmp(s, "yes") == 0 ||
-	stricmp(s, "on") == 0 ||
-	stricmp(s, "true") == 0 ||
-	stricmp(s, "+") == 0)
+    if (_stricmp(s, "yes") == 0 ||
+	_stricmp(s, "on") == 0 ||
+	_stricmp(s, "true") == 0 ||
+	_stricmp(s, "+") == 0)
 	return 1; /* true */
-    else if (stricmp(s, "no") == 0 ||
-	     stricmp(s, "off") == 0 ||
-	     stricmp(s, "false") == 0 ||
-	     stricmp(s, "-") == 0)
+    else if (_stricmp(s, "no") == 0 ||
+	     _stricmp(s, "off") == 0 ||
+	     _stricmp(s, "false") == 0 ||
+	     _stricmp(s, "-") == 0)
 	return 0; /* false */
     else
 	return (atoi(s) != 0);
@@ -9777,7 +9777,7 @@ static void ssh_reconfig(void *handle, Conf *conf)
 	unsigned long new_next = ssh->last_rekey + rekey_time*60*TICKSPERSEC;
 	unsigned long now = GETTICKCOUNT();
 
-	if (now - ssh->last_rekey > rekey_time*60*TICKSPERSEC) {
+	if (now - ssh->last_rekey > rekey_time*60ul*TICKSPERSEC) {
 	    rekeying = "timeout shortened";
 	} else {
 	    ssh->next_rekey = schedule_timer(new_next - now, ssh2_timer, ssh);

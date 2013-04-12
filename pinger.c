@@ -28,7 +28,7 @@ static void pinger_timer(void *ctx, unsigned long now)
 
 static void pinger_schedule(Pinger pinger)
 {
-    int next;
+    unsigned long next;
 
     if (!pinger->interval) {
 	pinger->pending = FALSE;       /* cancel any pending ping */

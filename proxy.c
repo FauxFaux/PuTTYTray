@@ -336,17 +336,17 @@ static int proxy_for_destination (SockAddr addr, char *hostname, int port,
 	if (exclude_list[s] == '*') {
 	    /* wildcard at beginning of entry */
 
-	    if ((addr && strnicmp(hostip + hostip_len - (e - s - 1),
+	    if ((addr && _strnicmp(hostip + hostip_len - (e - s - 1),
 				  exclude_list + s + 1, e - s - 1) == 0) ||
-		strnicmp(hostname + hostname_len - (e - s - 1),
+		_strnicmp(hostname + hostname_len - (e - s - 1),
 			 exclude_list + s + 1, e - s - 1) == 0)
 		return 0; /* IP/hostname range excluded. do not use proxy. */
 
 	} else if (exclude_list[e-1] == '*') {
 	    /* wildcard at end of entry */
 
-	    if ((addr && strnicmp(hostip, exclude_list + s, e - s - 1) == 0) ||
-		strnicmp(hostname, exclude_list + s, e - s - 1) == 0)
+	    if ((addr && _strnicmp(hostip, exclude_list + s, e - s - 1) == 0) ||
+		_strnicmp(hostname, exclude_list + s, e - s - 1) == 0)
 		return 0; /* IP/hostname range excluded. do not use proxy. */
 
 	} else {
@@ -354,9 +354,9 @@ static int proxy_for_destination (SockAddr addr, char *hostname, int port,
 	     * match (ie. a specific IP)
 	     */
 
-	    if (addr && strnicmp(hostip, exclude_list + s, e - s) == 0)
+	    if (addr && _strnicmp(hostip, exclude_list + s, e - s) == 0)
 		return 0; /* IP/hostname excluded. do not use proxy. */
-	    if (strnicmp(hostname, exclude_list + s, e - s) == 0)
+	    if (_strnicmp(hostname, exclude_list + s, e - s) == 0)
 		return 0; /* IP/hostname excluded. do not use proxy. */
 	}
 
@@ -1371,7 +1371,7 @@ char *format_telnet_command(SockAddr addr, int port, Conf *conf)
 		ret[retlen++] = '%';
 		eo++;
 	    }
-	    else if (strnicmp(fmt + eo, "host", 4) == 0) {
+	    else if (_strnicmp(fmt + eo, "host", 4) == 0) {
 		char dest[512];
 		int destlen;
 		sk_getaddr(addr, dest, lenof(dest));
@@ -1381,7 +1381,7 @@ char *format_telnet_command(SockAddr addr, int port, Conf *conf)
 		retlen += destlen;
 		eo += 4;
 	    }
-	    else if (strnicmp(fmt + eo, "port", 4) == 0) {
+	    else if (_strnicmp(fmt + eo, "port", 4) == 0) {
 		char portstr[8], portlen;
 		portlen = sprintf(portstr, "%i", port);
 		ENSURE(portlen);
@@ -1389,7 +1389,7 @@ char *format_telnet_command(SockAddr addr, int port, Conf *conf)
 		retlen += portlen;
 		eo += 4;
 	    }
-	    else if (strnicmp(fmt + eo, "user", 4) == 0) {
+	    else if (_strnicmp(fmt + eo, "user", 4) == 0) {
 		char *username = conf_get_str(conf, CONF_proxy_username);
 		int userlen = strlen(username);
 		ENSURE(userlen);
@@ -1397,7 +1397,7 @@ char *format_telnet_command(SockAddr addr, int port, Conf *conf)
 		retlen += userlen;
 		eo += 4;
 	    }
-	    else if (strnicmp(fmt + eo, "pass", 4) == 0) {
+	    else if (_strnicmp(fmt + eo, "pass", 4) == 0) {
 		char *password = conf_get_str(conf, CONF_proxy_password);
 		int passlen = strlen(password);
 		ENSURE(passlen);
@@ -1405,7 +1405,7 @@ char *format_telnet_command(SockAddr addr, int port, Conf *conf)
 		retlen += passlen;
 		eo += 4;
 	    }
-	    else if (strnicmp(fmt + eo, "proxyhost", 9) == 0) {
+	    else if (_strnicmp(fmt + eo, "proxyhost", 9) == 0) {
 		char *host = conf_get_str(conf, CONF_proxy_host);
 		int phlen = strlen(host);
 		ENSURE(phlen);
@@ -1413,7 +1413,7 @@ char *format_telnet_command(SockAddr addr, int port, Conf *conf)
 		retlen += phlen;
 		eo += 9;
 	    }
-	    else if (strnicmp(fmt + eo, "proxyport", 9) == 0) {
+	    else if (_strnicmp(fmt + eo, "proxyport", 9) == 0) {
 		int port = conf_get_int(conf, CONF_proxy_port);
                 char pport[50];
 		int pplen;

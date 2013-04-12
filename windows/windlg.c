@@ -190,8 +190,6 @@ static int CALLBACK LicenceProc(HWND hwnd, UINT msg,
 static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 			      WPARAM wParam, LPARAM lParam)
 {
-    char *str;
-
     switch (msg) {
       case WM_INITDIALOG:
 	SetDlgItemText(hwnd, IDA_VERSION, ver);

@@ -12,7 +12,7 @@ extern int urlhack_mouse_old_x, urlhack_mouse_old_y, urlhack_current_region;
 void urlhack_reset();
 void urlhack_go_find_me_some_hyperlinks(int screen_width);
 void urlhack_putchar(char ch);
-text_region urlhack_get_link_region(int index);
+text_region urlhack_get_link_region(unsigned int index);
 
 int urlhack_is_in_link_region(int x, int y);
 int urlhack_is_in_this_link_region(text_region r, int x, int y);

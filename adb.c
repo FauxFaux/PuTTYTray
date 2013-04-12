@@ -136,7 +136,6 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
     SockAddr addr;
     const char *err;
     Adb adb;
-	char sendhost[512];
 
     adb = snew(struct adb_backend_data);
     adb->fn = &fn_table;
