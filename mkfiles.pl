@@ -156,7 +156,7 @@ foreach $aux (sort keys %auxfiles) {
 # Now retrieve the complete list of objects and resource files, and
 # construct dependency data for them. While we're here, expand the
 # object list for each program, and complain if its type isn't set.
-@prognames = sort keys %programs;
+@prognames = keys %programs;
 %depends = ();
 @scanlist = ();
 foreach $i (@prognames) {
@@ -991,7 +991,7 @@ if (defined $makefiles{'vcproj2010'}) {
       create_vc2010_project(\%all_object_deps, $progname);
     }
     # Create the workspace file
-    open OUT, ">$project_name.sln"; binmode OUT; select OUT;
+    open OUT, ">../../$project_name.sln"; binmode OUT; select OUT;
     #utf-8 bom
     syswrite(OUT,chr(0xEF));
     syswrite(OUT,chr(0xBB));
@@ -1004,7 +1004,7 @@ if (defined $makefiles{'vcproj2010'}) {
     foreach $progname (@prognames) {
         ($windows_project, $type) = split ",", $progname;
         print 
-        "Project(\"".guid("sln")."\") = \"$windows_project\", \"$windows_project\\$windows_project.vcxproj\", \"".guid($windows_project)."\"\r\n".
+        "Project(\"".guid("sln")."\") = \"$windows_project\", \"$makefiles{'vcproj2010'}\\$windows_project\\$windows_project.vcxproj\", \"".guid($windows_project)."\"\r\n".
         "EndProject\r\n";
     }
     print
