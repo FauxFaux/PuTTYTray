@@ -909,7 +909,9 @@ static DWORD try_connect(Actual_Socket sock)
     char *errstr;
     short localport;
     int family;
+#if defined(IPTOS) && defined(WINSOCK_TWO)
 	int tos;
+#endif
 
     if (sock->s != INVALID_SOCKET) {
 	do_select(sock->s, 0);

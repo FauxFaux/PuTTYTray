@@ -13,7 +13,7 @@ static unsigned int link_regions_current_pos;
 
 void urlhack_launch_url(const char* app, const char *url);
 int urlhack_is_ctrl_pressed();
-void rtfm(char *error);
+void rtfm(const char *error);
 
 int urlhack_is_in_link_region(int x, int y)
 {
@@ -61,7 +61,7 @@ text_region urlhack_get_link_bounds(int x, int y)
     return region;
 }
 
-text_region urlhack_get_link_region(int index)
+text_region urlhack_get_link_region(unsigned int index)
 {
     text_region region;
 

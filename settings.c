@@ -531,9 +531,9 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "HyperlinkUnderline", conf_get_int(conf, CONF_url_underline));
     write_setting_i(sesskey, "HyperlinkUseCtrlClick", conf_get_int(conf, CONF_url_ctrl_click));
     write_setting_i(sesskey, "HyperlinkBrowserUseDefault", conf_get_int(conf, CONF_url_defbrowser));
-    write_setting_filename(sesskey, "HyperlinkBrowser", conf_get_int(conf, CONF_url_browser));
+    write_setting_filename(sesskey, "HyperlinkBrowser", conf_get_filename(conf, CONF_url_browser));
     write_setting_i(sesskey, "HyperlinkRegularExpressionUseDefault", conf_get_int(conf, CONF_url_defregex));
-    write_setting_s(sesskey, "HyperlinkRegularExpression", conf_get_int(conf, CONF_url_regex));
+    write_setting_s(sesskey, "HyperlinkRegularExpression", conf_get_str(conf, CONF_url_regex));
     write_setting_i(sesskey, "AltF4", conf_get_int(conf, CONF_alt_f4));
     write_setting_i(sesskey, "AltSpace", conf_get_int(conf, CONF_alt_space));
     write_setting_i(sesskey, "AltOnly", conf_get_int(conf, CONF_alt_only));

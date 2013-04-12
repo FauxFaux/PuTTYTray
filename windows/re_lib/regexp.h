@@ -18,5 +18,5 @@ typedef struct regexp {
 regexp *regcomp( char* re);
 int regexec( regexp* r, char* str);
 void regsub( regexp* r, char* str, char* substr);
-void regerror( char* s);	/* for internal use only */
+void regerror( const char* s);	/* for internal use only */
 void set_regerror_func( void (*func)( const char*));
