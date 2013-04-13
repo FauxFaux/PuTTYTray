@@ -47,6 +47,7 @@
 #define IDM_ADDKEY   0x0030
 #define IDM_HELP     0x0040
 #define IDM_ABOUT    0x0050
+#define IDM_START_AT_STARTUP 0x0080
 
 #define APPNAME "Pageant"
 
@@ -235,6 +236,44 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
     }
     return 0;
 }
+
+
+const char *STARTUP_KEY = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+
+HKEY run_key() {
+    HKEY res;
+    RegOpenKey(HKEY_CURRENT_USER, STARTUP_KEY, &res);
+    return res;
+}
+
+BOOL starts_at_startup() {
+    char us[MAX_PATH] = "", them[MAX_PATH] = "";
+    DWORD len = MAX_PATH;
+    HKEY run;
+    GetModuleFileName(NULL, us, MAX_PATH);
+    run = run_key();
+    RegQueryValueEx(run, APPNAME,
+        NULL, NULL, (LPBYTE)them, &len);
+    RegCloseKey(run);
+    return !strcmp(us, them);
+}
+
+void toggle_startup() {
+    if (starts_at_startup()) {
+        HKEY run = run_key();
+        RegDeleteValue(run, APPNAME);
+        RegCloseKey(run);
+    } else {
+        char us[MAX_PATH] = "";
+        LONG ret;
+        HKEY run = run_key();
+        GetModuleFileName(NULL, us, MAX_PATH);
+        ret = RegSetValueEx(run, APPNAME, 0, REG_SZ, (BYTE*)us, strlen(us) + 1);
+        RegCloseKey(run);
+        printf("%d", ret);
+    }
+}
+
 
 static HWND passphrase_box;
 
@@ -1860,6 +1899,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	  case IDM_HELP:
 	    launch_help(hwnd, WINHELP_CTX_pageant_general);
 	    break;
+          case IDM_START_AT_STARTUP:
+            toggle_startup();
+            CheckMenuItem(systray_menu, IDM_START_AT_STARTUP,
+                starts_at_startup() ? MF_CHECKED : MF_UNCHECKED);
+            break;
 	  default:
 	    {
 		if(wParam >= IDM_SESSIONS_BASE && wParam <= IDM_SESSIONS_MAX) {
@@ -2219,6 +2263,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     AppendMenu(systray_menu, MF_SEPARATOR, 0, 0);
     if (has_help())
 	AppendMenu(systray_menu, MF_ENABLED, IDM_HELP, "&Help");
+    AppendMenu(systray_menu, MF_ENABLED
+        | (starts_at_startup() ? MF_CHECKED : MF_UNCHECKED),
+        IDM_START_AT_STARTUP, "&Start with Windows");
     AppendMenu(systray_menu, MF_ENABLED, IDM_ABOUT, "&About");
     AppendMenu(systray_menu, MF_SEPARATOR, 0, 0);
     AppendMenu(systray_menu, MF_ENABLED, IDM_CLOSE, "E&xit");

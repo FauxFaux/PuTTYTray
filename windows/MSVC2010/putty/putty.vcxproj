@@ -11,6 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\adb.c" />
     <ClCompile Include="..\..\..\be_all_s.c" />
     <ClCompile Include="..\..\..\cmdline.c" />
     <ClCompile Include="..\..\..\conf.c" />
@@ -55,10 +56,16 @@
     <ClCompile Include="..\..\..\terminal.c" />
     <ClCompile Include="..\..\..\timing.c" />
     <ClCompile Include="..\..\..\tree234.c" />
+    <ClCompile Include="..\..\..\urlhack.c" />
     <ClCompile Include="..\..\..\version.c" />
     <ClCompile Include="..\..\..\wcwidth.c" />
     <ClCompile Include="..\..\..\wildcard.c" />
+    <ClCompile Include="..\..\..\windows\cygcfg.c" />
+    <ClCompile Include="..\..\..\windows\cygterm.c" />
+    <ClCompile Include="..\..\..\windows\pickicondialog.c" />
+    <ClCompile Include="..\..\..\windows\re_lib\regexp.c" />
     <ClCompile Include="..\..\..\windows\sizetip.c" />
+    <ClCompile Include="..\..\..\windows\urlhack_win.c" />
     <ClCompile Include="..\..\..\windows\wincfg.c" />
     <ClCompile Include="..\..\..\windows\winctrls.c" />
     <ClCompile Include="..\..\..\windows\windefs.c" />
@@ -102,7 +109,13 @@
     <ClInclude Include="..\..\..\terminal.h" />
     <ClInclude Include="..\..\..\tree234.h" />
     <ClInclude Include="..\..\..\unix\unix.h" />
+    <ClInclude Include="..\..\..\windows\cthelper\cthelper.h" />
+    <ClInclude Include="..\..\..\windows\cthelper\message.h" />
+    <ClInclude Include="..\..\..\windows\pickicondialog.h" />
     <ClInclude Include="..\..\..\windows\rcstuff.h" />
+    <ClInclude Include="..\..\..\windows\re_lib\regexp.h" />
+    <ClInclude Include="..\..\..\windows\re_lib\regmagic.h" />
+    <ClInclude Include="..\..\..\windows\urlhack.h" />
     <ClInclude Include="..\..\..\windows\win_res.h" />
     <ClInclude Include="..\..\..\windows\winhelp.h" />
     <ClInclude Include="..\..\..\windows\winstuff.h" />
@@ -157,7 +170,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;HAS_GSSAPI;SECURITY_WIN32;_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES=1;_CRT_SECURE_NO_WARNINGS=1;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\..\./;..\..\..\charset/;..\..\..\windows/;..\..\..\unix/;..\..\..\macosx/</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\./;..\..\..\charset/;..\..\..\windows/;..\..\..\windows/re_lib/;..\..\..\unix/;..\..\..\macosx/</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -174,7 +187,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;HAS_GSSAPI;SECURITY_WIN32;_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES=1;_CRT_SECURE_NO_WARNINGS=1;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\..\./;..\..\..\charset/;..\..\..\windows/;..\..\..\unix/;..\..\..\macosx/</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\./;..\..\..\charset/;..\..\..\windows/;..\..\..\windows/re_lib/;..\..\..\unix/;..\..\..\macosx/</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
