@@ -87,6 +87,9 @@
     <ClInclude Include="..\..\..\tree234.h" />
     <ClInclude Include="..\..\..\unix\unix.h" />
     <ClInclude Include="..\..\..\windows\rcstuff.h" />
+    <ClInclude Include="..\..\..\windows\re_lib\regexp.h" />
+    <ClInclude Include="..\..\..\windows\urlhack.h" />
+    <ClInclude Include="..\..\..\windows\win_res.h" />
     <ClInclude Include="..\..\..\windows\winhelp.h" />
     <ClInclude Include="..\..\..\windows\winstuff.h" />
   </ItemGroup>
@@ -139,7 +142,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;HAS_GSSAPI;SECURITY_WIN32;_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES=1;_CRT_SECURE_NO_WARNINGS=1;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\..\./;..\..\..\charset/;..\..\..\windows/;..\..\..\unix/;..\..\..\macosx/</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\./;..\..\..\charset/;..\..\..\windows/;..\..\..\windows/re_lib/;..\..\..\unix/;..\..\..\macosx/</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -156,7 +159,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;HAS_GSSAPI;SECURITY_WIN32;_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES=1;_CRT_SECURE_NO_WARNINGS=1;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\..\./;..\..\..\charset/;..\..\..\windows/;..\..\..\unix/;..\..\..\macosx/</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\./;..\..\..\charset/;..\..\..\windows/;..\..\..\windows/re_lib/;..\..\..\unix/;..\..\..\macosx/</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
