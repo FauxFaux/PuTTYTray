@@ -9,6 +9,32 @@
 #include "ssh.h"
 #include "storage.h"
 
+HCRYPTPROV prov;
+
+#define PROV_NOT_TRIED 0
+#define PROV_LOADED_SUCCESS 1
+#define PROV_ERROR -1
+int prov_loaded = PROV_NOT_TRIED;
+
+void noise_get_serious(void (*func) (void *, int)) {
+    BYTE buf[256 / 8];
+    if (PROV_NOT_TRIED == prov_loaded) {
+        prov_loaded = CryptAcquireContext(&prov, NULL, NULL, PROV_RSA_FULL, 0) ?
+            PROV_LOADED_SUCCESS : PROV_ERROR;
+        // what an odd API: http://msdn.microsoft.com/en-us/library/windows/desktop/aa382375(v=vs.85).aspx
+        if (PROV_ERROR == prov_loaded && NTE_BAD_KEYSET == GetLastError()) {
+            prov_loaded = CryptAcquireContext(&prov, NULL, NULL, PROV_RSA_FULL, CRYPT_NEWKEYSET) ?
+                PROV_LOADED_SUCCESS : PROV_ERROR;
+        }
+    }
+
+    if (PROV_ERROR == prov_loaded)
+        return;
+
+    if (CryptGenRandom(prov, sizeof(buf), buf))
+        func(buf, sizeof(buf));
+}
+
 /*
  * This function is called once, at PuTTY startup, and will do some
  * seriously silly things like listing directories and getting disk
@@ -34,6 +60,8 @@ void noise_get_heavy(void (*func) (void *, int))
 
     pid = GetCurrentProcessId();
     func(&pid, sizeof(pid));
+
+    noise_get_serious(func);
 
     read_random_seed(func);
     /* Update the seed immediately, in case another instance uses it. */
