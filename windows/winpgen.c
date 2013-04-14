@@ -23,6 +23,11 @@
 #define DEFAULT_KEYSIZE 2048
 
 static char *cmdline_keyfile = NULL;
+static Filename *cmdline_keygen = NULL;
+
+#define PASSPHRASE_PROC_OK 1
+#define PASSPHRASE_PROC_CANCEL 2
+#define PASSPHRASE_PROC_CLOSE 0
 
 /*
  * Print a modal (Really Bad) message box and perform a fatal exit.
@@ -180,12 +185,12 @@ static int CALLBACK PassphraseProc(HWND hwnd, UINT msg,
 	switch (LOWORD(wParam)) {
 	  case IDOK:
 	    if (*passphrase)
-		EndDialog(hwnd, 1);
+                EndDialog(hwnd, PASSPHRASE_PROC_OK);
 	    else
 		MessageBeep(0);
 	    return 0;
 	  case IDCANCEL:
-	    EndDialog(hwnd, 0);
+	    EndDialog(hwnd, PASSPHRASE_PROC_CANCEL);
 	    return 0;
 	  case 102:		       /* edit box */
 	    if ((HIWORD(wParam) == EN_CHANGE) && passphrase) {
@@ -196,7 +201,7 @@ static int CALLBACK PassphraseProc(HWND hwnd, UINT msg,
 	}
 	return 0;
       case WM_CLOSE:
-	EndDialog(hwnd, 0);
+        EndDialog(hwnd, PASSPHRASE_PROC_CLOSE);
 	return 0;
     }
     return 0;
@@ -680,7 +685,7 @@ void load_key_file(HWND hwnd, struct MainDlgState *state,
 				    MAKEINTRESOURCE(810),
 				    NULL, PassphraseProc,
 				    (LPARAM) &pps);
-	    if (!dlgret) {
+            if (dlgret != PASSPHRASE_PROC_OK) {
 		ret = -2;
 		break;
 	    }
@@ -951,10 +956,12 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 	 */
 	ui_set_state(hwnd, state, 0);
 
+        if (cmdline_keygen) {
+            PostMessage(hwnd, WM_COMMAND, IDC_GENERATE, 0);
 	/*
 	 * Load a key file if one was provided on the command line.
 	 */
-	if (cmdline_keyfile) {
+	} else if (cmdline_keyfile) {
             Filename *fn = filename_from_str(cmdline_keyfile);
 	    load_key_file(hwnd, state, fn, 0);
             filename_free(fn);
@@ -1124,6 +1131,11 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 		char *passphrase, *passphrase2;
                 int type, realtype;
 
+                if (cmdline_keygen)
+                    strcpy(filename, filename_to_str(cmdline_keygen));
+                else
+                    filename[0] = '\0';
+
                 if (state->ssh2)
                     realtype = SSH_KEYTYPE_SSH2;
                 else
@@ -1147,8 +1159,37 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 		    break;
                 }
 
-		passphrase = GetDlgItemText_alloc(hwnd, IDC_PASSPHRASE1EDIT);
-		passphrase2 = GetDlgItemText_alloc(hwnd, IDC_PASSPHRASE2EDIT);
+                if (cmdline_keygen) {
+	            int dlgret;
+                    struct PassphraseProcStruct pps;
+                    passphrase = snewn(1000, char);
+                    passphrase[0] = 0;
+                    passphrase2 = snewn(1000, char);
+                    passphrase2[0] = 0;
+                    pps.passphrase = &passphrase;
+                    pps.comment = "or cancel for no passphrase";
+	            dlgret = DialogBoxParam(hinst,
+				            MAKEINTRESOURCE(810),
+				            hwnd, PassphraseProc,
+				            (LPARAM) &pps);
+                    if (dlgret != PASSPHRASE_PROC_CANCEL) {
+                        while (strcmp(passphrase, passphrase2)) {
+                            pps.passphrase = &passphrase2;
+                            pps.comment = "again to confirm";
+                            dlgret = DialogBoxParam(hinst,
+				                    MAKEINTRESOURCE(810),
+				                    hwnd, PassphraseProc,
+				                    (LPARAM) &pps);
+                            if (dlgret != PASSPHRASE_PROC_OK) {
+                                PostQuitMessage(3);
+                                return 0;
+                            }
+                        }
+                    }
+                } else {
+		    passphrase = GetDlgItemText_alloc(hwnd, IDC_PASSPHRASE1EDIT);
+		    passphrase2 = GetDlgItemText_alloc(hwnd, IDC_PASSPHRASE2EDIT);
+                }
 		if (strcmp(passphrase, passphrase2)) {
 		    MessageBox(hwnd,
 			       "The two passphrases given do not match.",
@@ -1158,7 +1199,7 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 		    break;
 		}
                 burnstr(passphrase2);
-		if (!*passphrase) {
+                if (!cmdline_keygen && !*passphrase) {
 		    int ret;
 		    ret = MessageBox(hwnd,
 				     "Are you sure you want to save this key\n"
@@ -1170,7 +1211,7 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
                         break;
                     }
 		}
-		if (prompt_keyfile(hwnd, "Save private key as:",
+		if (*filename || prompt_keyfile(hwnd, "Save private key as:",
 				   filename, 1, (type == realtype))) {
 		    int ret;
 		    FILE *fp = fopen(filename, "r");
@@ -1184,6 +1225,8 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 			sfree(buffer);
 			if (ret != IDYES) {
                             burnstr(passphrase);
+                            if (cmdline_keygen)
+                                PostQuitMessage(2);
 			    break;
                         }
 		    }
@@ -1211,7 +1254,11 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 		    if (ret <= 0) {
 			MessageBox(hwnd, "Unable to save key file",
 				   "PuTTYgen Error", MB_OK | MB_ICONERROR);
-		    }
+                        if (cmdline_keygen)
+                            PostQuitMessage(1);
+		    } else
+                        if (cmdline_keygen)
+                            PostQuitMessage(0);
 		}
                 burnstr(passphrase);
 	    }
@@ -1352,6 +1399,9 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 	 * Finally, hide the progress bar and show the key data.
 	 */
 	ui_set_state(hwnd, state, 2);
+        if (cmdline_keygen) {
+            PostMessage(hwnd, WM_COMMAND, IDC_EXPORT_OPENSSH, 0);
+        }
 	break;
       case WM_HELP:
         {
@@ -1443,11 +1493,15 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	    pgp_fingerprints();
 	    exit(1);
 	} else {
-	    /*
-	     * Assume the first argument to be a private key file, and
-	     * attempt to load it.
-	     */
-	    cmdline_keyfile = argv[0];
+            if (!strcmp("--ssh-keygen", argv[0])) {
+                cmdline_keygen = get_id_rsa_path();
+            } else {
+                /*
+	         * Assume the first argument to be a private key file, and
+	         * attempt to load it.
+	         */
+	        cmdline_keyfile = argv[0];
+            }
 	}
     }
 

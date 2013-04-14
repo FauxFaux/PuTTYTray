@@ -468,6 +468,7 @@ BOOL init_winver(void);
 HMODULE load_system32_dll(const char *libname);
 const char *win_strerror(int error);
 HICON extract_icon(const char *iconpath, int smallicon);
+struct Filename *get_id_rsa_path();
 
 
 /*

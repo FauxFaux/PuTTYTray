@@ -16,7 +16,6 @@
 #include "tree234.h"
 
 #include <shellapi.h>
-#include <shlobj.h>
 
 #ifndef NO_SECURITY
 #include <aclapi.h>
@@ -1670,10 +1669,9 @@ static int CALLBACK KeyListProc(HWND hwnd, UINT msg,
 	    return 0;
           case 107: /* add ~/.ssh/id_rsa */
             {
-                CHAR path[MAX_PATH];
-                SHGetFolderPath(NULL, CSIDL_PROFILE, NULL, 0, path);
-                strcat(path, "\\.ssh\\id_rsa");
-                add_keyfile(filename_from_str(path));
+                Filename *path = get_id_rsa_path();
+                add_keyfile(path);
+                sfree(path);
                 keylist_update();
             }
             return 0;

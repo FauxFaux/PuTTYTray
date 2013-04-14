@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include "putty.h"
 #include <security.h>
+#include <shlobj.h>
 
 /*
  * HACK: PuttyTray / Session Icon
@@ -577,4 +578,11 @@ HICON extract_icon(const char *iconpath, int smallicon)
     } else {
 	return hiconLarge;
     }
+}
+
+Filename *get_id_rsa_path() {
+    CHAR path[MAX_PATH];
+    SHGetFolderPath(NULL, CSIDL_PROFILE, NULL, 0, path);
+    strcat(path, "\\.ssh\\id_rsa");
+    return filename_from_str(path);
 }
