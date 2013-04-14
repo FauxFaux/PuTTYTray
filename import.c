@@ -505,6 +505,23 @@ int openssh_encrypted(const Filename *filename)
     return ret;
 }
 
+char *comment_for(const Filename *filename) {
+    const size_t target_len = 24;
+    const char *prefix = "openssh: ";
+    const char *path = filename_to_str(filename);
+    const size_t len = strlen(path);
+    const size_t avail = target_len - strlen(prefix) - strlen("...");
+    char *str = snewn(target_len + 1, char);
+    strcpy(str, prefix);
+    if (len < avail)
+        strcat(str, path);
+    else {
+        strcat(str, "...");
+        strcat(str, path + len - avail);
+    }
+    return str;
+}
+
 struct ssh2_userkey *openssh_read(const Filename *filename, char *passphrase,
 				  const char **errmsg_p)
 {
@@ -697,7 +714,7 @@ struct ssh2_userkey *openssh_read(const Filename *filename, char *passphrase,
 	goto error;
     }
 
-    retkey->comment = dupstr("imported-openssh-key");
+    retkey->comment = comment_for(filename);
     errmsg = NULL;                     /* no error */
     retval = retkey;
 
