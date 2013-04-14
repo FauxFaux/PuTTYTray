@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\conf.c" />
+    <ClCompile Include="..\..\..\import.c" />
     <ClCompile Include="..\..\..\misc.c" />
     <ClCompile Include="..\..\..\sshaes.c" />
     <ClCompile Include="..\..\..\sshbn.c" />

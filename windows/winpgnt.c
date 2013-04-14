@@ -430,17 +430,25 @@ static void add_keyfile(Filename *filename)
     int attempts;
     char *comment;
     const char *error = NULL;
-    int type;
+    int type, realtype;
     int original_pass;
-	
-    type = key_type(filename);
-    if (type != SSH_KEYTYPE_SSH1 && type != SSH_KEYTYPE_SSH2) {
+
+    type = realtype = key_type(filename);
+    if (type != SSH_KEYTYPE_SSH1 &&
+        type != SSH_KEYTYPE_SSH2 &&
+        !import_possible(type)) {
 	char *msg = dupprintf("Couldn't load this key (%s)",
 			      key_type_to_str(type));
 	message_box(msg, APPNAME, MB_OK | MB_ICONERROR,
 		    HELPCTXID(errors_cantloadkey));
 	sfree(msg);
 	return;
+    }
+
+    if (type != SSH_KEYTYPE_SSH1 &&
+	type != SSH_KEYTYPE_SSH2) {
+	realtype = type;
+	type = import_target_type(type);
     }
 
     /*
@@ -463,8 +471,19 @@ static void add_keyfile(Filename *filename)
 	    keylist = get_keylist1(&keylistlen);
 	} else {
 	    unsigned char *blob2;
-	    blob = ssh2_userkey_loadpub(filename, NULL, &bloblen,
-					NULL, &error);
+            if (realtype == type) {
+                blob = ssh2_userkey_loadpub(filename, NULL, &bloblen,
+                                            NULL, &error);
+            } else {
+                struct ssh2_userkey *loaded = import_ssh2(filename, realtype, "", NULL);
+                if (!loaded || SSH2_WRONG_PASSPHRASE == loaded) {
+                    blob = _strdup("couldn't load public key yet");
+                    bloblen = strlen(blob);
+                } else {
+                    blob = loaded->alg->public_blob(loaded->data, &bloblen);
+                    sfree(loaded);
+                }
+            }
 	    if (!blob) {
 		char *msg = dupprintf("Couldn't load private key (%s)", error);
 		message_box(msg, APPNAME, MB_OK | MB_ICONERROR,
@@ -555,10 +574,12 @@ static void add_keyfile(Filename *filename)
     }
 
     error = NULL;
-    if (type == SSH_KEYTYPE_SSH1)
+    if (realtype == SSH_KEYTYPE_SSH1)
 	needs_pass = rsakey_encrypted(filename, &comment);
-    else
+    else if (realtype == SSH_KEYTYPE_SSH2)
 	needs_pass = ssh2_userkey_encrypted(filename, &comment);
+    else
+        needs_pass = import_encrypted(filename, realtype, &comment);
     attempts = 0;
     if (type == SSH_KEYTYPE_SSH1)
 	rkey = snew(struct RSAKey);
@@ -600,7 +621,10 @@ static void add_keyfile(Filename *filename)
 	if (type == SSH_KEYTYPE_SSH1)
 	    ret = loadrsakey(filename, rkey, passphrase, &error);
 	else {
-	    skey = ssh2_load_userkey(filename, passphrase, &error);
+            if (realtype == type)
+                skey = ssh2_load_userkey(filename, passphrase, &error);
+            else
+                skey = import_ssh2(filename, realtype, passphrase, &error);
 	    if (skey == SSH2_WRONG_PASSPHRASE)
 		ret = -1;
 	    else if (!skey)
