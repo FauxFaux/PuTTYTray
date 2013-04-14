@@ -59,6 +59,7 @@ static HMENU systray_menu, session_menu;
 static int already_running;
 
 static char *putty_path;
+static char *puttygen_path;
 
 /* CWD for "add key" file requester. */
 static filereq *keypath = NULL;
@@ -1670,6 +1671,21 @@ static int CALLBACK KeyListProc(HWND hwnd, UINT msg,
           case 107: /* add ~/.ssh/id_rsa */
             {
                 Filename *path = get_id_rsa_path();
+                if (puttygen_path && !file_exists(path->path)
+                    && IDYES == MessageBox(hwnd, "~/.ssh/id_rsa doesn't exist, would you like to create it?",
+                        APPNAME, MB_YESNO)) {
+                    char buf[MAX_PATH + 50];
+                    SHELLEXECUTEINFO ShExecInfo = {0};
+                    ShExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
+                    ShExecInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
+                    ShExecInfo.hwnd = hwnd;
+                    ShExecInfo.lpFile = puttygen_path;
+                    ShExecInfo.lpParameters = "--ssh-keygen";
+                    ShExecInfo.nShow = SW_SHOW;
+                    ShellExecuteEx(&ShExecInfo);
+                    WaitForSingleObject(ShExecInfo.hProcess, INFINITE);
+                    CloseHandle(ShExecInfo.hProcess);
+                }
                 add_keyfile(path);
                 sfree(path);
                 keylist_update();
@@ -2128,6 +2144,31 @@ void cleanup_exit(int code)
 
 int flags = FLAG_SYNCAGENT;
 
+static int file_exists(const char *path) {
+    FILE *fp = fopen(path, "r");
+    if (fp)
+        fclose(fp);
+    return fp != NULL;
+}
+
+int look_for(const char *exe, char **path) {
+    char b[2048], *p, *q, *r;
+    GetModuleFileName(NULL, b, sizeof(b) - 16);
+    r = b;
+    p = strrchr(b, '\\');
+    if (p && p >= r) r = p+1;
+    q = strrchr(b, ':');
+    if (q && q >= r) r = q+1;
+    strcpy(r, exe);
+    if (file_exists(b)) {
+        *path = dupstr(b);
+        return 1;
+    } else {
+        *path = NULL;
+        return 0;
+    }
+}
+
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
     WNDCLASS wndclass;
@@ -2183,22 +2224,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
      * Look for the PuTTY binary (we will enable the saved session
      * submenu if we find it).
      */
-    {
-        char b[2048], *p, *q, *r;
-        FILE *fp;
-        GetModuleFileName(NULL, b, sizeof(b) - 16);
-        r = b;
-        p = strrchr(b, '\\');
-        if (p && p >= r) r = p+1;
-        q = strrchr(b, ':');
-        if (q && q >= r) r = q+1;
-        strcpy(r, "putty.exe");
-        if ( (fp = fopen(b, "r")) != NULL) {
-            putty_path = dupstr(b);
-            fclose(fp);
-        } else
-            putty_path = NULL;
-    }
+    look_for("putty.exe", &putty_path);
+    look_for("puttygen.exe", &puttygen_path);
 
     /*
      * Find out if Pageant is already running.
