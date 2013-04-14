@@ -1131,8 +1131,16 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 		char *passphrase, *passphrase2;
                 int type, realtype;
 
-                if (cmdline_keygen)
+                if (cmdline_keygen) {
+                    char *dir;
                     strcpy(filename, filename_to_str(cmdline_keygen));
+                    dir = strdup(filename);
+                    *strrchr(dir, '\\') = 0;
+                    if (ERROR_ALREADY_EXISTS != CreateDirectory(dir, NULL)) {
+                        EncryptFile(dir);
+                    }
+                    free(dir);
+                }
                 else
                     filename[0] = '\0';
 
