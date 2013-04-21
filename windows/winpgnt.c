@@ -1090,7 +1090,7 @@ static void answer_msg(void *msg)
             } else {
                 // There's no protocol for returning "no I won't sign this";
                 // errors cause the client to abort the connection, this seems like a better fallback
-                signature = strdup("");
+                signature = _strdup("");
                 siglen = 0;
             }
 	    len = 5 + 4 + siglen;
@@ -1672,7 +1672,6 @@ static int CALLBACK KeyListProc(HWND hwnd, UINT msg,
                 if (puttygen_path && !file_exists(path->path)
                     && IDYES == MessageBox(hwnd, "~/.ssh/id_rsa doesn't exist, would you like to create it?",
                         APPNAME, MB_YESNO)) {
-                    char buf[MAX_PATH + 50];
                     SHELLEXECUTEINFO ShExecInfo = {0};
                     ShExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
                     ShExecInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
