@@ -48,6 +48,7 @@
 #define IDM_HELP     0x0040
 #define IDM_ABOUT    0x0050
 #define IDM_START_AT_STARTUP 0x0080
+#define IDM_CONFIRM_KEY_USAGE 0x0090
 
 #define APPNAME "Pageant"
 
@@ -63,6 +64,8 @@ static char *puttygen_path;
 
 /* CWD for "add key" file requester. */
 static filereq *keypath = NULL;
+
+static BOOL confirm_mode = FALSE;
 
 #define IDM_PUTTY         0x0060
 #define IDM_SESSIONS_BASE 0x1000
@@ -1058,6 +1061,7 @@ static void answer_msg(void *msg)
 	    struct blob b;
 	    unsigned char *data, *signature;
 	    int datalen, siglen, len;
+            char buf[MAX_PATH];
 
 	    if (msgend < p+4)
 		goto failure;
@@ -1077,7 +1081,18 @@ static void answer_msg(void *msg)
 	    key = find234(ssh2keys, &b, cmpkeys_ssh2_asymm);
 	    if (!key)
 		goto failure;
-	    signature = key->alg->sign(key->data, data, datalen, &siglen);
+            strcpy(buf, "Allow use of key: ");
+            strncat(buf, key->comment, MAX_PATH);
+            strncat(buf, "?", MAX_PATH);
+            // Presumably this is in response to user action, so SYSTEMMODAL (toppmost) seems reasonable
+            if (IDYES == MessageBox(NULL, buf, APPNAME, MB_SYSTEMMODAL | MB_YESNO | MB_ICONQUESTION)) {
+                signature = key->alg->sign(key->data, data, datalen, &siglen);
+            } else {
+                // There's no protocol for returning "no I won't sign this";
+                // errors cause the client to abort the connection, this seems like a better fallback
+                signature = strdup("");
+                siglen = 0;
+            }
 	    len = 5 + 4 + siglen;
 	    PUT_32BIT(ret, len - 4);
 	    ret[4] = SSH2_AGENT_SIGN_RESPONSE;
@@ -1930,6 +1945,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    }
 	    prompt_add_keyfile();
 	    break;
+          case IDM_CONFIRM_KEY_USAGE:
+            confirm_mode = !confirm_mode;
+            CheckMenuItem(systray_menu, IDM_CONFIRM_KEY_USAGE,
+                confirm_mode ? MF_CHECKED : MF_UNCHECKED);
+            break;
 	  case IDM_ABOUT:
 	    if (!aboutbox) {
 		aboutbox = CreateDialog(hinst, MAKEINTRESOURCE(213),
@@ -2242,6 +2262,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	    else
 		command = "";
 	    break;
+        } else if (!strcmp(argv[i], "--confirm")) {
+            confirm_mode = TRUE;
 	} else {
 	    add_keyfile(filename_from_str(argv[i]));
 	    added_keys = TRUE;
@@ -2322,6 +2344,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     AppendMenu(systray_menu, MF_SEPARATOR, 0, 0);
     if (has_help())
 	AppendMenu(systray_menu, MF_ENABLED, IDM_HELP, "&Help");
+    AppendMenu(systray_menu, MF_ENABLED
+        | (confirm_mode ? MF_CHECKED : MF_UNCHECKED),
+        IDM_CONFIRM_KEY_USAGE, "&Confirm key usage");
     AppendMenu(systray_menu, MF_ENABLED
         | (starts_at_startup() ? MF_CHECKED : MF_UNCHECKED),
         IDM_START_AT_STARTUP, "&Start with Windows");
