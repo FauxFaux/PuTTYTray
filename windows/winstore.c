@@ -512,7 +512,7 @@ static DWORD errorShow(const char* pcErrText, const char* pcErrParam) {
     HWND hwRodic;
     DWORD erChyba;
     char pcBuf[16];
-    char* pcHlaska = snewn(strlen(pcErrParam) + strlen(pcErrText) + 31, char);
+    char* pcHlaska = snewn((pcErrParam ? strlen(pcErrParam) : 0) + strlen(pcErrText) + 31, char);
     
     erChyba = GetLastError();        
     _ltoa(erChyba, pcBuf, 10);
