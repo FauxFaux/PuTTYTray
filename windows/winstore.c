@@ -1187,8 +1187,9 @@ void file_del_settings(const char *sessionname)
     else {*/
         /* JK: delete from file - file itself */
 
-        p = snewn(3 * strlen(sessionname) + 1, char);
+        p = snewn(3 * strlen(sessionname) + strlen(sessionsuffix) + 1, char);
         mungestr(sessionname, p);
+        strcat(p, sessionsuffix);
         p2 = snewn(3 * strlen(p) + 1, char);
         packstr(p, p2);
 
