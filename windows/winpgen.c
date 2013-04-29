@@ -393,30 +393,11 @@ static void setupbigedit1(HWND hwnd, int id, int idstatic, struct RSAKey *key)
 static void setupbigedit2(HWND hwnd, int id, int idstatic,
 			  struct ssh2_userkey *key)
 {
-    unsigned char *pub_blob;
-    char *buffer, *p;
-    int pub_len;
-    int i;
+    char *buffer = openssh_to_pubkey(key);
 
-    pub_blob = key->alg->public_blob(key->data, &pub_len);
-    buffer = snewn(strlen(key->alg->name) + 4 * ((pub_len + 2) / 3) +
-		   strlen(key->comment) + 3, char);
-    strcpy(buffer, key->alg->name);
-    p = buffer + strlen(buffer);
-    *p++ = ' ';
-    i = 0;
-    while (i < pub_len) {
-	int n = (pub_len - i < 3 ? pub_len - i : 3);
-	base64_encode_atom(pub_blob + i, n, p);
-	i += n;
-	p += 4;
-    }
-    *p++ = ' ';
-    strcpy(p, key->comment);
     SetDlgItemText(hwnd, id, buffer);
     SetDlgItemText(hwnd, idstatic, "&Public key for pasting into "
 		   "OpenSSH authorized_keys file:");
-    sfree(pub_blob);
     sfree(buffer);
 }
 

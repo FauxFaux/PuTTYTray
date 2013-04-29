@@ -31,6 +31,7 @@ BEGIN
     PUSHBUTTON "&Add Key", 101, 27, 162, 60, 14
     PUSHBUTTON "Add ~/.ssh/&id_rsa", 107, 125, 162, 80, 14
     PUSHBUTTON "&Remove Key", 102, 235, 162, 60, 14
+    PUSHBUTTON "Copy OpenSSH public keys", 108, 105, 182, 120, 14
     PUSHBUTTON "&Help", 103, 10, 182, 50, 14
     DEFPUSHBUTTON "&Close", IDOK, 270, 182, 50, 14
 END

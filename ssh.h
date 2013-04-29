@@ -520,6 +520,7 @@ int export_ssh1(const Filename *filename, int type,
 		struct RSAKey *key, char *passphrase);
 int export_ssh2(const Filename *filename, int type,
                 struct ssh2_userkey *key, char *passphrase);
+char *openssh_to_pubkey(struct ssh2_userkey *key);
 
 void des3_decrypt_pubkey(unsigned char *key, unsigned char *blk, int len);
 void des3_encrypt_pubkey(unsigned char *key, unsigned char *blk, int len);
