@@ -1600,12 +1600,14 @@ static int CALLBACK KeyListProc(HWND hwnd, UINT msg,
 	    }
 	    return 0;
 	  case 102:		       /* remove key */
+          case 108:                    /* copy fingerprints */
 	    if (HIWORD(wParam) == BN_CLICKED ||
 		HIWORD(wParam) == BN_DOUBLECLICKED) {
 		int i;
 		int rCount, sCount;
 		int *selectedArray;
-		
+                char *toCopy = strdup("");
+
 		/* our counter within the array of selected items */
 		int itemNum;
 		
@@ -1614,7 +1616,7 @@ static int CALLBACK KeyListProc(HWND hwnd, UINT msg,
 			SendDlgItemMessage(hwnd, 100, LB_GETSELCOUNT, 0, 0);
 		
 		/* none selected? that was silly */
-		if (numSelected == 0) {
+		if (102 == LOWORD(wParam) && numSelected == 0) {
 		    MessageBeep(0);
 		    break;
 		}
@@ -1633,28 +1635,50 @@ static int CALLBACK KeyListProc(HWND hwnd, UINT msg,
 		 * we go *backwards*, to avoid complications from deleting
 		 * things hence altering the offset of subsequent items
 		 */
-	    for (i = sCount - 1; (itemNum >= 0) && (i >= 0); i--) {
-			skey = index234(ssh2keys, i);
-			
-			if (selectedArray[itemNum] == rCount + i) {
-				del234(ssh2keys, skey);
-				skey->alg->freekey(skey->data);
-				sfree(skey);
-			   	itemNum--; 
-			}
+	        for (i = sCount - 1; (itemNum >= 0 || numSelected == 0) && (i >= 0); i--) {
+		    skey = index234(ssh2keys, i);
+
+                    if (numSelected == 0 || selectedArray[itemNum] == rCount + i) {
+                        if (102 == LOWORD(wParam)) {
+			    del234(ssh2keys, skey);
+			    skey->alg->freekey(skey->data);
+			    sfree(skey);
+			} else {
+                            char *buf = openssh_to_pubkey(skey);
+                            toCopy = srealloc(toCopy, strlen(toCopy) + strlen(buf) + 2);
+                            strcat(toCopy, buf);
+                            strcat(toCopy, "\n");
+                            sfree(buf);
+                        }
+                        itemNum--;
+                    }
 		}
 		
 		/* do the same for the rsa keys */
 		for (i = rCount - 1; (itemNum >= 0) && (i >= 0); i--) {
-			rkey = index234(rsakeys, i);
+		    rkey = index234(rsakeys, i);
 
-			if(selectedArray[itemNum] == i) {
-				del234(rsakeys, rkey);
-				freersakey(rkey);
-				sfree(rkey);
-				itemNum--;
-			}
+                    if(selectedArray[itemNum] == i) {
+                        if (102 == LOWORD(wParam)) {
+			    del234(rsakeys, rkey);
+			    freersakey(rkey);
+			    sfree(rkey);
+			    itemNum--;
+                        }
+		    }
 		}
+
+                if (108 == LOWORD(wParam)) {
+                    const size_t len = strlen(toCopy) + 1;
+                    HGLOBAL hMem =  GlobalAlloc(GMEM_MOVEABLE, len);
+                    memcpy(GlobalLock(hMem), toCopy, len);
+                    GlobalUnlock(hMem);
+                    OpenClipboard(0);
+                    EmptyClipboard();
+                    SetClipboardData(CF_TEXT, hMem);
+                    CloseClipboard();
+                    sfree(toCopy);
+                }
 
 		sfree(selectedArray); 
 		keylist_update();

@@ -976,6 +976,31 @@ int openssh_write(const Filename *filename, struct ssh2_userkey *key,
     return ret;
 }
 
+char *openssh_to_pubkey(struct ssh2_userkey *key) {
+    unsigned char *pub_blob;
+    char *buffer, *p;
+    int pub_len;
+    int i;
+
+    pub_blob = key->alg->public_blob(key->data, &pub_len);
+    buffer = snewn(strlen(key->alg->name) + 4 * ((pub_len + 2) / 3) +
+		   strlen(key->comment) + 3, char);
+    strcpy(buffer, key->alg->name);
+    p = buffer + strlen(buffer);
+    *p++ = ' ';
+    i = 0;
+    while (i < pub_len) {
+	int n = (pub_len - i < 3 ? pub_len - i : 3);
+	base64_encode_atom(pub_blob + i, n, p);
+	i += n;
+	p += 4;
+    }
+    *p++ = ' ';
+    strcpy(p, key->comment);
+    sfree(pub_blob);
+    return buffer;
+}
+
 /* ----------------------------------------------------------------------
  * Code to read ssh.com private keys.
  */
