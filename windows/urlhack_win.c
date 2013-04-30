@@ -4,43 +4,48 @@
 #include "urlhack.h"
 
 #define MAX_STR 4096
-static char browser_app[MAX_STR] = "";
+static wchar_t browser_app[MAX_STR] = L"";
 
-static int starts_with(const char *thing, const char *prefix) {
-	return 0 == strncmp(thing, prefix, strlen(prefix));
+static int starts_with(const wchar_t *thing, const wchar_t *prefix) {
+    return 0 == wcsncmp(thing, prefix, wcslen(prefix));
 }
 
-void urlhack_launch_url(const char* app, const char *url)
+void urlhack_launch_url(const char* app, const wchar_t *url)
 {
-	char *u;
+	wchar_t *u;
 	if (app) {
-		ShellExecute(NULL, NULL, app, url, NULL, SW_SHOW);
-		return;
+            wchar_t app_w[MAX_STR];
+            size_t newlen;
+            mbstowcs_s(&newlen, app_w, MAX_STR, app, MAX_STR);
+	    ShellExecuteW(NULL, NULL, app_w, url, NULL, SW_SHOW);
+	    return;
 	}
 
-	if (!strlen(browser_app)) {
-		#define SUFFIX "\\shell\\open\\command"
-		char str[MAX_STR] = "";
+	if (!wcslen(browser_app)) {
+		#define SUFFIX L"\\shell\\open\\command"
+		wchar_t str[MAX_STR] = L"";
 		HKEY key;
 		DWORD dwValue = MAX_STR - sizeof(SUFFIX) - 1;
 
 		// first let the OS try...
-		if ((long)ShellExecute(NULL, NULL, url, NULL, NULL, SW_SHOWNORMAL) > 32) {
+		if ((long)ShellExecuteW(NULL, NULL, url, NULL, NULL, SW_SHOWNORMAL) > 32) {
 			return;
 		}
 
 		// Find out the default app
-		if (RegOpenKeyEx(HKEY_CURRENT_USER,"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice", 0, KEY_READ, &key) == ERROR_SUCCESS) {
-			if (RegQueryValueEx(key, "Progid", NULL, NULL, (BYTE*)str, &dwValue) == ERROR_SUCCESS)
-			{
-				strcat(str, SUFFIX);
-			}
-			RegCloseKey(key);
+		if (RegOpenKeyExW(HKEY_CURRENT_USER,
+                        L"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice",
+                        0, KEY_READ, &key) == ERROR_SUCCESS) {
+		    if (RegQueryValueExW(key, L"Progid", NULL, NULL, (BYTE*)str, &dwValue) == ERROR_SUCCESS) {
+			wcscat(str, SUFFIX);
+		    }
+		    RegCloseKey(key);
 		}
 
-		if (RegOpenKeyEx(HKEY_CLASSES_ROOT, strlen(str) ? str : "HTTP\\shell\\open\\command", 0, KEY_READ, &key) == ERROR_SUCCESS) {
+		if (RegOpenKeyExW(HKEY_CLASSES_ROOT, wcslen(str) ? str : L"HTTP\\shell\\open\\command",
+                    0, KEY_READ, &key) == ERROR_SUCCESS) {
 			dwValue = MAX_STR;
-			if (!RegQueryValueEx(key, NULL, NULL, NULL, (BYTE*)str, &dwValue) == ERROR_SUCCESS) {
+			if (!RegQueryValueExW(key, NULL, NULL, NULL, (BYTE*)str, &dwValue) == ERROR_SUCCESS) {
 				RegCloseKey(key);
 				return;
 			}
@@ -48,17 +53,17 @@ void urlhack_launch_url(const char* app, const char *url)
 			
 			// Drop all stuff from the path and leave only the executable and the path
 			if (str[0] == '"') {
-				char *p = strchr(str, '"');
+				wchar_t *p = wcschr(str, L'"');
 
 				if (NULL != p)
 					*p = 0;
-				strcpy(browser_app, str+1);
+				wcscpy(browser_app, str+1);
 			}
 			else {
-				char *p = strchr(str, '"');
+				wchar_t *p = wcschr(str, L'"');
 				if (NULL != p)
 					*p = 0;
-				strcpy(browser_app, str);
+				wcscpy(browser_app, str);
 			}
 		}
 		else {
@@ -66,21 +71,21 @@ void urlhack_launch_url(const char* app, const char *url)
 		}
 	}
 
-	u = malloc(strlen(url) + 10);
-	strcpy(u, url);
+	u = snewn(wcslen(url) + 10, wchar_t);
+	wcscpy(u, url);
 
-	if (!starts_with(url, "http://") && !starts_with(url, "https://") &&
-		!starts_with(url, "ftp://") && !starts_with(url, "ftps://")) {
-		if (strstr(url, "ftp.")) {
-			strcpy(u, "ftp://");
-			strcat(u, url);
-		} else {
-			strcpy(u, "http://");
-			strcat(u, url);
-		}
+	if (!starts_with(url, L"http://") && !starts_with(url, L"https://") &&
+	    !starts_with(url, L"ftp://") && !starts_with(url, L"ftps://")) {
+	    if (wcsstr(url, L"ftp.")) {
+		wcscpy(u, L"ftp://");
+		wcscat(u, url);
+	    } else {
+		wcscpy(u, L"http://");
+		wcscat(u, url);
+	    }
 	}
 
-	ShellExecute(NULL, NULL, browser_app, u, NULL, SW_SHOW);
+	ShellExecuteW(NULL, NULL, browser_app, u, NULL, SW_SHOW);
 	free(u);
 }
 

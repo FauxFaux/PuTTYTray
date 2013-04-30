@@ -5401,7 +5401,8 @@ static void clip_addchar(clip_workbuf *b, wchar_t chr, int attr)
     b->bufpos++;
 }
 
-static void clipme(Terminal *term, pos top, pos bottom, int rect, int desel)
+static void clipme(Terminal *term, pos top, pos bottom, int rect, int desel,
+    void (*output)(Terminal *, void *, wchar_t *, int *, int, int))
 {
     clip_workbuf buf;
     int old_top_x;
@@ -5559,7 +5560,7 @@ static void clipme(Terminal *term, pos top, pos bottom, int rect, int desel)
     clip_addchar(&buf, 0, 0);
 #endif
     /* Finally, transfer all that to the clipboard. */
-    write_clip(term->frontend, buf.textbuf, buf.attrbuf, buf.bufpos, desel);
+    output(term, term->frontend, buf.textbuf, buf.attrbuf, buf.bufpos, desel);
     sfree(buf.textbuf);
     sfree(buf.attrbuf);
 }
@@ -5573,7 +5574,7 @@ void term_copyall(Terminal *term)
     top.x = 0;
     bottom.y = find_last_nonempty_line(term, screen);
     bottom.x = term->cols;
-    clipme(term, top, bottom, 0, TRUE);
+    clipme(term, top, bottom, 0, TRUE, write_clip);
 }
 
 /*
@@ -5867,6 +5868,13 @@ void term_do_paste(Terminal *term)
     get_clip(term->frontend, NULL, NULL);
 }
 
+void urlhack_launch_url_helper(Terminal *term, void *frontend, wchar_t * data, int *attr, int len, int must_deselect) {
+    urlhack_launch_url(!conf_get_int(term->conf, CONF_url_defbrowser)
+        ? conf_get_filename(term->conf, CONF_url_browser)->path
+        : NULL,
+        data);
+}
+
 void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 		Mouse_Action a, int x, int y, int shift, int ctrl, int alt)
 {
@@ -6024,47 +6032,15 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 
 
 	if ((!conf_get_int(term->conf, CONF_url_ctrl_click) || (conf_get_int(term->conf, CONF_url_ctrl_click) && urlhack_is_ctrl_pressed())) && urlhack_is_in_link_region(x, y)) {
-		int i;
-		char *linkbuf = NULL;
-		text_region region = urlhack_get_link_bounds(x, y);
-
-		if (region.y0 == region.y1) {
-			linkbuf = snewn(region.x1 - region.x0 + 2, char);
-			
-			for (i = region.x0; i < region.x1; i++) {
-				linkbuf[i - region.x0] = (char)(ldata->chars[i].chr);
-			}
-
-			linkbuf[i - region.x0] = '\0';
-		}
-		else {
-			termline *urldata = lineptr(region.y0 + term->disptop);
-			int linklen, row = region.y0 + term->disptop;
-
-			linklen = (term->cols - region.x0) +
-				((region.y1 - region.y0 - 1) * term->cols) + region.x1 + 1;
-
-			linkbuf = snewn(linklen, char);
-
-			for (i = region.x0; i < linklen + region.x0; i++) {
-				linkbuf[i - region.x0] = (char)(urldata->chars[i % term->cols].chr);
-				
-				// Jump to next line?
-				if (((i + 1) % term->cols) == 0) {
-					row++;
-					if (row >= term->rows)
-						break;
-					urldata = lineptr(row);
-				}
-			}
-
-			linkbuf[linklen - 1] = '\0';
-			unlineptr(urldata);
-		}
-		
-		urlhack_launch_url(!conf_get_int(term->conf, CONF_url_defbrowser) ? conf_get_filename(term->conf, CONF_url_browser)->path : NULL, linkbuf);
-		
-		sfree(linkbuf);
+            wchar_t *linkbuf = NULL;
+            text_region region = urlhack_get_link_bounds(x, y);
+            pos top, bottom;
+            top.x = region.x0;
+            top.y = region.y0;
+            bottom.x = region.x1;
+            bottom.y = region.y1;
+            clipme(term, top, bottom, 0, 0, urlhack_launch_url_helper);
+	    sfree(linkbuf);
 	}
 	/* HACK: PuttyTray / Nutty : END */
 
@@ -6152,7 +6128,7 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 	     * data to the clipboard.
 	     */
 	    clipme(term, term->selstart, term->selend,
-		   (term->seltype == RECTANGULAR), FALSE);
+		   (term->seltype == RECTANGULAR), FALSE, write_clip);
 	    term->selstate = SELECTED;
 	} else
 	    term->selstate = NO_SELECTION;
