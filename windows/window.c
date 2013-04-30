@@ -5485,7 +5485,7 @@ static void detect_and_launch_url(char *urldata) {
 /*
  * Note: unlike write_aclip() this will not append a nul.
  */
-void write_clip(void *frontend, wchar_t * data, int *attr, int len, int must_deselect)
+void write_clip(struct Terminal *term, void *frontend, wchar_t * data, int *attr, int len, int must_deselect)
 {
     HGLOBAL clipdata, clipdata2, clipdata3;
     int len2;
