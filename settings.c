@@ -53,7 +53,20 @@ const char *const ttymodes[] = {
     "CS8",	"PARENB",   "PARODD",	NULL
 };
 
-const char* urlhack_default_regex = "((((https?|ftp):\\/\\/)|www\\.)(([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)|localhost|([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\.(com|net|org|info|biz|gov|name|edu|[a-zA-Z][a-zA-Z]))(:[0-9]+)?((\\/|\\?)[^ \"]*[^ ,;\\.:\">)])?)|(spotify:[^ ]+:[^ ]+)";
+const char* urlhack_default_regex =
+    "("
+        "(((https?|ftp):\\/\\/)|www\\.)"
+        "("
+            "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)" // 127.0.0.1
+            "|localhost"
+            "|([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\." // ab-c.de-f.qrs.tuv.
+                "(com|net|org|info|biz|gov|name|edu|[a-zA-Z][a-zA-Z])"
+        ")"
+        "(:[0-9]+)?" // :8080
+        "((\\/|\\?)[^ \"]*[^ ,;\\.:\">)])?"
+    ")"
+    "|(spotify:[^ ]+:[^ ]+)"
+    ;
 
 /*
  * Convenience functions to access the backends[] array
