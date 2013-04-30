@@ -60,7 +60,10 @@ const char* urlhack_default_regex =
             "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)" // 127.0.0.1
             "|localhost"
             "|([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\." // ab-c.de-f.qrs.tuv.
-                "(com|net|org|info|biz|gov|name|edu|[a-zA-Z][a-zA-Z])"
+                // popular tlds, and anything that could be a country
+                "(aero|asia|biz|cat|com|coop|info|int|jobs"
+                    "|mobi|museum|name|net|org|post|pro|tel"
+                    "|travel|xxx|edu|gov|mil|[a-zA-Z][a-zA-Z])"
         ")"
         "(:[0-9]+)?" // :8080
         "((\\/|\\?)[^ \"]*[^ ,;\\.:\">)])?"
