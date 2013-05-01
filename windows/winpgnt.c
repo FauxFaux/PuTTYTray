@@ -1098,7 +1098,7 @@ static void answer_msg(void *msg)
             strncat(buf, key->comment, MAX_PATH);
             strncat(buf, "?", MAX_PATH);
             // Presumably this is in response to user action, so SYSTEMMODAL (toppmost) seems reasonable
-            if (IDYES == MessageBox(NULL, buf, APPNAME, MB_SYSTEMMODAL | MB_YESNO | MB_ICONQUESTION)) {
+            if (!confirm_mode || IDYES == MessageBox(NULL, buf, APPNAME, MB_SYSTEMMODAL | MB_YESNO | MB_ICONQUESTION)) {
                 signature = key->alg->sign(key->data, data, datalen, &siglen);
             } else {
                 // There's no protocol for returning "no I won't sign this";
