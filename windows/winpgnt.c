@@ -70,7 +70,9 @@ static BOOL confirm_mode = FALSE;
 #define IDM_PUTTY         0x0060
 #define IDM_SESSIONS_BASE 0x1000
 #define IDM_SESSIONS_MAX  0x2000
-#define PUTTY_REGKEY      "Software\\SimonTatham\\PuTTY\\Sessions"
+#define PUTTY_REGBASE     "Software\\SimonTatham\\PuTTY"
+#define PUTTY_REGKEY      (PUTTY_REGBASE "\\Sessions")
+#define PAGEANT_REG_KEYS  (PUTTY_REGBASE "\\Pageant\\Keys")
 #define PUTTY_DEFAULT     "Default%20Settings"
 static int initial_menuitems_count;
 
@@ -422,6 +424,13 @@ static void keylist_update(void)
     }
 }
 
+void save_filename(Filename *filename) {
+    HKEY hkey;
+    if (ERROR_SUCCESS == RegCreateKey(HKEY_CURRENT_USER, PAGEANT_REG_KEYS, &hkey)) {
+        RegSetValueEx(hkey, filename_to_str(filename), 0, REG_NONE, NULL, 0);
+    }
+}
+
 /*
  * This function loads a key from a file and adds it.
  */
@@ -655,6 +664,9 @@ static void add_keyfile(Filename *filename)
 	    sfree(rkey);
 	return;
     }
+    
+    save_filename(filename);
+
     if (type == SSH_KEYTYPE_SSH1) {
 	if (already_running) {
 	    unsigned char *request, *response;
@@ -756,6 +768,21 @@ static void add_keyfile(Filename *filename)
 		sfree(skey);	       /* already present, don't waste RAM */
 	    }
 	}
+    }
+}
+
+static void load_registry_keys() {
+    HKEY hkey;
+    int i = 0;
+    if (ERROR_SUCCESS == RegCreateKey(HKEY_CURRENT_USER, PAGEANT_REG_KEYS, &hkey)) {
+        DWORD namelen = MAX_PATH;
+        char name[MAX_PATH];
+        while (ERROR_SUCCESS == RegEnumValue(hkey, i++, name, &namelen, NULL, NULL, NULL, NULL)) {
+            Filename *filename = filename_from_str(name);
+            add_keyfile(filename);
+            sfree(filename);
+            namelen = MAX_PATH;
+        }
     }
 }
 
@@ -2288,6 +2315,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	    added_keys = TRUE;
 	}
     }
+
+    load_registry_keys();
 
     /*
      * Forget any passphrase that we retained while going over
