@@ -49,6 +49,7 @@
 #define IDM_ABOUT    0x0050
 #define IDM_START_AT_STARTUP 0x0080
 #define IDM_CONFIRM_KEY_USAGE 0x0090
+#define IDM_SAVE_KEYS 0x00A0
 
 #define APPNAME "Pageant"
 
@@ -71,8 +72,10 @@ static BOOL confirm_mode = FALSE;
 #define IDM_SESSIONS_BASE 0x1000
 #define IDM_SESSIONS_MAX  0x2000
 #define PUTTY_REGBASE     "Software\\SimonTatham\\PuTTY"
-#define PUTTY_REGKEY      (PUTTY_REGBASE "\\Sessions")
-#define PAGEANT_REG_KEYS  (PUTTY_REGBASE "\\Pageant\\Keys")
+#define PUTTY_REGKEY      PUTTY_REGBASE "\\Sessions"
+#define PAGEANT_REG       PUTTY_REGBASE "\\Pageant"
+#define PAGEANT_KEYS      "Keys"
+#define PAGEANT_REG_KEYS  PAGEANT_REG "\\" PAGEANT_KEYS
 #define PUTTY_DEFAULT     "Default%20Settings"
 static int initial_menuitems_count;
 
@@ -264,6 +267,18 @@ BOOL starts_at_startup() {
     return !strcmp(us, them);
 }
 
+BOOL reg_keys(HKEY *hkey) {
+    return ERROR_SUCCESS == RegOpenKeyEx(HKEY_CURRENT_USER, PAGEANT_REG_KEYS, 0, KEY_READ, hkey);
+}
+
+BOOL saves_keys() {
+    HKEY hkey;
+    BOOL res = reg_keys(&hkey);
+    if (res)
+        RegCloseKey(hkey);
+    return res;
+}
+
 void toggle_startup() {
     if (starts_at_startup()) {
         HKEY run = run_key();
@@ -367,6 +382,13 @@ void old_keyfile_warning(void)
     MessageBox(NULL, message, mbtitle, MB_OK);
 }
 
+static void update_saves_keys()
+{
+    BOOL there_are_no_keys = 0 == count234(ssh2keys) && 0 == count234(rsakeys);
+    EnableMenuItem(systray_menu, IDM_SAVE_KEYS,
+        saves_keys() || there_are_no_keys ? MF_ENABLED : MF_GRAYED);
+}
+
 /*
  * Update the visible key list.
  */
@@ -421,12 +443,19 @@ static void keylist_update(void)
 	}
 	SendDlgItemMessage(keylist, 100, LB_SETCURSEL, (WPARAM) - 1, 0);
     }
+
+    update_saves_keys();
+}
+
+BOOL reg_create(HKEY *hkey) {
+    return ERROR_SUCCESS == RegCreateKey(HKEY_CURRENT_USER, PAGEANT_REG_KEYS, hkey);
 }
 
 void save_filename(Filename *filename) {
     HKEY hkey;
-    if (ERROR_SUCCESS == RegCreateKey(HKEY_CURRENT_USER, PAGEANT_REG_KEYS, &hkey)) {
+    if (reg_create(&hkey)) {
         RegSetValueEx(hkey, filename_to_str(filename), 0, REG_NONE, NULL, 0);
+        RegCloseKey(hkey);
     }
 }
 
@@ -2046,6 +2075,23 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
             CheckMenuItem(systray_menu, IDM_START_AT_STARTUP,
                 starts_at_startup() ? MF_CHECKED : MF_UNCHECKED);
             break;
+          case IDM_SAVE_KEYS:
+            {
+                HKEY hkey;
+                if (reg_keys(&hkey)) {
+                    HKEY parent;
+                    RegOpenKey(HKEY_CURRENT_USER, PAGEANT_REG, &parent);
+                    RegDeleteKey(parent, PAGEANT_KEYS);
+                    RegCloseKey(parent);
+                } else {
+                    reg_create(&hkey);
+                }
+                RegCloseKey(hkey);
+                CheckMenuItem(systray_menu, IDM_SAVE_KEYS,
+                    saves_keys() ? MF_CHECKED : MF_UNCHECKED);
+                update_saves_keys();
+            }
+            break;
 	  default:
 	    {
 		if(wParam >= IDM_SESSIONS_BASE && wParam <= IDM_SESSIONS_MAX) {
@@ -2424,6 +2470,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     AppendMenu(systray_menu, MF_ENABLED
         | (starts_at_startup() ? MF_CHECKED : MF_UNCHECKED),
         IDM_START_AT_STARTUP, "&Start with Windows");
+    AppendMenu(systray_menu, MF_ENABLED
+        | (saves_keys() ? MF_CHECKED : MF_UNCHECKED),
+        IDM_SAVE_KEYS, "&Persist keys");
     AppendMenu(systray_menu, MF_ENABLED, IDM_ABOUT, "&About");
     AppendMenu(systray_menu, MF_SEPARATOR, 0, 0);
     AppendMenu(systray_menu, MF_ENABLED, IDM_CLOSE, "E&xit");
