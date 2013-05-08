@@ -1536,6 +1536,13 @@ static void prompt_add_keyfile(void)
     sfree(filelist);
 }
 
+static int file_exists(const char *path) {
+    FILE *fp = fopen(path, "r");
+    if (fp)
+        fclose(fp);
+    return fp != NULL;
+}
+
 /*
  * Dialog-box function for the key list box.
  */
@@ -1606,7 +1613,7 @@ static int CALLBACK KeyListProc(HWND hwnd, UINT msg,
 		int i;
 		int rCount, sCount;
 		int *selectedArray;
-                char *toCopy = strdup("");
+                char *toCopy = _strdup("");
 
 		/* our counter within the array of selected items */
 		int itemNum;
@@ -2160,13 +2167,6 @@ void cleanup_exit(int code)
 }
 
 int flags = FLAG_SYNCAGENT;
-
-static int file_exists(const char *path) {
-    FILE *fp = fopen(path, "r");
-    if (fp)
-        fclose(fp);
-    return fp != NULL;
-}
 
 int look_for(const char *exe, char **path) {
     char b[2048], *p, *q, *r;
