@@ -2004,20 +2004,13 @@ void setup_config_box(struct controlbox *b, int midsession,
 			 HELPCTX(connection_username),
 			 conf_editbox_handler, I(CONF_username), I(1));
 	    {
-		/* We assume the local username is sufficiently stable
-		 * to include on the dialog box. */
-		char *user = get_username();
-		char *userlabel = dupprintf("Use system username (%s)",
-					    user ? user : "");
-		sfree(user);
 		ctrl_radiobuttons(s, "When username is not specified:", 'n', 4,
 				  HELPCTX(connection_username_from_env),
 				  conf_radiobutton_handler,
 				  I(CONF_username_from_env),
 				  "Prompt", I(FALSE),
-				  userlabel, I(TRUE),
+				  "Use system username", I(TRUE),
 				  NULL);
-		sfree(userlabel);
 	    }
 
 	    s = ctrl_getset(b, "Connection/Data", "term",
