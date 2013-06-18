@@ -132,7 +132,8 @@ static const char *raw_init(void *frontend_handle, void **backend_handle,
 	raw_log,
 	raw_closing,
 	raw_receive,
-	raw_sent
+	raw_sent,
+	NULL
     };
     SockAddr addr;
     const char *err;

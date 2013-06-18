@@ -168,7 +168,8 @@ static const char *rlogin_init(void *frontend_handle, void **backend_handle,
 	rlogin_log,
 	rlogin_closing,
 	rlogin_receive,
-	rlogin_sent
+	rlogin_sent,
+        NULL
     };
     SockAddr addr;
     const char *err;

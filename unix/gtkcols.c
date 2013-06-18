@@ -64,6 +64,7 @@ GType columns_get_type(void)
             sizeof(Columns),
 	    0,
             (GInstanceInitFunc)columns_init,
+            NULL
         };
 
         columns_type = g_type_register_static(GTK_TYPE_CONTAINER, "Columns",

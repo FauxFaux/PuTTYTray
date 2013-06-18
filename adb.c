@@ -22,8 +22,8 @@ typedef struct adb_backend_data {
 
     Socket s;
     int bufsize;
+    int state;
     void *frontend;
-	int state;
 } *Adb;
 
 static void adb_size(void *handle, int width, int height);
@@ -131,7 +131,8 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
 	adb_log,
 	adb_closing,
 	adb_receive,
-	adb_sent
+	adb_sent,
+	NULL
     };
     SockAddr addr;
     const char *err;

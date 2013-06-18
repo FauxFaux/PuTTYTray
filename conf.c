@@ -475,7 +475,8 @@ int conf_serialised_size(Conf *conf)
 void conf_serialise(Conf *conf, void *vdata)
 {
     unsigned char *data = (unsigned char *)vdata;
-    int i, len;
+    int i;
+    size_t len;
     struct conf_entry *entry;
 
     for (i = 0; (entry = index234(conf->tree, i)) != NULL; i++) {
@@ -517,7 +518,7 @@ void conf_serialise(Conf *conf, void *vdata)
     PUT_32BIT_MSB_FIRST(data, 0xFFFFFFFFU);
 }
 
-int conf_deserialise(Conf *conf, void *vdata, int maxsize)
+size_t conf_deserialise(Conf *conf, void *vdata, size_t maxsize)
 {
     unsigned char *data = (unsigned char *)vdata;
     unsigned char *start = data;
