@@ -4,7 +4,7 @@
 
 #include "urlhack.h"
 
-void urlhack_launch_url(const char* app, const char *url)
+void urlhack_launch_url(const char* app, const wchar_t *url)
 {
 	const size_t max = 4000;
 	char buf[max];
@@ -15,8 +15,9 @@ void urlhack_launch_url(const char* app, const char *url)
 	if (NULL == browser || 0 == strlen(browser))
 		browser = "xdg-open";
 
-	snprintf(buf, max, "%s %s", browser, url);
-
+	strncat(buf, browser, max - 1);
+	strcat(buf, " ");
+	wcstombs(buf + strlen(buf), url, max - strlen(buf) - 2);
 	if (!system(buf))
 		printf("couldn't run browser: %s", buf);
 }

@@ -338,8 +338,8 @@ W_BE_ALL = be_all_s winser cproxy
 W_BE_NOSSH = be_nos_s winser nocproxy
            + cygterm
 # And with the Unix serial-port module.
-U_BE_ALL = be_all_s uxser cproxy
-U_BE_NOSSH = be_nos_s uxser nocproxy
+U_BE_ALL = be_all_u uxser cproxy
+U_BE_NOSSH = be_nos_u uxser nocproxy
 
 # ------------------------------------------------------------
 # Definitions of actual programs. The program name, followed by a

@@ -1,17 +1,15 @@
-#include <windows.h>
 #include <string.h>
 #include "urlhack.h"
 #include "misc.h"
 #include "puttymem.h"
 
 
-extern int urlhack_mouse_old_x = -1, urlhack_mouse_old_y = -1, urlhack_current_region = -1;
+int urlhack_mouse_old_x = -1, urlhack_mouse_old_y = -1, urlhack_current_region = -1;
 
 static text_region **link_regions;
 static unsigned int link_regions_len;
 static unsigned int link_regions_current_pos;
 
-void urlhack_launch_url(const char* app, const char *url);
 int urlhack_is_ctrl_pressed();
 void rtfm(const char *error);
 
@@ -65,7 +63,7 @@ text_region urlhack_get_link_region(unsigned int index)
 {
     text_region region;
 
-    if (index < 0 || index >= link_regions_current_pos) {
+    if (index >= link_regions_current_pos) {
         region.x0 = region.y0 = region.x1 = region.y1 = -1;
         return region;
     }
