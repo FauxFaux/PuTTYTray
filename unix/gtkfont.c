@@ -12,9 +12,8 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-#include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
-#include <gdk/gdkx.h>
+#include "gtks.h"
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>

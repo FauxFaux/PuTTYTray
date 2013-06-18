@@ -278,7 +278,7 @@ union control *ctrl_icon(struct controlset *s, intorptr helpctx, intorptr contex
 {
     union control *c = ctrl_new(s, CTRL_ICON, helpctx, NULL, context);
     return c;
-};
+}
 
 /*
  * `ncolumns' is followed by (alternately) radio button titles and

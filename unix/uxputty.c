@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <unistd.h>
-#include <gdk/gdk.h>
+#include "gtks.h"
 
 #include "putty.h"
 #include "storage.h"

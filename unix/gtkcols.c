@@ -3,7 +3,6 @@
  */
 
 #include "gtkcols.h"
-#include <gtk/gtk.h>
 
 static void columns_init(Columns *cols);
 static void columns_class_init(ColumnsClass *klass);

@@ -6,9 +6,7 @@
 #include <stdarg.h>
 #include <ctype.h>
 #include <time.h>
-#include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
-#include <gdk/gdkx.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 

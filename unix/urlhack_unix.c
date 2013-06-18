@@ -4,9 +4,9 @@
 
 #include "urlhack.h"
 
+enum { max = 4000 };
 void urlhack_launch_url(const char* app, const wchar_t *url)
 {
-	const size_t max = 4000;
 	char buf[max];
 	const char *browser = NULL;
 
