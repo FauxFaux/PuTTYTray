@@ -935,7 +935,7 @@ void conf_set_fontspec(Conf *conf, int key, const FontSpec *val);
 /* Serialisation functions for Duplicate Session */
 int conf_serialised_size(Conf *conf);
 void conf_serialise(Conf *conf, void *data);
-int conf_deserialise(Conf *conf, void *data, int maxsize);/*returns size used*/
+size_t conf_deserialise(Conf *conf, void *data, size_t maxsize);/*returns size used*/
 
 /*
  * Functions to copy, free, serialise and deserialise FontSpecs.

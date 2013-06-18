@@ -35,7 +35,7 @@ struct cmdline_saved_param {
 };
 struct cmdline_saved_param_set {
     struct cmdline_saved_param *params;
-    int nsaved, savesize;
+    size_t nsaved, savesize;
 };
 
 /*
@@ -336,7 +336,7 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
     }
     if (!strcmp(p, "-m")) {
 	char *filename, *command;
-	int cmdlen, cmdsize;
+	size_t cmdlen, cmdsize;
 	FILE *fp;
 	int c, d;
 
@@ -362,7 +362,7 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
 		cmdsize = cmdlen + 512;
 		command = sresize(command, cmdsize, char);
 	    }
-	    command[cmdlen++] = d;
+	    command[cmdlen++] = (char)d;
 	} while (c != EOF);
 	fclose(fp);
 	conf_set_str(conf, CONF_remote_cmd, command);
@@ -506,13 +506,13 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
 	/* Value[0] contains one or more , separated values, like 19200,8,n,1,X */
 	nextitem = value;
 	while (nextitem[0] != '\0') {
-	    int length, skip;
+	    size_t length, skip;
 	    char *end = strchr(nextitem, ',');
 	    if (!end) {
 		length = strlen(nextitem);
 		skip = 0;
 	    } else {
-		length = end - nextitem;
+		length = (size_t)(end - nextitem);
 		nextitem[length] = '\0';
 		skip = 1;
 	    }
@@ -584,7 +584,7 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
 
 void cmdline_run_saved(Conf *conf)
 {
-    int pri, i;
+    size_t pri, i;
     for (pri = 0; pri < NPRIORITIES; pri++)
 	for (i = 0; i < saves[pri].nsaved; i++)
 	    cmdline_process_param(saves[pri].params[i].p,
