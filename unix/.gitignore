@@ -2,3 +2,10 @@ config.*
 configure
 install-sh
 uxconfig.*
+.deps
+*.cache
+empty.h
+missing
+stamp-h1
+depcomp
+aclocal.m4

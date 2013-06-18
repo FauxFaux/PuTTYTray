@@ -10,6 +10,8 @@ charset/sbcsdat.c
 *.pdb
 /empty.h
 *.o
+*.swp
+*~
 unix/plink
 unix/pscp
 unix/psftp
@@ -17,6 +19,7 @@ unix/puttygen
 unix/pterm
 unix/putty
 unix/puttytel
+
 
 # github's gitignore for Visual Studio: a6dd83c18d0beb8e36c091fd33b64ca45a3a0f3a 
 ## Ignore Visual Studio temporary files, build results, and
