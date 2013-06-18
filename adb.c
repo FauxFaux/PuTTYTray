@@ -205,7 +205,7 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
 #define ADB_SHELL_HOST_MAX_LEN (sizeof(sendbuf)-4-ADB_SHELL_SERIAL_PREFIX_LEN)
 	    if (len > ADB_SHELL_HOST_MAX_LEN)
 		len = ADB_SHELL_HOST_MAX_LEN;
-	    sprintf(sendbuf,"%04x" ADB_SHELL_SERIAL_PREFIX, len+ADB_SHELL_SERIAL_PREFIX_LEN);
+	    sprintf(sendbuf,"%04lx" ADB_SHELL_SERIAL_PREFIX, len+ADB_SHELL_SERIAL_PREFIX_LEN);
 	    memcpy(sendbuf+4+ADB_SHELL_SERIAL_PREFIX_LEN, host, len);
 	    sk_write(adb->s,sendbuf,len+4+ADB_SHELL_SERIAL_PREFIX_LEN);
 	    sk_flush(adb->s);
