@@ -47,6 +47,7 @@ static int nevents = 0, negsize = 0;
 extern Config cfg;		       /* defined in window.c */
 
 #define PRINTER_DISABLED_STRING "None (printing disabled)"
+#define PRINT_TO_CLIPBOARD_STRING "Windows clipboard"
 
 void force_normal(HWND hwnd)
 {

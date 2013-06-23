@@ -11,6 +11,7 @@
 #include "storage.h"
 
 #define PRINTER_DISABLED_STRING "None (printing disabled)"
+#define PRINT_TO_CLIPBOARD_STRING "Windows clipboard"
 
 #define HOST_BOX_TITLE "Host Name (or IP address)"
 #define PORT_BOX_TITLE "Port"
@@ -385,19 +386,30 @@ static void printerbox_handler(union control *ctrl, void *dlg,
 	if (ctrl->editbox.has_list) {
 	    dlg_listbox_clear(ctrl, dlg);
 	    dlg_listbox_add(ctrl, dlg, PRINTER_DISABLED_STRING);
+	    dlg_listbox_add(ctrl, dlg, PRINT_TO_CLIPBOARD_STRING);
 	    pe = printer_start_enum(&nprinters);
 	    for (i = 0; i < nprinters; i++)
 		dlg_listbox_add(ctrl, dlg, printer_get_name(pe, i));
 	    printer_finish_enum(pe);
 	}
-	dlg_editbox_set(ctrl, dlg,
-			(*cfg->printer ? cfg->printer :
-			 PRINTER_DISABLED_STRING));
+
+	if (*cfg->printer)
+	    dlg_editbox_set(ctrl, dlg, cfg->printer);
+	else if (cfg->printclip)
+	    dlg_editbox_set(ctrl, dlg, PRINT_TO_CLIPBOARD_STRING);
+	else
+	    dlg_editbox_set(ctrl, dlg, PRINTER_DISABLED_STRING);
+
 	dlg_update_done(ctrl, dlg);
     } else if (event == EVENT_VALCHANGE) {
 	dlg_editbox_get(ctrl, dlg, cfg->printer, sizeof(cfg->printer));
-	if (!strcmp(cfg->printer, PRINTER_DISABLED_STRING))
+	if (!strcmp(cfg->printer, PRINTER_DISABLED_STRING)) {
 	    *cfg->printer = '\0';
+	    cfg->printclip = 0;
+	} else if (!strcmp(cfg->printer, PRINT_TO_CLIPBOARD_STRING)) {
+	   *cfg->printer = '\0';
+	    cfg->printclip = 1;
+	}
     }
 }
 
