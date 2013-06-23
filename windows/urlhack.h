@@ -3,6 +3,7 @@
 #define _URLHACK_H
 
 #include "re_lib/regexp.h"
+#include <wchar.h>
 
 typedef struct { int x0, y0, x1, y1; } text_region;
 
