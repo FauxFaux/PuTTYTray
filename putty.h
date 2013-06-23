@@ -627,6 +627,7 @@ struct config_tag {
     int window_border;
     char answerback[256];
     char printer[128];
+    int printclip;
     int arabicshaping;
     int bidi;
     /* Colour options */
