@@ -1857,6 +1857,7 @@ static int find_last_nonempty_line(Terminal * term, tree234 * screen)
     for (i = count234(screen) - 1; i >= 0; i--) {
 	termline *line = index234(screen, i);
 	int j;
+        assert(term->erase_char.cc_next == 0);
 	for (j = 0; j < line->cols; j++)
 	    if (!termchars_equal(&line->chars[j], &term->erase_char))
 		break;
@@ -2078,6 +2079,7 @@ static void scroll(Terminal *term, int topline, int botline, int lines, int sb)
 		    term->disptop--;
 	    }
             resizeline(term, line, term->cols);
+            assert(term->erase_char.cc_next == 0);
 	    for (i = 0; i < term->cols; i++)
 		copy_termchar(line, i, &term->erase_char);
 	    line->lattr = LATTR_NORM;
@@ -2368,6 +2370,7 @@ static void erase_lots(Terminal *term,
 		else
 		    ldata->lattr = LATTR_NORM;
 	    } else {
+                assert(term->erase_char.cc_next == 0);
 		copy_termchar(ldata, start.x, &term->erase_char);
 	    }
 	    if (incpos(start) && start.y < term->rows) {
@@ -2417,6 +2420,7 @@ static void insch(Terminal *term, int n)
 	    move_termchar(ldata,
 			  ldata->chars + term->curs.x + j + n,
 			  ldata->chars + term->curs.x + j);
+        assert(term->erase_char.cc_next == 0);
 	while (n--)
 	    copy_termchar(ldata, term->curs.x + n, &term->erase_char);
     }
@@ -2858,6 +2862,7 @@ static void term_out(Terminal *term)
 	    if (!term->no_dbackspace) {
 		check_boundary(term, term->curs.x, term->curs.y);
 		check_boundary(term, term->curs.x+1, term->curs.y);
+                assert(term->erase_char.cc_next == 0);
 		copy_termchar(scrlineptr(term->curs.y),
 			      term->curs.x, &term->erase_char);
 	    }
