@@ -299,8 +299,10 @@ void *open_settings_r(const char *sessionname)
         char *value = strchr(line, '=');
         struct skeyval *kv;
 
-        if (!value)
+        if (!value) {
+            sfree(line);
             continue;
+        }
         *value++ = '\0';
         value[strcspn(value, "\r\n")] = '\0';   /* trim trailing NL */
 
