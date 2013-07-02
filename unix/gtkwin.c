@@ -3015,9 +3015,10 @@ void change_settings_menuitem(GtkMenuItem *item, gpointer data)
 
     assert(lenof(ww) == NCFGCOLOURS);
 
-    if (inst->reconfiguring)
+    if (inst->reconfiguring) {
+        sfree(title);
       return;
-    else
+    } else
       inst->reconfiguring = TRUE;
 
     oldconf = inst->conf;
@@ -3135,6 +3136,7 @@ void change_settings_menuitem(GtkMenuItem *item, gpointer data)
                            "OK", 'o', +1, 1,
                            NULL);
                 sfree(errmsg);
+                sfree(msgboxtext);
             } else {
                 need_size = TRUE;
             }
@@ -3365,6 +3367,7 @@ int read_dupsession_data(struct gui_data *inst, Conf *conf, char *arg)
 	}
     }
 
+    sfree(data);
     return 0;
 }
 
