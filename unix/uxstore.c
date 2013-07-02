@@ -611,6 +611,7 @@ void store_host_key(const char *hostname, int port,
     }
     if (!wfp) {
 	sfree(tmpfilename);
+        sfree(newtext);
 	return;
     }
     filename = make_filename(INDEX_HOSTKEYS, NULL);
