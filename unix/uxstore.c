@@ -627,6 +627,7 @@ void store_host_key(const char *hostname, int port,
         while ( (line = fgetline(rfp)) ) {
             if (strncmp(line, newtext, headerlen))
                 fputs(line, wfp);
+            sfree(line);
         }
         fclose(rfp);
     }
