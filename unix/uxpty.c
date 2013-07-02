@@ -904,14 +904,16 @@ static const char *pty_init(void *frontend, void **backend_handle, Conf *conf,
         } else {
 	    char *shell = getenv("SHELL");
 	    char *shellname;
+            char *freeshell = NULL;
 	    if (conf_get_int(conf, CONF_login_shell)) {
 		char *p = strrchr(shell, '/');
-		shellname = snewn(2+strlen(shell), char);
+		freeshell = shellname = snewn(2+strlen(shell), char);
 		p = p ? p+1 : shell;
 		sprintf(shellname, "-%s", p);
 	    } else
 		shellname = shell;
 	    execl(getenv("SHELL"), shellname, (void *)NULL);
+            sfree(freeshell);
 	}
 
 	/*
