@@ -1034,7 +1034,7 @@ int sftp_cmd_ls(struct sftp_command *cmd)
     } else {
 	char *tmpdir;
 	int len, check;
-
+        sfree(unwcdir);
 	wildcard = stripslashes(dir, 0);
 	unwcdir = dupstr(dir);
 	len = wildcard - dir;
@@ -2233,6 +2233,7 @@ struct sftp_command *sftp_getcmd(FILE *fp, int mode, int modeflags)
 	cmd->obey = sftp_cmd_quit;
 	if ((mode == 0) || (modeflags & 1))
 	    printf("quit\n");
+        sfree(line);
 	return cmd;		       /* eof */
     }
 
@@ -2919,6 +2920,7 @@ int psftp_main(int argc, char *argv[])
 	    usage();
         } else if (strcmp(argv[i], "-pgpfp") == 0) {
             pgp_fingerprints();
+            sfree(userhost);
             return 1;
 	} else if (strcmp(argv[i], "-V") == 0 ||
                    strcmp(argv[i], "--version") == 0) {
