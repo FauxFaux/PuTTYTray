@@ -1216,6 +1216,13 @@ static struct sshcom_key *load_sshcom_key(const Filename *filename,
     }
 
     if (errmsg_p) *errmsg_p = NULL;
+
+    if (line) {
+        smemclr(line, strlen(line));
+        sfree(line);
+        line = NULL;
+    }
+    fclose(fp);
     return ret;
 
     error:
@@ -1233,6 +1240,7 @@ static struct sshcom_key *load_sshcom_key(const Filename *filename,
 	sfree(ret);
     }
     if (errmsg_p) *errmsg_p = errmsg;
+    fclose(fp);
     return NULL;
 }
 
@@ -1248,8 +1256,10 @@ int sshcom_encrypted(const Filename *filename, char **comment)
     /*
      * Check magic number.
      */
-    if (GET_32BIT(key->keyblob) != 0x3f6ff9eb)
-        return 0;                      /* key is invalid */
+    if (GET_32BIT(key->keyblob) != 0x3f6ff9eb) {
+        answer = 0;                      /* key is invalid */
+        goto cleanup;
+    }
 
     /*
      * Find the cipher-type string.
@@ -1269,6 +1279,7 @@ int sshcom_encrypted(const Filename *filename, char **comment)
 
     done:
     *comment = dupstr(key->comment);
+    cleanup:
     smemclr(key->keyblob, key->keyblob_size);
     sfree(key->keyblob);
     smemclr(key, sizeof(*key));
