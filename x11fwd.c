@@ -344,6 +344,7 @@ void x11_get_auth_from_authfile(struct X11Display *disp,
     int family, protocol;
     int ideal_match = FALSE;
     char *ourhostname = get_hostname();
+    enum { MAX_STRING_LENGTH = 65536 };
 
     /*
      * Normally we should look for precisely the details specified in
@@ -373,7 +374,7 @@ void x11_get_auth_from_authfile(struct X11Display *disp,
 	return;
 
     /* Records in .Xauthority contain four strings of up to 64K each */
-    buf = snewn(65537 * 4, char);
+    buf = snewn((MAX_STRING_LENGTH + 1) * 4, char);
 
     while (!ideal_match) {
 	int c, i, j, match = FALSE;
@@ -389,6 +390,7 @@ void x11_get_auth_from_authfile(struct X11Display *disp,
 	    GET; len[i] = c;
 	    GET; len[i] = (len[i] << 8) | c;
 	    str[i] = ptr;
+            assert(len[i] <= MAX_STRING_LENGTH);
 	    for (j = 0; j < len[i]; j++) {
 		GET; *ptr++ = c;
 	    }
