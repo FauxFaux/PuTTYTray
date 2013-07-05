@@ -1240,7 +1240,9 @@ static struct sshcom_key *load_sshcom_key(const Filename *filename,
 	sfree(ret);
     }
     if (errmsg_p) *errmsg_p = errmsg;
-    fclose(fp);
+    if (fp) {
+        fclose(fp);
+    }
     return NULL;
 }
 
