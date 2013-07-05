@@ -48,6 +48,7 @@ static void adb_log(Plug plug, int type, SockAddr addr, int port,
 	msg = dupprintf("Failed to connect to %s: %s", addrbuf, error_msg);
 
     logevent(adb->frontend, msg);
+    sfree(msg);
 }
 
 static int adb_closing(Plug plug, const char *error_msg, int error_code,
