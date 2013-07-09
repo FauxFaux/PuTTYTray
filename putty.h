@@ -23,6 +23,12 @@ typedef struct backend_tag Backend;
 typedef struct terminal_tag Terminal;
 #endif
 
+#if defined(__clang__) || defined(__GNUC__)
+#   define NORETURN  __attribute__((noreturn))
+#else
+#   define NORETURN
+#endif
+
 #include "puttyps.h"
 #include "network.h"
 #include "misc.h"

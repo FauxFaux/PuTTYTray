@@ -2533,6 +2533,7 @@ GdkCursor *make_mouse_ptr(struct gui_data *inst, int cursor_val)
     return ret;
 }
 
+void modalfatalbox(char *p, ...) NORETURN;
 void modalfatalbox(char *p, ...)
 {
     va_list ap;
@@ -2544,6 +2545,7 @@ void modalfatalbox(char *p, ...)
     exit(1);
 }
 
+void cmdline_error(char *p, ...) NORETURN;
 void cmdline_error(char *p, ...)
 {
     va_list ap;

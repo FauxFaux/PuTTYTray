@@ -38,6 +38,7 @@ int cfgbox(Conf *conf)
     return 1;
 }
 
+void cleanup_exit(int code) NORETURN;
 void cleanup_exit(int code)
 {
     exit(code);

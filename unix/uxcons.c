@@ -48,6 +48,7 @@ void postmsg(struct termios *cf)
 /*
  * Clean up and exit.
  */
+void cleanup_exit(int code) NORETURN;
 void cleanup_exit(int code)
 {
     /*

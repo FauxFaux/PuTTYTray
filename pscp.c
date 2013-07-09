@@ -150,6 +150,8 @@ void connection_fatal(void *frontend, char *fmt, ...)
  * never-called stub.
  */
 void agent_schedule_callback(void (*callback)(void *, void *, int),
+			     void *callback_ctx, void *data, int len) NORETURN;
+void agent_schedule_callback(void (*callback)(void *, void *, int),
 			     void *callback_ctx, void *data, int len)
 {
     assert(!"We shouldn't be here");
@@ -2276,6 +2278,7 @@ void version(void)
     cleanup_exit(1);
 }
 
+void cmdline_error(char *p, ...) NORETURN;
 void cmdline_error(char *p, ...)
 {
     va_list ap;

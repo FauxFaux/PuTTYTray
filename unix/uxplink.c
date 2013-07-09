@@ -80,6 +80,8 @@ void connection_fatal(void *frontend, char *p, ...)
     }
     cleanup_exit(1);
 }
+
+void cmdline_error(char *p, ...) NORETURN;
 void cmdline_error(char *p, ...)
 {
     struct termios cf;
@@ -530,6 +532,7 @@ void uxsel_input_remove(int id) { }
 /*
  * Short description of parameters.
  */
+static void usage(void) NORETURN;
 static void usage(void)
 {
     printf("PuTTY Link: command-line connection utility\n");
@@ -573,6 +576,7 @@ static void usage(void)
     exit(1);
 }
 
+static void version(void) NORETURN;
 static void version(void)
 {
     printf("plink: %s\n", ver);

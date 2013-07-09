@@ -2507,6 +2507,8 @@ void ldisc_send(void *handle, char *buf, int len, int interactive)
  * never-called stub.
  */
 void agent_schedule_callback(void (*callback)(void *, void *, int),
+			     void *callback_ctx, void *data, int len) NORETURN;
+void agent_schedule_callback(void (*callback)(void *, void *, int),
 			     void *callback_ctx, void *data, int len)
 {
     assert(!"We shouldn't be here");
@@ -2858,6 +2860,7 @@ static int psftp_connect(char *userhost, char *user, int portnumber)
     return 0;
 }
 
+void cmdline_error(char *p, ...) NORETURN;
 void cmdline_error(char *p, ...)
 {
     va_list ap;

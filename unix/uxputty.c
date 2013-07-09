@@ -21,6 +21,7 @@ char **pty_argv;		       /* never used */
 /*
  * Clean up and exit.
  */
+void cleanup_exit(int code) NORETURN;
 void cleanup_exit(int code)
 {
     /*
