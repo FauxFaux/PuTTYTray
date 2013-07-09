@@ -2820,7 +2820,7 @@ void unifontsel_destroy(unifontsel *fontsel)
 void unifontsel_set_name(unifontsel *fontsel, const char *fontname)
 {
     unifontsel_internal *fs = (unifontsel_internal *)fontsel;
-    int i, start, end, size, flags;
+    int i, start, end, size = 0, flags = 0;
     const char *fontname2 = NULL;
     fontinfo *info;
 

@@ -1886,7 +1886,7 @@ void selection_received(GtkWidget *widget, GtkSelectionData *seldata,
 {
     struct gui_data *inst = (struct gui_data *)data;
     XTextProperty tp;
-    char **list;
+    char **list = NULL;
     char *text;
     int length, count, ret;
     int free_list_required = 0;
@@ -2533,8 +2533,8 @@ GdkCursor *make_mouse_ptr(struct gui_data *inst, int cursor_val)
     return ret;
 }
 
-void modalfatalbox(char *p, ...) NORETURN;
-void modalfatalbox(char *p, ...)
+void modalfatalbox(const char *p, ...) NORETURN;
+void modalfatalbox(const char *p, ...)
 {
     va_list ap;
     fprintf(stderr, "FATAL ERROR: ");
@@ -2545,8 +2545,8 @@ void modalfatalbox(char *p, ...)
     exit(1);
 }
 
-void cmdline_error(char *p, ...) NORETURN;
-void cmdline_error(char *p, ...)
+void cmdline_error(const char *p, ...) NORETURN;
+void cmdline_error(const char *p, ...)
 {
     va_list ap;
     fprintf(stderr, "%s: ", appname);

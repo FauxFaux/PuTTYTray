@@ -2278,8 +2278,8 @@ void version(void)
     cleanup_exit(1);
 }
 
-void cmdline_error(char *p, ...) NORETURN;
-void cmdline_error(char *p, ...)
+void cmdline_error(const char *p, ...) NORETURN;
+void cmdline_error(const char *p, ...)
 {
     va_list ap;
     fprintf(stderr, "pscp: ");

@@ -269,7 +269,7 @@ int main(int argc, char **argv)
     unsigned char *ssh2blob = NULL;
     char *ssh2alg = NULL;
     const struct ssh_signkey *ssh2algf = NULL;
-    int ssh2bloblen;
+    int ssh2bloblen = 0;
     char *passphrase = NULL;
     int load_encrypted;
     progfn_t progressfn = is_interactive() ? progress_update : no_progress;

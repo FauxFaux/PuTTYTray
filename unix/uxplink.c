@@ -29,7 +29,7 @@ void *logctx;
 
 static struct termios orig_termios;
 
-void fatalbox(char *p, ...)
+void fatalbox(const char *p, ...)
 {
     struct termios cf;
     va_list ap;
@@ -46,7 +46,7 @@ void fatalbox(char *p, ...)
     }
     cleanup_exit(1);
 }
-void modalfatalbox(char *p, ...)
+void modalfatalbox(const char *p, ...)
 {
     struct termios cf;
     va_list ap;
