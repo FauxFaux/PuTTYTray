@@ -159,7 +159,8 @@ char *dupstr(const char *s)
 {
     char *p = NULL;
     if (s) {
-        int len = strlen(s);
+        size_t len = strlen(s);
+        assert(len < SIZE_MAX);
         p = snewn(len + 1, char);
         strcpy(p, s);
     }
@@ -306,12 +307,13 @@ char *dupvprintf(const char *fmt, va_list ap)
 char *fgetline(FILE *fp)
 {
     char *ret = snewn(512, char);
-    int size = 512, len = 0;
+    size_t size = 512, len = 0;
     while (fgets(ret + len, size - len, fp)) {
 	len += strlen(ret + len);
 	if (ret[len-1] == '\n')
 	    break;		       /* got a newline, we're done */
 	size = len + 512;
+        assert(size < INT_MAX);
 	ret = sresize(ret, size, char);
     }
     if (len == 0) {		       /* first fgets returned NULL */
