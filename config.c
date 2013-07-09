@@ -868,7 +868,7 @@ static void colour_handler(union control *ctrl, void *dlg,
     Conf *conf = (Conf *)data;
     struct colour_data *cd =
 	(struct colour_data *)ctrl->generic.context.p;
-    int update = FALSE, clear = FALSE, r, g, b;
+    int update = FALSE, clear = FALSE, r = 0, g = 0, b = 0;
 
     if (event == EVENT_REFRESH) {
 	if (ctrl == cd->listbox) {
