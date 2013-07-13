@@ -1228,7 +1228,6 @@ static int net_select_result(int fd, int event)
                 }
 		return plug_receive(s->plug, 2, buf, ret);
 	    }
-	    break;
 	}
 
 	/*
