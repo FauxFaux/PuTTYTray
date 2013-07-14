@@ -1009,16 +1009,8 @@ void *file_open_settings_r(const char *sessionname)
         SetCurrentDirectory(oldpath);
         
         if (hFile == INVALID_HANDLE_VALUE) {
-            /* JK: some error occured -> just report and fail */
-
-            /* JK: PSCP/PLINK always try to load settings for sessionname=hostname (to what PSCP/PLINK is just connecting)
-               These settings usually doesn't exist.
-               So for PSCP/PLINK, do not report error - so when compiling PSCP/PLINK, comment line below
-               (errorShow("Unable to load file for reading", p);)
-            */
-//#error read comment above
-            errorShow("Unable to load file for reading", p);
-
+            // This used to actively report an error, which doesn't
+            // happen on the registry path.  I couldn't see why.
             sfree(p);
             return NULL;
         }

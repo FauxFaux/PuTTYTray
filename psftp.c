@@ -2712,11 +2712,11 @@ static int psftp_connect(char *userhost, char *user, int portnumber)
 	/* Try to load settings for `host' into a temporary config */
 	Conf *conf2 = conf_new();
 	conf_set_str(conf2, CONF_host, "");
-	do_defaults(host, conf2);
+	do_defaults_then_file(host, conf2);
 	if (conf_get_str(conf2, CONF_host)[0] != '\0') {
 	    /* Settings present and include hostname */
 	    /* Re-load data into the real config. */
-	    do_defaults(host, conf);
+	    do_defaults_then_file(host, conf);
 	} else {
 	    /* Session doesn't exist or mention a hostname. */
 	    /* Use `host' as a bare hostname. */

@@ -981,6 +981,7 @@ void registry_cleanup(void);
  * Quick hack to load defaults from file
  */
 void do_defaults_file(char *, Conf *);
+void do_defaults_then_file(char *, Conf *);
 void load_settings_file(char *section, Conf * cfg);
 
 /*

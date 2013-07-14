@@ -1062,13 +1062,17 @@ void do_defaults(char *session, Conf *conf)
     load_settings(session, conf);
 }
 
-/*
- * HACK: PuttyTray / PuTTY File
- * Quick hack to load defaults from file
- */
 void do_defaults_file(char *session, Conf * cfg)
 {
     load_settings_file(session, cfg);
+}
+
+/** Load from registry, and, if that doesn't make it launchable, load from the file */
+void do_defaults_then_file(char *session, Conf *conf)
+{
+    do_defaults(session, conf);
+    if (conf && !conf_launchable(conf))
+        do_defaults_file(session, conf);
 }
 
 static int sessioncmp(const void *av, const void *bv)

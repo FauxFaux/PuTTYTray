@@ -437,7 +437,7 @@ int main(int argc, char **argv)
 		     */
 		    {
 			Conf *conf2 = conf_new();
-			do_defaults(host, conf2);
+			do_defaults_then_file(host, conf2);
 			if (loaded_session || !conf_launchable(conf2)) {
 			    /* No settings for this host; use defaults */
 			    /* (or session was already loaded with -load) */
