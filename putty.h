@@ -145,6 +145,12 @@ enum {
     URLHACK_UNDERLINE_NEVER
 };
 
+enum {
+    URLHACK_REGEX_CUSTOM = 0,
+    URLHACK_REGEX_CLASSIC = 1,
+    URLHACK_REGEX_LIBERAL,
+};
+
 /*
  * HACK: PuttyTray
  * Tray options

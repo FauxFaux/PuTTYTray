@@ -968,9 +968,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	SetMenuInfo(popup_menus[CTXMENU].menu, &mi);
     }
 
-    if (conf_get_int(term->conf, CONF_url_defregex) == 0) {
-        urlhack_set_regular_expression(conf_get_str(term->conf, CONF_url_regex));
-    }
+    urlhack_set_regular_expression(conf_get_int(term->conf, CONF_url_defregex),
+        conf_get_str(term->conf, CONF_url_regex));
 
     /*
      * Set up the initial input locale.
@@ -2463,9 +2462,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    MakeWindowTransparent(hwnd, 255);
 		}
 
-                if (conf_get_int(conf, CONF_url_defregex) == 0) {
-                    urlhack_set_regular_expression(conf_get_str(conf, CONF_url_regex));
-                }
+                urlhack_set_regular_expression(conf_get_int(term->conf, CONF_url_defregex),
+                    conf_get_str(term->conf, CONF_url_regex));
+
                 term->url_update = TRUE;
                 term_update(term);
 

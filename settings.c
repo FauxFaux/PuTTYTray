@@ -71,6 +71,13 @@ const char* urlhack_default_regex =
     "|(spotify:[^ ]+:[^ ]+)"
     ;
 
+const char* urlhack_liberal_regex =
+    "("
+        "([a-zA-Z]+://|[wW][wW][wW]\\.|spotify:|telnet:)"
+        "[^ '\")>]+"
+    ")"
+    ;
+
 /*
  * Convenience functions to access the backends[] array
  * (which is only present in tools that manage settings).

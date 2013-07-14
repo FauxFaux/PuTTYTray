@@ -9,6 +9,7 @@
 #include "putty.h"
 #include "dialog.h"
 #include "storage.h"
+#include "urlhack.h"
 
 static void about_handler(union control *ctrl, void *dlg,
 			  void *data, int event)
@@ -447,17 +448,19 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 
 	s = ctrl_getset(b, "Window/Hyperlinks", "regexp", "Regular expression");
 
-	ctrl_checkbox(s, "Use the default regular expression", 'r',
-		  HELPCTX(no_help),
-		  conf_checkbox_handler, I(CONF_url_defregex));
+	ctrl_radiobuttons(s, "URL selection:", NO_SHORTCUT, 1,
+		    HELPCTX(no_help),
+		    conf_radiobutton_handler,
+                    I(CONF_url_defregex),
+		    "Select sensible URLs", NO_SHORTCUT, I(URLHACK_REGEX_CLASSIC),
+		    "Select nearly any URL", NO_SHORTCUT, I(URLHACK_REGEX_LIBERAL),
+		    "Custom", NO_SHORTCUT, I(URLHACK_REGEX_CUSTOM),
+		    NULL);
 
-	ctrl_editbox(s, "or specify your own:", NO_SHORTCUT, 100,
+	ctrl_editbox(s, "Customise regex:", NO_SHORTCUT, 100,
 		 HELPCTX(no_help),
 		 conf_editbox_handler, I(CONF_url_regex),
 		 I(1));
-
-	ctrl_text(s, "The single white space will be cropped in front of the link, if exists.",
-		  HELPCTX(no_help));
 
     /*
      * Windows supports a local-command proxy. This also means we
