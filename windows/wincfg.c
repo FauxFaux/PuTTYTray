@@ -383,8 +383,11 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		  I(CONF_fullscreenonaltenter));
 
     s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options");
-    ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), conf_checkbox_handler, I(CONF_wakeup_reconnect));
     ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'f', HELPCTX(no_help), conf_checkbox_handler, I(CONF_failure_reconnect));
+    ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), conf_checkbox_handler, I(CONF_wakeup_reconnect));
+    ctrl_editbox(s, "Wakeup reconnect delay (milliseconds)", NO_SHORTCUT, 20,
+                HELPCTX(no_help),
+                conf_editbox_handler, I(CONF_wakeup_reconnect_delay), I(-1));
 
     s = ctrl_getset(b, "Window/Behaviour", "icon", "Adjust the icon");
     ctrl_columns(s, 3, 40, 20, 40);

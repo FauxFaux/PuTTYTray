@@ -884,6 +884,7 @@ void cleanup_exit(int);
     X(INT, NONE, transparency) \
     X(INT, NONE, failure_reconnect) \
     X(INT, NONE, wakeup_reconnect) \
+    X(INT, NONE, wakeup_reconnect_delay) \
     X(INT, NONE, session_storagetype) \
     X(INT, NONE, tray) \
     X(INT, NONE, start_tray) \

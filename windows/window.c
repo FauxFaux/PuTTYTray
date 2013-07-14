@@ -3570,6 +3570,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	                Sleep(1000);
 	            }
 
+                    Sleep(conf_get_int(conf, CONF_wakeup_reconnect_delay));
+
 	            last_reconnect = tnow;
 	            logevent(NULL, "Woken up from suspend, reconnecting...");
 	            term_pwron(term, FALSE);
