@@ -747,6 +747,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     }
 
     if (!prev) {
+        Filename *win_icon;
 	wndclass.cbSize = sizeof(WNDCLASSEX);
 	wndclass.style = 0;
 	wndclass.lpfnWndProc = WndProc;
@@ -754,9 +755,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	wndclass.cbWndExtra = 0;
 	wndclass.hInstance = inst;
 
-	if (conf_get_filename(conf, CONF_win_icon) && conf_get_filename(conf, CONF_win_icon)->path[0]) {
-            wndclass.hIcon = extract_icon(filename_to_str(conf_get_filename(conf, CONF_win_icon)), FALSE);
-            wndclass.hIconSm = extract_icon(filename_to_str(conf_get_filename(conf, CONF_win_icon)), TRUE);
+        win_icon = conf_get_filename(conf, CONF_win_icon);
+	if (win_icon && filename_to_str(win_icon)[0]) {
+            wndclass.hIcon = extract_icon(filename_to_str(win_icon), FALSE);
+            wndclass.hIconSm = extract_icon(filename_to_str(win_icon), TRUE);
 	} else {
             wndclass.hIcon = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED);
             wndclass.hIconSm = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
@@ -2462,8 +2464,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    MakeWindowTransparent(hwnd, 255);
 		}
 
-                urlhack_set_regular_expression(conf_get_int(term->conf, CONF_url_defregex),
-                    conf_get_str(term->conf, CONF_url_regex));
+                urlhack_set_regular_expression(conf_get_int(conf, CONF_url_defregex),
+                    conf_get_str(conf, CONF_url_regex));
 
                 term->url_update = TRUE;
                 term_update(term);
@@ -2472,14 +2474,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
                     hIcon = extract_icon(filename_to_str(conf_get_filename(conf, CONF_win_icon)), TRUE);
 		    DestroyIcon(puttyTray.hIcon);
 		    puttyTray.hIcon = hIcon;
-		    SetClassLongPtr(hwnd, GCL_HICON, extract_icon(filename_to_str(conf_get_filename(conf, CONF_win_icon)), FALSE));
-		    SetClassLongPtr(hwnd, GCL_HICONSM, (LONG)hIcon);
+		    SetClassLongPtr(hwnd, GCLP_HICON, extract_icon(filename_to_str(conf_get_filename(conf, CONF_win_icon)), FALSE));
+		    SetClassLongPtr(hwnd, GCLP_HICONSM, (LONG_PTR)hIcon);
 		} else {
-		    inst = (HINSTANCE) GetWindowLongPtr(hwnd, GWL_HINSTANCE);
+		    inst = (HINSTANCE) GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
 		    DestroyIcon(puttyTray.hIcon);
 		    puttyTray.hIcon = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
-		    SetClassLongPtr(hwnd, GCL_HICON, (LONG)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED));
-		    SetClassLongPtr(hwnd, GCL_HICONSM, (LONG)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED));
+		    SetClassLongPtr(hwnd, GCLP_HICON, (LONG_PTR)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED));
+		    SetClassLongPtr(hwnd, GCLP_HICONSM, (LONG_PTR)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED));
 		}
 		if (puttyTrayVisible) {
 		    taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
@@ -2661,7 +2663,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    }
 	    break;
 	  case IDM_TRAYCLOSE:
-	    SendMessage(hwnd, WM_CLOSE, (WPARAM)NULL, (WPARAM)NULL);
+	    SendMessage(hwnd, WM_CLOSE, (WPARAM)NULL, (LPARAM)NULL);
 	    break;
 
 	  case SC_MOUSEMENU:
@@ -5990,6 +5992,7 @@ static void flash_window(int mode)
 	    FlashWindow(hwnd, FALSE);
 	    flashing = 0;
 
+            puttyTray.hIcon = puttyTrayFlashIcon;
 	    if (puttyTrayVisible) {
 		puttyTrayFlash = FALSE;
 		puttyTray.hIcon = puttyTrayFlashIcon;
@@ -6016,7 +6019,6 @@ static void flash_window(int mode)
 	    FlashWindow(hwnd, TRUE);	/* toggle */
 	    next_flash = schedule_timer(450, flash_window_timer, hwnd);
 
-            puttyTray.hIcon = puttyTrayFlashIcon;
 	    if (puttyTrayVisible) {
 		if (!puttyTrayFlash) {
 		    puttyTrayFlash = TRUE;
