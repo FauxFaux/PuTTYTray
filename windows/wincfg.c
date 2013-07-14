@@ -386,18 +386,6 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), conf_checkbox_handler, I(CONF_wakeup_reconnect));
     ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'f', HELPCTX(no_help), conf_checkbox_handler, I(CONF_failure_reconnect));
 
-    ctrl_radiobuttons(s, "Show tray icon:", NO_SHORTCUT, 4,
-		      HELPCTX(no_help),
-		      conf_radiobutton_handler,
-		      I(CONF_tray),
-		      "Normal", 'n', I(TRAY_NORMAL),
-		      "Always", 'y', I(TRAY_ALWAYS),
-		      "Never", 'r', I(TRAY_NEVER),
-		      "On start", 's', I(TRAY_START), NULL);
-    ctrl_checkbox(s, "Accept single-click to restore from tray", 't',
-		  HELPCTX(no_help),
-		  conf_checkbox_handler, I(CONF_tray_restore));
-
     s = ctrl_getset(b, "Window/Behaviour", "icon", "Adjust the icon");
     ctrl_columns(s, 3, 40, 20, 40);
     c = ctrl_text(s, "Window / tray icon:", HELPCTX(appearance_title));
@@ -409,6 +397,19 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 			window_icon_handler, P(c));
     c->generic.column = 2;
     ctrl_columns(s, 1, 100);
+
+    ctrl_radiobuttons(s, "Show tray icon:", NO_SHORTCUT, 4,
+                      HELPCTX(no_help),
+                      conf_radiobutton_handler,
+                      I(CONF_tray),
+                      "Normal", 'n', I(TRAY_NORMAL),
+                      "Always", 'y', I(TRAY_ALWAYS),
+                      "Never", 'r', I(TRAY_NEVER),
+                      "On start", 's', I(TRAY_START), NULL);
+
+    ctrl_checkbox(s, "Accept single-click to restore from tray", NO_SHORTCUT,
+		  HELPCTX(no_help),
+		  conf_checkbox_handler, I(CONF_tray_restore));
 
 	/*
 	 * HACK: PuttyTray / Nutty
