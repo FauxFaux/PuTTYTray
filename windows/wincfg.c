@@ -341,7 +341,9 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     ctrl_checkbox(s, "Use system colours", 's',
                   HELPCTX(colours_system),
                   conf_checkbox_handler, I(CONF_system_colour));
-
+    ctrl_editbox(s, "Window opacity (50-255)", 't', 30,
+                  HELPCTX(no_help),
+                  conf_editbox_handler, I(CONF_transparency), I(-1));
 
     /*
      * Resize-by-changing-font is a Windows insanity.
@@ -379,9 +381,6 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		  HELPCTX(behaviour_altenter),
 		  conf_checkbox_handler,
 		  I(CONF_fullscreenonaltenter));
-
-    s = ctrl_getset(b, "Window", "main", "Window transparency options");
-    ctrl_editbox(s, "Opacity (50-255)", 't', 30, HELPCTX(no_help), conf_editbox_handler, I(CONF_transparency), I(-1));
 
     s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options");
     ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), conf_checkbox_handler, I(CONF_wakeup_reconnect));
