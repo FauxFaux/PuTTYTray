@@ -58,7 +58,7 @@ const char* urlhack_default_regex =
         "(((https?|ftp):\\/\\/)|www\\.)"
         "("
             "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)" // 127.0.0.1
-            "|localhost"
+            "|[a-z]+[0-9]*" // http://foo
             "|([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\." // ab-c.de-f.qrs.tuv.
                 // popular tlds, and anything that could be a country
                 "(aero|asia|biz|cat|com|coop|info|int|jobs"
