@@ -350,17 +350,13 @@ U_BE_NOSSH = be_nos_u uxser nocproxy
 putty    : [G] GUITERM NONSSH WINSSH W_BE_ALL WINMISC winx11 putty.res urlhack regexp LIBS
          + fatty
          + winpgen sshrsag sshdssg sshprime import
+         + winpgnt
 plink    : [C] winplink wincons NONSSH WINSSH W_BE_ALL logging WINMISC
          + winx11 plink.res winnojmp LIBS
 pscp     : [C] pscp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
          + pscp.res winnojmp LIBS
 psftp    : [C] psftp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
          + psftp.res winnojmp LIBS
-
-pageant  : [G] winpgnt sshrsa sshpubk sshdes sshbn sshmd5 version tree234
-         + misc sshaes sshsha winpgntc sshdss sshsh256 sshsh512 winutils
-         + winmisc winhelp conf import pageant.res LIBS
-
 pterm    : [X] GTKTERM uxmisc misc ldisc settings uxpty uxsel BE_NONE uxstore
          + uxsignal CHARSET cmdline uxpterm version time xpmpterm xpmptcfg
 	 + nogss

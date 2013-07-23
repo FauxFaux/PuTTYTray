@@ -84,6 +84,7 @@
     <ClCompile Include="..\..\..\windows\winnet.c" />
     <ClCompile Include="..\..\..\windows\winnoise.c" />
     <ClCompile Include="..\..\..\windows\winpgen.c" />
+    <ClCompile Include="..\..\..\windows\winpgnt.c" />
     <ClCompile Include="..\..\..\windows\winpgntc.c" />
     <ClCompile Include="..\..\..\windows\winprint.c" />
     <ClCompile Include="..\..\..\windows\winproxy.c" />
@@ -127,6 +128,8 @@
     <ClInclude Include="..\..\..\windows\winstuff.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\..\windows\pageant.ico" />
+    <None Include="..\..\..\windows\pageant.rc" />
     <None Include="..\..\..\windows\putty.ico" />
     <None Include="..\..\..\windows\putty.rc" />
     <None Include="..\..\..\windows\puttycfg.ico" />

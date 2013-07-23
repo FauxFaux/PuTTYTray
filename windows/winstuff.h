@@ -564,5 +564,6 @@ char *get_jumplist_registry_entries(void);
 
 int puttygen_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show);
 int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show);
+int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show);
 
 #endif

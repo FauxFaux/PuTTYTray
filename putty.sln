@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual C++ Express 2010
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "putty", "windows\MSVC2010\putty\putty.vcxproj", "{D6B97AF3-E53D-4020-B852-000008161273}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pageant", "windows\MSVC2010\pageant\pageant.vcxproj", "{D6B97AF3-E53D-4020-B852-000037FC05F5}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "plink", "windows\MSVC2010\plink\plink.vcxproj", "{D6B97AF3-E53D-4020-B852-00000811D109}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pscp", "windows\MSVC2010\pscp\pscp.vcxproj", "{D6B97AF3-E53D-4020-B852-00000042BD31}"
@@ -21,10 +19,6 @@ Global
 		{D6B97AF3-E53D-4020-B852-000008161273}.Debug|Win32.Build.0 = Debug|Win32
 		{D6B97AF3-E53D-4020-B852-000008161273}.Release|Win32.ActiveCfg = Release|Win32
 		{D6B97AF3-E53D-4020-B852-000008161273}.Release|Win32.Build.0 = Release|Win32
-		{D6B97AF3-E53D-4020-B852-000037FC05F5}.Debug|Win32.ActiveCfg = Debug|Win32
-		{D6B97AF3-E53D-4020-B852-000037FC05F5}.Debug|Win32.Build.0 = Debug|Win32
-		{D6B97AF3-E53D-4020-B852-000037FC05F5}.Release|Win32.ActiveCfg = Release|Win32
-		{D6B97AF3-E53D-4020-B852-000037FC05F5}.Release|Win32.Build.0 = Release|Win32
 		{D6B97AF3-E53D-4020-B852-00000811D109}.Debug|Win32.ActiveCfg = Debug|Win32
 		{D6B97AF3-E53D-4020-B852-00000811D109}.Debug|Win32.Build.0 = Debug|Win32
 		{D6B97AF3-E53D-4020-B852-00000811D109}.Release|Win32.ActiveCfg = Release|Win32

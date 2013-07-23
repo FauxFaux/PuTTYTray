@@ -25,7 +25,7 @@
 #endif
 #endif
 
-#define IDI_MAINICON 200
+#define IDI_MAINICON 900
 
 #define WM_SYSTRAY   (WM_APP + 6)
 #define WM_SYSTRAY2  (WM_APP + 7)
@@ -79,23 +79,6 @@ static BOOL confirm_mode = FALSE;
 #define PUTTY_DEFAULT     "Default%20Settings"
 static int initial_menuitems_count;
 
-/*
- * Print a modal (Really Bad) message box and perform a fatal exit.
- */
-void modalfatalbox(char *fmt, ...)
-{
-    va_list ap;
-    char *buf;
-
-    va_start(ap, fmt);
-    buf = dupvprintf(fmt, ap);
-    va_end(ap);
-    MessageBox(hwnd, buf, "Pageant Fatal Error",
-	       MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
-    sfree(buf);
-    exit(1);
-}
-
 /* Un-munge session names out of the registry. */
 static void unmungestr(char *in, char *out, int outlen)
 {
@@ -139,24 +122,6 @@ static void *make_keylist1(int *length);
 static void *make_keylist2(int *length);
 static void *get_keylist1(int *length);
 static void *get_keylist2(int *length);
-
-/*
- * We need this to link with the RSA code, because rsaencrypt()
- * pads its data with random bytes. Since we only use rsadecrypt()
- * and the signing functions, which are deterministic, this should
- * never be called.
- *
- * If it _is_ called, there is a _serious_ problem, because it
- * won't generate true random numbers. So we must scream, panic,
- * and exit immediately if that should happen.
- */
-int random_byte(void)
-{
-    MessageBox(hwnd, "Internal Error", APPNAME, MB_OK | MB_ICONERROR);
-    exit(0);
-    /* this line can't be reached but it placates MSVC's warnings :-) */
-    return 0;
-}
 
 /*
  * Blob structure for passing to the asymmetric SSH-2 key compare
@@ -232,7 +197,7 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 	    return 0;
 	  case 101:
 	    EnableWindow(hwnd, 0);
-	    DialogBox(hinst, MAKEINTRESOURCE(214), hwnd, LicenceProc);
+	    DialogBox(hinst, MAKEINTRESOURCE(914), hwnd, LicenceProc);
 	    EnableWindow(hwnd, 1);
 	    SetActiveWindow(hwnd);
 	    return 0;
@@ -360,26 +325,6 @@ static int CALLBACK PassphraseProc(HWND hwnd, UINT msg,
 	return 0;
     }
     return 0;
-}
-
-/*
- * Warn about the obsolescent key file format.
- */
-void old_keyfile_warning(void)
-{
-    static const char mbtitle[] = "PuTTY Key File Warning";
-    static const char message[] =
-	"You are loading an SSH-2 private key which has an\n"
-	"old version of the file format. This means your key\n"
-	"file is not fully tamperproof. Future versions of\n"
-	"PuTTY may stop supporting this private key format,\n"
-	"so we recommend you convert your key to the new\n"
-	"format.\n"
-	"\n"
-	"You can perform this conversion by loading the key\n"
-	"into PuTTYgen and then saving it again.";
-
-    MessageBox(NULL, message, mbtitle, MB_OK);
 }
 
 static void update_saves_keys()
@@ -644,7 +589,7 @@ static void add_keyfile(Filename *filename)
                 pps.comment = comment;
 
 		original_pass = 1;
-		dlgret = DialogBoxParam(hinst, MAKEINTRESOURCE(210),
+		dlgret = DialogBoxParam(hinst, MAKEINTRESOURCE(910),
 					NULL, PassphraseProc, (LPARAM) &pps);
 		passphrase_box = NULL;
 		if (!dlgret) {
@@ -1835,7 +1780,7 @@ static BOOL AddTrayIcon(HWND hwnd)
     tnid.uID = 1;	       /* unique within this systray use */
     tnid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
     tnid.uCallbackMessage = WM_SYSTRAY;
-    tnid.hIcon = hicon = LoadIcon(hinst, MAKEINTRESOURCE(200));
+    tnid.hIcon = hicon = LoadIcon(hinst, MAKEINTRESOURCE(IDI_MAINICON));
     strcpy(tnid.szTip, "Pageant (PuTTY authentication agent)");
 
     res = Shell_NotifyIcon(NIM_ADD, &tnid);
@@ -2025,7 +1970,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    break;
 	  case IDM_VIEWKEYS:
 	    if (!keylist) {
-		keylist = CreateDialog(hinst, MAKEINTRESOURCE(211),
+		keylist = CreateDialog(hinst, MAKEINTRESOURCE(911),
 				       NULL, KeyListProc);
 		ShowWindow(keylist, SW_SHOWNORMAL);
 	    }
@@ -2055,7 +2000,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
             break;
 	  case IDM_ABOUT:
 	    if (!aboutbox) {
-		aboutbox = CreateDialog(hinst, MAKEINTRESOURCE(213),
+		aboutbox = CreateDialog(hinst, MAKEINTRESOURCE(913),
 					NULL, AboutProc);
 		ShowWindow(aboutbox, SW_SHOWNORMAL);
 		/* 
@@ -2249,22 +2194,6 @@ void spawn_cmd(char *cmdline, char * args, int show)
     }
 }
 
-/*
- * This is a can't-happen stub, since Pageant never makes
- * asynchronous agent requests.
- */
-void agent_schedule_callback(void (*callback)(void *, void *, int),
-			     void *callback_ctx, void *data, int len)
-{
-    assert(!"We shouldn't get here");
-}
-
-void cleanup_exit(int code)
-{
-    shutdown_help();
-    exit(code);
-}
-
 int flags = FLAG_SYNCAGENT;
 
 int look_for(const char *exe, char **path) {
@@ -2285,7 +2214,7 @@ int look_for(const char *exe, char **path) {
     }
 }
 
-int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
     WNDCLASS wndclass;
     MSG msg;
