@@ -414,7 +414,7 @@ stpcpy_max(char *dst, const char *src, size_t n)
     return dst;
 }
 
-int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
     WNDCLASSEX wndclass;
     MSG msg;
@@ -1082,7 +1082,7 @@ void cleanup_exit(int code)
 	DeleteObject(pal);
     sk_cleanup();
 
-    if (conf_get_int(conf, CONF_protocol) == PROT_SSH) {
+    if (conf && conf_get_int(conf, CONF_protocol) == PROT_SSH) {
 	random_save_seed();
 #ifdef MSCRYPTOAPI
 	crypto_wrapup();

@@ -29,39 +29,6 @@ static Filename *cmdline_keygen = NULL;
 #define PASSPHRASE_PROC_CANCEL 2
 #define PASSPHRASE_PROC_CLOSE 0
 
-/*
- * Print a modal (Really Bad) message box and perform a fatal exit.
- */
-void modalfatalbox(char *fmt, ...)
-{
-    va_list ap;
-    char *stuff;
-
-    va_start(ap, fmt);
-    stuff = dupvprintf(fmt, ap);
-    va_end(ap);
-    MessageBox(NULL, stuff, "PuTTYgen Fatal Error",
-	       MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
-    sfree(stuff);
-    exit(1);
-}
-
-/*
- * Print a non-fatal message box and do not exit.
- */
-void nonfatal(char *fmt, ...)
-{
-    va_list ap;
-    char *stuff;
-
-    va_start(ap, fmt);
-    stuff = dupvprintf(fmt, ap);
-    va_end(ap);
-    MessageBox(NULL, stuff, "PuTTYgen Error",
-	       MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
-    sfree(stuff);
-}
-
 /* ----------------------------------------------------------------------
  * Progress report code. This is really horrible :-)
  */
@@ -417,26 +384,6 @@ static int save_ssh1_pubkey(char *filename, struct RSAKey *key)
     sfree(dec1);
     sfree(dec2);
     return 1;
-}
-
-/*
- * Warn about the obsolescent key file format.
- */
-void old_keyfile_warning(void)
-{
-    static const char mbtitle[] = "PuTTY Key File Warning";
-    static const char message[] =
-	"You are loading an SSH-2 private key which has an\n"
-	"old version of the file format. This means your key\n"
-	"file is not fully tamperproof. Future versions of\n"
-	"PuTTY may stop supporting this private key format,\n"
-	"so we recommend you convert your key to the new\n"
-	"format.\n"
-	"\n"
-	"Once the key is loaded into PuTTYgen, you can perform\n"
-	"this conversion simply by saving it again.";
-
-    MessageBox(NULL, message, mbtitle, MB_OK);
 }
 
 static int save_ssh2_pubkey(char *filename, struct ssh2_userkey *key)
@@ -1454,13 +1401,7 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
     return 0;
 }
 
-void cleanup_exit(int code)
-{
-    shutdown_help();
-    exit(code);
-}
-
-int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+int puttygen_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
     int argc;
     char **argv;

@@ -561,4 +561,8 @@ int remove_from_jumplist_registry(const char *item);
  * empty one. */
 char *get_jumplist_registry_entries(void);
 
+
+int puttygen_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show);
+int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show);
+
 #endif

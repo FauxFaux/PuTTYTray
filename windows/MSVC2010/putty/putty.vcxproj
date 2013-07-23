@@ -18,6 +18,7 @@
     <ClCompile Include="..\..\..\config.c" />
     <ClCompile Include="..\..\..\cproxy.c" />
     <ClCompile Include="..\..\..\dialog.c" />
+    <ClCompile Include="..\..\..\import.c" />
     <ClCompile Include="..\..\..\ldisc.c" />
     <ClCompile Include="..\..\..\ldiscucs.c" />
     <ClCompile Include="..\..\..\logging.c" />
@@ -43,11 +44,14 @@
     <ClCompile Include="..\..\..\sshdes.c" />
     <ClCompile Include="..\..\..\sshdh.c" />
     <ClCompile Include="..\..\..\sshdss.c" />
+    <ClCompile Include="..\..\..\sshdssg.c" />
     <ClCompile Include="..\..\..\sshgssc.c" />
     <ClCompile Include="..\..\..\sshmd5.c" />
+    <ClCompile Include="..\..\..\sshprime.c" />
     <ClCompile Include="..\..\..\sshpubk.c" />
     <ClCompile Include="..\..\..\sshrand.c" />
     <ClCompile Include="..\..\..\sshrsa.c" />
+    <ClCompile Include="..\..\..\sshrsag.c" />
     <ClCompile Include="..\..\..\sshsh256.c" />
     <ClCompile Include="..\..\..\sshsh512.c" />
     <ClCompile Include="..\..\..\sshsha.c" />
@@ -62,6 +66,7 @@
     <ClCompile Include="..\..\..\wildcard.c" />
     <ClCompile Include="..\..\..\windows\cygcfg.c" />
     <ClCompile Include="..\..\..\windows\cygterm.c" />
+    <ClCompile Include="..\..\..\windows\fatty.c" />
     <ClCompile Include="..\..\..\windows\pickicondialog.c" />
     <ClCompile Include="..\..\..\windows\re_lib\regexp.c" />
     <ClCompile Include="..\..\..\windows\sizetip.c" />
@@ -78,6 +83,7 @@
     <ClCompile Include="..\..\..\windows\winmisc.c" />
     <ClCompile Include="..\..\..\windows\winnet.c" />
     <ClCompile Include="..\..\..\windows\winnoise.c" />
+    <ClCompile Include="..\..\..\windows\winpgen.c" />
     <ClCompile Include="..\..\..\windows\winpgntc.c" />
     <ClCompile Include="..\..\..\windows\winprint.c" />
     <ClCompile Include="..\..\..\windows\winproxy.c" />
@@ -124,6 +130,8 @@
     <None Include="..\..\..\windows\putty.ico" />
     <None Include="..\..\..\windows\putty.rc" />
     <None Include="..\..\..\windows\puttycfg.ico" />
+    <None Include="..\..\..\windows\puttygen.ico" />
+    <None Include="..\..\..\windows\puttygen.rc" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\..\putty.rc" />

@@ -17,6 +17,8 @@
     <ClCompile Include="..\..\..\conf.c" />
     <ClCompile Include="..\..\..\config.c" />
     <ClCompile Include="..\..\..\dialog.c" />
+    <ClCompile Include="..\..\..\fatty.c" />
+    <ClCompile Include="..\..\..\import.c" />
     <ClCompile Include="..\..\..\ldisc.c" />
     <ClCompile Include="..\..\..\ldiscucs.c" />
     <ClCompile Include="..\..\..\logging.c" />
@@ -30,6 +32,9 @@
     <ClCompile Include="..\..\..\rlogin.c" />
     <ClCompile Include="..\..\..\sercfg.c" />
     <ClCompile Include="..\..\..\settings.c" />
+    <ClCompile Include="..\..\..\sshdssg.c" />
+    <ClCompile Include="..\..\..\sshprime.c" />
+    <ClCompile Include="..\..\..\sshrsag.c" />
     <ClCompile Include="..\..\..\telnet.c" />
     <ClCompile Include="..\..\..\terminal.c" />
     <ClCompile Include="..\..\..\timing.c" />
@@ -53,6 +58,7 @@
     <ClCompile Include="..\..\..\windows\winjump.c" />
     <ClCompile Include="..\..\..\windows\winmisc.c" />
     <ClCompile Include="..\..\..\windows\winnet.c" />
+    <ClCompile Include="..\..\..\windows\winpgen.c" />
     <ClCompile Include="..\..\..\windows\winprint.c" />
     <ClCompile Include="..\..\..\windows\winproxy.c" />
     <ClCompile Include="..\..\..\windows\winser.c" />
@@ -92,6 +98,8 @@
   <ItemGroup>
     <None Include="..\..\..\windows\putty.ico" />
     <None Include="..\..\..\windows\puttycfg.ico" />
+    <None Include="..\..\..\windows\puttygen.ico" />
+    <None Include="..\..\..\windows\puttygen.rc" />
     <None Include="..\..\..\windows\puttytel.rc" />
   </ItemGroup>
   <ItemGroup>
