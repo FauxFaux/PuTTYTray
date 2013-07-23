@@ -2243,8 +2243,9 @@ int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     if (!GetModuleFileName(NULL, our_path, MAX_PATH))
         modalfatalbox("GetModuleFileName failed?!");
 
-    strcpy(relaunch_path, our_path);
-    strcat(relaunch_path, " --as-agent");
+    strcpy(relaunch_path, "\"");
+    strcat(relaunch_path, our_path);
+    strcat(relaunch_path, "\" --as-agent");
 
     /*
      * Find out if Pageant is already running.
