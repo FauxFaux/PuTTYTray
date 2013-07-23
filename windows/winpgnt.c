@@ -60,8 +60,8 @@ static HWND aboutbox;
 static HMENU systray_menu, session_menu;
 static int already_running;
 
-static char *putty_path;
-static char *puttygen_path;
+static char our_path[MAX_PATH];
+static char relaunch_path[MAX_PATH + 16];
 
 /* CWD for "add key" file requester. */
 static filereq *keypath = NULL;
@@ -221,15 +221,14 @@ HKEY run_key() {
 }
 
 BOOL starts_at_startup() {
-    char us[MAX_PATH] = "", them[MAX_PATH] = "";
+    char them[MAX_PATH] = "";
     DWORD len = MAX_PATH;
     HKEY run;
-    GetModuleFileName(NULL, us, MAX_PATH);
     run = run_key();
     RegQueryValueEx(run, APPNAME,
         NULL, NULL, (LPBYTE)them, &len);
     RegCloseKey(run);
-    return !strcmp(us, them);
+    return !strcmp(relaunch_path, them);
 }
 
 BOOL reg_keys(HKEY *hkey) {
@@ -250,13 +249,10 @@ void toggle_startup() {
         RegDeleteValue(run, APPNAME);
         RegCloseKey(run);
     } else {
-        char us[MAX_PATH] = "";
         LONG ret;
         HKEY run = run_key();
-        GetModuleFileName(NULL, us, MAX_PATH);
-        ret = RegSetValueEx(run, APPNAME, 0, REG_SZ, (BYTE*)us, strlen(us) + 1);
+        ret = RegSetValueEx(run, APPNAME, 0, REG_SZ, (BYTE*)relaunch_path, strlen(relaunch_path) + 1);
         RegCloseKey(run);
-        printf("%d", ret);
     }
 }
 
@@ -1718,15 +1714,15 @@ static int CALLBACK KeyListProc(HWND hwnd, UINT msg,
           case 107: /* add ~/.ssh/id_rsa */
             {
                 Filename *path = get_id_rsa_path();
-                if (puttygen_path && !file_exists(path->path)
+                if (!file_exists(path->path)
                     && IDYES == MessageBox(hwnd, "~/.ssh/id_rsa doesn't exist, would you like to create it?",
                         APPNAME, MB_YESNO)) {
                     SHELLEXECUTEINFO ShExecInfo = {0};
                     ShExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
                     ShExecInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
                     ShExecInfo.hwnd = hwnd;
-                    ShExecInfo.lpFile = puttygen_path;
-                    ShExecInfo.lpParameters = "--ssh-keygen";
+                    ShExecInfo.lpFile = our_path;
+                    ShExecInfo.lpParameters = "--as-gen --ssh-keygen";
                     ShExecInfo.nShow = SW_SHOW;
                     ShellExecuteEx(&ShExecInfo);
                     WaitForSingleObject(ShExecInfo.hProcess, INFINITE);
@@ -1799,9 +1795,6 @@ static void update_sessions(void)
     MENUITEMINFO mii;
 
     int index_key, index_menu;
-
-    if (!putty_path)
-	return;
 
     if(ERROR_SUCCESS != RegOpenKey(HKEY_CURRENT_USER, PUTTY_REGKEY, &hkey))
 	return;
@@ -1939,12 +1932,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
       case WM_SYSCOMMAND:
 	switch (wParam & ~0xF) {       /* low 4 bits reserved to Windows */
 	  case IDM_PUTTY:
-	    if((int)ShellExecute(hwnd, NULL, putty_path, _T(""), _T(""),
-				 SW_SHOW) <= 32) {
+	    if((int)ShellExecute(hwnd, NULL, our_path, _T("--as-putty"), _T(""),
+				    SW_SHOW) <= 32) {
 		MessageBox(NULL, "Unable to execute PuTTY!",
-			   "Error", MB_OK | MB_ICONERROR);
+			    "Error", MB_OK | MB_ICONERROR);
 	    }
-	    break;
+            break;
 	  case IDM_CLOSE:
 	    if (passphrase_box)
 		SendMessage(passphrase_box, WM_CLOSE, 0, 0);
@@ -2049,9 +2042,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    mii.cch = MAX_PATH;
 		    mii.dwTypeData = buf;
 		    GetMenuItemInfo(session_menu, wParam, FALSE, &mii);
-		    strcpy(param, "@");
+		    strcpy(param, "--as-putty @");
 		    strcat(param, mii.dwTypeData);
-		    if((int)ShellExecute(hwnd, NULL, putty_path, param,
+		    if((int)ShellExecute(hwnd, NULL, our_path, param,
 					 _T(""), SW_SHOW) <= 32) {
 			MessageBox(NULL, "Unable to execute PuTTY!", "Error",
 				   MB_OK | MB_ICONERROR);
@@ -2196,24 +2189,6 @@ void spawn_cmd(char *cmdline, char * args, int show)
 
 int flags = FLAG_SYNCAGENT;
 
-int look_for(const char *exe, char **path) {
-    char b[2048], *p, *q, *r;
-    GetModuleFileName(NULL, b, sizeof(b) - 16);
-    r = b;
-    p = strrchr(b, '\\');
-    if (p && p >= r) r = p+1;
-    q = strrchr(b, ':');
-    if (q && q >= r) r = q+1;
-    strcpy(r, exe);
-    if (file_exists(b)) {
-        *path = dupstr(b);
-        return 1;
-    } else {
-        *path = NULL;
-        return 0;
-    }
-}
-
 int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
     WNDCLASS wndclass;
@@ -2265,12 +2240,11 @@ int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
      */
     init_help();
 
-    /*
-     * Look for the PuTTY binary (we will enable the saved session
-     * submenu if we find it).
-     */
-    look_for("putty.exe", &putty_path);
-    look_for("puttygen.exe", &puttygen_path);
+    if (!GetModuleFileName(NULL, our_path, MAX_PATH))
+        modalfatalbox("GetModuleFileName failed?!");
+
+    strcpy(relaunch_path, our_path);
+    strcat(relaunch_path, " --as-agent");
 
     /*
      * Find out if Pageant is already running.
@@ -2380,13 +2354,13 @@ int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     /* Accelerators used: nsvkxa */
     systray_menu = CreatePopupMenu();
-    if (putty_path) {
-	session_menu = CreateMenu();
-	AppendMenu(systray_menu, MF_ENABLED, IDM_PUTTY, "&New Session");
-	AppendMenu(systray_menu, MF_POPUP | MF_ENABLED,
-		   (UINT) session_menu, "&Saved Sessions");
-	AppendMenu(systray_menu, MF_SEPARATOR, 0, 0);
-    }
+
+    session_menu = CreateMenu();
+    AppendMenu(systray_menu, MF_ENABLED, IDM_PUTTY, "&New Session");
+    AppendMenu(systray_menu, MF_POPUP | MF_ENABLED,
+		(UINT) session_menu, "&Saved Sessions");
+    AppendMenu(systray_menu, MF_SEPARATOR, 0, 0);
+
     AppendMenu(systray_menu, MF_ENABLED, IDM_VIEWKEYS,
 	   "&View Keys");
     AppendMenu(systray_menu, MF_ENABLED, IDM_ADDKEY, "Add &Key");
