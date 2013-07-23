@@ -30,7 +30,7 @@
 #endif
 
 char ver[] = "Development snapshot " SNAPSHOT_TEXT;
-char sshver[] = "PuTTY-Snapshot-" SNAPSHOT_TEXT;
+char sshver[] = "PuTTY-S-" SNAPSHOT_TEXT;
 
 #undef SNAPSHOT_TEXT
 
