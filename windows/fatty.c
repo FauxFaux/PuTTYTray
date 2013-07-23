@@ -1,19 +1,35 @@
 #include "putty.h"
 
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show) {
-    enum {
-        AS_GEN_LEN = 8,
-        AS_AGENT_LEN = 10,
-    };
+    char us[MAX_PATH];
 
     while (*cmdline && isspace(*cmdline))
         ++cmdline;
 
-    if (!strncmp(cmdline, "--as-gen", AS_GEN_LEN)) {
-        return puttygen_main(inst, prev, cmdline+AS_GEN_LEN, show);
+#   define ARG_RUN(arg, method) \
+    if (!strncmp(cmdline, arg, strlen(arg))) { \
+        return method(inst, prev, cmdline+strlen(arg), show); \
     }
-    if (!strncmp(cmdline, "--as-agent", AS_AGENT_LEN)) {
-        return pageant_main(inst, prev, cmdline+AS_AGENT_LEN, show);
+
+    ARG_RUN("--as-gen", puttygen_main);
+    ARG_RUN("--as-agent", pageant_main);
+    ARG_RUN("--as-putty", putty_main);
+#   undef ARG_RUN
+
+    if (GetModuleFileName(NULL, us, MAX_PATH)) {
+        char *fn = strrchr(us, '\\');
+        if (!fn)
+            fn = us;
+        else
+            ++fn;
+
+        if (!strncmp(fn, "puttygen", strlen("puttygen"))) {
+            return puttygen_main(inst, prev, cmdline, show);
+        }
+        if (!strncmp(fn, "pageant", strlen("pageant"))) {
+            return pageant_main(inst, prev, cmdline, show);
+        }
     }
+
     return putty_main(inst, prev, cmdline, show);
 }
