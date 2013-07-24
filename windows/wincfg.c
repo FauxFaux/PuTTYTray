@@ -11,6 +11,11 @@
 #include "storage.h"
 #include "urlhack.h"
 
+enum {
+    CHILD_KEYGEN,
+    CHILD_AGENT,
+};
+
 static void about_handler(union control *ctrl, void *dlg,
 			  void *data, int event)
 {
@@ -19,6 +24,33 @@ static void about_handler(union control *ctrl, void *dlg,
     if (event == EVENT_ACTION) {
 	modal_about_box(*hwndp);
     }
+}
+
+static void child_launch_handler(union control *ctrl, void *dlg,
+			         void *data, int event)
+{
+    char *arg;
+    char us[MAX_PATH + 16];
+    int child = ctrl->generic.context.i;
+
+    if (event != EVENT_ACTION)
+        return;
+
+    switch (child) {
+    case CHILD_AGENT:
+        arg = "--as-agent";
+        break;
+    case CHILD_KEYGEN:
+        arg = "--as-gen";
+        break;
+    default:
+        assert(!"No other enum values");
+    }
+
+    if (!GetModuleFileName(NULL, us, MAX_PATH))
+        return;
+
+    ShellExecute(hwnd, NULL, us, arg, "", SW_SHOW);
 }
 
 static void help_handler(union control *ctrl, void *dlg,
@@ -74,20 +106,35 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     struct controlset *s;
     union control *c;
     char *str;
+    int col = 0;
+    int want_agent = !agent_exists();
 
-    if (!midsession) {
-	/*
-	 * Add the About and Help buttons to the standard panel.
-	 */
-	s = ctrl_getset(b, "", "", "");
-	c = ctrl_pushbutton(s, "About", 'a', HELPCTX(no_help),
+    /*
+     * Add the About and Help buttons to the standard panel.
+     * There isn't space for all four, so drop
+     *  the about button if it can't fit.
+     */
+    s = ctrl_getset(b, "", "", "");
+    if (!has_help || !want_agent) {
+        c = ctrl_pushbutton(s, "About", 'a', HELPCTX(no_help),
 			    about_handler, P(hwndp));
-	c->generic.column = 0;
-	if (has_help) {
-	    c = ctrl_pushbutton(s, "Help", 'h', HELPCTX(no_help),
-				help_handler, P(hwndp));
-	    c->generic.column = 1;
-	}
+        c->generic.column = col++;
+    }
+
+    c = ctrl_pushbutton(s, "Keygen", NO_SHORTCUT, HELPCTX(no_help),
+                        child_launch_handler, I(CHILD_KEYGEN));
+    c->generic.column = col++;
+
+    if (want_agent) {
+        c = ctrl_pushbutton(s, "Agent", NO_SHORTCUT, HELPCTX(no_help),
+			    child_launch_handler, I(CHILD_AGENT));
+        c->generic.column = col++;
+    }
+
+    if (has_help) {
+	c = ctrl_pushbutton(s, "Help", 'h', HELPCTX(no_help),
+			    help_handler, P(hwndp));
+	c->generic.column = col++;
     }
 
     /*
