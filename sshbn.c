@@ -1313,7 +1313,18 @@ int ssh1_write_bignum(void *data, Bignum bn)
 int bignum_cmp(Bignum a, Bignum b)
 {
     int amax = a[0], bmax = b[0];
-    int i = (amax > bmax ? amax : bmax);
+    int i;
+
+    /* Annoyingly we have two representations of zero */
+    if (amax == 1 && a[amax] == 0)
+        amax = 0;
+    if (bmax == 1 && b[bmax] == 0)
+        bmax = 0;
+
+    assert(amax == 0 || a[amax] != 0);
+    assert(bmax == 0 || b[bmax] != 0);
+
+    i = (amax > bmax ? amax : bmax);
     while (i) {
 	BignumInt aval = (i > amax ? 0 : a[i]);
 	BignumInt bval = (i > bmax ? 0 : b[i]);
