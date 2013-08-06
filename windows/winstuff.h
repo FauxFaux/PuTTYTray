@@ -16,16 +16,20 @@
 #include "winhelp.h"
 
 struct Filename {
-  char path[FILENAME_MAX];
+  char *path;
 };
-#define f_open(filename, mode, isprivate) (fopen((filename).path, (mode)))
+#define f_open(filename, mode, isprivate) (fopen((filename)->path, (mode)))
 
 struct FontSpec {
-  char name[64];
+  char *name;
   int isbold;
   int height;
   int charset;
 };
+struct FontSpec *fontspec_new(const char *name,
+                              int bold,
+                              int height,
+                              int charset);
 
 #ifndef CLEARTYPE_QUALITY
 #define CLEARTYPE_QUALITY 5
@@ -74,6 +78,10 @@ struct FontSpec {
 #define BOXRESULT (DLGWINDOWEXTRA + sizeof(LONG_PTR))
 #define DF_END 0x0001
 
+#ifndef NO_SECUREZEROMEMORY
+#define PLATFORM_HAS_SMEMCLR /* inhibit cross-platform one in misc.c */
+#endif
+
 /*
  * Dynamically linked functions. These come in two flavours:
  *
@@ -116,7 +124,7 @@ struct FontSpec {
 
 #ifndef DONE_TYPEDEFS
 #define DONE_TYPEDEFS
-typedef struct config_tag Config;
+typedef struct conf_tag Conf;
 typedef struct backend_tag Backend;
 typedef struct terminal_tag Terminal;
 #endif
@@ -144,6 +152,7 @@ typedef struct terminal_tag Terminal;
 #define TICKSPERSEC 1000 /* GetTickCount returns milliseconds */
 
 #define DEFAULT_CODEPAGE CP_ACP
+#define USES_VTLINE_HACK
 
 typedef HDC Context;
 
@@ -241,15 +250,6 @@ GLOBAL void *logctx;
    "All Files (*.*)\0*\0\0\0")
 
 /*
- * On some versions of Windows, it has been known for WM_TIMER to
- * occasionally get its callback time simply wrong, and call us
- * back several minutes early. Defining these symbols enables
- * compensation code in timing.c.
- */
-#define TIMING_SYNC
-#define TIMING_SYNC_TICKCOUNT
-
-/*
  * winnet.c dynamically loads WinSock 2 or WinSock 1 depending on
  * what it can get, which means any WinSock routines used outside
  * that module must be exported from it as function pointers. So
@@ -297,6 +297,7 @@ BOOL request_file(filereq *state, OPENFILENAME *of, int preserve, int save);
 filereq *filereq_new(void);
 void filereq_free(filereq *state);
 int message_box(LPCTSTR text, LPCTSTR caption, DWORD style, DWORD helpctxid);
+char *GetDlgItemText_alloc(HWND hwnd, int id);
 void split_into_argv(char *, int *, char ***, char ***);
 
 /*
@@ -537,6 +538,7 @@ void show_help(HWND hwnd);
 extern OSVERSIONINFO osVersion;
 BOOL init_winver(void);
 HMODULE load_system32_dll(const char *libname);
+const char *win_strerror(int error);
 
 /*
  * Exports from sizetip.c.
@@ -548,7 +550,7 @@ void EnableSizeTip(int bEnable);
  * Exports from unicode.c.
  */
 struct unicode_data;
-void init_ucs(Config *, struct unicode_data *);
+void init_ucs(Conf *, struct unicode_data *);
 
 /*
  * Exports from winhandl.c.
@@ -568,6 +570,7 @@ struct handle *handle_output_new(HANDLE handle,
                                  void *privdata,
                                  int flags);
 int handle_write(struct handle *h, const void *data, int len);
+void handle_write_eof(struct handle *h);
 HANDLE *handle_get_events(int *nevents);
 void handle_free(struct handle *h);
 void handle_got_event(HANDLE event);

@@ -40,7 +40,7 @@ static void charset_emit(void *ctx, long int output)
   }
 }
 
-int charset_from_unicode(wchar_t **input,
+int charset_from_unicode(const wchar_t **input,
                          int *inlen,
                          char *output,
                          int outlen,

@@ -499,6 +499,8 @@ char *staticwrap(struct ctlpos *cp, HWND hwnd, char *text, int *lines)
   if (lines)
     *lines = nlines;
 
+  sfree(pwidths);
+
   return ret;
 }
 
@@ -1772,8 +1774,8 @@ void winctrl_layout(struct dlgparam *dp,
       shortcuts[nshortcuts++] = ctrl->fontselect.shortcut;
       statictext(&pos, escaped, 1, base_id);
       staticbtn(&pos, "", base_id + 1, "Change...", base_id + 2);
+      data = fontspec_new("", 0, 0, 0);
       sfree(escaped);
-      data = snew(FontSpec);
       break;
     default:
       assert(!"Can't happen");
@@ -1798,6 +1800,8 @@ void winctrl_layout(struct dlgparam *dp,
       winctrl_add_shortcuts(dp, c);
       if (actual_base_id == base_id)
         base_id += num_ids;
+    } else {
+      sfree(data);
     }
 
     if (colstart >= 0) {
@@ -2063,20 +2067,20 @@ int winctrl_handle_command(struct dlgparam *dp,
       CHOOSEFONT cf;
       LOGFONT lf;
       HDC hdc;
-      FontSpec fs = *(FontSpec *)c->data;
+      FontSpec *fs = (FontSpec *)c->data;
 
       hdc = GetDC(0);
-      lf.lfHeight = -MulDiv(fs.height, GetDeviceCaps(hdc, LOGPIXELSY), 72);
+      lf.lfHeight = -MulDiv(fs->height, GetDeviceCaps(hdc, LOGPIXELSY), 72);
       ReleaseDC(0, hdc);
       lf.lfWidth = lf.lfEscapement = lf.lfOrientation = 0;
       lf.lfItalic = lf.lfUnderline = lf.lfStrikeOut = 0;
-      lf.lfWeight = (fs.isbold ? FW_BOLD : 0);
-      lf.lfCharSet = fs.charset;
+      lf.lfWeight = (fs->isbold ? FW_BOLD : 0);
+      lf.lfCharSet = fs->charset;
       lf.lfOutPrecision = OUT_DEFAULT_PRECIS;
       lf.lfClipPrecision = CLIP_DEFAULT_PRECIS;
       lf.lfQuality = DEFAULT_QUALITY;
       lf.lfPitchAndFamily = FIXED_PITCH | FF_DONTCARE;
-      strncpy(lf.lfFaceName, fs.name, sizeof(lf.lfFaceName) - 1);
+      strncpy(lf.lfFaceName, fs->name, sizeof(lf.lfFaceName) - 1);
       lf.lfFaceName[sizeof(lf.lfFaceName) - 1] = '\0';
 
       cf.lStructSize = sizeof(cf);
@@ -2086,12 +2090,13 @@ int winctrl_handle_command(struct dlgparam *dp,
                  CF_FORCEFONTEXIST | CF_INITTOLOGFONTSTRUCT | CF_SCREENFONTS;
 
       if (ChooseFont(&cf)) {
-        strncpy(fs.name, lf.lfFaceName, sizeof(fs.name) - 1);
-        fs.name[sizeof(fs.name) - 1] = '\0';
-        fs.isbold = (lf.lfWeight == FW_BOLD);
-        fs.charset = lf.lfCharSet;
-        fs.height = cf.iPointSize / 10;
+        fs = fontspec_new(lf.lfFaceName,
+                          (lf.lfWeight == FW_BOLD),
+                          cf.iPointSize / 10,
+                          lf.lfCharSet);
         dlg_fontsel_set(ctrl, dp, fs);
+        fontspec_free(fs);
+
         ctrl->generic.handler(ctrl, dp, dp->data, EVENT_VALCHANGE);
       }
     }
@@ -2222,13 +2227,12 @@ void dlg_editbox_set(union control *ctrl, void *dlg, char const *text)
   SetDlgItemText(dp->hwnd, c->base_id + 1, text);
 }
 
-void dlg_editbox_get(union control *ctrl, void *dlg, char *buffer, int length)
+char *dlg_editbox_get(union control *ctrl, void *dlg)
 {
   struct dlgparam *dp = (struct dlgparam *)dlg;
   struct winctrl *c = dlg_findbyctrl(dp, ctrl);
   assert(c && c->ctrl->generic.type == CTRL_EDITBOX);
-  GetDlgItemText(dp->hwnd, c->base_id + 1, buffer, length);
-  buffer[length - 1] = '\0';
+  return GetDlgItemText_alloc(dp->hwnd, c->base_id + 1);
 }
 
 /* The `listbox' functions can also apply to combo boxes. */
@@ -2408,53 +2412,58 @@ void dlg_label_change(union control *ctrl, void *dlg, char const *text)
   }
 }
 
-void dlg_filesel_set(union control *ctrl, void *dlg, Filename fn)
+void dlg_filesel_set(union control *ctrl, void *dlg, Filename *fn)
 {
   struct dlgparam *dp = (struct dlgparam *)dlg;
   struct winctrl *c = dlg_findbyctrl(dp, ctrl);
   assert(c && c->ctrl->generic.type == CTRL_FILESELECT);
-  SetDlgItemText(dp->hwnd, c->base_id + 1, fn.path);
+  SetDlgItemText(dp->hwnd, c->base_id + 1, fn->path);
 }
 
-void dlg_filesel_get(union control *ctrl, void *dlg, Filename *fn)
+Filename *dlg_filesel_get(union control *ctrl, void *dlg)
 {
   struct dlgparam *dp = (struct dlgparam *)dlg;
   struct winctrl *c = dlg_findbyctrl(dp, ctrl);
+  char *tmp;
+  Filename *ret;
   assert(c && c->ctrl->generic.type == CTRL_FILESELECT);
-  GetDlgItemText(dp->hwnd, c->base_id + 1, fn->path, lenof(fn->path));
-  fn->path[lenof(fn->path) - 1] = '\0';
+  tmp = GetDlgItemText_alloc(dp->hwnd, c->base_id + 1);
+  ret = filename_from_str(tmp);
+  sfree(tmp);
+  return ret;
 }
 
-void dlg_fontsel_set(union control *ctrl, void *dlg, FontSpec fs)
+void dlg_fontsel_set(union control *ctrl, void *dlg, FontSpec *fs)
 {
   char *buf, *boldstr;
   struct dlgparam *dp = (struct dlgparam *)dlg;
   struct winctrl *c = dlg_findbyctrl(dp, ctrl);
   assert(c && c->ctrl->generic.type == CTRL_FONTSELECT);
 
-  *(FontSpec *)c->data = fs; /* structure copy */
+  fontspec_free((FontSpec *)c->data);
+  c->data = fontspec_copy(fs);
 
-  boldstr = (fs.isbold ? "bold, " : "");
-  if (fs.height == 0)
-    buf = dupprintf("Font: %s, %sdefault height", fs.name, boldstr);
+  boldstr = (fs->isbold ? "bold, " : "");
+  if (fs->height == 0)
+    buf = dupprintf("Font: %s, %sdefault height", fs->name, boldstr);
   else
     buf = dupprintf("Font: %s, %s%d-%s",
-                    fs.name,
+                    fs->name,
                     boldstr,
-                    (fs.height < 0 ? -fs.height : fs.height),
-                    (fs.height < 0 ? "pixel" : "point"));
+                    (fs->height < 0 ? -fs->height : fs->height),
+                    (fs->height < 0 ? "pixel" : "point"));
   SetDlgItemText(dp->hwnd, c->base_id + 1, buf);
   sfree(buf);
 
   dlg_auto_set_fixed_pitch_flag(dp);
 }
 
-void dlg_fontsel_get(union control *ctrl, void *dlg, FontSpec *fs)
+FontSpec *dlg_fontsel_get(union control *ctrl, void *dlg)
 {
   struct dlgparam *dp = (struct dlgparam *)dlg;
   struct winctrl *c = dlg_findbyctrl(dp, ctrl);
   assert(c && c->ctrl->generic.type == CTRL_FONTSELECT);
-  *fs = *(FontSpec *)c->data; /* structure copy */
+  return fontspec_copy((FontSpec *)c->data);
 }
 
 /*
@@ -2488,6 +2497,8 @@ void dlg_set_focus(union control *ctrl, void *dlg)
   struct winctrl *c = dlg_findbyctrl(dp, ctrl);
   int id;
   HWND ctl;
+  if (!c)
+    return;
   switch (ctrl->generic.type) {
   case CTRL_EDITBOX:
     id = c->base_id + 1;
@@ -2606,8 +2617,10 @@ int dlg_coloursel_results(
 void dlg_auto_set_fixed_pitch_flag(void *dlg)
 {
   struct dlgparam *dp = (struct dlgparam *)dlg;
-  Config *cfg = (Config *)dp->data;
-  HFONT font;
+  Conf *conf = (Conf *)dp->data;
+  FontSpec *fs;
+  int quality;
+  HFONT hfont;
   HDC hdc;
   TEXTMETRIC tm;
   int is_var;
@@ -2618,26 +2631,29 @@ void dlg_auto_set_fixed_pitch_flag(void *dlg)
    * dialog box as false.
    *
    * We assume here that any client of the dlg_* mechanism which is
-   * using font selectors at all is also using a normal 'Config *'
+   * using font selectors at all is also using a normal 'Conf *'
    * as dp->data.
    */
 
-  font = CreateFont(0,
-                    0,
-                    0,
-                    0,
-                    FW_DONTCARE,
-                    FALSE,
-                    FALSE,
-                    FALSE,
-                    DEFAULT_CHARSET,
-                    OUT_DEFAULT_PRECIS,
-                    CLIP_DEFAULT_PRECIS,
-                    FONT_QUALITY(cfg->font_quality),
-                    FIXED_PITCH | FF_DONTCARE,
-                    cfg->font.name);
+  quality = conf_get_int(conf, CONF_font_quality);
+  fs = conf_get_fontspec(conf, CONF_font);
+
+  hfont = CreateFont(0,
+                     0,
+                     0,
+                     0,
+                     FW_DONTCARE,
+                     FALSE,
+                     FALSE,
+                     FALSE,
+                     DEFAULT_CHARSET,
+                     OUT_DEFAULT_PRECIS,
+                     CLIP_DEFAULT_PRECIS,
+                     FONT_QUALITY(quality),
+                     FIXED_PITCH | FF_DONTCARE,
+                     fs->name);
   hdc = GetDC(NULL);
-  if (font && hdc && SelectObject(hdc, font) && GetTextMetrics(hdc, &tm)) {
+  if (hdc && SelectObject(hdc, hfont) && GetTextMetrics(hdc, &tm)) {
     /* Note that the TMPF_FIXED_PITCH bit is defined upside down :-( */
     is_var = (tm.tmPitchAndFamily & TMPF_FIXED_PITCH);
   } else {
@@ -2645,8 +2661,8 @@ void dlg_auto_set_fixed_pitch_flag(void *dlg)
   }
   if (hdc)
     ReleaseDC(NULL, hdc);
-  if (font)
-    DeleteObject(font);
+  if (hfont)
+    DeleteObject(hfont);
 
   if (is_var)
     dp->fixed_pitch_fonts = FALSE;

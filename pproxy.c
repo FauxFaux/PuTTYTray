@@ -16,7 +16,7 @@ Socket platform_new_connection(SockAddr addr,
                                int nodelay,
                                int keepalive,
                                Plug plug,
-                               const Config *cfg)
+                               Conf *conf)
 {
   return NULL;
 }

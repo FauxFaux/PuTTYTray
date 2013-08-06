@@ -87,7 +87,7 @@ static void serial_sentdata(struct handle *h, int new_backlog)
   }
 }
 
-static const char *serial_configure(Serial serial, HANDLE serport, Config *cfg)
+static const char *serial_configure(Serial serial, HANDLE serport, Conf *conf)
 {
   DCB dcb;
   COMMTIMEOUTS timeouts;
@@ -121,17 +121,17 @@ static const char *serial_configure(Serial serial, HANDLE serport, Config *cfg)
     /*
      * Configurable parameters.
      */
-    dcb.BaudRate = cfg->serspeed;
-    msg = dupprintf("Configuring baud rate %d", cfg->serspeed);
+    dcb.BaudRate = conf_get_int(conf, CONF_serspeed);
+    msg = dupprintf("Configuring baud rate %d", dcb.BaudRate);
     logevent(serial->frontend, msg);
     sfree(msg);
 
-    dcb.ByteSize = cfg->serdatabits;
-    msg = dupprintf("Configuring %d data bits", cfg->serdatabits);
+    dcb.ByteSize = conf_get_int(conf, CONF_serdatabits);
+    msg = dupprintf("Configuring %d data bits", dcb.ByteSize);
     logevent(serial->frontend, msg);
     sfree(msg);
 
-    switch (cfg->serstopbits) {
+    switch (conf_get_int(conf, CONF_serstopbits)) {
     case 2:
       dcb.StopBits = ONESTOPBIT;
       str = "1";
@@ -151,7 +151,7 @@ static const char *serial_configure(Serial serial, HANDLE serport, Config *cfg)
     logevent(serial->frontend, msg);
     sfree(msg);
 
-    switch (cfg->serparity) {
+    switch (conf_get_int(conf, CONF_serparity)) {
     case SER_PAR_NONE:
       dcb.Parity = NOPARITY;
       str = "no";
@@ -177,7 +177,7 @@ static const char *serial_configure(Serial serial, HANDLE serport, Config *cfg)
     logevent(serial->frontend, msg);
     sfree(msg);
 
-    switch (cfg->serflow) {
+    switch (conf_get_int(conf, CONF_serflow)) {
     case SER_FLOW_NONE:
       str = "no";
       break;
@@ -225,7 +225,7 @@ static const char *serial_configure(Serial serial, HANDLE serport, Config *cfg)
  */
 static const char *serial_init(void *frontend_handle,
                                void **backend_handle,
-                               Config *cfg,
+                               Conf *conf,
                                char *host,
                                int port,
                                char **realhost,
@@ -235,6 +235,7 @@ static const char *serial_init(void *frontend_handle,
   Serial serial;
   HANDLE serport;
   const char *err;
+  char *serline;
 
   serial = snew(struct serial_backend_data);
   serial->port = INVALID_HANDLE_VALUE;
@@ -245,8 +246,9 @@ static const char *serial_init(void *frontend_handle,
 
   serial->frontend = frontend_handle;
 
+  serline = conf_get_str(conf, CONF_serline);
   {
-    char *msg = dupprintf("Opening serial device %s", cfg->serline);
+    char *msg = dupprintf("Opening serial device %s", serline);
     logevent(serial->frontend, msg);
   }
 
@@ -274,8 +276,8 @@ static const char *serial_init(void *frontend_handle,
      * contains a backslash, we use it verbatim. (This also lets
      * existing configurations using \\.\ continue working.)
      */
-    char *serfilename = dupprintf(
-        "%s%s", strchr(cfg->serline, '\\') ? "" : "\\\\.\\", cfg->serline);
+    char *serfilename =
+        dupprintf("%s%s", strchr(serline, '\\') ? "" : "\\\\.\\", serline);
     serport = CreateFile(serfilename,
                          GENERIC_READ | GENERIC_WRITE,
                          0,
@@ -289,7 +291,7 @@ static const char *serial_init(void *frontend_handle,
   if (serport == INVALID_HANDLE_VALUE)
     return "Unable to open serial port";
 
-  err = serial_configure(serial, serport, cfg);
+  err = serial_configure(serial, serport, conf);
   if (err)
     return err;
 
@@ -302,7 +304,7 @@ static const char *serial_init(void *frontend_handle,
                                 HANDLE_FLAG_OVERLAPPED | HANDLE_FLAG_IGNOREEOF |
                                     HANDLE_FLAG_UNITBUFFER);
 
-  *realhost = dupstr(cfg->serline);
+  *realhost = dupstr(serline);
 
   /*
    * Specials are always available.
@@ -321,12 +323,12 @@ static void serial_free(void *handle)
   sfree(serial);
 }
 
-static void serial_reconfig(void *handle, Config *cfg)
+static void serial_reconfig(void *handle, Conf *conf)
 {
   Serial serial = (Serial)handle;
   const char *err;
 
-  err = serial_configure(serial, serial->port, cfg);
+  err = serial_configure(serial, serial->port, conf);
 
   /*
    * FIXME: what should we do if err returns something?
@@ -365,11 +367,11 @@ static void serial_size(void *handle, int width, int height)
   return;
 }
 
-static void serbreak_timer(void *ctx, long now)
+static void serbreak_timer(void *ctx, unsigned long now)
 {
   Serial serial = (Serial)ctx;
 
-  if (now >= serial->clearbreak_time && serial->port) {
+  if (now == serial->clearbreak_time && serial->port) {
     ClearCommBreak(serial->port);
     serial->break_in_progress = FALSE;
     logevent(serial->frontend, "Finished serial break");

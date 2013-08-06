@@ -179,7 +179,7 @@ union control {
      *
      * The `data' parameter points to the writable data being
      * modified as a result of the configuration activity; for
-     * example, the PuTTY `Config' structure, although not
+     * example, the PuTTY `Conf' structure, although not
      * necessarily.
      *
      * The `dlg' parameter is passed back to the platform-
@@ -444,6 +444,8 @@ struct controlset {
   union control **ctrls; /* actual array */
 };
 
+typedef void (*ctrl_freefn_t)(void *); /* used by ctrl_alloc_with_free */
+
 /*
  * This is the container structure which holds a complete set of
  * controls.
@@ -454,7 +456,8 @@ struct controlbox {
   struct controlset **ctrlsets; /* actual array of ctrlsets */
   int nfrees;
   int freesize;
-  void **frees; /* array of aux data areas to free */
+  void **frees;             /* array of aux data areas to free */
+  ctrl_freefn_t *freefuncs; /* parallel array of free functions */
 };
 
 struct controlbox *ctrl_new_box(void);
@@ -482,8 +485,15 @@ void ctrl_free(union control *);
  * and so data allocated through this function is better not used
  * to hold modifiable per-instance things. It's mostly here for
  * allocating structures to be passed as control handler params.
+ *
+ * ctrl_alloc_with_free also allows you to provide a function to free
+ * the structure, in case there are other dynamically allocated bits
+ * and pieces dangling off it.
  */
 void *ctrl_alloc(struct controlbox *b, size_t size);
+void *ctrl_alloc_with_free(struct controlbox *b,
+                           size_t size,
+                           ctrl_freefn_t freefunc);
 
 /*
  * Individual routines to create `union control' structures in a controlset.
@@ -576,70 +586,6 @@ union control *ctrl_checkbox(struct controlset *,
 union control *ctrl_tabdelay(struct controlset *, union control *);
 
 /*
- * Standard handler routines to cover most of the common cases in
- * the config box.
- */
-/*
- * The standard radio-button handler expects the main `context'
- * field to contain the `offsetof' of an int field in the structure
- * pointed to by `data', and expects each of the individual button
- * data to give a value for that int field.
- */
-void dlg_stdradiobutton_handler(union control *ctrl,
-                                void *dlg,
-                                void *data,
-                                int event);
-/*
- * The standard checkbox handler expects the main `context' field
- * to contain the `offsetof' an int field in the structure pointed
- * to by `data', optionally ORed with CHECKBOX_INVERT to indicate
- * that the sense of the datum is opposite to the sense of the
- * checkbox.
- */
-#define CHECKBOX_INVERT (1 << 30)
-void dlg_stdcheckbox_handler(union control *ctrl,
-                             void *dlg,
-                             void *data,
-                             int event);
-/*
- * The standard edit-box handler expects the main `context' field
- * to contain the `offsetof' a field in the structure pointed to by
- * `data'. The secondary `context2' field indicates the type of
- * this field:
- *
- *  - if context2 > 0, the field is a char array and context2 gives
- *    its size.
- *  - if context2 == -1, the field is an int and the edit box is
- *    numeric.
- *  - if context2 < -1, the field is an int and the edit box is
- *    _floating_, and (-context2) gives the scale. (E.g. if
- *    context2 == -1000, then typing 1.2 into the box will set the
- *    field to 1200.)
- */
-void dlg_stdeditbox_handler(union control *ctrl,
-                            void *dlg,
-                            void *data,
-                            int event);
-/*
- * The standard file-selector handler expects the main `context'
- * field to contain the `offsetof' a Filename field in the
- * structure pointed to by `data'.
- */
-void dlg_stdfilesel_handler(union control *ctrl,
-                            void *dlg,
-                            void *data,
-                            int event);
-/*
- * The standard font-selector handler expects the main `context'
- * field to contain the `offsetof' a Font field in the structure
- * pointed to by `data'.
- */
-void dlg_stdfontsel_handler(union control *ctrl,
-                            void *dlg,
-                            void *data,
-                            int event);
-
-/*
  * Routines the platform-independent dialog code can call to read
  * and write the values of controls.
  */
@@ -648,7 +594,8 @@ int dlg_radiobutton_get(union control *ctrl, void *dlg);
 void dlg_checkbox_set(union control *ctrl, void *dlg, int checked);
 int dlg_checkbox_get(union control *ctrl, void *dlg);
 void dlg_editbox_set(union control *ctrl, void *dlg, char const *text);
-void dlg_editbox_get(union control *ctrl, void *dlg, char *buffer, int length);
+char *dlg_editbox_get(union control *ctrl,
+                      void *dlg); /* result must be freed by caller */
 /* The `listbox' functions can also apply to combo boxes. */
 void dlg_listbox_clear(union control *ctrl, void *dlg);
 void dlg_listbox_del(union control *ctrl, void *dlg, int index);
@@ -670,10 +617,10 @@ int dlg_listbox_index(union control *ctrl, void *dlg);
 int dlg_listbox_issel(union control *ctrl, void *dlg, int index);
 void dlg_listbox_select(union control *ctrl, void *dlg, int index);
 void dlg_text_set(union control *ctrl, void *dlg, char const *text);
-void dlg_filesel_set(union control *ctrl, void *dlg, Filename fn);
-void dlg_filesel_get(union control *ctrl, void *dlg, Filename *fn);
-void dlg_fontsel_set(union control *ctrl, void *dlg, FontSpec fn);
-void dlg_fontsel_get(union control *ctrl, void *dlg, FontSpec *fn);
+void dlg_filesel_set(union control *ctrl, void *dlg, Filename *fn);
+Filename *dlg_filesel_get(union control *ctrl, void *dlg);
+void dlg_fontsel_set(union control *ctrl, void *dlg, FontSpec *fn);
+FontSpec *dlg_fontsel_get(union control *ctrl, void *dlg);
 /*
  * Bracketing a large set of updates in these two functions will
  * cause the front end (if possible) to delay updating the screen

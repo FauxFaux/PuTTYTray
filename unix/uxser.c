@@ -60,10 +60,10 @@ static int serial_select_result(int fd, int event);
 static void serial_uxsel_setup(Serial serial);
 static void serial_try_write(Serial serial);
 
-static const char *serial_configure(Serial serial, Config *cfg)
+static const char *serial_configure(Serial serial, Conf *conf)
 {
   struct termios options;
-  int bflag, bval;
+  int bflag, bval, speed, flow, parity;
   const char *str;
   char *msg;
 
@@ -75,10 +75,11 @@ static const char *serial_configure(Serial serial, Config *cfg)
   /*
    * Find the appropriate baud rate flag.
    */
+  speed = conf_get_int(conf, CONF_serspeed);
 #define SETBAUD(x) (bflag = B##x, bval = x)
 #define CHECKBAUD(x)                                                           \
   do {                                                                         \
-    if (cfg->serspeed >= x)                                                    \
+    if (speed >= x)                                                            \
       SETBAUD(x);                                                              \
   } while (0)
   SETBAUD(50);
@@ -187,7 +188,7 @@ static const char *serial_configure(Serial serial, Config *cfg)
   sfree(msg);
 
   options.c_cflag &= ~CSIZE;
-  switch (cfg->serdatabits) {
+  switch (conf_get_int(conf, CONF_serdatabits)) {
   case 5:
     options.c_cflag |= CS5;
     break;
@@ -203,11 +204,12 @@ static const char *serial_configure(Serial serial, Config *cfg)
   default:
     return "Invalid number of data bits (need 5, 6, 7 or 8)";
   }
-  msg = dupprintf("Configuring %d data bits", cfg->serdatabits);
+  msg = dupprintf("Configuring %d data bits",
+                  conf_get_int(conf, CONF_serdatabits));
   logevent(serial->frontend, msg);
   sfree(msg);
 
-  if (cfg->serstopbits >= 4) {
+  if (conf_get_int(conf, CONF_serstopbits) >= 4) {
     options.c_cflag |= CSTOPB;
   } else {
     options.c_cflag &= ~CSTOPB;
@@ -224,10 +226,11 @@ static const char *serial_configure(Serial serial, Config *cfg)
 #ifdef CNEW_RTSCTS
   options.c_cflag &= ~CNEW_RTSCTS;
 #endif
-  if (cfg->serflow == SER_FLOW_XONXOFF) {
+  flow = conf_get_int(conf, CONF_serflow);
+  if (flow == SER_FLOW_XONXOFF) {
     options.c_iflag |= IXON | IXOFF;
     str = "XON/XOFF";
-  } else if (cfg->serflow == SER_FLOW_RTSCTS) {
+  } else if (flow == SER_FLOW_RTSCTS) {
 #ifdef CRTSCTS
     options.c_cflag |= CRTSCTS;
 #endif
@@ -242,11 +245,12 @@ static const char *serial_configure(Serial serial, Config *cfg)
   sfree(msg);
 
   /* Parity */
-  if (cfg->serparity == SER_PAR_ODD) {
+  parity = conf_get_int(conf, CONF_serparity);
+  if (parity == SER_PAR_ODD) {
     options.c_cflag |= PARENB;
     options.c_cflag |= PARODD;
     str = "odd";
-  } else if (cfg->serparity == SER_PAR_EVEN) {
+  } else if (parity == SER_PAR_EVEN) {
     options.c_cflag |= PARENB;
     options.c_cflag &= ~PARODD;
     str = "even";
@@ -298,7 +302,7 @@ static const char *serial_configure(Serial serial, Config *cfg)
  */
 static const char *serial_init(void *frontend_handle,
                                void **backend_handle,
-                               Config *cfg,
+                               Conf *conf,
                                char *host,
                                int port,
                                char **realhost,
@@ -307,6 +311,7 @@ static const char *serial_init(void *frontend_handle,
 {
   Serial serial;
   const char *err;
+  char *line;
 
   serial = snew(struct serial_backend_data);
   *backend_handle = serial;
@@ -316,22 +321,24 @@ static const char *serial_init(void *frontend_handle,
   serial->inbufsize = 0;
   bufchain_init(&serial->output_data);
 
+  line = conf_get_str(conf, CONF_serline);
   {
-    char *msg = dupprintf("Opening serial device %s", cfg->serline);
+    char *msg = dupprintf("Opening serial device %s", line);
     logevent(serial->frontend, msg);
+    sfree(msg);
   }
 
-  serial->fd = open(cfg->serline, O_RDWR | O_NOCTTY | O_NDELAY | O_NONBLOCK);
+  serial->fd = open(line, O_RDWR | O_NOCTTY | O_NDELAY | O_NONBLOCK);
   if (serial->fd < 0)
     return "Unable to open serial port";
 
   cloexec(serial->fd);
 
-  err = serial_configure(serial, cfg);
+  err = serial_configure(serial, conf);
   if (err)
     return err;
 
-  *realhost = dupstr(cfg->serline);
+  *realhost = dupstr(line);
 
   if (!serial_by_fd)
     serial_by_fd = newtree234(serial_compare_by_fd);
@@ -366,14 +373,14 @@ static void serial_free(void *handle)
   sfree(serial);
 }
 
-static void serial_reconfig(void *handle, Config *cfg)
+static void serial_reconfig(void *handle, Conf *conf)
 {
   Serial serial = (Serial)handle;
 
   /*
    * FIXME: what should we do if this returns an error?
    */
-  serial_configure(serial, cfg);
+  serial_configure(serial, conf);
 }
 
 static int serial_select_result(int fd, int event)

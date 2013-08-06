@@ -33,6 +33,7 @@ typedef enum
   CS_ISO8859_16,
   CS_CP437,
   CS_CP850,
+  CS_CP852,
   CS_CP866,
   CS_CP1250,
   CS_CP1251,
@@ -99,7 +100,7 @@ typedef struct {
  * U+FFFD (REPLACEMENT CHARACTER).
  */
 
-int charset_to_unicode(char **input,
+int charset_to_unicode(const char **input,
                        int *inlen,
                        wchar_t *output,
                        int outlen,
@@ -127,7 +128,7 @@ int charset_to_unicode(char **input,
  * output charset).
  */
 
-int charset_from_unicode(wchar_t **input,
+int charset_from_unicode(const wchar_t **input,
                          int *inlen,
                          char *output,
                          int outlen,
