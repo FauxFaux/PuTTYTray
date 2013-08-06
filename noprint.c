@@ -8,12 +8,12 @@
 #include "putty.h"
 
 struct printer_job_tag {
-    int dummy;
+  int dummy;
 };
 
 printer_job *printer_start_job(char *printer)
 {
-    return NULL;
+  return NULL;
 }
 
 void printer_job_data(printer_job *pj, void *data, int len)
@@ -26,12 +26,12 @@ void printer_finish_job(printer_job *pj)
 
 printer_enum *printer_start_enum(int *nprinters_ptr)
 {
-    *nprinters_ptr = 0;
-    return NULL;
+  *nprinters_ptr = 0;
+  return NULL;
 }
 char *printer_get_name(printer_enum *pe, int i)
 {
-    return NULL;
+  return NULL;
 }
 void printer_finish_enum(printer_enum *pe)
 {
