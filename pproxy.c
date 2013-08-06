@@ -8,10 +8,15 @@
 #include "network.h"
 #include "proxy.h"
 
-Socket platform_new_connection(SockAddr addr, char *hostname,
-			       int port, int privport,
-			       int oobinline, int nodelay, int keepalive,
-			       Plug plug, Conf *conf)
+Socket platform_new_connection(SockAddr addr,
+                               char *hostname,
+                               int port,
+                               int privport,
+                               int oobinline,
+                               int nodelay,
+                               int keepalive,
+                               Plug plug,
+                               Conf *conf)
 {
-    return NULL;
+  return NULL;
 }
