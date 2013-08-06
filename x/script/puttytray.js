@@ -148,7 +148,7 @@ var PuTTYTray = {
 	 */
 	startDownload: function()
 	{
-		var version = 'https://puttytray.goeswhere.com/download/v014/putty.exe';
+		var version = 'https://puttytray.goeswhere.com/download/putty.exe';
 		if ($('downloadframe')) {
 			var downloadFrame = $('downloadframe');
 			downloadFrame.setAttribute('src', 'g/nothing.png');
