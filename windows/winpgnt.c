@@ -166,10 +166,8 @@ struct blob {
 };
 static int cmpkeys_ssh2_asymm(void *av, void *bv);
 
-#define PASSPHRASE_MAXLEN 512
-
 struct PassphraseProcStruct {
-  char *passphrase;
+  char **passphrase;
   char *comment;
 };
 
@@ -183,7 +181,7 @@ static void forget_passphrases(void)
 {
   while (count234(passphrases) > 0) {
     char *pp = index234(passphrases, 0);
-    memset(pp, 0, strlen(pp));
+    smemclr(pp, strlen(pp));
     delpos234(passphrases, 0);
     free(pp);
   }
@@ -257,7 +255,7 @@ static int CALLBACK PassphraseProc(HWND hwnd,
                                    WPARAM wParam,
                                    LPARAM lParam)
 {
-  static char *passphrase = NULL;
+  static char **passphrase = NULL;
   struct PassphraseProcStruct *p;
 
   switch (msg) {
@@ -287,8 +285,9 @@ static int CALLBACK PassphraseProc(HWND hwnd,
     passphrase = p->passphrase;
     if (p->comment)
       SetDlgItemText(hwnd, 101, p->comment);
-    *passphrase = 0;
-    SetDlgItemText(hwnd, 102, passphrase);
+    burnstr(*passphrase);
+    *passphrase = dupstr("");
+    SetDlgItemText(hwnd, 102, *passphrase);
     return 0;
   case WM_COMMAND:
     switch (LOWORD(wParam)) {
@@ -303,8 +302,8 @@ static int CALLBACK PassphraseProc(HWND hwnd,
       return 0;
     case 102: /* edit box */
       if ((HIWORD(wParam) == EN_CHANGE) && passphrase) {
-        GetDlgItemText(hwnd, 102, passphrase, PASSPHRASE_MAXLEN - 1);
-        passphrase[PASSPHRASE_MAXLEN - 1] = '\0';
+        burnstr(*passphrase);
+        *passphrase = GetDlgItemText_alloc(hwnd, 102);
       }
       return 0;
     }
@@ -365,27 +364,26 @@ static void keylist_update(void)
       SendDlgItemMessage(keylist, 100, LB_ADDSTRING, 0, (LPARAM)listentry);
     }
     for (i = 0; NULL != (skey = index234(ssh2keys, i)); i++) {
-      char listentry[512], *p;
-      int len;
+      char *listentry, *p;
+      int fp_len;
       /*
        * Replace two spaces in the fingerprint with tabs, for
        * nice alignment in the box.
        */
       p = skey->alg->fingerprint(skey->data);
-      strncpy(listentry, p, sizeof(listentry));
+      listentry = dupprintf("%s\t%s", p, skey->comment);
+      fp_len = strlen(listentry);
+      sfree(p);
+
       p = strchr(listentry, ' ');
-      if (p)
+      if (p && p < listentry + fp_len)
         *p = '\t';
       p = strchr(listentry, ' ');
-      if (p)
+      if (p && p < listentry + fp_len)
         *p = '\t';
-      len = strlen(listentry);
-      if (len < sizeof(listentry) - 2) {
-        listentry[len] = '\t';
-        strncpy(
-            listentry + len + 1, skey->comment, sizeof(listentry) - len - 1);
-      }
+
       SendDlgItemMessage(keylist, 100, LB_ADDSTRING, 0, (LPARAM)listentry);
+      sfree(listentry);
     }
     SendDlgItemMessage(keylist, 100, LB_SETCURSEL, (WPARAM)-1, 0);
   }
@@ -394,9 +392,9 @@ static void keylist_update(void)
 /*
  * This function loads a key from a file and adds it.
  */
-static void add_keyfile(Filename filename)
+static void add_keyfile(Filename *filename)
 {
-  char passphrase[PASSPHRASE_MAXLEN];
+  char *passphrase;
   struct RSAKey *rkey = NULL;
   struct ssh2_userkey *skey = NULL;
   int needs_pass;
@@ -404,11 +402,10 @@ static void add_keyfile(Filename filename)
   int attempts;
   char *comment;
   const char *error = NULL;
-  struct PassphraseProcStruct pps;
   int type;
   int original_pass;
 
-  type = key_type(&filename);
+  type = key_type(filename);
   if (type != SSH_KEYTYPE_SSH1 && type != SSH_KEYTYPE_SSH2) {
     char *msg = dupprintf("Couldn't load this key (%s)", key_type_to_str(type));
     message_box(
@@ -427,7 +424,7 @@ static void add_keyfile(Filename filename)
     int i, nkeys, bloblen, keylistlen;
 
     if (type == SSH_KEYTYPE_SSH1) {
-      if (!rsakey_pubblob(&filename, &blob, &bloblen, NULL, &error)) {
+      if (!rsakey_pubblob(filename, &blob, &bloblen, NULL, &error)) {
         char *msg = dupprintf("Couldn't load private key (%s)", error);
         message_box(
             msg, APPNAME, MB_OK | MB_ICONERROR, HELPCTXID(errors_cantloadkey));
@@ -437,7 +434,7 @@ static void add_keyfile(Filename filename)
       keylist = get_keylist1(&keylistlen);
     } else {
       unsigned char *blob2;
-      blob = ssh2_userkey_loadpub(&filename, NULL, &bloblen, NULL, &error);
+      blob = ssh2_userkey_loadpub(filename, NULL, &bloblen, NULL, &error);
       if (!blob) {
         char *msg = dupprintf("Couldn't load private key (%s)", error);
         message_box(
@@ -460,7 +457,12 @@ static void add_keyfile(Filename filename)
             NULL, "Received broken key list?!", APPNAME, MB_OK | MB_ICONERROR);
         return;
       }
-      nkeys = GET_32BIT(keylist);
+      nkeys = toint(GET_32BIT(keylist));
+      if (nkeys < 0) {
+        MessageBox(
+            NULL, "Received broken key list?!", APPNAME, MB_OK | MB_ICONERROR);
+        return;
+      }
       p = keylist + 4;
       keylistlen -= 4;
 
@@ -492,8 +494,8 @@ static void add_keyfile(Filename filename)
                        MB_OK | MB_ICONERROR);
             return;
           }
-          n = 4 + GET_32BIT(p);
-          if (keylistlen < n) {
+          n = toint(4 + GET_32BIT(p));
+          if (n < 0 || keylistlen < n) {
             MessageBox(NULL,
                        "Received broken key list?!",
                        APPNAME,
@@ -513,8 +515,8 @@ static void add_keyfile(Filename filename)
                        MB_OK | MB_ICONERROR);
             return;
           }
-          n = 4 + GET_32BIT(p);
-          if (keylistlen < n) {
+          n = toint(4 + GET_32BIT(p));
+          if (n < 0 || keylistlen < n) {
             MessageBox(NULL,
                        "Received broken key list?!",
                        APPNAME,
@@ -534,23 +536,30 @@ static void add_keyfile(Filename filename)
 
   error = NULL;
   if (type == SSH_KEYTYPE_SSH1)
-    needs_pass = rsakey_encrypted(&filename, &comment);
+    needs_pass = rsakey_encrypted(filename, &comment);
   else
-    needs_pass = ssh2_userkey_encrypted(&filename, &comment);
+    needs_pass = ssh2_userkey_encrypted(filename, &comment);
   attempts = 0;
   if (type == SSH_KEYTYPE_SSH1)
     rkey = snew(struct RSAKey);
-  pps.passphrase = passphrase;
-  pps.comment = comment;
+  passphrase = NULL;
   original_pass = 0;
   do {
+    burnstr(passphrase);
+    passphrase = NULL;
+
     if (needs_pass) {
       /* try all the remembered passphrases first */
       char *pp = index234(passphrases, attempts);
       if (pp) {
-        strcpy(passphrase, pp);
+        passphrase = dupstr(pp);
       } else {
         int dlgret;
+        struct PassphraseProcStruct pps;
+
+        pps.passphrase = &passphrase;
+        pps.comment = comment;
+
         original_pass = 1;
         dlgret = DialogBoxParam(
             hinst, MAKEINTRESOURCE(210), NULL, PassphraseProc, (LPARAM)&pps);
@@ -562,13 +571,16 @@ static void add_keyfile(Filename filename)
             sfree(rkey);
           return; /* operation cancelled */
         }
+
+        assert(passphrase != NULL);
       }
     } else
-      *passphrase = '\0';
+      passphrase = dupstr("");
+
     if (type == SSH_KEYTYPE_SSH1)
-      ret = loadrsakey(&filename, rkey, passphrase, &error);
+      ret = loadrsakey(filename, rkey, passphrase, &error);
     else {
-      skey = ssh2_load_userkey(&filename, passphrase, &error);
+      skey = ssh2_load_userkey(filename, passphrase, &error);
       if (skey == SSH2_WRONG_PASSPHRASE)
         ret = -1;
       else if (!skey)
@@ -579,11 +591,14 @@ static void add_keyfile(Filename filename)
     attempts++;
   } while (ret == -1);
 
-  /* if they typed in an ok passphrase, remember it */
   if (original_pass && ret) {
-    char *pp = dupstr(passphrase);
-    addpos234(passphrases, pp, 0);
+    /* If they typed in an ok passphrase, remember it */
+    addpos234(passphrases, passphrase, 0);
+  } else {
+    /* Otherwise, destroy it */
+    burnstr(passphrase);
   }
+  passphrase = NULL;
 
   if (comment)
     sfree(comment);
@@ -814,8 +829,10 @@ static void *get_keylist1(int *length)
     retval = agent_query(request, 5, &vresponse, &resplen, NULL, NULL);
     assert(retval == 1);
     response = vresponse;
-    if (resplen < 5 || response[4] != SSH1_AGENT_RSA_IDENTITIES_ANSWER)
+    if (resplen < 5 || response[4] != SSH1_AGENT_RSA_IDENTITIES_ANSWER) {
+      sfree(response);
       return NULL;
+    }
 
     ret = snewn(resplen - 5, unsigned char);
     memcpy(ret, response + 5, resplen - 5);
@@ -849,8 +866,10 @@ static void *get_keylist2(int *length)
     retval = agent_query(request, 5, &vresponse, &resplen, NULL, NULL);
     assert(retval == 1);
     response = vresponse;
-    if (resplen < 5 || response[4] != SSH2_AGENT_IDENTITIES_ANSWER)
+    if (resplen < 5 || response[4] != SSH2_AGENT_IDENTITIES_ANSWER) {
+      sfree(response);
       return NULL;
+    }
 
     ret = snewn(resplen - 5, unsigned char);
     memcpy(ret, response + 5, resplen - 5);
@@ -945,12 +964,17 @@ static void answer_msg(void *msg)
         goto failure;
       p += i;
       i = ssh1_read_bignum(p, msgend - p, &reqkey.modulus);
-      if (i < 0)
+      if (i < 0) {
+        freebn(reqkey.exponent);
         goto failure;
+      }
       p += i;
       i = ssh1_read_bignum(p, msgend - p, &challenge);
-      if (i < 0)
+      if (i < 0) {
+        freebn(reqkey.exponent);
+        freebn(reqkey.modulus);
         goto failure;
+      }
       p += i;
       if (msgend < p + 16) {
         freebn(reqkey.exponent);
@@ -974,11 +998,11 @@ static void answer_msg(void *msg)
       MD5Init(&md5c);
       MD5Update(&md5c, response_source, 48);
       MD5Final(response_md5, &md5c);
-      memset(response_source, 0, 48); /* burn the evidence */
-      freebn(response);               /* and that evidence */
-      freebn(challenge);              /* yes, and that evidence */
-      freebn(reqkey.exponent);        /* and free some memory ... */
-      freebn(reqkey.modulus);         /* ... while we're at it. */
+      smemclr(response_source, 48); /* burn the evidence */
+      freebn(response);             /* and that evidence */
+      freebn(challenge);            /* yes, and that evidence */
+      freebn(reqkey.exponent);      /* and free some memory ... */
+      freebn(reqkey.modulus);       /* ... while we're at it. */
 
       /*
        * Packet is the obvious five byte header, plus sixteen
@@ -1004,17 +1028,17 @@ static void answer_msg(void *msg)
 
       if (msgend < p + 4)
         goto failure;
-      b.len = GET_32BIT(p);
-      p += 4;
-      if (msgend < p + b.len)
+      b.len = toint(GET_32BIT(p));
+      if (b.len < 0 || b.len > msgend - (p + 4))
         goto failure;
+      p += 4;
       b.blob = p;
       p += b.len;
       if (msgend < p + 4)
         goto failure;
-      datalen = GET_32BIT(p);
+      datalen = toint(GET_32BIT(p));
       p += 4;
-      if (msgend < p + datalen)
+      if (datalen < 0 || datalen > msgend - p)
         goto failure;
       data = p;
       key = find234(ssh2keys, &b, cmpkeys_ssh2_asymm);
@@ -1087,9 +1111,9 @@ static void answer_msg(void *msg)
         sfree(key);
         goto failure;
       }
-      commentlen = GET_32BIT(p);
+      commentlen = toint(GET_32BIT(p));
 
-      if (msgend < p + commentlen) {
+      if (commentlen < 0 || commentlen > msgend - p) {
         freersakey(key);
         sfree(key);
         goto failure;
@@ -1125,9 +1149,9 @@ static void answer_msg(void *msg)
 
       if (msgend < p + 4)
         goto failure;
-      alglen = GET_32BIT(p);
+      alglen = toint(GET_32BIT(p));
       p += 4;
-      if (msgend < p + alglen)
+      if (alglen < 0 || alglen > msgend - p)
         goto failure;
       alg = p;
       p += alglen;
@@ -1161,10 +1185,10 @@ static void answer_msg(void *msg)
         sfree(key);
         goto failure;
       }
-      commlen = GET_32BIT(p);
+      commlen = toint(GET_32BIT(p));
       p += 4;
 
-      if (msgend < p + commlen) {
+      if (commlen < 0 || commlen > msgend - p) {
         key->alg->freekey(key->data);
         sfree(key);
         goto failure;
@@ -1228,10 +1252,10 @@ static void answer_msg(void *msg)
 
       if (msgend < p + 4)
         goto failure;
-      b.len = GET_32BIT(p);
+      b.len = toint(GET_32BIT(p));
       p += 4;
 
-      if (msgend < p + b.len)
+      if (b.len < 0 || b.len > msgend - p)
         goto failure;
       b.blob = p;
       p += b.len;
@@ -1439,10 +1463,12 @@ static void prompt_add_keyfile(void)
   of.lpstrTitle = "Select Private Key File";
   of.Flags = OFN_ALLOWMULTISELECT | OFN_EXPLORER;
   if (request_file(keypath, &of, TRUE, FALSE)) {
-    if (strlen(filelist) > of.nFileOffset)
+    if (strlen(filelist) > of.nFileOffset) {
       /* Only one filename returned? */
-      add_keyfile(filename_from_str(filelist));
-    else {
+      Filename *fn = filename_from_str(filelist);
+      add_keyfile(fn);
+      filename_free(fn);
+    } else {
       /* we are returned a bunch of strings, end to
        * end. first string is the directory, the
        * rest the filenames. terminated with an
@@ -1452,7 +1478,9 @@ static void prompt_add_keyfile(void)
       char *filewalker = filelist + strlen(dir) + 1;
       while (*filewalker != '\0') {
         char *filename = dupcat(dir, "\\", filewalker, NULL);
-        add_keyfile(filename_from_str(filename));
+        Filename *fn = filename_from_str(filename);
+        add_keyfile(fn);
+        filename_free(fn);
         sfree(filename);
         filewalker += strlen(filewalker) + 1;
       }
@@ -1707,6 +1735,59 @@ static void update_sessions(void)
   }
 }
 
+#ifndef NO_SECURITY
+/*
+ * Versions of Pageant prior to 0.61 expected this SID on incoming
+ * communications. For backwards compatibility, and more particularly
+ * for compatibility with derived works of PuTTY still using the old
+ * Pageant client code, we accept it as an alternative to the one
+ * returned from get_user_sid() in winpgntc.c.
+ */
+PSID get_default_sid(void)
+{
+  HANDLE proc = NULL;
+  DWORD sidlen;
+  PSECURITY_DESCRIPTOR psd = NULL;
+  PSID sid = NULL, copy = NULL, ret = NULL;
+
+  if ((proc = OpenProcess(MAXIMUM_ALLOWED, FALSE, GetCurrentProcessId())) ==
+      NULL)
+    goto cleanup;
+
+  if (p_GetSecurityInfo(proc,
+                        SE_KERNEL_OBJECT,
+                        OWNER_SECURITY_INFORMATION,
+                        &sid,
+                        NULL,
+                        NULL,
+                        NULL,
+                        &psd) != ERROR_SUCCESS)
+    goto cleanup;
+
+  sidlen = GetLengthSid(sid);
+
+  copy = (PSID)smalloc(sidlen);
+
+  if (!CopySid(sidlen, copy, sid))
+    goto cleanup;
+
+  /* Success. Move sid into the return value slot, and null it out
+   * to stop the cleanup code freeing it. */
+  ret = copy;
+  copy = NULL;
+
+cleanup:
+  if (proc != NULL)
+    CloseHandle(proc);
+  if (psd != NULL)
+    LocalFree(psd);
+  if (copy != NULL)
+    sfree(copy);
+
+  return ret;
+}
+#endif
+
 static LRESULT CALLBACK WndProc(HWND hwnd,
                                 UINT message,
                                 WPARAM wParam,
@@ -1854,9 +1935,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     void *p;
     HANDLE filemap;
 #ifndef NO_SECURITY
-    PSID mapowner, ourself;
-    PSECURITY_DESCRIPTOR psd1 = NULL, psd2 = NULL;
+    PSID mapowner, ourself, ourself2;
 #endif
+    PSECURITY_DESCRIPTOR psd = NULL;
     int ret = 0;
 
     cds = (COPYDATASTRUCT *)lParam;
@@ -1880,6 +1961,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
 #ifdef DEBUG_IPC
           debug(("couldn't get user SID\n"));
 #endif
+          CloseHandle(filemap);
+          return 0;
+        }
+
+        if ((ourself2 = get_default_sid()) == NULL) {
+#ifdef DEBUG_IPC
+          debug(("couldn't get default SID\n"));
+#endif
+          CloseHandle(filemap);
+          sfree(ourself);
           return 0;
         }
 
@@ -1890,29 +1981,44 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
                                     NULL,
                                     NULL,
                                     NULL,
-                                    &psd1) != ERROR_SUCCESS)) {
+                                    &psd) != ERROR_SUCCESS)) {
 #ifdef DEBUG_IPC
           debug(("couldn't get owner info for filemap: %d\n", rc));
 #endif
+          CloseHandle(filemap);
+          sfree(ourself);
+          sfree(ourself2);
           return 0;
         }
 #ifdef DEBUG_IPC
         {
-          LPTSTR ours, theirs;
+          LPTSTR ours, ours2, theirs;
           ConvertSidToStringSid(mapowner, &theirs);
           ConvertSidToStringSid(ourself, &ours);
-          debug(("got both sids: ours=%s theirs=%s\n", ours, theirs));
+          ConvertSidToStringSid(ourself2, &ours2);
+          debug(("got sids:\n  oursnew=%s\n  oursold=%s\n"
+                 "  theirs=%s\n",
+                 ours,
+                 ours2,
+                 theirs));
           LocalFree(ours);
+          LocalFree(ours2);
           LocalFree(theirs);
         }
 #endif
-        if (!EqualSid(mapowner, ourself))
+        if (!EqualSid(mapowner, ourself) && !EqualSid(mapowner, ourself2)) {
+          CloseHandle(filemap);
+          LocalFree(psd);
+          sfree(ourself);
+          sfree(ourself2);
           return 0; /* security ID mismatch! */
+        }
 #ifdef DEBUG_IPC
         debug(("security stuff matched\n"));
 #endif
-        LocalFree(psd1);
-        LocalFree(psd2);
+        LocalFree(psd);
+        sfree(ourself);
+        sfree(ourself2);
       } else {
 #ifdef DEBUG_IPC
         debug(("security APIs not present\n"));
@@ -1979,7 +2085,6 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
   WNDCLASS wndclass;
   MSG msg;
-  HMODULE advapi;
   char *command = NULL;
   int added_keys = 0;
   int argc, i;
@@ -2021,8 +2126,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
                MB_ICONERROR | MB_OK);
     return 1;
 #endif
-  } else
-    advapi = NULL;
+  }
 
   /*
    * See if we can find our Help file.
@@ -2077,8 +2181,6 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   for (i = 0; i < argc; i++) {
     if (!strcmp(argv[i], "-pgpfp")) {
       pgp_fingerprints();
-      if (advapi)
-        FreeLibrary(advapi);
       return 1;
     } else if (!strcmp(argv[i], "-c")) {
       /*
@@ -2092,7 +2194,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
         command = "";
       break;
     } else {
-      add_keyfile(filename_from_str(argv[i]));
+      Filename *fn = filename_from_str(argv[i]);
+      add_keyfile(fn);
+      filename_free(fn);
       added_keys = TRUE;
     }
   }
@@ -2129,8 +2233,6 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
                  "Pageant Error",
                  MB_ICONERROR | MB_OK);
     }
-    if (advapi)
-      FreeLibrary(advapi);
     return 0;
   }
 
@@ -2218,9 +2320,6 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
   if (keypath)
     filereq_free(keypath);
-
-  if (advapi)
-    FreeLibrary(advapi);
 
   cleanup_exit(msg.wParam);
   return msg.wParam; /* just in case optimiser complains */

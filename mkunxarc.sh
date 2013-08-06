@@ -1,4 +1,4 @@
-#!/bin/sh 
+#!/bin/bash 
 
 # Build a Unix source distribution from the PuTTY CVS area.
 #
@@ -10,23 +10,36 @@
 case "$1" in
   ????-??-??)
     case "$1" in *[!-0-9]*) echo "Malformed snapshot ID '$1'" >&2;exit 1;;esac
-    arcsuffix="-`cat LATEST.VER`-$1"
+    autoconfver="`cat LATEST.VER`-$1"
+    arcsuffix="-$autoconfver"
     ver="-DSNAPSHOT=$1"
     docver=
     ;;
   r*)
-    arcsuffix="-$1"
-    ver="-DSVN_REV=$1"
+    autoconfver="$1"
+    arcsuffix="-$autoconfver"
+    ver="-DSVN_REV=${1#r}"
     docver=
     ;;
   '')
+    autoconfver="X.XX" # got to put something in here!
     arcsuffix=
     ver=
     docver=
     ;;
+  *pre)
+    set -- "${1%pre}" "$2"
+    case "$1" in *[!.0-9a-z~]*) echo "Malformed prerelease ID '$1'">&2;exit 1;;esac
+    case "$2" in *[!.0-9a-z~]*) echo "Malformed prerelease revision '$1'">&2;exit 1;;esac
+    autoconfver="$1~pre$2"
+    arcsuffix="-$autoconfver"
+    ver="-DPRERELEASE=$1 -DSVN_REV=$2"
+    docver="VERSION=\"PuTTY prerelease $1:r$2\""
+    ;;
   *)
-    case "$1" in *[!.0-9a-z]*) echo "Malformed release ID '$1'">&2;exit 1;;esac
-    arcsuffix="-$1"
+    case "$1" in *[!.0-9a-z~]*) echo "Malformed release ID '$1'">&2;exit 1;;esac
+    autoconfver="$1"
+    arcsuffix="-$autoconfver"
     ver="-DRELEASE=$1"
     docver="VERSION=\"PuTTY release $1\""
     ;;
@@ -34,7 +47,6 @@ esac
 
 perl mkfiles.pl
 (cd doc && make -s ${docver:+"$docver"})
-sh mkauto.sh 2>/dev/null
 
 relver=`cat LATEST.VER`
 arcname="putty$arcsuffix"
@@ -49,6 +61,7 @@ find . -name uxarc -prune -o \
        -name CVS -prune -o \
        -name .cvsignore -prune -o \
        -name .svn -prune -o \
+       -name configure.ac -prune -o \
        -name '*.zip' -prune -o \
        -name '*.tar.gz' -prune -o \
        -type f -exec ln -s $PWD/{} uxarc/$arcname/{} \;
@@ -57,5 +70,8 @@ if test "x$ver" != "x"; then
    md5sum `find . -name '*.[ch]' -print` > manifest;
    echo "$ver" > version.def)
 fi
+sed "s/^AC_INIT(putty,.*/AC_INIT(putty, $autoconfver)/" unix/configure.ac > uxarc/$arcname/unix/configure.ac
+(cd uxarc/$arcname && sh mkauto.sh) 2>errors || { cat errors >&2; exit 1; }
+
 tar -C uxarc -chzof $arcname.tar.gz $arcname
 rm -rf uxarc

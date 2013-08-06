@@ -33,10 +33,14 @@ static void serial_parity_handler(union control *ctrl,
   };
   int mask = ctrl->listbox.context.i;
   int i, j;
-  Config *cfg = (Config *)data;
+  Conf *conf = (Conf *)data;
 
   if (event == EVENT_REFRESH) {
-    int oldparity = cfg->serparity; /* preserve past reentrant calls */
+    /* Fetching this once at the start of the function ensures we
+     * remember what the right value is supposed to be when
+     * operations below cause reentrant calls to this function. */
+    int oldparity = conf_get_int(conf, CONF_serparity);
+
     dlg_update_start(ctrl, dlg);
     dlg_listbox_clear(ctrl, dlg);
     for (i = 0; i < lenof(parities); i++) {
@@ -57,14 +61,14 @@ static void serial_parity_handler(union control *ctrl,
       oldparity = SER_PAR_NONE;
     }
     dlg_update_done(ctrl, dlg);
-    cfg->serparity = oldparity; /* restore */
+    conf_set_int(conf, CONF_serparity, oldparity); /* restore */
   } else if (event == EVENT_SELCHANGE) {
     int i = dlg_listbox_index(ctrl, dlg);
     if (i < 0)
       i = SER_PAR_NONE;
     else
       i = dlg_listbox_getid(ctrl, dlg, i);
-    cfg->serparity = i;
+    conf_set_int(conf, CONF_serparity, i);
   }
 }
 
@@ -84,10 +88,14 @@ static void serial_flow_handler(union control *ctrl,
   };
   int mask = ctrl->listbox.context.i;
   int i, j;
-  Config *cfg = (Config *)data;
+  Conf *conf = (Conf *)data;
 
   if (event == EVENT_REFRESH) {
-    int oldflow = cfg->serflow; /* preserve past reentrant calls */
+    /* Fetching this once at the start of the function ensures we
+     * remember what the right value is supposed to be when
+     * operations below cause reentrant calls to this function. */
+    int oldflow = conf_get_int(conf, CONF_serflow);
+
     dlg_update_start(ctrl, dlg);
     dlg_listbox_clear(ctrl, dlg);
     for (i = 0; i < lenof(flows); i++) {
@@ -108,14 +116,14 @@ static void serial_flow_handler(union control *ctrl,
       oldflow = SER_FLOW_NONE;
     }
     dlg_update_done(ctrl, dlg);
-    cfg->serflow = oldflow; /* restore */
+    conf_set_int(conf, CONF_serflow, oldflow); /* restore */
   } else if (event == EVENT_SELCHANGE) {
     int i = dlg_listbox_index(ctrl, dlg);
     if (i < 0)
       i = SER_FLOW_NONE;
     else
       i = dlg_listbox_getid(ctrl, dlg, i);
-    cfg->serflow = i;
+    conf_set_int(conf, CONF_serflow, i);
   }
 }
 
@@ -180,9 +188,9 @@ void ser_setup_config_box(struct controlbox *b,
                  'l',
                  40,
                  HELPCTX(serial_line),
-                 dlg_stdeditbox_handler,
-                 I(offsetof(Config, serline)),
-                 I(sizeof(((Config *)0)->serline)));
+                 conf_editbox_handler,
+                 I(CONF_serline),
+                 I(1));
   }
 
   s = ctrl_getset(
@@ -192,16 +200,16 @@ void ser_setup_config_box(struct controlbox *b,
                's',
                40,
                HELPCTX(serial_speed),
-               dlg_stdeditbox_handler,
-               I(offsetof(Config, serspeed)),
+               conf_editbox_handler,
+               I(CONF_serspeed),
                I(-1));
   ctrl_editbox(s,
                "Data bits",
                'b',
                40,
                HELPCTX(serial_databits),
-               dlg_stdeditbox_handler,
-               I(offsetof(Config, serdatabits)),
+               conf_editbox_handler,
+               I(CONF_serdatabits),
                I(-1));
   /*
    * Stop bits come in units of one half.
@@ -211,8 +219,8 @@ void ser_setup_config_box(struct controlbox *b,
                't',
                40,
                HELPCTX(serial_stopbits),
-               dlg_stdeditbox_handler,
-               I(offsetof(Config, serstopbits)),
+               conf_editbox_handler,
+               I(CONF_serstopbits),
                I(-2));
   ctrl_droplist(s,
                 "Parity",

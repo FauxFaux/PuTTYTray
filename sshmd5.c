@@ -248,7 +248,7 @@ void hmacmd5_key(void *handle, void const *keyv, int len)
   MD5Init(&keys[1]);
   MD5Update(&keys[1], foo, 64);
 
-  memset(foo, 0, 64); /* burn the evidence */
+  smemclr(foo, 64); /* burn the evidence */
 }
 
 static void hmacmd5_key_16(void *handle, unsigned char *key)
@@ -319,11 +319,7 @@ static void hmacmd5_do_hmac_ssh(void *handle,
 {
   unsigned char seqbuf[16];
 
-  seqbuf[0] = (unsigned char)((seq >> 24) & 0xFF);
-  seqbuf[1] = (unsigned char)((seq >> 16) & 0xFF);
-  seqbuf[2] = (unsigned char)((seq >> 8) & 0xFF);
-  seqbuf[3] = (unsigned char)((seq)&0xFF);
-
+  PUT_32BIT_MSB_FIRST(seqbuf, seq);
   hmacmd5_do_hmac_internal(handle, seqbuf, 4, blk, len, hmac);
 }
 

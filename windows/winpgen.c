@@ -5,6 +5,7 @@
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #define PUTTY_DO_GLOBALS
 
@@ -19,7 +20,7 @@
 
 #define WM_DONEKEY (WM_APP + 1)
 
-#define DEFAULT_KEYSIZE 1024
+#define DEFAULT_KEYSIZE 2048
 
 static char *cmdline_keyfile = NULL;
 
@@ -40,6 +41,22 @@ void modalfatalbox(char *fmt, ...)
              MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
   sfree(stuff);
   exit(1);
+}
+
+/*
+ * Print a non-fatal message box and do not exit.
+ */
+void nonfatal(char *fmt, ...)
+{
+  va_list ap;
+  char *stuff;
+
+  va_start(ap, fmt);
+  stuff = dupvprintf(fmt, ap);
+  va_end(ap);
+  MessageBox(
+      NULL, stuff, "PuTTYgen Error", MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
+  sfree(stuff);
 }
 
 /* ----------------------------------------------------------------------
@@ -116,10 +133,8 @@ static void progress_update(void *param, int action, int phase, int iprogress)
 
 extern char ver[];
 
-#define PASSPHRASE_MAXLEN 512
-
 struct PassphraseProcStruct {
-  char *passphrase;
+  char **passphrase;
   char *comment;
 };
 
@@ -131,7 +146,7 @@ static int CALLBACK PassphraseProc(HWND hwnd,
                                    WPARAM wParam,
                                    LPARAM lParam)
 {
-  static char *passphrase = NULL;
+  static char **passphrase = NULL;
   struct PassphraseProcStruct *p;
 
   switch (msg) {
@@ -161,8 +176,9 @@ static int CALLBACK PassphraseProc(HWND hwnd,
     passphrase = p->passphrase;
     if (p->comment)
       SetDlgItemText(hwnd, 101, p->comment);
-    *passphrase = 0;
-    SetDlgItemText(hwnd, 102, passphrase);
+    burnstr(*passphrase);
+    *passphrase = dupstr("");
+    SetDlgItemText(hwnd, 102, *passphrase);
     return 0;
   case WM_COMMAND:
     switch (LOWORD(wParam)) {
@@ -177,8 +193,8 @@ static int CALLBACK PassphraseProc(HWND hwnd,
       return 0;
     case 102: /* edit box */
       if ((HIWORD(wParam) == EN_CHANGE) && passphrase) {
-        GetDlgItemText(hwnd, 102, passphrase, PASSPHRASE_MAXLEN - 1);
-        passphrase[PASSPHRASE_MAXLEN - 1] = '\0';
+        burnstr(*passphrase);
+        *passphrase = GetDlgItemText_alloc(hwnd, 102);
       }
       return 0;
     }
@@ -417,11 +433,11 @@ static int save_ssh1_pubkey(char *filename, struct RSAKey *key)
   char *dec1, *dec2;
   FILE *fp;
 
-  dec1 = bignum_decimal(key->exponent);
-  dec2 = bignum_decimal(key->modulus);
   fp = fopen(filename, "wb");
   if (!fp)
     return 0;
+  dec1 = bignum_decimal(key->exponent);
+  dec2 = bignum_decimal(key->modulus);
   fprintf(fp,
           "%d %s %s %s\n",
           bignum_bitcount(key->modulus),
@@ -652,20 +668,19 @@ void ui_set_state(HWND hwnd, struct MainDlgState *state, int status)
 
 void load_key_file(HWND hwnd,
                    struct MainDlgState *state,
-                   Filename filename,
+                   Filename *filename,
                    int was_import_cmd)
 {
-  char passphrase[PASSPHRASE_MAXLEN];
+  char *passphrase;
   int needs_pass;
   int type, realtype;
   int ret;
   const char *errmsg = NULL;
   char *comment;
-  struct PassphraseProcStruct pps;
   struct RSAKey newkey1;
   struct ssh2_userkey *newkey2 = NULL;
 
-  type = realtype = key_type(&filename);
+  type = realtype = key_type(filename);
   if (type != SSH_KEYTYPE_SSH1 && type != SSH_KEYTYPE_SSH2 &&
       !import_possible(type)) {
     char *msg =
@@ -684,35 +699,41 @@ void load_key_file(HWND hwnd,
   }
 
   comment = NULL;
+  passphrase = NULL;
   if (realtype == SSH_KEYTYPE_SSH1)
-    needs_pass = rsakey_encrypted(&filename, &comment);
+    needs_pass = rsakey_encrypted(filename, &comment);
   else if (realtype == SSH_KEYTYPE_SSH2)
-    needs_pass = ssh2_userkey_encrypted(&filename, &comment);
+    needs_pass = ssh2_userkey_encrypted(filename, &comment);
   else
-    needs_pass = import_encrypted(&filename, realtype, &comment);
-  pps.passphrase = passphrase;
-  pps.comment = comment;
+    needs_pass = import_encrypted(filename, realtype, &comment);
   do {
+    burnstr(passphrase);
+    passphrase = NULL;
+
     if (needs_pass) {
       int dlgret;
+      struct PassphraseProcStruct pps;
+      pps.passphrase = &passphrase;
+      pps.comment = comment;
       dlgret = DialogBoxParam(
           hinst, MAKEINTRESOURCE(210), NULL, PassphraseProc, (LPARAM)&pps);
       if (!dlgret) {
         ret = -2;
         break;
       }
+      assert(passphrase != NULL);
     } else
-      *passphrase = '\0';
+      passphrase = dupstr("");
     if (type == SSH_KEYTYPE_SSH1) {
       if (realtype == type)
-        ret = loadrsakey(&filename, &newkey1, passphrase, &errmsg);
+        ret = loadrsakey(filename, &newkey1, passphrase, &errmsg);
       else
-        ret = import_ssh1(&filename, realtype, &newkey1, passphrase, &errmsg);
+        ret = import_ssh1(filename, realtype, &newkey1, passphrase, &errmsg);
     } else {
       if (realtype == type)
-        newkey2 = ssh2_load_userkey(&filename, passphrase, &errmsg);
+        newkey2 = ssh2_load_userkey(filename, passphrase, &errmsg);
       else
-        newkey2 = import_ssh2(&filename, realtype, passphrase, &errmsg);
+        newkey2 = import_ssh2(filename, realtype, passphrase, &errmsg);
       if (newkey2 == SSH2_WRONG_PASSPHRASE)
         ret = -1;
       else if (!newkey2)
@@ -807,6 +828,7 @@ void load_key_file(HWND hwnd,
       MessageBox(NULL, msg, "PuTTYgen Notice", MB_OK | MB_ICONINFORMATION);
     }
   }
+  burnstr(passphrase);
 }
 
 /*
@@ -992,8 +1014,11 @@ static int CALLBACK MainDlgProc(HWND hwnd,
     /*
      * Load a key file if one was provided on the command line.
      */
-    if (cmdline_keyfile)
-      load_key_file(hwnd, state, filename_from_str(cmdline_keyfile), 0);
+    if (cmdline_keyfile) {
+      Filename *fn = filename_from_str(cmdline_keyfile);
+      load_key_file(hwnd, state, fn, 0);
+      filename_free(fn);
+    }
 
     return 1;
   case WM_MOUSEMOVE:
@@ -1011,7 +1036,7 @@ static int CALLBACK MainDlgProc(HWND hwnd,
          * Seed the entropy pool
          */
         random_add_heavynoise(state->entropy, state->entropy_size);
-        memset(state->entropy, 0, state->entropy_size);
+        smemclr(state->entropy, state->entropy_size);
         sfree(state->entropy);
         state->collecting_entropy = FALSE;
 
@@ -1150,8 +1175,7 @@ static int CALLBACK MainDlgProc(HWND hwnd,
       state = (struct MainDlgState *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
       if (state->key_exists) {
         char filename[FILENAME_MAX];
-        char passphrase[PASSPHRASE_MAXLEN];
-        char passphrase2[PASSPHRASE_MAXLEN];
+        char *passphrase, *passphrase2;
         int type, realtype;
 
         if (state->ssh2)
@@ -1177,17 +1201,18 @@ static int CALLBACK MainDlgProc(HWND hwnd,
           break;
         }
 
-        GetDlgItemText(
-            hwnd, IDC_PASSPHRASE1EDIT, passphrase, sizeof(passphrase));
-        GetDlgItemText(
-            hwnd, IDC_PASSPHRASE2EDIT, passphrase2, sizeof(passphrase2));
+        passphrase = GetDlgItemText_alloc(hwnd, IDC_PASSPHRASE1EDIT);
+        passphrase2 = GetDlgItemText_alloc(hwnd, IDC_PASSPHRASE2EDIT);
         if (strcmp(passphrase, passphrase2)) {
           MessageBox(hwnd,
                      "The two passphrases given do not match.",
                      "PuTTYgen Error",
                      MB_OK | MB_ICONERROR);
+          burnstr(passphrase);
+          burnstr(passphrase2);
           break;
         }
+        burnstr(passphrase2);
         if (!*passphrase) {
           int ret;
           ret = MessageBox(hwnd,
@@ -1195,8 +1220,10 @@ static int CALLBACK MainDlgProc(HWND hwnd,
                            "without a passphrase to protect it?",
                            "PuTTYgen Warning",
                            MB_YESNO | MB_ICONWARNING);
-          if (ret != IDYES)
+          if (ret != IDYES) {
+            burnstr(passphrase);
             break;
+          }
         }
         if (prompt_keyfile(hwnd,
                            "Save private key as:",
@@ -1212,26 +1239,30 @@ static int CALLBACK MainDlgProc(HWND hwnd,
             ret = MessageBox(
                 hwnd, buffer, "PuTTYgen Warning", MB_YESNO | MB_ICONWARNING);
             sfree(buffer);
-            if (ret != IDYES)
+            if (ret != IDYES) {
+              burnstr(passphrase);
               break;
+            }
           }
 
           if (state->ssh2) {
-            Filename fn = filename_from_str(filename);
+            Filename *fn = filename_from_str(filename);
             if (type != realtype)
               ret = export_ssh2(
-                  &fn, type, &state->ssh2key, *passphrase ? passphrase : NULL);
+                  fn, type, &state->ssh2key, *passphrase ? passphrase : NULL);
             else
               ret = ssh2_save_userkey(
-                  &fn, &state->ssh2key, *passphrase ? passphrase : NULL);
+                  fn, &state->ssh2key, *passphrase ? passphrase : NULL);
+            filename_free(fn);
           } else {
-            Filename fn = filename_from_str(filename);
+            Filename *fn = filename_from_str(filename);
             if (type != realtype)
               ret = export_ssh1(
-                  &fn, type, &state->key, *passphrase ? passphrase : NULL);
+                  fn, type, &state->key, *passphrase ? passphrase : NULL);
             else
               ret =
-                  saversakey(&fn, &state->key, *passphrase ? passphrase : NULL);
+                  saversakey(fn, &state->key, *passphrase ? passphrase : NULL);
+            filename_free(fn);
           }
           if (ret <= 0) {
             MessageBox(hwnd,
@@ -1240,6 +1271,7 @@ static int CALLBACK MainDlgProc(HWND hwnd,
                        MB_OK | MB_ICONERROR);
           }
         }
+        burnstr(passphrase);
       }
       break;
     case IDC_SAVEPUB:
@@ -1286,11 +1318,11 @@ static int CALLBACK MainDlgProc(HWND hwnd,
                            "Load private key:",
                            filename,
                            0,
-                           LOWORD(wParam) == IDC_LOAD))
-          load_key_file(hwnd,
-                        state,
-                        filename_from_str(filename),
-                        LOWORD(wParam) != IDC_LOAD);
+                           LOWORD(wParam) == IDC_LOAD)) {
+          Filename *fn = filename_from_str(filename);
+          load_key_file(hwnd, state, fn, LOWORD(wParam) != IDC_LOAD);
+          filename_free(fn);
+        }
       }
       break;
     }

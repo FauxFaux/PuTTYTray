@@ -9,8 +9,9 @@
 
 struct ssh_channel;
 
-extern void sshfwd_close(struct ssh_channel *c);
 extern int sshfwd_write(struct ssh_channel *c, char *, int);
+extern void sshfwd_write_eof(struct ssh_channel *c);
+extern void sshfwd_unclean_close(struct ssh_channel *c);
 extern void sshfwd_unthrottle(struct ssh_channel *c, int bufsize);
 
 /*
@@ -143,9 +144,9 @@ typedef struct {
   uint32 lenhi, lenlo;
 } SHA_State;
 void SHA_Init(SHA_State *s);
-void SHA_Bytes(SHA_State *s, void *p, int len);
+void SHA_Bytes(SHA_State *s, const void *p, int len);
 void SHA_Final(SHA_State *s, unsigned char *output);
-void SHA_Simple(void *p, int len, unsigned char *output);
+void SHA_Simple(const void *p, int len, unsigned char *output);
 
 void hmac_sha1_simple(
     void *key, int keylen, void *data, int datalen, unsigned char *output);
@@ -317,6 +318,7 @@ extern const struct ssh_mac ssh_hmac_sha1;
 extern const struct ssh_mac ssh_hmac_sha1_buggy;
 extern const struct ssh_mac ssh_hmac_sha1_96;
 extern const struct ssh_mac ssh_hmac_sha1_96_buggy;
+extern const struct ssh_mac ssh_hmac_sha256;
 
 void *aes_make_context(void);
 void aes_free_context(void *handle);
@@ -358,7 +360,7 @@ extern const char *pfd_newconnect(Socket *s,
                                   char *hostname,
                                   int port,
                                   void *c,
-                                  const Config *cfg,
+                                  Conf *conf,
                                   int addressfamily);
 /* desthost == NULL indicates dynamic (SOCKS) port forwarding */
 extern const char *pfd_addforward(char *desthost,
@@ -366,12 +368,13 @@ extern const char *pfd_addforward(char *desthost,
                                   char *srcaddr,
                                   int port,
                                   void *backhandle,
-                                  const Config *cfg,
+                                  Conf *conf,
                                   void **sockdata,
                                   int address_family);
 extern void pfd_close(Socket s);
 extern void pfd_terminate(void *sockdata);
 extern int pfd_send(Socket s, char *data, int len);
+extern void pfd_send_eof(Socket s);
 extern void pfd_confirm(Socket s);
 extern void pfd_unthrottle(Socket s);
 extern void pfd_override_throttle(Socket s, int enable);
@@ -425,17 +428,18 @@ struct X11Display {
  */
 extern struct X11Display *x11_setup_display(char *display,
                                             int authtype,
-                                            const Config *);
+                                            Conf *);
 void x11_free_display(struct X11Display *disp);
 extern const char *x11_init(
-    Socket *, struct X11Display *, void *, const char *, int, const Config *);
+    Socket *, struct X11Display *, void *, const char *, int, Conf *);
 extern void x11_close(Socket);
 extern int x11_send(Socket, char *, int);
+extern void x11_send_eof(Socket s);
 extern void x11_unthrottle(Socket s);
 extern void x11_override_throttle(Socket s, int enable);
 char *x11_display(const char *display);
 /* Platform-dependent X11 functions */
-extern void platform_get_x11_auth(struct X11Display *display, const Config *);
+extern void platform_get_x11_auth(struct X11Display *display, Conf *);
 /* examine a mostly-filled-in X11Display and fill in localauth* */
 extern const int platform_uses_x11_unix_by_default;
 /* choose default X transport in the absence of a specified one */
@@ -607,7 +611,9 @@ Bignum primegen(int bits,
                 Bignum factor,
                 int phase,
                 progfn_t pfn,
-                void *pfnparam);
+                void *pfnparam,
+                unsigned firstbits);
+void invent_firstbits(unsigned *one, unsigned *two);
 
 /*
  * zlib compression.

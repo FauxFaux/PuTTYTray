@@ -34,12 +34,12 @@
 #include "putty.h"
 
 static const char *null_init(
-    void *, void **, Config *, char *, int, char **, int, int);
+    void *, void **, Conf *, char *, int, char **, int, int);
 static const char *loop_init(
-    void *, void **, Config *, char *, int, char **, int, int);
+    void *, void **, Conf *, char *, int, char **, int, int);
 static void null_free(void *);
 static void loop_free(void *);
-static void null_reconfig(void *, Config *);
+static void null_reconfig(void *, Conf *);
 static int null_send(void *, char *, int);
 static int loop_send(void *, char *, int);
 static int null_sendbuffer(void *);
@@ -101,7 +101,7 @@ struct loop_state {
 
 static const char *null_init(void *frontend_handle,
                              void **backend_handle,
-                             Config *cfg,
+                             Conf *conf,
                              char *host,
                              int port,
                              char **realhost,
@@ -114,7 +114,7 @@ static const char *null_init(void *frontend_handle,
 
 static const char *loop_init(void *frontend_handle,
                              void **backend_handle,
-                             Config *cfg,
+                             Conf *conf,
                              char *host,
                              int port,
                              char **realhost,
@@ -138,7 +138,7 @@ static void loop_free(void *handle)
   sfree(handle);
 }
 
-static void null_reconfig(void *handle, Config *cfg)
+static void null_reconfig(void *handle, Conf *conf)
 {
 }
 
