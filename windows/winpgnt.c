@@ -79,6 +79,8 @@ static BOOL confirm_mode = FALSE;
 #define PUTTY_DEFAULT     "Default%20Settings"
 static int initial_menuitems_count;
 
+HWND find_agent(void);
+
 /* Un-munge session names out of the registry. */
 static void unmungestr(char *in, char *out, int outlen)
 {
@@ -2322,8 +2324,9 @@ int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
      */
     if (already_running) {
 	if (!command && !added_keys) {
-	    MessageBox(NULL, "Pageant is already running", "Pageant Error",
-		       MB_ICONERROR | MB_OK);
+            HWND other = find_agent();
+            assert(other);
+            PostMessage(other, WM_COMMAND, IDM_VIEWKEYS, 0);
 	}
 	return 0;
     }
@@ -2386,6 +2389,8 @@ int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     SetMenuDefaultItem(systray_menu, IDM_VIEWKEYS, FALSE);
 
     ShowWindow(hwnd, SW_HIDE);
+
+    PostMessage(hwnd, WM_COMMAND, IDM_VIEWKEYS, 0);
 
     /*
      * Main message loop.

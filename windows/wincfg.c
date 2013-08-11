@@ -107,7 +107,6 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     union control *c;
     char *str;
     int col = 0;
-    int want_agent = !agent_exists();
 
     /*
      * Add the About and Help buttons to the standard panel.
@@ -115,7 +114,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
      *  the about button if it can't fit.
      */
     s = ctrl_getset(b, "", "", "");
-    if (!has_help || !want_agent) {
+    if (!has_help) {
         c = ctrl_pushbutton(s, "About", NO_SHORTCUT, HELPCTX(no_help),
 			    about_handler, P(hwndp));
         c->generic.column = col++;
@@ -125,11 +124,9 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
                         child_launch_handler, I(CHILD_KEYGEN));
     c->generic.column = col++;
 
-    if (want_agent) {
-        c = ctrl_pushbutton(s, "Agent", NO_SHORTCUT, HELPCTX(no_help),
-			    child_launch_handler, I(CHILD_AGENT));
-        c->generic.column = col++;
-    }
+    c = ctrl_pushbutton(s, "Agent", NO_SHORTCUT, HELPCTX(no_help),
+			child_launch_handler, I(CHILD_AGENT));
+    c->generic.column = col++;
 
     if (has_help) {
 	c = ctrl_pushbutton(s, "Help", 'h', HELPCTX(no_help),
