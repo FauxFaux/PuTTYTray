@@ -116,7 +116,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
      */
     s = ctrl_getset(b, "", "", "");
     if (!has_help || !want_agent) {
-        c = ctrl_pushbutton(s, "About", 'a', HELPCTX(no_help),
+        c = ctrl_pushbutton(s, "About", NO_SHORTCUT, HELPCTX(no_help),
 			    about_handler, P(hwndp));
         c->generic.column = col++;
     }

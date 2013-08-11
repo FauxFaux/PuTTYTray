@@ -1346,7 +1346,7 @@ void setup_config_box(struct controlbox *b, int midsession,
 			      HELPCTX(session_hostname),
 			      config_protocolbuttons_handler, P(hp),
 			      "Raw", 'w', I(PROT_RAW),
-                              "Adb", 'a', I(PROT_ADB),
+                              "Adb", 'b', I(PROT_ADB),
 			      "Telnet", 't', I(PROT_TELNET),
 			      "Rlogin", 'i', I(PROT_RLOGIN),
 			      NULL);
@@ -2332,7 +2332,7 @@ void setup_config_box(struct controlbox *b, int midsession,
 		 * displayed. 
 		 */
 
-		ctrl_filesel(s, "User-supplied GSSAPI library path:", 's',
+		ctrl_filesel(s, "User-supplied GSSAPI library path:", NO_SHORTCUT,
 			     FILTER_DYNLIB_FILES, FALSE, "Select library file",
 			     HELPCTX(ssh_gssapi_libraries),
 			     conf_filesel_handler,
