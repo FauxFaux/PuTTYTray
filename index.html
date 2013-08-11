@@ -68,11 +68,27 @@
 				</ul>
 				<br />
 				<br />
+				<h2>BETA: 0.63-t017 (2013-08-11)</h2>
+
+				<ul>
+					<li class="update">New: FaTTY!  PuTTYGen and Pageant bundled into the PuTTY download</li>
+					<li class="update">New: <a href="https://github.com/FauxFaux/PuTTYTray/wiki/Automatic-logins">Automatic login</a> assistance via. ssh keys</li>
+					<li class="update">New: <a href="https://github.com/FauxFaux/PuTTYTray/issues/3">#3</a>: URL regex updates</li>
+					<li class="update">New: <a href="https://github.com/FauxFaux/PuTTYTray/issues/55">#55</a>: A very bad implementation of ssh-agent's "confirm key usage" for pageant</li>
+					<li class="update">Fixed: Settings moved back onto sensible configuration pages</li>
+					<li class="update">Fixed: <a href="https://github.com/FauxFaux/PuTTYTray/issues/15">#15</a>: URL mangling with unicode</li>
+					<li class="update">Fixed: <a href="https://github.com/FauxFaux/PuTTYTray/issues/28">#28</a>: Wakeup reconnect delay</li>
+					<li class="update">Fixed: <a href="https://github.com/FauxFaux/PuTTYTray/issues/61">#61</a>: Truncated files problem goes away with the p0.63 release</li>
+					<li class="update">Fixed: <a href="https://github.com/FauxFaux/PuTTYTray/issues/72">#72</a>: Don't hang the settings page for systems with broken username detection</li>
+					<li class="update"><b>Plus</b>: about 30 other fixes from various people, especially <a href="https://github.com/FireEgl">Philip Moore (FireEgl)</a> and <a href="https://github.com/stfnm">stfnm</a>, and over 300 changes in upstream PuTTY.</li>
+				</ul>
+				<br />
+				<br />
 				<h2>Update: 0.62-t015 (2013-08-06)</h2>
 
 				<ul>
 					<li class="update">Fixed: <a href="https://github.com/FauxFaux/PuTTYTray/issues/79">#79</a>: backport other security fixes from 0.63</li>
-					<li class="update">Note: PuTTY 0.63 has other fixes that may eventually be shown to be security issues, which are not in this release.  If you are worried about this kind of thing, you should probably run official PuTTY 0.63 until there is a 0.63-derived PuTTYTray release (hopefully within a week!).</li>
+					<li class="update">Note: PuTTY 0.63 has other fixes that may eventually be shown to be security issues, which are not in this release.  If you are worried about this kind of thing, you should probably run official PuTTY 0.63 until there is a stable 0.63-derived PuTTYTray release (hopefully within a week!).</li>
 				</ul>
 				<br />
 				<br />
@@ -199,33 +215,25 @@
 			<div id="content_download" class="content_pane">
 				<h2><a id="download">Download</a></h2>
 
-				<p>The current version is 0.62-t015.<br />
-				Last update: 6th August, 2013.
+				<p>The current version is 0.62-t017 BETA.<br/>
+				Last update: 11th August, 2013.
 				</p>
 
-				<p>Note: PuTTY 0.63 has other fixes that may eventually be shown to be security issues, which are not in this release.  If you are worried about this kind of thing, you should probably run official PuTTY 0.63 until there is a 0.63-derived PuTTYTray release (hopefully within a week!).</p>
+				<p>Note: This is a BETA.  There have been a very large number (~400) of changes in this release compared to normal (~5), and it has not recieved anywhere as much testing as normal.  However, due to the security problems with p0.62-derived releases, let's try it.</p>
 
-				<p>
-				PuTTY Tray:</p>
 				<ul>
 					<li>
-						<a href="https://puttytray.goeswhere.com/download/v015/putty.exe">putty.exe</a><br />
+						<a href="https://puttytray.goeswhere.com/download/putty.exe">putty.exe</a><br />
 						<span style="font-size: 80%; color: #AAAAAA;">SHA256 / GPG (putty.exe) = 
-							<a href="http://git.goeswhere.com/putty.git/tag/refs/tags/p0.62-t015">68fc79a79180e90284e5ff04c468088d59eda65e649de2fd3ef63351ca90e658</a></span>
+							<a href="http://git.goeswhere.com/putty.git/tag/refs/tags/p0.63-t017">c3211c7886179e33a75279a58536bad24f3e9366aed671e08188c507b02053e8</a></span>
 					</li>
 				</ul>
 
-				<ul>
-					<li>
-						<a href="https://puttytray.goeswhere.com/download/v015/x64/putty.exe">putty64.exe</a> (<strong>64-bit Windows required</strong>).  If you don't know that you want this, you don't.<br />
-						<span style="font-size: 80%; color: #AAAAAA;">SHA256 / GPG (putty64.exe) = 
-							<a href="http://git.goeswhere.com/putty.git/tag/refs/tags/p0.62-t015">de91dabaf852729e53642f140e8736e61ac9e9c4310f15c555558315cf0d3bd0</a></span>
-					</li>
-				</ul>
+				<p>There is no 64-bit release for this beta.  There is no-longer a separate pageant download, as it is bundled.</p>
 
 				<ul>
 					<li>
-						<a href="https://puttytray.goeswhere.com/download/v015/">Other downloads, including pageant and debug symbols</a>,
+						<a href="https://puttytray.goeswhere.com/download/v017/">Other downloads, including debug symbols</a>,
 							and <a href="https://puttytray.goeswhere.com/download/">older versions</a><br />
 					</li>
 				</ul>
@@ -245,6 +253,7 @@
 					<li><a href="https://github.com/robotslave">robotslave</a>, for patches</li>
 					<li><a href="https://github.com/stfnm">stfnm</a>, for patches</li>
 					<li><a href="http://sztupy.hu/">sztupy</a>, for adbputty</li>
+					<li><a href="https://github.com/FireEgl">Philip Moore (FireEgl)</a>, for FuTTY</li>
 					<li><a href="http://www.everaldo.com/crystal/">Everaldo</a>, for making the beautiful Crystal SVG icon set from which I derived the PuTTY Tray icon</li>
 					<li>Samuli Gröhn, for making the <a href="http://www.groehn.net/nutty/">NuTTY hyperlink patch</a></li>
 					<li>Jakub Kotrla because he invented the <a href="http://jakub.kotrla.net/putty/">PuTTY File patch</a></li>
