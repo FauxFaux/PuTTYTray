@@ -540,7 +540,6 @@ union control *ctrl_icon(struct controlset *, intorptr helpctx, intorptr context
 
 // Should be somewhere below, but this is easier
 void dlg_icon_set(union control *ctrl, void *dlg, char const *icon);
-int dlg_pick_icon(void *dlg, char **iname, int inamesize, DWORD *iindex);
 
 /*
  * Routines the platform-independent dialog code can call to read

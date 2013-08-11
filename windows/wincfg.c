@@ -11,6 +11,8 @@
 #include "storage.h"
 #include "urlhack.h"
 
+int dlg_pick_icon(void *dlg, char **iname, int inamesize, DWORD *iindex);
+
 enum {
     CHILD_KEYGEN,
     CHILD_AGENT,
