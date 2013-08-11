@@ -35,7 +35,7 @@ static void c_write(Adb adb, char *buf, int len)
 }
 
 static void adb_log(Plug plug, int type, SockAddr addr, int port,
-		    const char *error_msg, int error_code)
+                    const char *error_msg, int error_code)
 {
     Adb adb = (Adb) plug;
     char addrbuf[256], *msg;
@@ -43,68 +43,68 @@ static void adb_log(Plug plug, int type, SockAddr addr, int port,
     sk_getaddr(addr, addrbuf, lenof(addrbuf));
 
     if (type == 0)
-	msg = dupprintf("Connecting to %s port %d", addrbuf, port);
+        msg = dupprintf("Connecting to %s port %d", addrbuf, port);
     else
-	msg = dupprintf("Failed to connect to %s: %s", addrbuf, error_msg);
+        msg = dupprintf("Failed to connect to %s: %s", addrbuf, error_msg);
 
     logevent(adb->frontend, msg);
 }
 
 static int adb_closing(Plug plug, const char *error_msg, int error_code,
-		       int calling_back)
+                       int calling_back)
 {
     Adb adb = (Adb) plug;
 
     if (adb->s) {
         sk_close(adb->s);
         adb->s = NULL;
-	notify_remote_exit(adb->frontend);
+        notify_remote_exit(adb->frontend);
     }
     if (error_msg) {
-	/* A socket error has occurred. */
-	logevent(adb->frontend, error_msg);
-	connection_fatal(adb->frontend, "%s", error_msg);
-    }				       /* Otherwise, the remote side closed the connection normally. */
+        /* A socket error has occurred. */
+        logevent(adb->frontend, error_msg);
+        connection_fatal(adb->frontend, "%s", error_msg);
+    } /* Otherwise, the remote side closed the connection normally. */
     return 0;
 }
 
 static int adb_receive(Plug plug, int urgent, char *data, int len)
 {
     Adb adb = (Adb) plug;
-	if (adb->state==1) {
-		if (data[0]=='O') { // OKAY
-			sk_write(adb->s,"0006shell:",10);
-			adb->state=2; // wait for shell start response
-		} else {
-			if (data[0]=='F') {
-				char* d = (char*)smalloc(len+1);
-				memcpy(d,data,len);
-				d[len]='\0';
-				connection_fatal(adb->frontend, "adb failure message: '%s'", d+8);
-				sfree(d);
-			} else {
-				connection_fatal(adb->frontend, "Bad response");
-			}
-			return 0;
-		}
-	} else if (adb->state==2) {
-		if (data[0]=='O') { //OKAY
-			adb->state=3; // shell started, switch to terminal mode
-		} else {
-			if (data[0]=='F') {
-				char* d = (char*)smalloc(len+1);
-				memcpy(d,data,len);
-				d[len]='\0';
-				connection_fatal(adb->frontend, "%s", d+8);
-				sfree(d);
-			} else {
-				connection_fatal(adb->frontend, "Bad response");
-			}
-			return 0;
-		}
-	} else {
-		c_write(adb, data, len);
-	}
+    if (adb->state==1) {
+        if (data[0]=='O') { // OKAY
+            sk_write(adb->s,"0006shell:",10);
+            adb->state=2; // wait for shell start response
+        } else {
+            if (data[0]=='F') {
+                char* d = (char*)smalloc(len+1);
+                memcpy(d,data,len);
+                d[len]='\0';
+                connection_fatal(adb->frontend, "adb failure message: '%s'", d+8);
+                sfree(d);
+            } else {
+                connection_fatal(adb->frontend, "Bad response");
+            }
+            return 0;
+        }
+    } else if (adb->state==2) {
+        if (data[0]=='O') { //OKAY
+            adb->state=3; // shell started, switch to terminal mode
+        } else {
+            if (data[0]=='F') {
+                char* d = (char*)smalloc(len+1);
+                memcpy(d,data,len);
+                d[len]='\0';
+                connection_fatal(adb->frontend, "%s", d+8);
+                sfree(d);
+            } else {
+                connection_fatal(adb->frontend, "Bad response");
+            }
+            return 0;
+        }
+    } else {
+        c_write(adb, data, len);
+    }
     return 1;
 }
 
@@ -123,16 +123,16 @@ static void adb_sent(Plug plug, int bufsize)
  * freed by the caller.
  */
 static const char *adb_init(void *frontend_handle, void **backend_handle,
-			    Conf *conf,
-			    char *host, int port, char **realhost, int nodelay,
-			    int keepalive)
+                            Conf *conf,
+                            char *host, int port, char **realhost, int nodelay,
+                            int keepalive)
 {
     static const struct plug_function_table fn_table = {
-	adb_log,
-	adb_closing,
-	adb_receive,
-	adb_sent,
-	NULL
+        adb_log,
+        adb_closing,
+        adb_receive,
+        adb_sent,
+        NULL
     };
     SockAddr addr;
     const char *err;
@@ -141,7 +141,7 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
     adb = snew(struct adb_backend_data);
     adb->fn = &fn_table;
     adb->s = NULL;
-	adb->state = 0;
+    adb->state = 0;
     *backend_handle = adb;
 
     adb->frontend = frontend_handle;
@@ -150,44 +150,44 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
      * Try to find host.
      */
     {
-	char *buf;
-	buf = dupprintf("Looking up host \"%s\"%s", "localhost",
-			(conf_get_int(conf, CONF_addressfamily) == ADDRTYPE_IPV4 ? " (IPv4)" :
-			 (conf_get_int(conf, CONF_addressfamily) == ADDRTYPE_IPV6 ? " (IPv6)" :
-			  "")));
-	logevent(adb->frontend, buf);
-	sfree(buf);
+        char *buf;
+        buf = dupprintf("Looking up host \"%s\"%s", "localhost",
+                (conf_get_int(conf, CONF_addressfamily) == ADDRTYPE_IPV4 ? " (IPv4)" :
+                 (conf_get_int(conf, CONF_addressfamily) == ADDRTYPE_IPV6 ? " (IPv6)" :
+                  "")));
+        logevent(adb->frontend, buf);
+        sfree(buf);
     }
     addr = name_lookup("localhost", port, realhost, conf, conf_get_int(conf, CONF_addressfamily));
     if ((err = sk_addr_error(addr)) != NULL) {
-	sk_addr_free(addr);
-	return err;
+        sk_addr_free(addr);
+        return err;
     }
 
     if (port < 0)
-	port = 5037;		       /* default adb port */
+        port = 5037; /* default adb port */
 
     /*
      * Open socket.
      */
     adb->s = new_connection(addr, *realhost, port, 0, 1, nodelay, keepalive,
-			    (Plug) adb, conf);
+                            (Plug) adb, conf);
     if ((err = sk_socket_error(adb->s)) != NULL)
-	return err;
+        return err;
     if (*conf_get_str(conf, CONF_loghost)) {
-	char *colon;
+        char *colon;
 
-	sfree(*realhost);
-	*realhost = conf_get_str(conf, CONF_loghost);
-	colon = strrchr(*realhost, ':');
-	if (colon) {
-	    /*
-	     * FIXME: if we ever update this aspect of ssh.c for
-	     * IPv6 literal management, this should change in line
-	     * with it.
-	     */
-	    *colon++ = '\0';
-	}
+        sfree(*realhost);
+        *realhost = conf_get_str(conf, CONF_loghost);
+        colon = strrchr(*realhost, ':');
+        if (colon) {
+            /*
+             * FIXME: if we ever update this aspect of ssh.c for
+             * IPv6 literal management, this should change in line
+             * with it.
+             */
+            *colon++ = '\0';
+        }
     }
 
     /* send initial data to adb server */
@@ -196,22 +196,22 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
 #define ADB_SHELL_SERIAL_PREFIX "host:transport:"
 #define ADB_SHELL_SERIAL_PREFIX_LEN (sizeof(ADB_SHELL_SERIAL_PREFIX)-1)
     do {
-	size_t len = strlen(host);
-	if (len == 0) {
-	    sk_write(adb->s, ADB_SHELL_DEFAULT_STR, ADB_SHELL_DEFAULT_STR_LEN);
-	    sk_flush(adb->s);
-	    adb->state = 1;
-	} else {
-	    char sendbuf[512];
-#define ADB_SHELL_HOST_MAX_LEN (sizeof(sendbuf)-4-ADB_SHELL_SERIAL_PREFIX_LEN)
-	    if (len > ADB_SHELL_HOST_MAX_LEN)
-		len = ADB_SHELL_HOST_MAX_LEN;
-	    sprintf(sendbuf,"%04lx" ADB_SHELL_SERIAL_PREFIX, len+ADB_SHELL_SERIAL_PREFIX_LEN);
-	    memcpy(sendbuf+4+ADB_SHELL_SERIAL_PREFIX_LEN, host, len);
-	    sk_write(adb->s,sendbuf,len+4+ADB_SHELL_SERIAL_PREFIX_LEN);
-	    sk_flush(adb->s);
-	    adb->state = 1;
-	}
+        size_t len = strlen(host);
+        if (len == 0) {
+            sk_write(adb->s, ADB_SHELL_DEFAULT_STR, ADB_SHELL_DEFAULT_STR_LEN);
+            sk_flush(adb->s);
+            adb->state = 1;
+        } else {
+            char sendbuf[512];
+#           define ADB_SHELL_HOST_MAX_LEN (sizeof(sendbuf)-4-ADB_SHELL_SERIAL_PREFIX_LEN)
+            if (len > ADB_SHELL_HOST_MAX_LEN)
+                len = ADB_SHELL_HOST_MAX_LEN;
+            sprintf(sendbuf,"%04lx" ADB_SHELL_SERIAL_PREFIX, len+ADB_SHELL_SERIAL_PREFIX_LEN);
+            memcpy(sendbuf+4+ADB_SHELL_SERIAL_PREFIX_LEN, host, len);
+            sk_write(adb->s,sendbuf,len+4+ADB_SHELL_SERIAL_PREFIX_LEN);
+            sk_flush(adb->s);
+            adb->state = 1;
+        }
     } while (0);
     return NULL;
 }
@@ -221,7 +221,7 @@ static void adb_free(void *handle)
     Adb adb = (Adb) handle;
 
     if (adb->s)
-	sk_close(adb->s);
+        sk_close(adb->s);
     sfree(adb);
 }
 
@@ -240,7 +240,7 @@ static int adb_send(void *handle, char *buf, int len)
     Adb adb = (Adb) handle;
 
     if (adb->s == NULL)
-	return 0;
+        return 0;
 
     adb->bufsize = sk_write(adb->s, buf, len);
 

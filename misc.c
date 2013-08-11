@@ -332,16 +332,16 @@ char *fgetline(FILE *fp)
     char *ret = snewn(512, char);
     size_t size = 512, len = 0;
     while (fgets(ret + len, size - len, fp)) {
-	len += strlen(ret + len);
-	if (ret[len-1] == '\n')
-	    break;		       /* got a newline, we're done */
-	size = len + 512;
+        len += strlen(ret + len);
+        if (ret[len-1] == '\n')
+            break; /* got a newline, we're done */
+        size = len + 512;
         assert(size < INT_MAX);
-	ret = sresize(ret, size, char);
+        ret = sresize(ret, size, char);
     }
-    if (len == 0) {		       /* first fgets returned NULL */
-	sfree(ret);
-	return NULL;
+    if (len == 0) { /* first fgets returned NULL */
+        sfree(ret);
+        return NULL;
     }
     ret[len] = '\0';
     return ret;
@@ -700,7 +700,7 @@ int conf_launchable(Conf *conf)
     if (conf_get_int(conf, CONF_protocol) == PROT_SERIAL)
 	return conf_get_str(conf, CONF_serline)[0] != 0;
     else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
-    	return conf_get_str(conf, CONF_cygcmd)[0] != 0;
+        return conf_get_str(conf, CONF_cygcmd)[0] != 0;
     else
 	return conf_get_str(conf, CONF_host)[0] != 0;
 }
@@ -710,7 +710,7 @@ char const *conf_dest(Conf *conf)
     if (conf_get_int(conf, CONF_protocol) == PROT_SERIAL)
 	return conf_get_str(conf, CONF_serline);
     else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
-	return conf_get_str(conf, CONF_cygcmd);
+        return conf_get_str(conf, CONF_cygcmd);
     else
 	return conf_get_str(conf, CONF_host);
 }

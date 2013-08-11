@@ -180,9 +180,9 @@ static void config_host_handler(union control *ctrl, void *dlg,
 	     */
 	    dlg_label_change(ctrl, dlg, "Serial line");
 	    dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_serline));
-	} else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
-	    dlg_label_change(ctrl, dlg, "Command (use - for login shell)");
-	    dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_cygcmd));
+        } else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
+            dlg_label_change(ctrl, dlg, "Command (use - for login shell)");
+            dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_cygcmd));
 	} else {
 	    dlg_label_change(ctrl, dlg, HOST_BOX_TITLE);
 	    dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_host));
@@ -191,8 +191,8 @@ static void config_host_handler(union control *ctrl, void *dlg,
 	char *s = dlg_editbox_get(ctrl, dlg);
 	if (conf_get_int(conf, CONF_protocol) == PROT_SERIAL)
 	    conf_set_str(conf, CONF_serline, s);
-	else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
-	    conf_set_str(conf, CONF_cygcmd, s);
+        else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
+            conf_set_str(conf, CONF_cygcmd, s);
 	else
 	    conf_set_str(conf, CONF_host, s);
 	sfree(s);
@@ -218,9 +218,9 @@ static void config_port_handler(union control *ctrl, void *dlg,
 	     */
 	    dlg_label_change(ctrl, dlg, "Speed");
 	    sprintf(buf, "%d", conf_get_int(conf, CONF_serspeed));
-	} else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
-	    dlg_label_change(ctrl, dlg, "Port (ignored)");
-	    strcpy(buf, "-");
+        } else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
+            dlg_label_change(ctrl, dlg, "Port (ignored)");
+            strcpy(buf, "-");
 	} else {
 	    dlg_label_change(ctrl, dlg, PORT_BOX_TITLE);
 	    if (conf_get_int(conf, CONF_port) != 0)
@@ -237,8 +237,8 @@ static void config_port_handler(union control *ctrl, void *dlg,
 
 	if (conf_get_int(conf, CONF_protocol) == PROT_SERIAL)
 	    conf_set_int(conf, CONF_serspeed, i);
-	else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
-	    ;
+        else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
+            ;
 	else
 	    conf_set_int(conf, CONF_port, i);
     }
@@ -730,12 +730,8 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
                     sfree(errmsg);
                 }
             }
-	    /*
-             * HACK: PuttyTray / PuTTY File
-             * Added storagetype to get_sesslist
-             */
-	    get_sesslist(&ssd->sesslist, FALSE, conf_get_int(conf, CONF_session_storagetype));
-	    get_sesslist(&ssd->sesslist, TRUE, conf_get_int(conf, CONF_session_storagetype));
+            get_sesslist(&ssd->sesslist, FALSE, conf_get_int(conf, CONF_session_storagetype));
+            get_sesslist(&ssd->sesslist, TRUE, conf_get_int(conf, CONF_session_storagetype));
 
 	    dlg_refresh(ssd->editbox, dlg);
 	    dlg_refresh(ssd->listbox, dlg);
@@ -1279,7 +1275,7 @@ static void portfwd_handler(union control *ctrl, void *dlg,
 }
 
 void setup_config_box(struct controlbox *b, int midsession,
-		      int protocol, int protcfginfo, int session_storagetype) // HACK: PuttyTray / PuTTY File - Added 'int session_storagetype'
+                     int protocol, int protcfginfo, int session_storagetype)
 {
     struct controlset *s;
     struct sessionsaver_data *ssd;
@@ -1350,7 +1346,7 @@ void setup_config_box(struct controlbox *b, int midsession,
 			      HELPCTX(session_hostname),
 			      config_protocolbuttons_handler, P(hp),
 			      "Raw", 'w', I(PROT_RAW),
-			      "Adb", 'a', I(PROT_ADB),
+                              "Adb", 'a', I(PROT_ADB),
 			      "Telnet", 't', I(PROT_TELNET),
 			      "Rlogin", 'i', I(PROT_RLOGIN),
 			      NULL);
@@ -1359,7 +1355,7 @@ void setup_config_box(struct controlbox *b, int midsession,
 			      HELPCTX(session_hostname),
 			      config_protocolbuttons_handler, P(hp),
 			      "Raw", 'w', I(PROT_RAW),
-			      "Adb", 'b', I(PROT_ADB),
+                              "Adb", 'b', I(PROT_ADB),
 			      "Telnet", 't', I(PROT_TELNET),
 			      "Rlogin", 'i', I(PROT_RLOGIN),
 			      "SSH", 's', I(PROT_SSH),
@@ -1379,8 +1375,8 @@ void setup_config_box(struct controlbox *b, int midsession,
     current_storagetype = get_sesslist(&ssd->sesslist, TRUE, session_storagetype + (midsession ? 0 : 2));
 
     ssd->editbox = ctrl_editbox(s, "Saved Sessions", 'e', 100,
-				HELPCTX(session_saved),
-				sessionsaver_handler, P(ssd), P(NULL));
+                                HELPCTX(session_saved),
+                                sessionsaver_handler, P(ssd), P(NULL));
     ssd->editbox->generic.column = 0;
     /* Reset columns so that the buttons are alongside the list, rather
      * than alongside that edit box. */
@@ -1429,15 +1425,15 @@ void setup_config_box(struct controlbox *b, int midsession,
      * In midsession, changing causes it to be reversed again (wrong). So don't.
      */
     if (midsession || current_storagetype == 0) {
-	c = ctrl_radiobuttons(s, NULL, 'f', 2,
-			    HELPCTX(no_help),
-			    storagetype_handler,
-			    P(ssd), "Sessions from registry", I(0), "Sessions from file", I(1), NULL);
+        c = ctrl_radiobuttons(s, NULL, 'f', 2,
+                            HELPCTX(no_help),
+                            storagetype_handler,
+                            P(ssd), "Sessions from registry", I(0), "Sessions from file", I(1), NULL);
     } else {
-	c = ctrl_radiobuttons(s, NULL, 'f', 2,
-			    HELPCTX(no_help),
-			    storagetype_handler,
-			    P(ssd), "Sessions from file", I(1), "Sessions from registry", I(0), NULL);
+        c = ctrl_radiobuttons(s, NULL, 'f', 2,
+                            HELPCTX(no_help),
+                            storagetype_handler,
+                            P(ssd), "Sessions from file", I(1), "Sessions from registry", I(0), NULL);
     }
     /** HACK: END **/
 
@@ -1580,8 +1576,8 @@ void setup_config_box(struct controlbox *b, int midsession,
 		      conf_radiobutton_handler,
 		      I(CONF_funky_type),
 		      "ESC[n~", I(0), "Linux", I(1), "Xterm R6", I(2),
-		      "VT400", I(3), "VT100+", I(4), "SCO", I(5), 
-		      "4690", I(6), NULL);
+                      "VT400", I(3), "VT100+", I(4), "SCO", I(5), 
+                      "4690", I(6), NULL);
 
     s = ctrl_getset(b, "Terminal/Keyboard", "appkeypad",
 		    "Application keypad settings:");
@@ -1822,8 +1818,8 @@ void setup_config_box(struct controlbox *b, int midsession,
 
     /* url-cut */
     ctrl_checkbox(s, "Detect URLs on selection and launch in browser", 'u',
-		  HELPCTX(selection_shiftdrag),
-		  conf_checkbox_handler, I(CONF_copy_clipbd_url_reg));
+                  HELPCTX(selection_shiftdrag),
+                  conf_checkbox_handler, I(CONF_copy_clipbd_url_reg));
 
     ctrl_radiobuttons(s,
 		      "Default selection mode (Alt+drag does the other one):",
@@ -1977,7 +1973,7 @@ void setup_config_box(struct controlbox *b, int midsession,
 				  conf_radiobutton_handler,
 				  I(CONF_username_from_env),
 				  "Prompt", I(FALSE),
-				  "Use system username", I(TRUE),
+                                  "Use system username", I(TRUE),
 				  NULL);
 	    }
 

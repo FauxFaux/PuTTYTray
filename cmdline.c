@@ -174,10 +174,10 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
     }
 
     if (!strcmp(p, "-loadfile") || !strcmp(p, "-file") || !strcmp(p, "-fileload")) {
-	RETURN(2);
-	do_defaults_file(value, conf);
-	loaded_session = TRUE;
-	return 2;
+        RETURN(2);
+        do_defaults_file(value, conf);
+        loaded_session = TRUE;
+        return 2;
     }
 
     if (!strcmp(p, "-ssh")) {
@@ -218,11 +218,11 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
 	conf_set_int(conf, CONF_protocol, default_protocol);
     }
     if (!strcmp(p, "-adb")) {
-	RETURN(1);
-	UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
-	SAVEABLE(0);
-	default_protocol = PROT_ADB;
-	conf_set_int(conf, CONF_protocol, default_protocol);
+        RETURN(1);
+        UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+        SAVEABLE(0);
+        default_protocol = PROT_ADB;
+        conf_set_int(conf, CONF_protocol, default_protocol);
     }    
     if (!strcmp(p, "-serial")) {
 	RETURN(1);
@@ -236,11 +236,11 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
 	conf_set_str(conf, CONF_serline, conf_get_str(conf, CONF_host));
     }
     if (!strcmp(p, "-cygterm")) {
-	RETURN(1);
-	UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
-	default_protocol = PROT_CYGTERM;
-	conf_set_int(conf, CONF_protocol, default_protocol);
-	return 1;
+        RETURN(1);
+        UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+        default_protocol = PROT_CYGTERM;
+        conf_set_int(conf, CONF_protocol, default_protocol);
+        return 1;
     }
     if (!strcmp(p, "-v")) {
 	RETURN(1);
@@ -336,7 +336,7 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
     }
     if (!strcmp(p, "-m")) {
 	char *filename, *command;
-	size_t cmdlen, cmdsize;
+        size_t cmdlen, cmdsize;
 	FILE *fp;
 	int c, d;
 
@@ -362,7 +362,7 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
 		cmdsize = cmdlen + 512;
 		command = sresize(command, cmdsize, char);
 	    }
-	    command[cmdlen++] = (char)d;
+            command[cmdlen++] = (char)d;
 	} while (c != EOF);
 	fclose(fp);
 	conf_set_str(conf, CONF_remote_cmd, command);
@@ -506,13 +506,13 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
 	/* Value[0] contains one or more , separated values, like 19200,8,n,1,X */
 	nextitem = value;
 	while (nextitem[0] != '\0') {
-	    size_t length, skip;
+            size_t length, skip;
 	    char *end = strchr(nextitem, ',');
 	    if (!end) {
 		length = strlen(nextitem);
 		skip = 0;
 	    } else {
-		length = (size_t)(end - nextitem);
+                length = (size_t)(end - nextitem);
 		nextitem[length] = '\0';
 		skip = 1;
 	    }

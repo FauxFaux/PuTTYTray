@@ -258,7 +258,7 @@ sub mfval($) {
     # Returns true if the argument is a known makefile type. Otherwise,
     # prints a warning and returns false;
     if (grep { $type eq $_ }
-	("vc","vcproj","vcproj2010","cygwin","borland","lcc","devcppproj","gtk","unix",
+        ("vc","vcproj","vcproj2010","cygwin","borland","lcc","devcppproj","gtk","unix",
 	 "am","osx",)) {
 	    return 1;
 	}
@@ -685,7 +685,7 @@ if (defined $makefiles{'vc'}) {
         print &splitline(sprintf("%s: %s", $d->{obj},
                                  join " ", @$extradeps, @{$d->{deps}})), "\n";
         if ($d->{obj} =~ /.obj$/) {
-	    print "\t\@cl \$(COMPAT) \$(CFLAGS) \$(XFLAGS) /c ".$d->{deps}->[0],"\n\n";
+            print "\t\@cl \$(COMPAT) \$(CFLAGS) \$(XFLAGS) /c ".$d->{deps}->[0],"\n\n";
 	} else {
 	    print "\trc \$(RCFL) -r \$(RCFLAGS) ".$d->{deps}->[0],"\n\n";
 	}
@@ -1050,52 +1050,52 @@ if (defined $makefiles{'vcproj2010'}) {
     chdir $orig_dir;
 
     sub create_vc2010_project {
-    	my ($all_object_deps, $progname) = @_;
+        my ($all_object_deps, $progname) = @_;
         ($windows_project, $type) = split ",", $progname;
-    	# Construct program's dependency info
-    	%seen_objects = ();
-    	%lib_files = ();
-    	%source_files = ();
-    	%header_files = ();
-    	%resource_files = ();
-    	@object_files = split " ", &objects($progname, "X.obj", "X.res", "X.lib");
-    	foreach $object_file (@object_files) {
-	    next if defined $seen_objects{$object_file};
-	    $seen_objects{$object_file} = 1;
-	    if($object_file =~ /\.lib$/io) {
-		$lib_files{$object_file} = 1;
-		next;
-	    }
-	    $object_deps = $all_object_deps{$object_file};
-	    foreach $object_dep (@$object_deps) {
-		if($object_dep =~ /\.c$/io) {
-		    $source_files{$object_dep} = 1;
-		    next;
-		}
-		if($object_dep =~ /\.h$/io) {
-		    $header_files{$object_dep} = 1;
-		    next;
-		}
-		if($object_dep =~ /\.(rc|ico)$/io) {
-		    $resource_files{$object_dep} = 1;
-		    next;
-		}
-	    }
-    	}
-    	$libs = join " ", sort keys %lib_files;
-    	@source_files = sort keys %source_files;
-    	@header_files = sort keys %header_files;
-    	@resources = sort keys %resource_files;
-	($windows_project, $type) = split ",", $progname;
-    	mkdir $windows_project
-	    if(! -d $windows_project);
-    	chdir $windows_project;
-	$subsys = ($type eq "G") ? "windows" : "console";
-    	open OUT, ">$windows_project.vcxproj"; binmode OUT; select OUT;
+        # Construct program's dependency info
+        %seen_objects = ();
+        %lib_files = ();
+        %source_files = ();
+        %header_files = ();
+        %resource_files = ();
+        @object_files = split " ", &objects($progname, "X.obj", "X.res", "X.lib");
+        foreach $object_file (@object_files) {
+            next if defined $seen_objects{$object_file};
+            $seen_objects{$object_file} = 1;
+            if($object_file =~ /\.lib$/io) {
+                $lib_files{$object_file} = 1;
+                next;
+            }
+            $object_deps = $all_object_deps{$object_file};
+            foreach $object_dep (@$object_deps) {
+                if($object_dep =~ /\.c$/io) {
+                    $source_files{$object_dep} = 1;
+                    next;
+                }
+                if($object_dep =~ /\.h$/io) {
+                    $header_files{$object_dep} = 1;
+                    next;
+                }
+                if($object_dep =~ /\.(rc|ico)$/io) {
+                    $resource_files{$object_dep} = 1;
+                    next;
+                }
+            }
+        }
+        $libs = join " ", sort keys %lib_files;
+        @source_files = sort keys %source_files;
+        @header_files = sort keys %header_files;
+        @resources = sort keys %resource_files;
+        ($windows_project, $type) = split ",", $progname;
+        mkdir $windows_project
+            if(! -d $windows_project);
+        chdir $windows_project;
+        $subsys = ($type eq "G") ? "windows" : "console";
+        open OUT, ">$windows_project.vcxproj"; binmode OUT; select OUT;
         syswrite(OUT,chr(0xEF));
         syswrite(OUT,chr(0xBB));
         syswrite(OUT,chr(0xBF));
-    	print
+        print
         "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n".
         "<Project DefaultTargets=\"Build\" ToolsVersion=\"4.0\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">\r\n".
         "  <ItemGroup Label=\"ProjectConfigurations\">\r\n".
@@ -1110,32 +1110,32 @@ if (defined $makefiles{'vcproj2010'}) {
         "  </ItemGroup>\r\n".
         "  <ItemGroup>\r\n";
         foreach $source_file (@source_files) {
-	    print
+            print
               "    <ClCompile Include=\"..\\..\\" . $source_file . "\"";
-	    if($source_file =~ /ssh\.c/io) {
-		# Disable 'Edit and continue' as Visual Studio can't handle the macros
-		print
-		  ">\r\n".
+            if($source_file =~ /ssh\.c/io) {
+                # Disable 'Edit and continue' as Visual Studio can't handle the macros
+                print
+                  ">\r\n".
                   "      <DebugInformationFormat Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|Win32'\">ProgramDatabase</DebugInformationFormat>\r\n".
                   "    </ClCompile>\r\n";
-	    } else {
+            } else {
                 print " />\r\n";
             }
-    	}
-    	print
+        }
+        print
         "  </ItemGroup>\r\n".
         "  <ItemGroup>\r\n";
-    	foreach $header_file (@header_files) {
-	    print
+        foreach $header_file (@header_files) {
+            print
               "    <ClInclude Include=\"..\\..\\" . $header_file. "\" />\r\n";
-	}
-    	print
+        }
+        print
         "  </ItemGroup>\r\n".
         "  <ItemGroup>\r\n";
-    	foreach $resource_file (@resources) {
-	    print
+        foreach $resource_file (@resources) {
+            print
               "    <None Include=\"..\\..\\" . $resource_file . "\" />\r\n";
-	}
+        }
 
         print
         "  </ItemGroup>\r\n".

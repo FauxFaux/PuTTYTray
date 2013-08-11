@@ -36,12 +36,7 @@ enum {
     CTRL_FILESELECT,		       /* label plus filename selector */
     CTRL_FONTSELECT,		       /* label plus font selector */
     CTRL_TABDELAY,		       /* see `tabdelay' below */
-
-	/*
-	 * HACK: PuttyTray / Session Icon
-	 * Add ctrl_icon, ctrl_path, ctrl_sessionlistbox
-	 */ 
-    CTRL_ICON					/* static icon without label */
+    CTRL_ICON                          /* static icon without label */
 };
 
 /*
@@ -411,14 +406,10 @@ union control {
 	char shortcut;
     } fontselect;
 
-	/*
-	 * HACK: PuttyTray / Session Icon
-	 */ 
     struct {
-		STANDARD_PREFIX;
-		intorptr handle;
+        STANDARD_PREFIX;
+        intorptr handle;
     } icon;
-	//--------------
 };
 
 #undef STANDARD_PREFIX
