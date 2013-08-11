@@ -338,6 +338,7 @@ char *fgetline(FILE *fp)
         size = len + 512;
         assert(size < INT_MAX);
         ret = sresize(ret, size, char);
+        assert(ret);
     }
     if (len == 0) { /* first fgets returned NULL */
         sfree(ret);
@@ -570,6 +571,7 @@ void *safemalloc(size_t n, size_t size)
     if (fp)
 	fprintf(fp, "malloc(%d) returns %p\n", size, p);
 #endif
+    assert(p);
     return p;
 }
 
@@ -612,6 +614,7 @@ void *saferealloc(void *ptr, size_t n, size_t size)
     if (fp)
 	fprintf(fp, "realloc(%p,%d) returns %p\n", ptr, size, p);
 #endif
+    assert(p);
     return p;
 }
 

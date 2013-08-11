@@ -1136,6 +1136,7 @@ int get_sesslist(struct sesslist *list, int allocate, int storagetype) // HACK: 
 			bufsize = buflen + len + 2048;
 			list->buffer = sresize(list->buffer, bufsize, char);
 		    }
+                    assert(list->buffer);
 		    strcpy(list->buffer + buflen, otherbuf);
 		    buflen += strlen(list->buffer + buflen) + 1;
 		}
@@ -1164,6 +1165,7 @@ int get_sesslist(struct sesslist *list, int allocate, int storagetype) // HACK: 
 		            bufsize = buflen + len + 2048;
 		            list->buffer = sresize(list->buffer, bufsize, char);
 		        }
+                        assert(list->buffer);
 		        strcpy(list->buffer + buflen, otherbuf);
 		        buflen += strlen(list->buffer + buflen) + 1;
 		    }

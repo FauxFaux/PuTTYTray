@@ -427,6 +427,7 @@ static void *dss_createkey(unsigned char *pub_blob, int pub_len,
      */
     hashlen = -1;
     getstring(&pb, &priv_len, &hash, &hashlen);
+    assert(hash);
     if (hashlen == 20) {
 	SHA_Init(&s);
 	sha_mpint(&s, dss->p);

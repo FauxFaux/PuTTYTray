@@ -141,7 +141,6 @@ static int loadrsakey_main(FILE * fp, struct RSAKey *key, int pub_only,
     i += j;
     j = ssh1_read_bignum(buf + i, len - i, &key->p);
     if (j < 0) goto end;
-    i += j;
 
     if (!rsa_verify(key)) {
 	*error = "rsa_verify failed";

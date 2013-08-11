@@ -611,7 +611,7 @@ int main(int argc, char **argv)
     struct winsize size;
 
     fdlist = NULL;
-    fdcount = fdsize = 0;
+    fdsize = 0;
     /*
      * Initialise port and protocol to sensible defaults. (These
      * will be overridden by more or less anything.)
@@ -1014,6 +1014,7 @@ int main(int argc, char **argv)
 	if (i > fdsize) {
 	    fdsize = i + 16;
 	    fdlist = sresize(fdlist, fdsize, int);
+            assert(fdlist);
 	}
 
 	/*

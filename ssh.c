@@ -4878,6 +4878,7 @@ static void ssh1_msg_port_open(Ssh ssh, struct Packet *pktin)
 
     remoteid = ssh_pkt_getuint32(pktin);
     ssh_pkt_getstring(pktin, &host, &hostsize);
+    assert(host);
     port = ssh_pkt_getuint32(pktin);
 
     if (hostsize >= lenof(pf.dhost))
@@ -7182,6 +7183,7 @@ static void ssh2_msg_channel_request(Ssh ssh, struct Packet *pktin)
     if (!c)
 	return;
     ssh_pkt_getstring(pktin, &type, &typelen);
+    assert(type);
     want_reply = ssh2_pkt_getbool(pktin);
 
     /*
@@ -7260,6 +7262,7 @@ static void ssh2_msg_channel_request(Ssh ssh, struct Packet *pktin)
 		    char *sig;
 		    int siglen;
 		    ssh_pkt_getstring(pktin, &sig, &siglen);
+                    assert(sig);
 		    /* Signal name isn't supposed to be blank, but
 		     * let's cope gracefully if it is. */
 		    if (siglen) {
@@ -7386,6 +7389,7 @@ static void ssh2_msg_channel_open(Ssh ssh, struct Packet *pktin)
     struct Packet *pktout;
 
     ssh_pkt_getstring(pktin, &type, &typelen);
+    assert(type);
     c = snew(struct ssh_channel);
     c->ssh = ssh;
 
@@ -7398,6 +7402,7 @@ static void ssh2_msg_channel_open(Ssh ssh, struct Packet *pktin)
 	const char *x11err;
 
 	ssh_pkt_getstring(pktin, &peeraddr, &peeraddrlen);
+        assert(peeraddr);
 	addrstr = snewn(peeraddrlen+1, char);
 	memcpy(addrstr, peeraddr, peeraddrlen);
 	addrstr[peeraddrlen] = '\0';
