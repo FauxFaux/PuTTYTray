@@ -893,7 +893,7 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "AltMetabit", 0, conf, CONF_alt_metabit);
     gppi(sesskey, "ComposeKey", 0, conf, CONF_compose_key);
     gppi(sesskey, "CtrlAltKeys", 1, conf, CONF_ctrlaltkeys);
-    gppi(sesskey, "RightAltKey", 1, conf, CONF_rightaltkey);
+    gppi(sesskey, "RightAltKey", 0, conf, CONF_rightaltkey);
     gppi(sesskey, "TelnetKey", 0, conf, CONF_telnet_keyboard);
     gppi(sesskey, "TelnetRet", 1, conf, CONF_telnet_newline);
     gppi(sesskey, "LocalEcho", AUTO, conf, CONF_localecho);
