@@ -2151,7 +2151,7 @@ static Mouse_Button translate_button(Mouse_Button button)
     if (button == MBT_RIGHT)
         return conf_get_int(conf, CONF_mouse_is_xterm) == 1 || conf_get_int(conf, CONF_mouse_is_xterm) == 3 ?
             MBT_EXTEND : MBT_PASTE;
-    return MBT_EXTEND; /* shouldn't happen */
+    return 0;			       /* shouldn't happen */
 }
 
 static void show_mouseptr(int show)
