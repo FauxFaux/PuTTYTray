@@ -61,7 +61,7 @@ static HMENU systray_menu, session_menu;
 static int already_running;
 
 static char our_path[MAX_PATH];
-static char relaunch_path[MAX_PATH + 16];
+static char relaunch_path[MAX_PATH + 32];
 
 /* CWD for "add key" file requester. */
 static filereq *keypath = NULL;
@@ -2196,7 +2196,7 @@ int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     WNDCLASS wndclass;
     MSG msg;
     char *command = NULL;
-    int added_keys = 0;
+    int added_keys = 0, startup = FALSE;
     int argc, i;
     char **argv, **argstart;
 
@@ -2247,7 +2247,7 @@ int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     strcpy(relaunch_path, "\"");
     strcat(relaunch_path, our_path);
-    strcat(relaunch_path, "\" --as-agent");
+    strcat(relaunch_path, "\" --as-agent --startup");
 
     /*
      * Find out if Pageant is already running.
@@ -2288,6 +2288,8 @@ int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	    break;
         } else if (!strcmp(argv[i], "--confirm")) {
             confirm_mode = TRUE;
+        } else if (!strcmp(argv[i], "--startup")) {
+            startup = TRUE;
 	} else {
             Filename *fn = filename_from_str(argv[i]);
 	    add_keyfile(fn);
@@ -2390,7 +2392,8 @@ int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     ShowWindow(hwnd, SW_HIDE);
 
-    PostMessage(hwnd, WM_COMMAND, IDM_VIEWKEYS, 0);
+    if (!startup)
+        PostMessage(hwnd, WM_COMMAND, IDM_VIEWKEYS, 0);
 
     /*
      * Main message loop.
