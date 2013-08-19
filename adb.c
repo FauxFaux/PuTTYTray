@@ -233,7 +233,12 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
         adb->state = STATE_SENT_HELLO;
 
     do {
-        size_t len = strlen(host);
+        size_t len;
+        if (host[0] == ':')
+            ++host;
+
+        len = strlen(host);
+
         if (len == 0 || !strcmp("-a", host) || !strcmp(host, "transport-any")) {
             write_hello(ADB_SHELL_DEFAULT_STR, ADB_SHELL_DEFAULT_STR_LEN);
         } else if (!strcmp("-d", host) || !strcmp(host, "transport-usb")) {
