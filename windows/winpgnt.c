@@ -29,6 +29,7 @@
 
 #define WM_SYSTRAY   (WM_APP + 6)
 #define WM_SYSTRAY2  (WM_APP + 7)
+#define WM_SYSTRAY_LEFT_CLICK (WM_APP + 8)
 
 #define AGENT_COPYDATA_ID 0x804e50ba   /* random goop */
 
@@ -1907,10 +1908,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
         break;
         
       case WM_SYSTRAY:
-	if (lParam == WM_RBUTTONUP) {
+        if (lParam == WM_RBUTTONUP || lParam == WM_LBUTTONUP) {
 	    POINT cursorpos;
 	    GetCursorPos(&cursorpos);
-	    PostMessage(hwnd, WM_SYSTRAY2, cursorpos.x, cursorpos.y);
+	    PostMessage(hwnd,
+                lParam == WM_RBUTTONUP ? WM_SYSTRAY2 : WM_SYSTRAY_LEFT_CLICK,
+                cursorpos.x, cursorpos.y);
 	} else if (lParam == WM_LBUTTONDBLCLK) {
 	    /* Run the default menu item. */
 	    UINT menuitem = GetMenuDefaultItem(systray_menu, FALSE, 0);
@@ -1919,11 +1922,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	}
 	break;
       case WM_SYSTRAY2:
+      case WM_SYSTRAY_LEFT_CLICK:
 	if (!menuinprogress) {
 	    menuinprogress = 1;
 	    update_sessions();
 	    SetForegroundWindow(hwnd);
-	    ret = TrackPopupMenu(systray_menu,
+	    ret = TrackPopupMenu(
+                        message == WM_SYSTRAY_LEFT_CLICK ? session_menu : systray_menu,
 				 TPM_RIGHTALIGN | TPM_BOTTOMALIGN |
 				 TPM_RIGHTBUTTON,
 				 wParam, lParam, 0, hwnd, NULL);
