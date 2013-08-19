@@ -234,11 +234,11 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
 
     do {
         size_t len = strlen(host);
-        if (len == 0 || !strcmp("-a", host)) {
+        if (len == 0 || !strcmp("-a", host) || !strcmp(host, "transport-any")) {
             write_hello(ADB_SHELL_DEFAULT_STR, ADB_SHELL_DEFAULT_STR_LEN);
-        } else if (!strcmp("-d", host)) {
+        } else if (!strcmp("-d", host) || !strcmp(host, "transport-usb")) {
             write_hello(ADB_SHELL_USB_STR, ADB_SHELL_USB_STR_LEN);
-        } else if (!strcmp("-e", host)) {
+        } else if (!strcmp("-e", host) || !strcmp(host, "transport-local")) {
             write_hello(ADB_SHELL_LOCAL_STR, ADB_SHELL_LOCAL_STR_LEN);
         } else {
             char sendbuf[512];
