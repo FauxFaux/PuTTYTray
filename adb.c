@@ -16,13 +16,20 @@
 
 #define ADB_MAX_BACKLOG 4096
 
+typedef enum {
+    STATE_WARMING_UP,
+    STATE_SENT_HELLO,
+    STATE_ASKED_FOR_SHELL,
+    STATE_CONNECTED,
+} adb_state;
+
 typedef struct adb_backend_data {
     const struct plug_function_table *fn;
     /* the above field _must_ be first in the structure */
 
     Socket s;
     int bufsize;
-    int state;
+    adb_state state;
     void *frontend;
 } *Adb;
 
@@ -71,10 +78,10 @@ static int adb_closing(Plug plug, const char *error_msg, int error_code,
 static int adb_receive(Plug plug, int urgent, char *data, int len)
 {
     Adb adb = (Adb) plug;
-    if (adb->state==1) {
+    if (adb->state == STATE_SENT_HELLO) {
         if (data[0]=='O') { // OKAY
             sk_write(adb->s,"0006shell:",10);
-            adb->state=2; // wait for shell start response
+            adb->state = STATE_ASKED_FOR_SHELL; // wait for shell start response
         } else {
             if (data[0]=='F') {
                 char* d = (char*)smalloc(len+1);
@@ -83,13 +90,13 @@ static int adb_receive(Plug plug, int urgent, char *data, int len)
                 connection_fatal(adb->frontend, "adb failure message: '%s'", d+8);
                 sfree(d);
             } else {
-                connection_fatal(adb->frontend, "Bad response (state 1: initial sent)");
+                connection_fatal(adb->frontend, "Bad response after initial send");
             }
             return 0;
         }
-    } else if (adb->state==2) {
+    } else if (adb->state == STATE_ASKED_FOR_SHELL) {
         if (data[0]=='O') { //OKAY
-            adb->state=3; // shell started, switch to terminal mode
+            adb->state = STATE_CONNECTED; // shell started, switch to terminal mode
         } else {
             if (data[0]=='F') {
                 char* d = (char*)smalloc(len+1);
@@ -98,7 +105,7 @@ static int adb_receive(Plug plug, int urgent, char *data, int len)
                 connection_fatal(adb->frontend, "%s", d+8);
                 sfree(d);
             } else {
-                connection_fatal(adb->frontend, "Bad response (state 2: wait for shell start)");
+                connection_fatal(adb->frontend, "Bad response waiting for shell start");
             }
             return 0;
         }
@@ -141,7 +148,7 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
     adb = snew(struct adb_backend_data);
     adb->fn = &fn_table;
     adb->s = NULL;
-    adb->state = 0;
+    adb->state = STATE_WARMING_UP;
     *backend_handle = adb;
 
     adb->frontend = frontend_handle;
@@ -200,7 +207,7 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
         if (len == 0) {
             sk_write(adb->s, ADB_SHELL_DEFAULT_STR, ADB_SHELL_DEFAULT_STR_LEN);
             sk_flush(adb->s);
-            adb->state = 1;
+            adb->state = STATE_SENT_HELLO;
         } else {
             char sendbuf[512];
 #           define ADB_SHELL_HOST_MAX_LEN (sizeof(sendbuf)-4-ADB_SHELL_SERIAL_PREFIX_LEN)
@@ -210,7 +217,7 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
             memcpy(sendbuf+4+ADB_SHELL_SERIAL_PREFIX_LEN, host, len);
             sk_write(adb->s,sendbuf,len+4+ADB_SHELL_SERIAL_PREFIX_LEN);
             sk_flush(adb->s);
-            adb->state = 1;
+            adb->state = STATE_SENT_HELLO;
         }
     } while (0);
     return NULL;
