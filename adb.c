@@ -21,6 +21,7 @@ typedef enum {
     STATE_SENT_HELLO,
     STATE_ASKED_FOR_SHELL,
     STATE_CONNECTED,
+    STATE_WAITING_FOR_ERROR_MESSAGE,
 } adb_state;
 
 typedef struct adb_backend_data {
@@ -75,6 +76,31 @@ static int adb_closing(Plug plug, const char *error_msg, int error_code,
     return 0;
 }
 
+static void do_fatal(Adb adb, char *data, int len) {
+    char* d = (char*)smalloc(len+1);
+    memcpy(d, data, len);
+    d[len] = '\0';
+    connection_fatal(adb->frontend, "adb failure message: '%s'", d);
+    sfree(d);
+}
+
+/** the error might not be available when the error occurs; wait
+  * a bit for more data to show up then assume that's the error message.
+  */
+static void handle_fail(Adb adb, char *data, int len) {
+    // FAIL0003abc
+    char message_length_hex[5];
+    unsigned long expected;
+    memcpy(message_length_hex, data+4, 4);
+    message_length_hex[4] = 0;
+    expected = strtoul(message_length_hex, NULL, 16);
+
+    if (len == expected + 8)
+        do_fatal(adb, data+8, expected);
+    else
+        adb->state = STATE_WAITING_FOR_ERROR_MESSAGE;
+}
+
 static int adb_receive(Plug plug, int urgent, char *data, int len)
 {
     Adb adb = (Adb) plug;
@@ -83,12 +109,8 @@ static int adb_receive(Plug plug, int urgent, char *data, int len)
             sk_write(adb->s,"0006shell:",10);
             adb->state = STATE_ASKED_FOR_SHELL; // wait for shell start response
         } else {
-            if (data[0]=='F') {
-                char* d = (char*)smalloc(len+1);
-                memcpy(d,data,len);
-                d[len]='\0';
-                connection_fatal(adb->frontend, "adb failure message: '%s'", d+8);
-                sfree(d);
+             if (data[0]=='F') {
+                handle_fail(adb, data, len);
             } else {
                 connection_fatal(adb->frontend, "Bad response after initial send");
             }
@@ -99,16 +121,14 @@ static int adb_receive(Plug plug, int urgent, char *data, int len)
             adb->state = STATE_CONNECTED; // shell started, switch to terminal mode
         } else {
             if (data[0]=='F') {
-                char* d = (char*)smalloc(len+1);
-                memcpy(d,data,len);
-                d[len]='\0';
-                connection_fatal(adb->frontend, "%s", d+8);
-                sfree(d);
+                handle_fail(adb, data, len);
             } else {
                 connection_fatal(adb->frontend, "Bad response waiting for shell start");
             }
             return 0;
         }
+    } else if (adb->state == STATE_WAITING_FOR_ERROR_MESSAGE) {
+        do_fatal(adb, data, len);
     } else {
         c_write(adb, data, len);
     }
