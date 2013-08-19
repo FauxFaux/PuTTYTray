@@ -220,6 +220,10 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
     /* send initial data to adb server */
 #define ADB_SHELL_DEFAULT_STR "0012" "host:transport-any"
 #define ADB_SHELL_DEFAULT_STR_LEN (sizeof(ADB_SHELL_DEFAULT_STR)-1)
+#define ADB_SHELL_USB_STR "0012" "host:transport-usb"
+#define ADB_SHELL_USB_STR_LEN (sizeof(ADB_SHELL_USB_STR)-1)
+#define ADB_SHELL_LOCAL_STR "0015" "host:transport-local"
+#define ADB_SHELL_LOCAL_STR_LEN (sizeof(ADB_SHELL_LOCAL_STR)-1)
 #define ADB_SHELL_SERIAL_PREFIX "host:transport:"
 #define ADB_SHELL_SERIAL_PREFIX_LEN (sizeof(ADB_SHELL_SERIAL_PREFIX)-1)
 
@@ -230,8 +234,12 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
 
     do {
         size_t len = strlen(host);
-        if (len == 0) {
+        if (len == 0 || !strcmp("-a", host)) {
             write_hello(ADB_SHELL_DEFAULT_STR, ADB_SHELL_DEFAULT_STR_LEN);
+        } else if (!strcmp("-d", host)) {
+            write_hello(ADB_SHELL_USB_STR, ADB_SHELL_USB_STR_LEN);
+        } else if (!strcmp("-e", host)) {
+            write_hello(ADB_SHELL_LOCAL_STR, ADB_SHELL_LOCAL_STR_LEN);
         } else {
             char sendbuf[512];
 #           define ADB_SHELL_HOST_MAX_LEN (sizeof(sendbuf)-4-ADB_SHELL_SERIAL_PREFIX_LEN)

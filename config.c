@@ -183,6 +183,9 @@ static void config_host_handler(union control *ctrl, void *dlg,
         } else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
             dlg_label_change(ctrl, dlg, "Command (use - for login shell)");
             dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_cygcmd));
+        } else if (conf_get_int(conf, CONF_protocol) == PROT_ADB) {
+            dlg_label_change(ctrl, dlg, "-a: any, -d: usb, -e: emulator, or serial");
+            dlg_editbox_set(ctrl, dlg, "-a");
 	} else {
 	    dlg_label_change(ctrl, dlg, HOST_BOX_TITLE);
 	    dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_host));
