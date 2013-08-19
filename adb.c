@@ -222,12 +222,16 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
 #define ADB_SHELL_DEFAULT_STR_LEN (sizeof(ADB_SHELL_DEFAULT_STR)-1)
 #define ADB_SHELL_SERIAL_PREFIX "host:transport:"
 #define ADB_SHELL_SERIAL_PREFIX_LEN (sizeof(ADB_SHELL_SERIAL_PREFIX)-1)
+
+#   define write_hello(str, len) \
+        sk_write(adb->s, str, len); \
+        sk_flush(adb->s); \
+        adb->state = STATE_SENT_HELLO;
+
     do {
         size_t len = strlen(host);
         if (len == 0) {
-            sk_write(adb->s, ADB_SHELL_DEFAULT_STR, ADB_SHELL_DEFAULT_STR_LEN);
-            sk_flush(adb->s);
-            adb->state = STATE_SENT_HELLO;
+            write_hello(ADB_SHELL_DEFAULT_STR, ADB_SHELL_DEFAULT_STR_LEN);
         } else {
             char sendbuf[512];
 #           define ADB_SHELL_HOST_MAX_LEN (sizeof(sendbuf)-4-ADB_SHELL_SERIAL_PREFIX_LEN)
@@ -235,9 +239,7 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
                 len = ADB_SHELL_HOST_MAX_LEN;
             sprintf(sendbuf,"%04lx" ADB_SHELL_SERIAL_PREFIX, len+ADB_SHELL_SERIAL_PREFIX_LEN);
             memcpy(sendbuf+4+ADB_SHELL_SERIAL_PREFIX_LEN, host, len);
-            sk_write(adb->s,sendbuf,len+4+ADB_SHELL_SERIAL_PREFIX_LEN);
-            sk_flush(adb->s);
-            adb->state = STATE_SENT_HELLO;
+            write_hello(sendbuf, len+4+ADB_SHELL_SERIAL_PREFIX_LEN);
         }
     } while (0);
     return NULL;
