@@ -83,7 +83,7 @@ static int adb_receive(Plug plug, int urgent, char *data, int len)
                 connection_fatal(adb->frontend, "adb failure message: '%s'", d+8);
                 sfree(d);
             } else {
-                connection_fatal(adb->frontend, "Bad response");
+                connection_fatal(adb->frontend, "Bad response (state 1: initial sent)");
             }
             return 0;
         }
@@ -98,7 +98,7 @@ static int adb_receive(Plug plug, int urgent, char *data, int len)
                 connection_fatal(adb->frontend, "%s", d+8);
                 sfree(d);
             } else {
-                connection_fatal(adb->frontend, "Bad response");
+                connection_fatal(adb->frontend, "Bad response (state 2: wait for shell start)");
             }
             return 0;
         }
