@@ -2023,6 +2023,11 @@ static void set_window_titles(struct gui_data *inst)
 	gdk_window_set_icon_name(inst->window->window, inst->icontitle);
 }
 
+void set_title_encoded(void *frontend, char *title, int encoding) {
+    // TODO
+    set_title(frontend, title);
+}
+
 void set_title(void *frontend, char *title)
 {
     struct gui_data *inst = (struct gui_data *)frontend;
