@@ -5244,13 +5244,12 @@ void set_title_encoded(void *frontend, char *title, int encoding)
         } else {
             enum { MAX_SIZE = 2048 };
             wchar_t buf[MAX_SIZE];
-            size_t conv = mb_to_wc(CP_UTF8, 0, title, strlen(title), buf, MAX_SIZE);
+            size_t conv = mb_to_wc(encoding, 0, title, strlen(title), buf, MAX_SIZE);
             assert(conv >= 0 && conv < MAX_SIZE);
             buf[conv] = 0;
-	    SetWindowTextW(hwnd, buf);
+            SetWindowTextW(hwnd, buf);
         }
     }
-
     taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, puttyTrayVisible);
 }
 
