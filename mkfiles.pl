@@ -638,7 +638,7 @@ if (defined $makefiles{'vc'}) {
       "/D_CRT_SECURE_NO_WARNINGS=1 ".
       (join " ", map {"-I$dirpfx$_"} @srcdirs) .
       " /D_WINDOWS /D_WIN32_WINDOWS=0x500 /DWINVER=0x500\n".
-      "LFLAGS = /dynamicbase /nxcompat /debug /SAFESEH\n".
+      "LFLAGS = /dynamicbase /nxcompat /debug\n".
       "!if \"\$(DEBUG)\" == \"1\"\n".
       "CFLAGS=\$(CFLAGS) /Od /DDEBUG /RTC1\n".
       "!else\n".
