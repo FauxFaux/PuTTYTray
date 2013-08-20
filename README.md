@@ -26,7 +26,7 @@ Visual Studio 2010 project files are included.  These should **just work**, ther
 
 The original build system for PuTTY is intact, i.e. you can run `perl mkfiles.pl` and it will regenerate all the other build systems, including VS6 and various flavours of makefiles.
 
-My released builds are still done with VS2010's nmake (using `windows/build-release.bat`, and will continue to be done so until XP drops out of support.
+My released builds are still done with VS2010's `nmake` (using `windows/build-release.bat`), and will continue to be done so until XP drops out of support.
 
 ## License
 
