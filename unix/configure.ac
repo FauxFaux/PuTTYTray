@@ -15,6 +15,9 @@ AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_PROG_INSTALL
 AC_PROG_RANLIB
 
+AM_PROG_CC_C_O
+AM_PROG_AR
+
 # Mild abuse of the '--enable' option format to allow manual
 # specification of setuid or setgid setup in pterm.
 setidtype=none
