@@ -40,7 +40,7 @@ void gtk_setup_config_box(struct controlbox *b, int midsession, void *win)
      */
     s = ctrl_getset(b, "Window", "scrollback",
 		    "Control the scrollback in the window");
-    ctrl_checkbox(s, "Scrollbar on left", 'l',
+    ctrl_checkbox(s, "Scrollbar on left", NO_SHORTCUT,
 		  HELPCTX(no_help),
 		  conf_checkbox_handler,
                   I(CONF_scrollbar_on_left));

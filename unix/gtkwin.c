@@ -36,6 +36,7 @@
 #include "putty.h"
 #include "terminal.h"
 #include "gtkfont.h"
+#include "urlhack.h"
 
 #define CAT2(x,y) x ## y
 #define CAT(x,y) CAT2(x,y)
@@ -2546,6 +2547,7 @@ void modalfatalbox(char *p, ...)
     vfprintf(stderr, p, ap);
     va_end(ap);
     fputc('\n', stderr);
+    assert(!p);
     exit(1);
 }
 
@@ -3607,6 +3609,9 @@ int pt_main(int argc, char **argv)
     inst->busy_status = BUSY_NOT;
     inst->conf = conf_new();
     inst->wintitle = inst->icontitle = NULL;
+
+    // oh this is a nasty global, which shouldn't be here at all
+    urlhack_init();
 
     /* defer any child exit handling until we're ready to deal with
      * it */

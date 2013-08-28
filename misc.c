@@ -583,6 +583,8 @@ void *saferealloc(void *ptr, size_t n, size_t size)
 	p = NULL;
     } else {
 	size *= n;
+        if (!size)
+            size = 1;
 	if (!ptr) {
 #ifdef MINEFIELD
 	    p = minefield_c_malloc(size);
