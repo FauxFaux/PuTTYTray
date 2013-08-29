@@ -747,6 +747,7 @@ void cleanup_exit(int);
     X(INT, NONE, serflow) \
     /* Cygterm options */ \
     X(INT, NONE, cygautopath) \
+    X(INT, NONE, cygterm64) \
     X(STR, NONE, cygcmd) \
     /* Keyboard options */ \
     X(INT, NONE, bksp_is_delete) \

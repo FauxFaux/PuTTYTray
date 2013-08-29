@@ -689,6 +689,7 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "SerialFlowControl", conf_get_int(conf, CONF_serflow));
     write_setting_s(sesskey, "WindowClass", conf_get_str(conf, CONF_winclass));
     write_setting_i(sesskey, "CygtermAutoPath", conf_get_int(conf, CONF_cygautopath));
+    write_setting_i(sesskey, "Cygterm64", conf_get_int(conf, CONF_cygterm64));
     write_setting_s(sesskey, "CygtermCommand", conf_get_str(conf, CONF_cygcmd));
 }
 
@@ -1064,6 +1065,7 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "SerialParity", SER_PAR_NONE, conf, CONF_serparity);
     gppi(sesskey, "SerialFlowControl", SER_FLOW_XONXOFF, conf, CONF_serflow);
     gppi(sesskey, "CygtermAutoPath", 1, conf, CONF_cygautopath);
+    gppi(sesskey, "Cygterm64", 0, conf, CONF_cygterm64);
     gpps(sesskey, "CygtermCommand", "-", conf, CONF_cygcmd);
     gpps(sesskey, "WindowClass", "", conf, CONF_winclass);
 }
