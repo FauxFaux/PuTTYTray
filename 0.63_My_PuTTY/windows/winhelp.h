@@ -144,6 +144,7 @@
 #define WINHELP_CTX_ssh_bugs_pksessid2 "ssh.bugs.pksessid2:config-ssh-bug-pksessid2"
 #define WINHELP_CTX_ssh_bugs_rekey2 "ssh.bugs.rekey2:config-ssh-bug-rekey"
 #define WINHELP_CTX_ssh_bugs_maxpkt2 "ssh.bugs.maxpkt2:config-ssh-bug-maxpkt2"
+#define WINHELP_CTX_ssh_bugs_winadj "ssh.bugs.winadj:config-ssh-bug-winadj"
 #define WINHELP_CTX_serial_line "serial.line:config-serial-line"
 #define WINHELP_CTX_serial_speed "serial.speed:config-serial-speed"
 #define WINHELP_CTX_serial_databits "serial.databits:config-serial-databits"
@@ -188,6 +189,8 @@
 
 #ifdef PERSOPORT
 #define WINHELP_CTX_behaviour_sendtotray "behaviour.sendtotray:config-sendtotray"
+#define WINHELP_CTX_behaviour_maximize "behaviour.maximize:config-maximize"
+#define WINHELP_CTX_behaviour_fullscreen "behaviour.fullscreen:config-fullscreen"
 #define WINHELP_CTX_behaviour_saveonexit "behaviour.saveonexit:config-saveonexit"
 #define WINHELP_CTX_session_folder "session.folder:config-folder"
 #define WINHELP_CTX_appearance_icone "appearance.icone:config-icone"

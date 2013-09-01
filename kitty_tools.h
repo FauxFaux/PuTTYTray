@@ -7,6 +7,10 @@
 #include <sys/stat.h>
 #include <ctype.h>
 
+#ifndef MAX_VALUE_NAME
+#define MAX_VALUE_NAME 16383
+#endif
+
 // Procedures de traitement de chaines
 int stricmp(const char *s1, const char *s2) ;
 
@@ -52,5 +56,8 @@ void StringList_Up( char **list, const char * name ) ;
 int putenv (const char *string) ;
 int set_env( char * name, char * value ) ;
 int add_env( char * name, char * value ) ;
+
+// Creer un repertoire recurssif (rep1 / rep2 / ...)
+void MakeDir( const char * directory ) ;
 
 #endif

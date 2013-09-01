@@ -11,6 +11,8 @@
 
 #include "win_res.h"
 
+IDI_MAINICON ICON "putty.ico"
+
 #ifdef PERSOPORT
 
 #ifndef FDJ
@@ -99,7 +101,7 @@ BEGIN
 #if (defined PERSOPORT) && (defined FDJ)
 	CTEXT "PuTTY", IDA_TEXT2, 10, 26, 194, 16
 #endif
-    CTEXT "\251 1997-2011 Simon Tatham. All rights reserved.",
+    CTEXT "\251 1997-2013 Simon Tatham. All rights reserved.",
           IDA_TEXT2, 10, 34, 194, 16
 END
 
@@ -136,7 +138,7 @@ FONT 8, "MS Shell Dlg"
 BEGIN
     DEFPUSHBUTTON "OK", IDOK, 98, 243, 44, 14
 
-    LTEXT "Copyright \251 1997-2011 Simon Tatham", 1000, 10, 10, 206, 8
+    LTEXT "Copyright \251 1997-2013 Simon Tatham", 1000, 10, 10, 206, 8
 
     LTEXT "Portions copyright Robert de Bath, Joris van Rantwijk, Delian", 1001, 10, 26, 206, 8
     LTEXT "Delchev, Andreas Schultz, Jeroen Massar, Wez Furlong, Nicolas", 1002, 10, 34, 206, 8
@@ -168,6 +170,7 @@ BEGIN
 #else
     LTEXT "OTHER DEALINGS IN THE SOFTWARE.", 1023, 10, 226, 206, 8
 #endif
+
 END
 
 #ifdef PERSOPORT
@@ -235,7 +238,7 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     ICON            IDI_MAINICON_0,IDC_STATIC,7,7,30,20
     LTEXT           "",IDA_VERSION,45,7,198,8
-    LTEXT           "Copyright © 2006-2012",IDC_STATIC,45,19,78,8
+    LTEXT           "Copyright © 2006-2013",IDC_STATIC,45,19,78,8
     LTEXT           "9bis software - http://kitty.9bis.com",
                     IDC_WEBPAGE,45,31,145,8
     LTEXT           "Contact:",IDC_STATIC,45,43,46,8

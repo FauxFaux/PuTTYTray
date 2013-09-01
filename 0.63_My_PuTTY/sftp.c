@@ -45,6 +45,13 @@ static void sftp_pkt_addbyte(struct sftp_packet *pkt, unsigned char byte)
 {
     sftp_pkt_adddata(pkt, &byte, 1);
 }
+static void sftp_pkt_adduint32(struct sftp_packet *pkt,
+			       unsigned long value)
+{
+    unsigned char x[4];
+    PUT_32BIT(x, value);
+    sftp_pkt_adddata(pkt, x, 4);
+}
 static struct sftp_packet *sftp_pkt_init(int pkt_type)
 {
     struct sftp_packet *pkt;
@@ -53,6 +60,7 @@ static struct sftp_packet *sftp_pkt_init(int pkt_type)
     pkt->savedpos = -1;
     pkt->length = 0;
     pkt->maxlen = 0;
+    sftp_pkt_adduint32(pkt, 0); /* length field will be filled in later */
     sftp_pkt_addbyte(pkt, (unsigned char) pkt_type);
     return pkt;
 }
@@ -62,13 +70,6 @@ static void sftp_pkt_addbool(struct sftp_packet *pkt, unsigned char value)
     sftp_pkt_adddata(pkt, &value, 1);
 }
 */
-static void sftp_pkt_adduint32(struct sftp_packet *pkt,
-			       unsigned long value)
-{
-    unsigned char x[4];
-    PUT_32BIT(x, value);
-    sftp_pkt_adddata(pkt, x, 4);
-}
 static void sftp_pkt_adduint64(struct sftp_packet *pkt, uint64 value)
 {
     unsigned char x[8];
@@ -149,7 +150,7 @@ static int sftp_pkt_getstring(struct sftp_packet *pkt,
     *p = NULL;
     if (pkt->length - pkt->savedpos < 4)
 	return 0;
-    *length = GET_32BIT(pkt->data + pkt->savedpos);
+    *length = toint(GET_32BIT(pkt->data + pkt->savedpos));
     pkt->savedpos += 4;
     if ((int)(pkt->length - pkt->savedpos) < *length || *length < 0) {
 	*length = 0;
@@ -215,9 +216,8 @@ static void sftp_pkt_free(struct sftp_packet *pkt)
 int sftp_send(struct sftp_packet *pkt)
 {
     int ret;
-    char x[4];
-    PUT_32BIT(x, pkt->length);
-    ret = (sftp_senddata(x, 4) && sftp_senddata(pkt->data, pkt->length));
+    PUT_32BIT(pkt->data, pkt->length - 4);
+    ret = sftp_senddata(pkt->data, pkt->length);
     sftp_pkt_free(pkt);
     return ret;
 }
@@ -366,7 +366,6 @@ struct sftp_request *sftp_find_request(struct sftp_packet *pktin)
 
     if (!req || !req->registered) {
 	fxp_internal_error("request ID mismatch\n");
-        sftp_pkt_free(pktin);
 	return NULL;
     }
 
@@ -548,7 +547,8 @@ char *fxp_realpath_recv(struct sftp_packet *pktin, struct sftp_request *req)
 /*
  * Open a file.
  */
-struct sftp_request *fxp_open_send(char *path, int type)
+struct sftp_request *fxp_open_send(char *path, int type,
+                                   struct fxp_attrs *attrs)
 {
     struct sftp_request *req = sftp_alloc_request();
     struct sftp_packet *pktout;
@@ -557,7 +557,10 @@ struct sftp_request *fxp_open_send(char *path, int type)
     sftp_pkt_adduint32(pktout, req->id);
     sftp_pkt_addstring(pktout, path);
     sftp_pkt_adduint32(pktout, type);
-    sftp_pkt_adduint32(pktout, 0);     /* (FIXME) empty ATTRS structure */
+    if (attrs)
+        sftp_pkt_addattrs(pktout, *attrs);
+    else
+        sftp_pkt_adduint32(pktout, 0); /* empty ATTRS structure */
     sftp_send(pktout);
 
     return req;
@@ -1193,15 +1196,23 @@ struct fxp_xfer *xfer_download_init(struct fxp_handle *fh, uint64 offset)
     return xfer;
 }
 
+/*
+ * Returns INT_MIN to indicate that it didn't even get as far as
+ * fxp_read_recv and hence has not freed pktin.
+ */
 int xfer_download_gotpkt(struct fxp_xfer *xfer, struct sftp_packet *pktin)
 {
     struct sftp_request *rreq;
     struct req *rr;
 
     rreq = sftp_find_request(pktin);
+    if (!rreq)
+        return INT_MIN;            /* this packet doesn't even make sense */
     rr = (struct req *)fxp_get_userdata(rreq);
-    if (!rr)
-	return 0;		       /* this packet isn't ours */
+    if (!rr) {
+        fxp_internal_error("request ID is not part of the current download");
+	return INT_MIN;		       /* this packet isn't ours */
+    }
     rr->retlen = fxp_read_recv(pktin, rreq, rr->buffer, rr->len);
 #ifdef DEBUG_DOWNLOAD
     printf("read request %p has returned [%d]\n", rr, rr->retlen);
@@ -1372,6 +1383,10 @@ void xfer_upload_data(struct fxp_xfer *xfer, char *buffer, int len)
 #endif
 }
 
+/*
+ * Returns INT_MIN to indicate that it didn't even get as far as
+ * fxp_write_recv and hence has not freed pktin.
+ */
 int xfer_upload_gotpkt(struct fxp_xfer *xfer, struct sftp_packet *pktin)
 {
     struct sftp_request *rreq;
@@ -1379,9 +1394,13 @@ int xfer_upload_gotpkt(struct fxp_xfer *xfer, struct sftp_packet *pktin)
     int ret;
 
     rreq = sftp_find_request(pktin);
+    if (!rreq)
+        return INT_MIN;            /* this packet doesn't even make sense */
     rr = (struct req *)fxp_get_userdata(rreq);
-    if (!rr)
-	return 0;		       /* this packet isn't ours */
+    if (!rr) {
+        fxp_internal_error("request ID is not part of the current upload");
+	return INT_MIN;		       /* this packet isn't ours */
+    }
     ret = fxp_write_recv(pktin, rreq);
 #ifdef DEBUG_UPLOAD
     printf("write request %p has returned [%d]\n", rr, ret);

@@ -10,7 +10,7 @@
 #include "putty.h"
 #include "terminal.h"
 
-extern Config cfg;
+extern Conf *conf ;// extern Config cfg;
 //extern int offset_width, offset_height ;
 //extern int font_width, font_height ;
 
@@ -335,12 +335,12 @@ static BOOL load_wallpaper_bmp(HBITMAP* rawImage, int* style, int* x, int* y)
 
 static BOOL load_file_bmp(HBITMAP* rawImage, int* style, int* x, int* y)
 {
-    *x = cfg.bg_image_abs_x;
-    *y = cfg.bg_image_abs_y;
-    *style = cfg.bg_image_style;
+    *x = conf_get_int( conf,CONF_bg_image_abs_x); // cfg.bg_image_abs_x;
+    *y = conf_get_int( conf,CONF_bg_image_abs_y ); // cfg.bg_image_abs_y;
+    *style = conf_get_int( conf,CONF_bg_image_style); // cfg.bg_image_style;
 
     *rawImage = LoadImage(
-        NULL, cfg.bg_image_filename.path, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+        NULL, conf_get_filename( conf, CONF_bg_image_filename )/*cfg.bg_image_filename.*/->path, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
     );
     if(*rawImage == 0)
         return FALSE; // TODO: Should the error be reported to the user here?
@@ -555,15 +555,15 @@ while (cinfo.output_scanline < cinfo.output_height) {
 
 
 static BOOL load_file_jpeg(HBITMAP* rawImage, int* style, int* x, int* y) {
-    *x = cfg.bg_image_abs_x;
-    *y = cfg.bg_image_abs_y;
-    *style = cfg.bg_image_style;
+    *x = conf_get_int( conf, CONF_bg_image_abs_x); // cfg.bg_image_abs_x;
+    *y = conf_get_int( conf, CONF_bg_image_abs_y); // cfg.bg_image_abs_y;
+    *style = conf_get_int( conf, CONF_bg_image_style); // cfg.bg_image_style;
     int res=TRUE, LsizeX, LsizeY ;
     FILE *fp ;
     HGLOBAL LimageBitmap = NULL ;
 
 	
-    if(  ( fp=fopen( cfg.bg_image_filename.path, "rb" ) ) == NULL ) return FALSE ;
+    if(  ( fp=fopen( conf_get_filename( conf,CONF_bg_image_filename)/*cfg.bg_image_filename.*/->path, "rb" ) ) == NULL ) return FALSE ;
    
 *rawImage = loadJPEGimage(fp, &LimageBitmap,&LsizeX, &LsizeY) ;
 if( rawImage == NULL ) res =FALSE ;    
@@ -699,7 +699,7 @@ static void color_opacity_gradient( HDC destDc, int x, int y, int width, int hei
 	int OpacityMin = 0, OpacityMax = 100 ;
 	
 	char buf[256] = "" ;
-	if( GetSessionField( cfg.sessionname, cfg.folder, "BgOpacityRange", buf ) ) { 
+	if( GetSessionField( conf_get_str(conf,CONF_sessionname)/*cfg.sessionname*/, conf_get_str(conf,CONF_folder)/*cfg.folder*/, "BgOpacityRange", buf ) ) { 
 		sscanf( buf, "%d-%d", &OpacityMin, &OpacityMax ) ; 
 		if( OpacityMin == OpacityMax ) { OpacityMin = 0 ; OpacityMax = 100 ; }
 		}
@@ -869,14 +869,14 @@ BOOL load_bg_bmp()
     COLORREF alphacolor = backgroundcolor;
 
     // Start off assuming this is true.
-    bBgRelToTerm = cfg.bg_image_abs_fixed;
+    bBgRelToTerm = conf_get_int( conf,CONF_bg_image_abs_fixed); // cfg.bg_image_abs_fixed;
 	
     RECT clientRect;
     GetWindowRect( MainHwnd, &clientRect ) ;
     clientWidth = clientRect.right-clientRect.left+1 ;
     clientHeight = clientRect.bottom-clientRect.top+1 ;
 
-    switch(cfg.bg_type)
+    switch( conf_get_int( conf,CONF_bg_type)/*cfg.bg_type*/ )
     {
         // Solid
     case 0:
@@ -895,19 +895,19 @@ BOOL load_bg_bmp()
     case 2:
     	{
 	backgroundcolor = GetSysColor(COLOR_BACKGROUND) ;
-	if( cfg.bg_image_filename.path[0] == '#' ) {
+	if( conf_get_filename(conf,CONF_bg_image_filename)/*cfg.bg_image_filename.*/->path[0] == '#' ) {
 		int r=0,g=0,b=0;
-		sscanf( cfg.bg_image_filename.path, "#%02X%02X%02X", &r, &g, &b ) ;
+		sscanf( conf_get_filename(conf,CONF_bg_image_filename)/*cfg.bg_image_filename.*/->path, "#%02X%02X%02X", &r, &g, &b ) ;
 		backgroundcolor = RGB( r, g, b ) ;
 		BYTE *pDst = NULL;
 		rawImage = CreateHBitmap(10, 10, (void**)&pDst);
 		style = 4 ;
 		}
-    	else if( !stricmp( cfg.bg_image_filename.path+strlen(cfg.bg_image_filename.path)-4, ".jpg" ) ) {
+    	else if( !stricmp( conf_get_filename(conf,CONF_bg_image_filename)/*cfg.bg_image_filename.*/->path+strlen(conf_get_filename(conf,CONF_bg_image_filename)/*cfg.bg_image_filename.*/->path)-4, ".jpg" ) ) {
     		if(!load_file_jpeg(&rawImage, &style, &x, &y))
         	    rawImage = NULL; // Make sure rawImage is still NULL.
     		}
-    	else if( !stricmp( cfg.bg_image_filename.path+strlen(cfg.bg_image_filename.path)-5, ".jpeg" ) ) {
+    	else if( !stricmp( conf_get_filename(conf,CONF_bg_image_filename)/*cfg.bg_image_filename.*/->path+strlen(conf_get_filename(conf,CONF_bg_image_filename)/*cfg.bg_image_filename.*/->path)-5, ".jpeg" ) ) {
     		if(!load_file_jpeg(&rawImage, &style, &x, &y))
         	    rawImage = NULL; // Make sure rawImage is still NULL.
     		}
@@ -1054,8 +1054,8 @@ BOOL load_bg_bmp()
             backgrounddc, 0, 0, SRCCOPY
         );
 	
-	if( cfg.bg_opacity >= 0 ) 
-		{ color_blend( backgroundblenddc, 0, 0, deskWidth, deskHeight, alphacolor, cfg.bg_opacity); }
+	if( conf_get_int(conf,CONF_bg_opacity)/*cfg.bg_opacity*/ >= 0 ) 
+		{ color_blend( backgroundblenddc, 0, 0, deskWidth, deskHeight, alphacolor, conf_get_int(conf,CONF_bg_opacity)/*cfg.bg_opacity*/); }
 	else 
 		{ 
 		if( bBgRelToTerm == 1 ) {
@@ -1063,11 +1063,14 @@ BOOL load_bg_bmp()
 			deskHeight = clientHeight ;
 			}
 		
-		color_opacity_gradient( backgroundblenddc, 0, 0, deskWidth, deskHeight, alphacolor, -cfg.bg_opacity ); 
+		color_opacity_gradient( backgroundblenddc, 0, 0, deskWidth, deskHeight, alphacolor, -conf_get_int(conf,CONF_bg_opacity)/*cfg.bg_opacity*/ ); 
 		}
     }
 
     ReleaseDC(hwnd, hdcPrimary);
+
+//DeleteDC(hdcPrimary);
+
     return TRUE;
 }
 
@@ -1287,7 +1290,7 @@ void clean_bg(void) {
 	}
 
 void RedrawBackground( HWND hwnd ) {
-	if( (get_param("BACKGROUNDIMAGE"))&&(!get_param("PUTTY"))&&(cfg.bg_type != 0) ) {
+	if( (get_param("BACKGROUNDIMAGE"))&&(!get_param("PUTTY"))&&(conf_get_int(conf,CONF_bg_type)/*cfg.bg_type*/ != 0) ) {
 		clean_bg() ;
 		load_bg_bmp() ;
 		}

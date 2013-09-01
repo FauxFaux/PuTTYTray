@@ -80,13 +80,13 @@ struct Socket_tag {
     int connected;		       /* irrelevant for listening sockets */
     int writable;
     int frozen; /* this causes readability notifications to be ignored */
-    int frozen_readable; /* this means we missed at least one readability
-			  * notification while we were frozen */
     int localhost_only;		       /* for listening sockets */
     char oobdata[1];
     int sending_oob;
     int oobpending;		       /* is there OOB data available to read? */
     int oobinline;
+    enum { EOF_NO, EOF_PENDING, EOF_SENT } outgoingeof;
+    int incomingeof;
     int pending_error;		       /* in case send() returns error */
     int listener;
     int nodelay, keepalive;            /* for connect()-type sockets */
@@ -341,7 +341,7 @@ void sk_getaddr(SockAddr addr, char *buf, int buflen)
     }
 }
 
-int sk_hostname_is_local(char *name)
+int sk_hostname_is_local(const char *name)
 {
     return !strcmp(name, "localhost") ||
 	   !strcmp(name, "::1") ||
@@ -386,6 +386,11 @@ int sk_address_is_local(SockAddr addr)
 	return ipv4_is_loopback(a);
 #endif
     }
+}
+
+int sk_address_is_special_local(SockAddr addr)
+{
+    return addr->superfamily == UNIX;
 }
 
 int sk_addrtype(SockAddr addr)
@@ -466,6 +471,7 @@ static void sk_tcp_flush(Socket s)
 static void sk_tcp_close(Socket s);
 static int sk_tcp_write(Socket s, const char *data, int len);
 static int sk_tcp_write_oob(Socket s, const char *data, int len);
+static void sk_tcp_write_eof(Socket s);
 static void sk_tcp_set_private_ptr(Socket s, void *ptr);
 static void *sk_tcp_get_private_ptr(Socket s);
 static void sk_tcp_set_frozen(Socket s, int is_frozen);
@@ -476,6 +482,7 @@ static struct socket_function_table tcp_fn_table = {
     sk_tcp_close,
     sk_tcp_write,
     sk_tcp_write_oob,
+    sk_tcp_write_eof,
     sk_tcp_flush,
     sk_tcp_set_private_ptr,
     sk_tcp_get_private_ptr,
@@ -498,10 +505,11 @@ Socket sk_register(OSSocket sockfd, Plug plug)
     ret->writable = 1;		       /* to start with */
     ret->sending_oob = 0;
     ret->frozen = 1;
-    ret->frozen_readable = 0;
     ret->localhost_only = 0;	       /* unused, but best init anyway */
     ret->pending_error = 0;
     ret->oobpending = FALSE;
+    ret->outgoingeof = EOF_NO;
+    ret->incomingeof = FALSE;
     ret->listener = 0;
     ret->parent = ret->child = NULL;
     ret->addr = NULL;
@@ -529,7 +537,7 @@ static int try_connect(Actual_Socket sock)
     const union sockaddr_union *sa;
     int err = 0;
     short localport;
-    int fl, salen, family;
+    int salen, family;
 
     /*
      * Remove the socket from the tree before we overwrite its
@@ -561,17 +569,32 @@ static int try_connect(Actual_Socket sock)
 
     if (sock->oobinline) {
 	int b = TRUE;
-	setsockopt(s, SOL_SOCKET, SO_OOBINLINE, (void *) &b, sizeof(b));
+	if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE,
+                       (void *) &b, sizeof(b)) < 0) {
+            err = errno;
+            close(s);
+            goto ret;
+        }
     }
 
     if (sock->nodelay) {
 	int b = TRUE;
-	setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (void *) &b, sizeof(b));
+	if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY,
+                       (void *) &b, sizeof(b)) < 0) {
+            err = errno;
+            close(s);
+            goto ret;
+        }
     }
 
     if (sock->keepalive) {
 	int b = TRUE;
-	setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, (void *) &b, sizeof(b));
+	if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE,
+                       (void *) &b, sizeof(b)) < 0) {
+            err = errno;
+            close(s);
+            goto ret;
+        }
     }
 
     /*
@@ -669,9 +692,7 @@ static int try_connect(Actual_Socket sock)
 	exit(1); /* XXX: GCC doesn't understand assert() on some systems. */
     }
 
-    fl = fcntl(s, F_GETFL);
-    if (fl != -1)
-	fcntl(s, F_SETFL, fl | O_NONBLOCK);
+    nonblock(s);
 
     if ((connect(s, &(sa->sa), salen)) < 0) {
 	if ( errno != EINPROGRESS ) {
@@ -719,11 +740,12 @@ Socket sk_new(SockAddr addr, int port, int privport, int oobinline,
     ret->writable = 0;		       /* to start with */
     ret->sending_oob = 0;
     ret->frozen = 0;
-    ret->frozen_readable = 0;
     ret->localhost_only = 0;	       /* unused, but best init anyway */
     ret->pending_error = 0;
     ret->parent = ret->child = NULL;
     ret->oobpending = FALSE;
+    ret->outgoingeof = EOF_NO;
+    ret->incomingeof = FALSE;
     ret->listener = 0;
     ret->addr = addr;
     START_STEP(ret->addr, ret->step);
@@ -771,11 +793,12 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only, i
     ret->writable = 0;		       /* to start with */
     ret->sending_oob = 0;
     ret->frozen = 0;
-    ret->frozen_readable = 0;
     ret->localhost_only = local_host_only;
     ret->pending_error = 0;
     ret->parent = ret->child = NULL;
     ret->oobpending = FALSE;
+    ret->outgoingeof = EOF_NO;
+    ret->incomingeof = FALSE;
     ret->listener = 1;
     ret->addr = NULL;
 
@@ -820,7 +843,12 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only, i
 
     ret->oobinline = 0;
 
-    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&on, sizeof(on));
+    if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR,
+                   (const char *)&on, sizeof(on)) < 0) {
+        ret->error = strerror(errno);
+        close(s);
+        return (Socket) ret;
+    }
 
     retcode = -1;
     addr = NULL; addrlen = -1;         /* placate optimiser */
@@ -1038,6 +1066,16 @@ void try_send(Actual_Socket s)
 		 * plug_closing()) at some suitable future moment.
 		 */
 		s->pending_error = err;
+                /*
+                 * Immediately cease selecting on this socket, so that
+                 * we don't tight-loop repeatedly trying to do
+                 * whatever it was that went wrong.
+                 */
+                uxsel_tell(s);
+                /*
+                 * Notify the front end that it might want to call us.
+                 */
+                frontend_net_error_pending();
 		return;
 	    }
 	} else {
@@ -1053,12 +1091,28 @@ void try_send(Actual_Socket s)
 	    }
 	}
     }
+
+    /*
+     * If we reach here, we've finished sending everything we might
+     * have needed to send. Send EOF, if we need to.
+     */
+    if (s->outgoingeof == EOF_PENDING) {
+        shutdown(s->s, SHUT_WR);
+        s->outgoingeof = EOF_SENT;
+    }
+
+    /*
+     * Also update the select status, because we don't need to select
+     * for writing any more.
+     */
     uxsel_tell(s);
 }
 
 static int sk_tcp_write(Socket sock, const char *buf, int len)
 {
     Actual_Socket s = (Actual_Socket) sock;
+
+    assert(s->outgoingeof == EOF_NO);
 
     /*
      * Add the data to the buffer list on the socket.
@@ -1084,6 +1138,8 @@ static int sk_tcp_write_oob(Socket sock, const char *buf, int len)
 {
     Actual_Socket s = (Actual_Socket) sock;
 
+    assert(s->outgoingeof == EOF_NO);
+
     /*
      * Replace the buffer list on the socket with the data.
      */
@@ -1105,6 +1161,30 @@ static int sk_tcp_write_oob(Socket sock, const char *buf, int len)
     uxsel_tell(s);
 
     return s->sending_oob;
+}
+
+static void sk_tcp_write_eof(Socket sock)
+{
+    Actual_Socket s = (Actual_Socket) sock;
+
+    assert(s->outgoingeof == EOF_NO);
+
+    /*
+     * Mark the socket as pending outgoing EOF.
+     */
+    s->outgoingeof = EOF_PENDING;
+
+    /*
+     * Now try sending from the start of the buffer list.
+     */
+    if (s->writable)
+	try_send(s);
+
+    /*
+     * Update the select() status to correctly reflect whether or
+     * not we should be selecting for write.
+     */
+    uxsel_tell(s);
 }
 
 static int net_select_result(int fd, int event)
@@ -1168,7 +1248,6 @@ static int net_select_result(int fd, int event)
 	    union sockaddr_union su;
 	    socklen_t addrlen = sizeof(su);
 	    int t;  /* socket of connection */
-            int fl;
 
 	    memset(&su, 0, addrlen);
 	    t = accept(s->s, &su.sa, &addrlen);
@@ -1176,9 +1255,7 @@ static int net_select_result(int fd, int event)
 		break;
 	    }
 
-            fl = fcntl(t, F_GETFL);
-            if (fl != -1)
-                fcntl(t, F_SETFL, fl | O_NONBLOCK);
+            nonblock(t);
 
 	    if (s->localhost_only &&
 		!sockaddr_is_loopback(&su.sa)) {
@@ -1195,10 +1272,8 @@ static int net_select_result(int fd, int event)
 	 */
 
 	/* In the case the socket is still frozen, we don't even bother */
-	if (s->frozen) {
-	    s->frozen_readable = 1;
+	if (s->frozen)
 	    break;
-	}
 
 	/*
 	 * We have received data on the socket. For an oobinline
@@ -1237,6 +1312,8 @@ static int net_select_result(int fd, int event)
             if (err != 0)
                 return plug_closing(s->plug, strerror(err), err, 0);
 	} else if (0 == ret) {
+            s->incomingeof = TRUE;     /* stop trying to read now */
+            uxsel_tell(s);
 	    return plug_closing(s->plug, NULL, 0, 0);
 	} else {
             /*
@@ -1349,26 +1426,23 @@ static void sk_tcp_set_frozen(Socket sock, int is_frozen)
     if (s->frozen == is_frozen)
 	return;
     s->frozen = is_frozen;
-    if (!is_frozen && s->frozen_readable) {
-	char c;
-	recv(s->s, &c, 1, MSG_PEEK);
-    }
-    s->frozen_readable = 0;
     uxsel_tell(s);
 }
 
 static void uxsel_tell(Actual_Socket s)
 {
     int rwx = 0;
-    if (s->listener) {
-	rwx |= 1;			/* read == accept */
-    } else {
-	if (!s->connected)
-	    rwx |= 2;			/* write == connect */
-	if (s->connected && !s->frozen)
-	    rwx |= 1 | 4;		/* read, except */
-	if (bufchain_size(&s->output_data))
-	    rwx |= 2;			/* write */
+    if (!s->pending_error) {
+        if (s->listener) {
+            rwx |= 1;                  /* read == accept */
+        } else {
+            if (!s->connected)
+                rwx |= 2;              /* write == connect */
+            if (s->connected && !s->frozen && !s->incomingeof)
+                rwx |= 1 | 4;          /* read, except */
+            if (bufchain_size(&s->output_data))
+                rwx |= 2;              /* write */
+        }
     }
     uxsel_set(s->s, rwx, net_select_result);
 }

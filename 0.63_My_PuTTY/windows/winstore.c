@@ -2,7 +2,6 @@
  * winstore.c: Windows-specific implementation of the interface
  * defined in storage.h.
  */
-
 /*
  * JK: disk config 0.3.3 from 12. 8. 2008
  *
@@ -12,9 +11,7 @@
  *
  * http://jakub.kotrla.net/putty/ 
  */
-
-#ifdef PERSOPORT
-
+ 
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -28,6 +25,12 @@
 #ifndef CSIDL_LOCAL_APPDATA
 #define CSIDL_LOCAL_APPDATA 0x001c
 #endif
+
+static const char *const reg_jumplist_key = PUTTY_REG_POS "\\Jumplist";
+static const char *const reg_jumplist_value = "Recent sessions";
+static const char *const puttystr = PUTTY_REG_POS "\\Sessions";
+
+static const char hex[16] = "0123456789ABCDEF";
 
 #ifdef PERSOPORT
 #ifndef SAVEMODE_REG
@@ -48,22 +51,7 @@ char * GetConfigDirectory( void ) ;
 
 char * ltoa (long int __val, char *__s, int __radix) ;
 char * itoa (int __val, char *__s, int __radix)  ;
-static const char *const reg_jumplist_key = PUTTY_REG_POS "\\Jumplist";
-static const char *const reg_jumplist_value = "Recent sessions";
-static char puttystr[1024] = PUTTY_REG_POS "\\Sessions";
-#else
-static const char *const reg_jumplist_key = PUTTY_REG_POS "\\Jumplist";
-static const char *const reg_jumplist_value = "Recent sessions";
-static const char *const puttystr = PUTTY_REG_POS "\\Sessions";
-#endif
-
-static const char hex[16] = "0123456789ABCDEF";
-
-static int tried_shgetfolderpath = FALSE;
-static HMODULE shell32_module = NULL;
-DECL_WINDOWS_FUNCTION(static, HRESULT, SHGetFolderPathA, 
-		      (HWND, int, HANDLE, DWORD, LPSTR));
-
+const char *win_strerror(int error) ;
 static char seedpath[2 * MAX_PATH + 10] = "\0";
 static char sesspath[2 * MAX_PATH] = "\0";
 static char initialsesspath[2 * MAX_PATH] = "\0";
@@ -118,62 +106,6 @@ DWORD errorShow(const char* pcErrText, const char* pcErrParam) {
 	sfree(pcHlaska);
 	return erChyba;
 };
-
-#ifdef PERSOPORT
-void mungestr(const char *in, char *out)
-#else
-static void mungestr(const char *in, char *out)
-#endif
-{
-    int candot = 0;
-
-    while (*in) {
-	if (*in == ' ' || *in == '\\' || *in == '*' || *in == '?' || 
-#ifdef PERSOPORT
-	*in ==':' || *in =='/' || *in =='\"' || *in =='<' || *in =='>' || *in =='|' ||
-#endif
-	    *in == '%' || *in < ' ' || *in > '~' || (*in == '.'
-						     && !candot)) {
-	    *out++ = '%';
-	    *out++ = hex[((unsigned char) *in) >> 4];
-	    *out++ = hex[((unsigned char) *in) & 15];
-	} else
-	    *out++ = *in;
-	in++;
-	candot = 1;
-    }
-    *out = '\0';
-    return;
-}
-
-#ifdef PERSOPORT
-void unmungestr(const char *in, char *out, int outlen)
-#else
-static void unmungestr(const char *in, char *out, int outlen)
-#endif
-{
-    while (*in) {
-	if (*in == '%' && in[1] && in[2]) {
-	    int i, j;
-
-	    i = in[1] - '0';
-	    i -= (i > 9 ? 7 : 0);
-	    j = in[2] - '0';
-	    j -= (j > 9 ? 7 : 0);
-
-	    *out++ = (i << 4) + j; *out = '\0';
-	    if (!--outlen)
-		return;
-	    in += 3;
-	} else {
-	    *out++ = *in++; *out = '\0';
-	    if (!--outlen)
-		return;
-	}
-    }
-    *out = '\0';
-    return;
-}
 
 /* JK: pack string for use as filename - pack < > : " / \ | */
 static void packstr(const char *in, char *out) {
@@ -429,33 +361,138 @@ int loadPath() {
 	sfree(puttypath);
 	return 1;
 }
+char * SetSessPath( const char * dec ) {
+	int i ;
+	char *pst ;
+	if( !strcmp(dec,"..") ) {
+		if( strcmp(sesspath, initialsesspath) ) {
+			i=strlen(sesspath)-1 ;
+			while( sesspath[i]!='\\' ) i--;
+			sesspath[i]='\0';
+			}
+		}
+	else {
+		strcat( sesspath, "\\" ) ;
+		strcat( sesspath, dec ) ;
+		}
+	CleanFolderName( sesspath ) ;
+	pst = sesspath+strlen(initialsesspath ) ;
+	while( pst[0]=='\\' ) pst++ ;
+	return pst ;
+	}
+	
+char * SetInitialSessPath( void ) { return strcpy( sesspath, initialsesspath ) ; }
+
+char * GetSessPath( void ) {
+	return sesspath ;
+	}
+	
+void CreateFolderInPath( const char * d ) {
+	char buf[MAX_PATH] ;
+	sprintf( buf, "%s\\%s", sesspath, d ) ;
+	createPath( buf ) ;
+	}
+void SaveDumpPortableConfig( FILE * fp ) {
+	fprintf( fp, "seedpath=%s\n", seedpath ) ;
+	fprintf( fp, "sesspath=%s\n", sesspath ) ;
+	fprintf( fp, "initialsesspath=%s\n", initialsesspath ) ;
+	fprintf( fp, "sshkpath=%s\n", sshkpath ) ;
+	fprintf( fp, "oldpath=%s\n", oldpath ) ;
+	fprintf( fp, "sessionsuffix=%s\n", sessionsuffix ) ;
+	fprintf( fp, "keysuffix=%s\n", keysuffix ) ;
+	}
+#endif
+
+static int tried_shgetfolderpath = FALSE;
+static HMODULE shell32_module = NULL;
+DECL_WINDOWS_FUNCTION(static, HRESULT, SHGetFolderPathA, 
+		      (HWND, int, HANDLE, DWORD, LPSTR));
+
+#ifdef PERSOPORT
+void mungestr(const char *in, char *out)
+#else
+static void mungestr(const char *in, char *out)
+#endif
+{
+    int candot = 0;
+
+    while (*in) {
+	if (*in == ' ' || *in == '\\' || *in == '*' || *in == '?' ||
+#ifdef PERSOPORT
+	*in ==':' || *in =='/' || *in =='\"' || *in =='<' || *in =='>' || *in =='|' ||
+#endif
+	    *in == '%' || *in < ' ' || *in > '~' || (*in == '.'
+						     && !candot)) {
+	    *out++ = '%';
+	    *out++ = hex[((unsigned char) *in) >> 4];
+	    *out++ = hex[((unsigned char) *in) & 15];
+	} else
+	    *out++ = *in;
+	in++;
+	candot = 1;
+    }
+    *out = '\0';
+    return;
+}
+
+#ifdef PERSOPORT
+void unmungestr(const char *in, char *out, int outlen)
+#else
+static void unmungestr(const char *in, char *out, int outlen)
+#endif
+{
+    while (*in) {
+	if (*in == '%' && in[1] && in[2]) {
+	    int i, j;
+
+	    i = in[1] - '0';
+	    i -= (i > 9 ? 7 : 0);
+	    j = in[2] - '0';
+	    j -= (j > 9 ? 7 : 0);
+
+	    *out++ = (i << 4) + j;
+	    if (!--outlen)
+		return;
+	    in += 3;
+	} else {
+	    *out++ = *in++;
+	    if (!--outlen)
+		return;
+	}
+    }
+    *out = '\0';
+    return;
+}
 
 void *open_settings_w(const char *sessionname, char **errmsg)
 {
+    HKEY subkey1, sesskey;
+    int ret;
     char *p;
-	struct setPack* sp;
+
     *errmsg = NULL;
-	int ret ;
 
-	if (!sessionname || !*sessionname) {
-		sessionname = "Default Settings";
+    if (!sessionname || !*sessionname)
+	sessionname = "Default Settings";
+#ifdef PERSOPORT
+    	struct setPack* sp;
+		/* JK: if sessionname contains [registry] -> cut it off */
+	if( get_param("INIFILE")==SAVEMODE_DIR ) {
+		if ( *(sessionname+strlen(sessionname)-1) == ']') {
+			if( ( p = strrchr(sessionname, '[') ) != NULL )	*(p-1) = '\0';
+		}
 	}
-
-	/* JK: if sessionname contains [registry] -> cut it off */
-	if ( *(sessionname+strlen(sessionname)-1) == ']') {
-		if( ( p = strrchr(sessionname, '[') ) != NULL )	*(p-1) = '\0';
-	}
-
-    p = snewn(3 * strlen(sessionname) + 1, char);
-    mungestr(sessionname, p);
-	
 	sp = snew( struct setPack );
 	sp->fromFile = 0;
 	sp->handle = NULL;
+#endif
+    p = snewn(3 * strlen(sessionname) + 1, char);
+    mungestr(sessionname, p);
 
+#ifdef PERSOPORT
 if( (get_param("INIFILE")==SAVEMODE_REG)||(get_param("INIFILE")==SAVEMODE_FILE) ) {
-	 HKEY subkey1, sesskey;
-	 ret = RegCreateKey(HKEY_CURRENT_USER, puttystr, &subkey1);
+#endif
+    ret = RegCreateKey(HKEY_CURRENT_USER, puttystr, &subkey1);
     if (ret != ERROR_SUCCESS) {
 	sfree(p);
         *errmsg = dupprintf("Unable to create registry key\n"
@@ -465,14 +502,20 @@ if( (get_param("INIFILE")==SAVEMODE_REG)||(get_param("INIFILE")==SAVEMODE_FILE) 
     ret = RegCreateKey(subkey1, p, &sesskey);
     RegCloseKey(subkey1);
     if (ret != ERROR_SUCCESS) {
-        *errmsg = dupprintf("Unable to create registry key\n""HKEY_CURRENT_USER\\%s\\%s", puttystr, p);
+        *errmsg = dupprintf("Unable to create registry key\n"
+                            "HKEY_CURRENT_USER\\%s\\%s", puttystr, p);
 	sfree(p);
 	return NULL;
-	}
+    }
+#ifdef PERSOPORT
     sp->handle = sesskey ;
     sfree(p);
-    //return (void*) sesskey ;
-	}
+#else
+    sfree(p);
+    return (void *) sesskey;
+#endif
+#ifdef PERSOPORT
+    	}
 else {
 	if( sessionname==NULL ) return NULL ;
 	if( (strlen(sessionname)==0)||((strstr( sessionname, " [" )==sessionname)&&(sessionname[strlen(sessionname)-1]==']')) ) 
@@ -486,10 +529,12 @@ else {
 	}
 	
 	return sp;
+#endif
 }
 
 void write_setting_s(void *handle, const char *key, const char *value)
 {
+#ifdef PERSOPORT
 	struct setItem *st;
 
 	if( (get_param( "INIFILE")==SAVEMODE_REG)||(get_param("INIFILE")==SAVEMODE_FILE) ) {
@@ -522,10 +567,16 @@ void write_setting_s(void *handle, const char *key, const char *value)
 		st->next = ((struct setPack*) handle)->handle;
 		((struct setPack*) handle)->handle = st;
 	}
+#else
+    if (handle)
+	RegSetValueEx((HKEY) handle, key, 0, REG_SZ, value,
+		      1 + strlen(value));
+#endif
 }
 
 void write_setting_i(void *handle, const char *key, int value)
 {
+#ifdef PERSOPORT
 	struct setItem *st;
 
 	if( (get_param( "INIFILE")==SAVEMODE_REG)||(get_param("INIFILE")==SAVEMODE_FILE) ) {
@@ -557,10 +608,16 @@ void write_setting_i(void *handle, const char *key, int value)
 		st->next = ((struct setPack*) handle)->handle;
 		((struct setPack*) handle)->handle = st;
 	}
+#else
+    if (handle)
+	RegSetValueEx((HKEY) handle, key, 0, REG_DWORD,
+		      (CONST BYTE *) &value, sizeof(value));
+#endif
 }
 
 void close_settings_w(void *handle)
 {
+#ifdef PERSOPORT
 	HANDLE hFile;
 	DWORD written;
 	WIN32_FIND_DATA FindFile;
@@ -626,12 +683,16 @@ void close_settings_w(void *handle)
 	sfree(((struct setPack*) handle)->fileBuf);
 	CloseHandle( (HANDLE)hFile );
 	SetCurrentDirectory(oldpath);
+#else
+    RegCloseKey((HKEY) handle);
+#endif
 }
 
 void *open_settings_r(const char *sessionname)
 {
     HKEY subkey1, sesskey;
     char *p;
+#ifdef PERSOPORT
 	//char *ses;
 	char *fileCont;
 	DWORD fileSize;
@@ -642,9 +703,8 @@ void *open_settings_r(const char *sessionname)
 
 	sp = snew( struct setPack );
 
-	if (!sessionname || !*sessionname) {
-		sessionname = "Default Settings";
-	}
+    if (!sessionname || !*sessionname)
+	sessionname = "Default Settings";
 
 	/* JK: in the first call of this function we initialize path variables */
 	if (*sesspath == '\0') {
@@ -775,31 +835,53 @@ void *open_settings_r(const char *sessionname)
 	}
 	else {
 		/* JK: session is in registry */
-		if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS) {
-			sesskey = NULL;
-		}
-		else {
-			if (RegOpenKey(subkey1, p, &sesskey) != ERROR_SUCCESS) {
-				sesskey = NULL;
-			}
-			RegCloseKey(subkey1);
-		}
+    if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS) {
+	sesskey = NULL;
+    } else {
+	if (RegOpenKey(subkey1, p, &sesskey) != ERROR_SUCCESS) {
+	    sesskey = NULL;
+	}
+	RegCloseKey(subkey1);
+    }
 		sp->fromFile = 0;
 		sp->handle = sesskey;
-		sfree(p);
+    sfree(p);
 	}
 
 	return sp;
+#else
+    if (!sessionname || !*sessionname)
+	sessionname = "Default Settings";
+
+    p = snewn(3 * strlen(sessionname) + 1, char);
+    mungestr(sessionname, p);
+
+    if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS) {
+	sesskey = NULL;
+    } else {
+	if (RegOpenKey(subkey1, p, &sesskey) != ERROR_SUCCESS) {
+	    sesskey = NULL;
+	}
+	RegCloseKey(subkey1);
+    }
+
+    sfree(p);
+
+    return (void *) sesskey;
+#endif
 }
 
-char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
+char *read_setting_s(void *handle, const char *key)
 {
-	DWORD type;
+    DWORD type, size;
+    char *ret;
+
+    if (!handle)
+	return NULL;
+#ifdef PERSOPORT
 	struct setItem *st;
 	char *p;
-	DWORD size = buflen;
-
-	if (!handle) return NULL;	/* JK: new in 0.1.3 */
+	ret = NULL ;
 
 	if (((struct setPack*) handle)->fromFile) {
 		
@@ -809,31 +891,46 @@ char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
 		st = ((struct setPack*) handle)->handle;
 		while (st->key) {
 			if ( strcmp(st->key, p) == 0) {
-				unmungestr(st->value, buffer, buflen);
-				return st->value;				
+				ret = snewn(strlen(st->value)+11, char);
+				unmungestr(st->value, ret, strlen(st->value)+10);
+				//return st->value;
+				return ret;
 			}
 			st = st->next;
 		}
 	}
 	else {
 		handle = ((struct setPack*) handle)->handle;
-		if (!handle || RegQueryValueEx((HKEY) handle, key, 0, &type, buffer, &size) != ERROR_SUCCESS ||	type != REG_SZ) {
-			return NULL;
-		}
-		else {
-			return buffer;
-		}
+		if(!handle) return NULL ;
+#endif
+    /* Find out the type and size of the data. */
+    if (RegQueryValueEx((HKEY) handle, key, 0,
+			&type, NULL, &size) != ERROR_SUCCESS ||
+	type != REG_SZ)
+	return NULL;
+
+    ret = snewn(size+1, char);
+    if (RegQueryValueEx((HKEY) handle, key, 0,
+			&type, ret, &size) != ERROR_SUCCESS ||
+	type != REG_SZ) {
+        sfree(ret);
+        return NULL;
+    }
+
+    return ret;
+#ifdef PERSOPORT
 	}
 	/* JK: should not end here -> value not found in file */
 	return NULL;
+#endif
 }
 
 int read_setting_i(void *handle, const char *key, int defvalue)
 {
     DWORD type, val, size;
-	struct setItem *st;
     size = sizeof(val);
-
+#ifdef PERSOPORT
+	struct setItem *st;
 	if (!handle) return 0;	/* JK: new in 0.1.3 */
 
 	if (((struct setPack*) handle)->fromFile) {
@@ -848,68 +945,103 @@ int read_setting_i(void *handle, const char *key, int defvalue)
 	else {
 		handle = ((struct setPack*) handle)->handle;
 
-		if (!handle || RegQueryValueEx((HKEY) handle, key, 0, &type, (BYTE *) &val, &size) != ERROR_SUCCESS || size != sizeof(val) || type != REG_DWORD) {
-			return defvalue;
-		}
-		else {
-			return val;
-		}
+    if (!handle ||
+	RegQueryValueEx((HKEY) handle, key, 0, &type,
+			(BYTE *) &val, &size) != ERROR_SUCCESS ||
+	size != sizeof(val) || type != REG_DWORD)
+	return defvalue;
+    else
+	return val;
+
 	}
 	/* JK: should not end here -> value not found in file */
 	return defvalue;
+#else
+    if (!handle ||
+	RegQueryValueEx((HKEY) handle, key, 0, &type,
+			(BYTE *) &val, &size) != ERROR_SUCCESS ||
+	size != sizeof(val) || type != REG_DWORD)
+	return defvalue;
+    else
+	return val;
+#endif
 }
 
-int read_setting_fontspec(void *handle, const char *name, FontSpec *result)
+FontSpec *read_setting_fontspec(void *handle, const char *name)
 {
     char *settingname;
-    FontSpec ret;
+    char *fontname;
+    FontSpec *ret;
+    int isbold, height, charset;
 
-    if (!read_setting_s(handle, name, ret.name, sizeof(ret.name)))
-	return 0;
+    fontname = read_setting_s(handle, name);
+    if (!fontname)
+	return NULL;
+
     settingname = dupcat(name, "IsBold", NULL);
-    ret.isbold = read_setting_i(handle, settingname, -1);
+    isbold = read_setting_i(handle, settingname, -1);
     sfree(settingname);
-    if (ret.isbold == -1) return 0;
+    if (isbold == -1) {
+        sfree(fontname);
+        return NULL;
+    }
+
     settingname = dupcat(name, "CharSet", NULL);
-    ret.charset = read_setting_i(handle, settingname, -1);
+    charset = read_setting_i(handle, settingname, -1);
     sfree(settingname);
-    if (ret.charset == -1) return 0;
+    if (charset == -1) {
+        sfree(fontname);
+        return NULL;
+    }
+
     settingname = dupcat(name, "Height", NULL);
-    ret.height = read_setting_i(handle, settingname, INT_MIN);
+    height = read_setting_i(handle, settingname, INT_MIN);
     sfree(settingname);
-    if (ret.height == INT_MIN) return 0;
-    *result = ret;
-    return 1;
+    if (height == INT_MIN) {
+        sfree(fontname);
+        return NULL;
+    }
+
+    ret = fontspec_new(fontname, isbold, height, charset);
+    sfree(fontname);
+    return ret;
 }
 
-void write_setting_fontspec(void *handle, const char *name, FontSpec font)
+void write_setting_fontspec(void *handle, const char *name, FontSpec *font)
 {
     char *settingname;
 
-    write_setting_s(handle, name, font.name);
+    write_setting_s(handle, name, font->name);
     settingname = dupcat(name, "IsBold", NULL);
-    write_setting_i(handle, settingname, font.isbold);
+    write_setting_i(handle, settingname, font->isbold);
     sfree(settingname);
     settingname = dupcat(name, "CharSet", NULL);
-    write_setting_i(handle, settingname, font.charset);
+    write_setting_i(handle, settingname, font->charset);
     sfree(settingname);
     settingname = dupcat(name, "Height", NULL);
-    write_setting_i(handle, settingname, font.height);
+    write_setting_i(handle, settingname, font->height);
     sfree(settingname);
 }
 
-int read_setting_filename(void *handle, const char *name, Filename *result)
+Filename *read_setting_filename(void *handle, const char *name)
 {
-    return !!read_setting_s(handle, name, result->path, sizeof(result->path));
+    char *tmp = read_setting_s(handle, name);
+    if (tmp) {
+        Filename *ret = filename_from_str(tmp);
+	sfree(tmp);
+	return ret;
+    } else
+	return NULL;
 }
 
-void write_setting_filename(void *handle, const char *name, Filename result)
+void write_setting_filename(void *handle, const char *name, Filename *result)
 {
-    write_setting_s(handle, name, result.path);
+    write_setting_s(handle, name, result->path);
 }
 
 void close_settings_r(void *handle)
 {
+#ifdef PERSOPORT
 	if (!handle) return;	/* JK: new in 0.1.3 */
 
 	if (((struct setPack*) handle)->fromFile) {
@@ -928,12 +1060,16 @@ void close_settings_r(void *handle)
 		handle = ((struct setPack*) handle)->handle;
 	    RegCloseKey((HKEY) handle);
 	}
+#else
+    RegCloseKey((HKEY) handle);
+#endif
 }
 
 void del_settings(const char *sessionname)
 {
     HKEY subkey1;
     char *p;
+#ifdef PERSOPORT
     char *p2;
 
 	/* JK: if sessionname contains [registry] -> cut it off and delete from registry */
@@ -986,53 +1122,35 @@ void del_settings(const char *sessionname)
 			sfree(p2);
 			}
 	}
-	remove_session_from_jumplist(sessionname);
+#else
+    if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS)
+	return;
+
+    p = snewn(3 * strlen(sessionname) + 1, char);
+    mungestr(sessionname, p);
+    RegDeleteKey(subkey1, p);
+    sfree(p);
+
+    RegCloseKey(subkey1);
+#endif
+    remove_session_from_jumplist(sessionname);
 }
 
 struct enumsettings {
     HKEY key;
     int i;
+#ifdef PERSOPORT
 	int fromFile;
 	HANDLE hFile;
-} ;
-
-char * SetSessPath( const char * dec ) {
-	int i ;
-	char *pst ;
-	if( !strcmp(dec,"..") ) {
-		if( strcmp(sesspath, initialsesspath) ) {
-			i=strlen(sesspath)-1 ;
-			while( sesspath[i]!='\\' ) i--;
-			sesspath[i]='\0';
-			}
-		}
-	else {
-		strcat( sesspath, "\\" ) ;
-		strcat( sesspath, dec ) ;
-		}
-	CleanFolderName( sesspath ) ;
-	pst = sesspath+strlen(initialsesspath ) ;
-	while( pst[0]=='\\' ) pst++ ;
-	return pst ;
-	}
-	
-char * SetInitialSessPath( void ) { return strcpy( sesspath, initialsesspath ) ; }
-
-char * GetSessPath( void ) {
-	return sesspath ;
-	}
-	
-void CreateFolderInPath( const char * d ) {
-	char buf[MAX_PATH] ;
-	sprintf( buf, "%s\\%s", sesspath, d ) ;
-	createPath( buf ) ;
-	}
+#endif
+};
 
 void *enum_settings_start(void)
 {
     struct enumsettings *ret;
-    HKEY key ;
+    HKEY key;
 
+#ifdef PERSOPORT
 	/* JK: in the first call of this function we can initialize path variables */
 	if (*sesspath == '\0') {
 		loadPath();
@@ -1053,28 +1171,38 @@ void *enum_settings_start(void)
 	ret->fromFile = 0;
 	ret->hFile = NULL;
 	ret->i = 0;
+#else
+    if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &key) != ERROR_SUCCESS)
+	return NULL;
+
+    ret = snew(struct enumsettings);
+    if (ret) {
+	ret->key = key;
+	ret->i = 0;
+    }
+#endif
 
     return ret;
 }
 
 char *enum_settings_next(void *handle, char *buffer, int buflen)
 {
-	struct enumsettings *e = (struct enumsettings *) handle;
+    struct enumsettings *e = (struct enumsettings *) handle;
+    char *otherbuf;
+#ifdef PERSOPORT
     WIN32_FIND_DATA FindFileData;
 	HANDLE hFile;
-	char *otherbuf;
 
 	if (!handle) return NULL;	/* JK: new in 0.1.3 */
 	
 	otherbuf = snewn( (3*buflen)+1, char); /* must be here */
 
 	if (! ((struct enumsettings *)handle)->fromFile ) {
-
+	
 	    if( (get_param("INIFILE")!=SAVEMODE_DIR)&&(RegEnumKey(e->key, e->i++, otherbuf, 3 * buflen) == ERROR_SUCCESS) ) {
-			unmungestr(otherbuf, buffer, buflen);
-			//strcat(buffer, " [*]");//strcat(buffer, " [registry]");
-			sfree(otherbuf);
-			return buffer;
+	unmungestr(otherbuf, buffer, buflen);
+	sfree(otherbuf);
+	return buffer;
 		}
 		else if(get_param("INIFILE")==SAVEMODE_DIR) {
 			/* JK: registry scanning done, starting scanning directory "sessions" */
@@ -1176,17 +1304,32 @@ char *enum_settings_next(void *handle, char *buffer, int buflen)
 	/* JK: should not end here */
 	sfree(otherbuf);
 	return NULL;
+#else
+    otherbuf = snewn(3 * buflen, char);
+    if (RegEnumKey(e->key, e->i++, otherbuf, 3 * buflen) == ERROR_SUCCESS) {
+	unmungestr(otherbuf, buffer, buflen);
+	sfree(otherbuf);
+	return buffer;
+    } else {
+	sfree(otherbuf);
+	return NULL;
+    }
+#endif
 }
 
 void enum_settings_finish(void *handle)
 {
     struct enumsettings *e = (struct enumsettings *) handle;
+#ifdef PERSOPORT
 	if (!handle) return;	/* JK: new in 0.1.3 */
 
     RegCloseKey(e->key);
 	FindClose(((struct enumsettings *)handle)->hFile);
 	SetCurrentDirectory(oldpath);
-	sfree(e);
+#else
+    RegCloseKey(e->key);
+#endif
+    sfree(e);
 }
 
 static void hostkey_regname(char *buffer, const char *hostname,
@@ -1205,11 +1348,12 @@ int verify_host_key(const char *hostname, int port,
 {
     char *otherstr, *regname;
     int len;
-	HKEY rkey;
+    HKEY rkey;
     DWORD readlen;
     DWORD type;
-    int ret, compare, userMB;
-
+    int ret, compare;
+#ifdef PERSOPORT
+	int userMB;
 	DWORD fileSize;
 	DWORD bytesRW;
 	char *p;
@@ -1369,8 +1513,11 @@ int verify_host_key(const char *hostname, int port,
 			packstr(regname, p);
 			strcat(p, keysuffix);
 			
+			debug_logevent( "VerifySSHKey(oldpath,sshkpath,regname,p)=(%s,%s,%s,%s)",oldpath,sshkpath,regname,p ) ;
 			hFile = CreateFile(p, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-
+			
+			SetCurrentDirectory(oldpath);
+			
 			if (hFile == INVALID_HANDLE_VALUE) {
 				errorShow("Unable to create file (key won't be deleted from registry)", p);
 				userMB = IDNO;
@@ -1398,29 +1545,132 @@ int verify_host_key(const char *hostname, int port,
 		return 0;		       
 	}
 return 0 ;
+#else
+    len = 1 + strlen(key);
+
+    /*
+     * Now read a saved key in from the registry and see what it
+     * says.
+     */
+    regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
+
+    hostkey_regname(regname, hostname, port, keytype);
+
+    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys",
+		   &rkey) != ERROR_SUCCESS) {
+        sfree(regname);
+	return 1;		       /* key does not exist in registry */
+    }
+
+    readlen = len;
+    otherstr = snewn(len, char);
+    ret = RegQueryValueEx(rkey, regname, NULL, &type, otherstr, &readlen);
+
+    if (ret != ERROR_SUCCESS && ret != ERROR_MORE_DATA &&
+	!strcmp(keytype, "rsa")) {
+	/*
+	 * Key didn't exist. If the key type is RSA, we'll try
+	 * another trick, which is to look up the _old_ key format
+	 * under just the hostname and translate that.
+	 */
+	char *justhost = regname + 1 + strcspn(regname, ":");
+	char *oldstyle = snewn(len + 10, char);	/* safety margin */
+	readlen = len;
+	ret = RegQueryValueEx(rkey, justhost, NULL, &type,
+			      oldstyle, &readlen);
+
+	if (ret == ERROR_SUCCESS && type == REG_SZ) {
+	    /*
+	     * The old format is two old-style bignums separated by
+	     * a slash. An old-style bignum is made of groups of
+	     * four hex digits: digits are ordered in sensible
+	     * (most to least significant) order within each group,
+	     * but groups are ordered in silly (least to most)
+	     * order within the bignum. The new format is two
+	     * ordinary C-format hex numbers (0xABCDEFG...XYZ, with
+	     * A nonzero except in the special case 0x0, which
+	     * doesn't appear anyway in RSA keys) separated by a
+	     * comma. All hex digits are lowercase in both formats.
+	     */
+	    char *p = otherstr;
+	    char *q = oldstyle;
+	    int i, j;
+
+	    for (i = 0; i < 2; i++) {
+		int ndigits, nwords;
+		*p++ = '0';
+		*p++ = 'x';
+		ndigits = strcspn(q, "/");	/* find / or end of string */
+		nwords = ndigits / 4;
+		/* now trim ndigits to remove leading zeros */
+		while (q[(ndigits - 1) ^ 3] == '0' && ndigits > 1)
+		    ndigits--;
+		/* now move digits over to new string */
+		for (j = 0; j < ndigits; j++)
+		    p[ndigits - 1 - j] = q[j ^ 3];
+		p += ndigits;
+		q += nwords * 4;
+		if (*q) {
+		    q++;	       /* eat the slash */
+		    *p++ = ',';	       /* add a comma */
+		}
+		*p = '\0';	       /* terminate the string */
+	    }
+
+	    /*
+	     * Now _if_ this key matches, we'll enter it in the new
+	     * format. If not, we'll assume something odd went
+	     * wrong, and hyper-cautiously do nothing.
+	     */
+	    if (!strcmp(otherstr, key))
+		RegSetValueEx(rkey, regname, 0, REG_SZ, otherstr,
+			      strlen(otherstr) + 1);
+	}
+
+        sfree(oldstyle);
+    }
+
+    RegCloseKey(rkey);
+
+    compare = strcmp(otherstr, key);
+
+    sfree(otherstr);
+    sfree(regname);
+
+    if (ret == ERROR_MORE_DATA ||
+	(ret == ERROR_SUCCESS && type == REG_SZ && compare))
+	return 2;		       /* key is different in registry */
+    else if (ret != ERROR_SUCCESS || type != REG_SZ)
+	return 1;		       /* key does not exist in registry */
+    else
+	return 0;		       /* key matched OK in registry */
+#endif
 }
 
 void store_host_key(const char *hostname, int port,
-		    const char *keytype, const char *key) 
+		    const char *keytype, const char *key)
 {
-	char *regname = NULL;
+    char *regname;
+    HKEY rkey;
+
+    regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
+
+    hostkey_regname(regname, hostname, port, keytype);
+
+#ifdef PERSOPORT
+if( (get_param("INIFILE")==SAVEMODE_REG)||(get_param("INIFILE")==SAVEMODE_FILE) ) {
+    if (RegCreateKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys",
+		     &rkey) == ERROR_SUCCESS) {
+	RegSetValueEx(rkey, regname, 0, REG_SZ, key, strlen(key) + 1);
+	RegCloseKey(rkey);
+    } /* else key does not exist in registry */
+	}
+else {
 	WIN32_FIND_DATA FindFile;
 	HANDLE hFile = NULL;
 	char* p = NULL;
 	DWORD bytesWritten;
-	HKEY rkey;
-	
-    regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
-    hostkey_regname(regname, hostname, port, keytype);
 
-
-if( (get_param("INIFILE")==SAVEMODE_REG)||(get_param("INIFILE")==SAVEMODE_FILE) ) {
-	if (RegCreateKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys", &rkey) == ERROR_SUCCESS) {
-		RegSetValueEx(rkey, regname, 0, REG_SZ, key, strlen(key) + 1);
-		RegCloseKey(rkey);
-		} /* else key does not exist in registry */
-	}
-else {
 	/* JK: save hostkey to file in dir */
 	if ((hFile = FindFirstFile(sshkpath, &FindFile)) == INVALID_HANDLE_VALUE) {
 		createPath(sshkpath);
@@ -1432,6 +1682,8 @@ else {
 	p = snewn(3*strlen(regname) + 1, char);
 	packstr(regname, p);
 	strcat(p, keysuffix);
+	
+	debug_logevent( "WriteSSHKey(oldpath,sshkpath,regname,p)=(%s,%s,%s,%s)",oldpath,sshkpath,regname,p ) ;
 	hFile = CreateFile(p, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
 	if (hFile == INVALID_HANDLE_VALUE) {
@@ -1447,8 +1699,15 @@ else {
 
 	sfree(p);
 	}
-	
-	sfree(regname);
+#else
+    if (RegCreateKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys",
+		     &rkey) == ERROR_SUCCESS) {
+	RegSetValueEx(rkey, regname, 0, REG_SZ, key, strlen(key) + 1);
+	RegCloseKey(rkey);
+    } /* else key does not exist in registry */
+#endif
+
+    sfree(regname);
 }
 
 /*
@@ -1458,7 +1717,10 @@ enum { DEL, OPEN_R, OPEN_W };
 static int try_random_seed(char const *path, int action, HANDLE *ret)
 {
     if (action == DEL) {
-	remove(path);
+        if (!DeleteFile(path) && GetLastError() != ERROR_FILE_NOT_FOUND) {
+            nonfatal("Unable to delete '%s': %s", path,
+                     win_strerror(GetLastError()));
+        }
 	*ret = INVALID_HANDLE_VALUE;
 	return FALSE;		       /* so we'll do the next ones too */
     }
@@ -1482,6 +1744,7 @@ static HANDLE access_random_seed(int action)
     HANDLE rethandle;
     char seedpath[2 * MAX_PATH + 10] = "\0";
 
+#ifdef PERSOPORT
 	/* JK: settings in conf file are the most prior */
 	if (seedpath != '\0') {
 		/* JK: In PuTTY 0.58 this won't ever happen - this function was called only if (!seedpath[0])
@@ -1490,7 +1753,8 @@ static HANDLE access_random_seed(int action)
 		return INVALID_HANDLE_VALUE;
 	}
 	/* JK: ok, try registry and etc. as in original PuTTY */
-
+#endif
+	
     /*
      * Iterate over a selection of possible random seed paths until
      * we find one that works.
@@ -1538,7 +1802,7 @@ static HANDLE access_random_seed(int action)
     }
     if (p_SHGetFolderPathA) {
 	if (SUCCEEDED(p_SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA,
-					NULL, SHGFP_TYPE_CURRENT, seedpath))) {
+					 NULL, SHGFP_TYPE_CURRENT, seedpath))) {
 	    strcat(seedpath, "\\PUTTY.RND");
 	    if (try_random_seed(seedpath, action, &rethandle))
 		return rethandle;
@@ -1738,7 +2002,7 @@ static int transform_jumplist_registry
     /*
      * Either return or free the result.
      */
-    if (out)
+    if (out && ret == ERROR_SUCCESS)
         *out = old_value;
     else
         sfree(old_value);
@@ -1771,7 +2035,7 @@ char *get_jumplist_registry_entries (void)
 {
     char *list_value;
 
-    if (transform_jumplist_registry(NULL,NULL,&list_value) != ERROR_SUCCESS) {
+    if (transform_jumplist_registry(NULL,NULL,&list_value) != JUMPLISTREG_OK) {
 	list_value = snewn(2, char);
         *list_value = '\0';
         *(list_value + 1) = '\0';
@@ -1809,7 +2073,7 @@ void cleanup_all(void)
      * locations.
      */
     access_random_seed(DEL);
-	
+
     /* ------------------------------------------------------------
      * Ask Windows to delete any jump list information associated
      * with this installation of PuTTY.
@@ -1855,9 +2119,3 @@ void cleanup_all(void)
      * Now we're done.
      */
 }
-
-#else
-
-#include "winstore.original.c" ;
-
-#endif

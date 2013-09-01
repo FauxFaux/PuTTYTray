@@ -34,7 +34,7 @@ char *x_get_default(const char *key)
     return NULL;		       /* this is a stub */
 }
 
-void platform_get_x11_auth(struct X11Display *display, const Config *cfg)
+void platform_get_x11_auth(struct X11Display *display, Conf *conf)
 {
     /* Do nothing, therefore no auth. */
 }
@@ -53,21 +53,17 @@ int platform_default_i(const char *name, int def)
     return def;
 }
 
-FontSpec platform_default_fontspec(const char *name)
+FontSpec *platform_default_fontspec(const char *name)
 {
-    FontSpec ret;
-    *ret.name = '\0';
-    return ret;
+    return fontspec_new("");
 }
 
-Filename platform_default_filename(const char *name)
+Filename *platform_default_filename(const char *name)
 {
-    Filename ret;
     if (!strcmp(name, "LogFileName"))
-	strcpy(ret.path, "putty.log");
+	return filename_from_str("putty.log");
     else
-	*ret.path = '\0';
-    return ret;
+	return filename_from_str("");
 }
 
 char *get_ttymode(void *frontend, const char *mode) { return NULL; }
@@ -125,7 +121,8 @@ struct RFile {
 };
 
 RFile *open_existing_file(char *name, uint64 *size,
-			  unsigned long *mtime, unsigned long *atime)
+			  unsigned long *mtime, unsigned long *atime,
+                          long *perms)
 {
     int fd;
     RFile *ret;
@@ -137,7 +134,7 @@ RFile *open_existing_file(char *name, uint64 *size,
     ret = snew(RFile);
     ret->fd = fd;
 
-    if (size || mtime || atime) {
+    if (size || mtime || atime || perms) {
 	struct stat statbuf;
 	if (fstat(fd, &statbuf) < 0) {
 	    fprintf(stderr, "%s: stat: %s\n", name, strerror(errno));
@@ -153,6 +150,9 @@ RFile *open_existing_file(char *name, uint64 *size,
 
 	if (atime)
 	    *atime = statbuf.st_atime;
+
+	if (perms)
+	    *perms = statbuf.st_mode;
     }
 
     return ret;
@@ -174,12 +174,13 @@ struct WFile {
     char *name;
 };
 
-WFile *open_new_file(char *name)
+WFile *open_new_file(char *name, long perms)
 {
     int fd;
     WFile *ret;
 
-    fd = open(name, O_CREAT | O_TRUNC | O_WRONLY, 0666);
+    fd = open(name, O_CREAT | O_TRUNC | O_WRONLY,
+              (mode_t)(perms ? perms : 0666));
     if (fd < 0)
 	return NULL;
 
@@ -442,7 +443,7 @@ static int ssh_sftp_do_select(int include_stdin, int no_fds_ok)
     fd_set rset, wset, xset;
     int i, fdcount, fdsize, *fdlist;
     int fd, fdstate, rwx, ret, maxfd;
-    long now = GETTICKCOUNT();
+    unsigned long now = GETTICKCOUNT();
 
     fdlist = NULL;
     fdcount = fdsize = 0;
@@ -488,13 +489,17 @@ static int ssh_sftp_do_select(int include_stdin, int no_fds_ok)
 	    FD_SET_MAX(0, maxfd, rset);
 
 	do {
-	    long next, ticks;
+	    unsigned long next, then;
+	    long ticks;
 	    struct timeval tv, *ptv;
 
 	    if (run_timers(now, &next)) {
-		ticks = next - GETTICKCOUNT();
-		if (ticks <= 0)
-		    ticks = 1;	       /* just in case */
+		then = now;
+		now = GETTICKCOUNT();
+		if (now - then > next - then)
+		    ticks = 0;
+		else
+		    ticks = next - now;
 		tv.tv_sec = ticks / 1000;
 		tv.tv_usec = ticks % 1000 * 1000;
 		ptv = &tv;
@@ -504,27 +509,8 @@ static int ssh_sftp_do_select(int include_stdin, int no_fds_ok)
 	    ret = select(maxfd, &rset, &wset, &xset, ptv);
 	    if (ret == 0)
 		now = next;
-	    else {
-		long newnow = GETTICKCOUNT();
-		/*
-		 * Check to see whether the system clock has
-		 * changed massively during the select.
-		 */
-		if (newnow - now < 0 || newnow - now > next - now) {
-		    /*
-		     * If so, look at the elapsed time in the
-		     * select and use it to compute a new
-		     * tickcount_offset.
-		     */
-		    long othernow = now + tv.tv_sec * 1000 + tv.tv_usec / 1000;
-		    /* So we'd like GETTICKCOUNT to have returned othernow,
-		     * but instead it return newnow. Hence ... */
-		    tickcount_offset += othernow - newnow;
-		    now = othernow;
-		} else {
-		    now = newnow;
-		}
-	    }
+	    else
+		now = GETTICKCOUNT();
 	} while (ret < 0 && errno != EINTR);
     } while (ret == 0);
 
@@ -579,6 +565,7 @@ char *ssh_sftp_get_cmdline(char *prompt, int no_fds_ok)
 	ret = ssh_sftp_do_select(TRUE, no_fds_ok);
 	if (ret < 0) {
 	    printf("connection died\n");
+            sfree(buf);
 	    return NULL;	       /* woop woop */
 	}
 	if (ret > 0) {
@@ -589,10 +576,12 @@ char *ssh_sftp_get_cmdline(char *prompt, int no_fds_ok)
 	    ret = read(0, buf+buflen, 1);
 	    if (ret < 0) {
 		perror("read");
+                sfree(buf);
 		return NULL;
 	    }
 	    if (ret == 0) {
 		/* eof on stdin; no error, but no answer either */
+                sfree(buf);
 		return NULL;
 	    }
 
@@ -603,6 +592,8 @@ char *ssh_sftp_get_cmdline(char *prompt, int no_fds_ok)
 	}
     }
 }
+
+void frontend_net_error_pending(void) {}
 
 /*
  * Main program: do platform-specific initialisation and then call

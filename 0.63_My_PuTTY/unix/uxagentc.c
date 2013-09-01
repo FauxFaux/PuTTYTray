@@ -17,7 +17,8 @@
 
 int agent_exists(void)
 {
-    if (getenv("SSH_AUTH_SOCK") != NULL)
+    const char *p = getenv("SSH_AUTH_SOCK");
+    if (p && *p)
 	return TRUE;
     return FALSE;
 }
@@ -74,13 +75,12 @@ static int agent_select_result(int fd, int event)
     }
     conn->retlen += ret;
     if (conn->retsize == 4 && conn->retlen == 4) {
-	conn->retsize = GET_32BIT(conn->retbuf);
+	conn->retsize = toint(GET_32BIT(conn->retbuf) + 4);
 	if (conn->retsize <= 0) {
 	    conn->retbuf = NULL;
 	    conn->retlen = 0;
 	    goto done;
 	}
-	conn->retsize += 4;
 	assert(conn->retbuf == conn->sizebuf);
 	conn->retbuf = snewn(conn->retsize, char);
 	memcpy(conn->retbuf, conn->sizebuf, 4);

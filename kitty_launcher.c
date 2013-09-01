@@ -240,49 +240,6 @@ void DelDir( const char * directory ) {
 	}
 */
 
-// Creer un repertoire recurssif (rep1 / rep2 / ...)
-void MakeDir( const char * directory ) {
-	char buffer[MAX_VALUE_NAME], fullpath[MAX_VALUE_NAME], *p, *pst ;
-	int i,j ;
-	
-	if( directory==NULL ) return ; if( strlen(directory)==0 ) return ;
-
-	for( i=0, j=0 ; i<=strlen(directory) ; i++,j++ ) { // On supprime les espaces après un '\' 
-		if( (directory[i]=='\\')||(directory[i]=='/') ) {
-			fullpath[j]='\\' ;
-			while( (directory[i+1]==' ')||(directory[i+1]=='	') ) i++ ;
-			}
-		else fullpath[j]=directory[i] ;
-		}
-	fullpath[j+1]='\0' ;
-		
-	// On supprime les espaces à la fin
-	while( (fullpath[strlen(fullpath)-1]==' ')||(fullpath[strlen(fullpath)-1]=='	') ) fullpath[strlen(fullpath)-1]='\0';
-
-	for( i=strlen(fullpath), j=strlen(fullpath) ; i>=0 ; i--, j-- ) { // On supprime les espaces avant un '\'
-		if( fullpath[i] == '\\' ) {
-			buffer[j]='\\' ;
-			while( (i>0)&&((fullpath[i-1]==' ')||(fullpath[i-1]=='	')) ) i-- ;
-			}
-		else buffer[j]=fullpath[i] ;
-		}
-	j++;
-		
-	// On supprime les espace au début
-	while( ((buffer+j)[0]==' ')||((buffer+j)[0]=='	') ) j++ ;
-	strcpy( fullpath, buffer+j ) ;
-	
-	// On crée les répertoire
-	pst = fullpath ;
-	while( (strlen(pst)>0)&&((p=strstr(pst,"\\"))!=NULL) ) {
-		p[0]='\0' ;
-		_mkdir( fullpath ) ;
-		p[0]='\\' ;
-		pst=p+1;
-		}
-	_mkdir( fullpath ) ;
-	}
-	
 // Initialise l'arborescence Launcher en mode savemode=dir avec arborescence
 void InitLauncherDir( const char * directory ) {
 	char fullpath[MAX_VALUE_NAME], buffer[MAX_VALUE_NAME] ;
@@ -413,6 +370,67 @@ void DisplayContextMenu( HWND hwnd, HMENU menu ) {
 
 	}
 	
+void RunConfig( Conf * conf /*Config * cfg*/ ) {
+
+		char b[2048];
+		char c[180], *cl;
+		int freecl = FALSE;
+		BOOL inherit_handles;
+		STARTUPINFO si;
+		PROCESS_INFORMATION pi;
+		HANDLE filemap = NULL;
+
+		char bufpass[256] ;
+		strcpy( bufpass, conf_get_str(conf,CONF_password));
+		MASKPASS(bufpass);
+		    /*
+		     * Allocate a file-mapping memory chunk for the
+		     * config structure.
+		     */
+		    SECURITY_ATTRIBUTES sa;
+		    void *p;
+		    int size;
+
+		    size = conf_serialised_size(conf);
+
+		    sa.nLength = sizeof(sa);
+		    sa.lpSecurityDescriptor = NULL;
+		    sa.bInheritHandle = TRUE;
+		    filemap = CreateFileMapping(INVALID_HANDLE_VALUE,
+						&sa,
+						PAGE_READWRITE,
+						0, size, NULL);
+		    if (filemap && filemap != INVALID_HANDLE_VALUE) {
+			p = MapViewOfFile(filemap, FILE_MAP_WRITE, 0, 0, size);
+			if (p) {
+			    conf_serialise(conf, p);
+			    UnmapViewOfFile(p);
+			}
+		    }
+		    inherit_handles = TRUE;
+		    sprintf(c, "putty &%p:%u", filemap, (unsigned)size);
+		    cl = c;
+		memset(bufpass,0,strlen(bufpass));//MASKPASS(cfg->password);
+		    
+		GetModuleFileName(NULL, b, sizeof(b) - 1);
+		si.cb = sizeof(si);
+		si.lpReserved = NULL;
+		si.lpDesktop = NULL;
+		si.lpTitle = NULL;
+		si.dwFlags = 0;
+		si.cbReserved2 = 0;
+		si.lpReserved2 = NULL;
+		CreateProcess(b, cl, NULL, NULL, inherit_handles,
+			      NORMAL_PRIORITY_CLASS, NULL, NULL, &si, &pi);
+                CloseHandle(pi.hProcess);
+                CloseHandle(pi.hThread);
+
+		if (filemap)
+		    CloseHandle(filemap);
+		if (freecl)
+		    sfree(cl);
+	}
+
 void RunPuTTY( HWND hwnd, char * param ) {
 	char buffer[4096]="",shortname[1024]="" ; ;
 	if( GetModuleFileName( NULL, (LPTSTR)buffer, 1023 ) ) 
@@ -425,15 +443,16 @@ void RunPuTTY( HWND hwnd, char * param ) {
 			}
 	}
 
-void RunSession( HWND hwnd, const char * folder_in, char * session_in ) {
+int RunSession( HWND hwnd, const char * folder_in, char * session_in ) {
 	char buffer[4096]="", shortname[1024]="" ;
 	char *session=NULL ;
+	int return_code=0 ;
 	
-	if( session_in==NULL ) return ;
-	if( strlen(session_in) <= 0 ) return ;
+	if( session_in==NULL ) return 0 ;
+	if( strlen(session_in) <= 0 ) return 0 ;
 		
-	if( !GetModuleFileName( NULL, (LPTSTR)buffer, 1023 ) ) return ;
-	if( !GetShortPathName( buffer, shortname, 1023 ) ) return ;
+	if( !GetModuleFileName( NULL, (LPTSTR)buffer, 1023 ) ) return 0 ;
+	if( !GetShortPathName( buffer, shortname, 1023 ) ) return 0 ;
 
 	session = (char*)malloc(strlen(session_in)+100) ;
 	
@@ -453,6 +472,7 @@ void RunSession( HWND hwnd, const char * folder_in, char * session_in ) {
 				else sprintf( buffer, "%s -load \"%s\"", shortname, session ) ;
 				}
 			RunCommand( hwnd, buffer ) ;
+			return_code = 1 ;
 			}
 		else { RunCommand( hwnd, session_in ) ; }
 		}
@@ -486,43 +506,11 @@ void RunSession( HWND hwnd, const char * folder_in, char * session_in ) {
 			}*/
 //MessageBox( hwnd, buffer, "Info", MB_OK ) ;
 		RunCommand( hwnd, buffer ) ;
+		return_code = 1 ;
 		}
 
 	free( session ) ;
-	}
-
-// Gestion de la taille des fenetres de la meme classe
-BOOL CALLBACK ResizeWinListProc( HWND hwnd, LPARAM lParam ) {
-	char buffer[256] ;
-	GetClassName( hwnd, buffer, 256 ) ;
-	
-	if( !strcmp( buffer, KiTTYClassName ) )
-	if( hwnd != MainHwnd ) {
-		RECT * rc = (RECT*) lParam ;
-		LPARAM pos = MAKELPARAM( rc->left, rc->top ) ;
-		LPARAM size = MAKELPARAM( rc->right, rc->bottom ) ;
-		//SendNotifyMessage( hwnd, WM_COMMAND, IDM_RESIZE, size ) ;
-		//SendNotifyMessage( hwnd, WM_COMMAND, IDM_REPOS, pos ) ;
-		PostMessage( hwnd, WM_COMMAND, IDM_REPOS, pos ) ;
-		PostMessage( hwnd, WM_COMMAND, IDM_RESIZE, size ) ;
-		//PostMessage( hwnd, WM_COMMAND, IDM_RESIZEH, rc->bottom ) ;
-		//SetWindowPos( hwnd, 0, 0, 0, rc->right-rc->left+1, rc->bottom-rc->top+1, SWP_NOZORDER|SWP_NOMOVE|SWP_NOREPOSITION|SWP_NOACTIVATE ) ;
-		//SetWindowPos( hwnd, 0, 0, 0, 50,50, SWP_NOZORDER|SWP_NOMOVE|SWP_NOREPOSITION|SWP_NOACTIVATE);
-		NbWin++ ;
-		}
-
-	return TRUE ;
-	}
-
-int ResizeWinList( HWND hwnd, int width, int height ) {
-	NbWin=0 ;
-	RECT rc;
-	GetWindowRect(hwnd, &rc) ;
-	rc.right = width ;
-	rc.bottom = height ;
-	EnumWindows( ResizeWinListProc, (LPARAM)&rc ) ;
-	SetForegroundWindow( hwnd ) ;
-	return NbWin ;
+	return return_code ;
 	}
 	
 // Gestion Hide/UnHide all
@@ -548,27 +536,6 @@ BOOL CALLBACK RefreshWinListProc( HWND hwnd, LPARAM lParam ) {
 int RefreshWinList( HWND hwnd ) {
 	NbWin=0 ;
 	EnumWindows( RefreshWinListProc, 0 ) ;
-	return NbWin ;
-	}
-	
-// Command sender (envoi d'une meme commande a toutes les fenetres)
-BOOL CALLBACK SendCommandProc( HWND hwnd, LPARAM lParam ) {
-	char buffer[256] ;
-	GetClassName( hwnd, buffer, 256 ) ;
-	
-	if( !strcmp( buffer, KiTTYClassName ) )
-	if( hwnd != MainHwnd ) {
-		SendKeyboardPlus( hwnd, (char*)lParam ) ;
-		NbWin++ ;
-		}
-
-	return TRUE ;
-	}
-
-int SendCommandAllWindows( HWND hwnd, char * cmd ) {
-	NbWin=0 ;
-	if( cmd==NULL ) return 0 ;
-	if( strlen(cmd) > 0 ) EnumWindows( SendCommandProc, (LPARAM)cmd ) ;
 	return NbWin ;
 	}
 	
@@ -735,7 +702,7 @@ LRESULT CALLBACK Launcher_WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		case WM_COMMAND: {//Commandes du menu
 			switch( LOWORD(wParam) ) {
 				case IDM_ABOUT:
-					MessageBox(hwnd,"     TTY Launcher\nSession launcher for TTY terminal emulator\n(c), 2009/2011","About", MB_OK ) ;
+					MessageBox(hwnd,"     TTY Launcher\nSession launcher for TTY terminal emulator\n(c), 2009-2013","About", MB_OK ) ;
 					break ;
 				case IDM_QUIT:
 					ResShell = Shell_NotifyIcon(NIM_DELETE, &TrayIcone) ;

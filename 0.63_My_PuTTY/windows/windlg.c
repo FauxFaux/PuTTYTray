@@ -44,7 +44,7 @@ static struct dlgparam dp;
 static char **events = NULL;
 static int nevents = 0, negsize = 0;
 
-extern Config cfg;		       /* defined in window.c */
+extern Conf *conf;		       /* defined in window.c */
 
 #ifdef PERSOPORT
 #include <math.h>
@@ -61,7 +61,8 @@ int get_param( const char * val ) ;
 void CreateSSHHandler() ;
 
 #ifndef TIMER_SLIDEBG
-#define TIMER_SLIDEBG 12343
+//#define TIMER_SLIDEBG 12343
+#define TIMER_SLIDEBG 8703
 #endif
 
 int print_event_log( FILE * fp, int i ) {
@@ -71,7 +72,6 @@ int print_event_log( FILE * fp, int i ) {
 	}
 
 #endif
-
 #define PRINTER_DISABLED_STRING "None (printing disabled)"
 
 void force_normal(HWND hwnd)
@@ -216,7 +216,7 @@ static int CALLBACK LicenceProc(HWND hwnd, UINT msg,
 #if (defined PERSOPORT) && (!defined FDJ)
 
 //static const char MESSAGE[] = "";
-static const char MESSAGE[] = "                                                                                       KiTTY software is developed by Cyd for 9bis.com, copyright © 2006-2012, thanks to Leo for bcrypt and mini libraries, thanks to all contributors                                                                                       " ;
+static const char MESSAGE[] = "                                                                                       KiTTY software is developed by Cyd for 9bis.com, copyright © 2006-2013, thanks to Leo for bcrypt and mini libraries, thanks to all contributors                                                                                       " ;
 static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 			      WPARAM wParam, LPARAM lParam)
 {
@@ -237,9 +237,11 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 	case WM_INITDIALOG: {
 		char buffer[1024] ;
 		LOGFONT lf;
-		
+
+#ifdef FDJ
 		/* Positionnement du ssh handler */
 		CreateSSHHandler() ;
+#endif
 		
 		//sprintf( buffer, "That's all folks ! version - %s", BuildVersionTime ) ;
 		sprintf( buffer, "KiTTY - %s", BuildVersionTime ) ;
@@ -446,12 +448,11 @@ static int CALLBACK AboutProcOrig(HWND hwnd, UINT msg,
 {
 
 #else
-
 static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 			      WPARAM wParam, LPARAM lParam)
 {
 #endif
-	char *str;
+    char *str;
 
     switch (msg) {
       case WM_INITDIALOG:
@@ -937,7 +938,7 @@ int do_config(void)
     dp_add_tree(&dp, &ctrls_panel);
     dp.wintitle = dupprintf("%s Configuration", appname);
     dp.errtitle = dupprintf("%s Error", appname);
-    dp.data = &cfg;
+    dp.data = conf;
     dlg_auto_set_fixed_pitch_flag(&dp);
     dp.shortcuts['g'] = TRUE;	       /* the treeview: `Cate&gory' */
 
@@ -960,15 +961,15 @@ int do_config(void)
 
 int do_reconfig(HWND hwnd, int protcfginfo)
 {
-    Config backup_cfg;
-    int ret;
+    Conf *backup_conf;
+    int ret, protocol;
 
-    backup_cfg = cfg;		       /* structure copy */
+    backup_conf = conf_copy(conf);
 
     ctrlbox = ctrl_new_box();
-    setup_config_box(ctrlbox, TRUE, cfg.protocol, protcfginfo);
-    win_setup_config_box(ctrlbox, &dp.hwnd, has_help(), TRUE,
-                         cfg.protocol);
+    protocol = conf_get_int(conf, CONF_protocol);
+    setup_config_box(ctrlbox, TRUE, protocol, protcfginfo);
+    win_setup_config_box(ctrlbox, &dp.hwnd, has_help(), TRUE, protocol);
     dp_init(&dp);
     winctrl_init(&ctrls_base);
     winctrl_init(&ctrls_panel);
@@ -976,7 +977,7 @@ int do_reconfig(HWND hwnd, int protcfginfo)
     dp_add_tree(&dp, &ctrls_panel);
     dp.wintitle = dupprintf("%s Reconfiguration", appname);
     dp.errtitle = dupprintf("%s Error", appname);
-    dp.data = &cfg;
+    dp.data = conf;
     dlg_auto_set_fixed_pitch_flag(&dp);
     dp.shortcuts['g'] = TRUE;	       /* the treeview: `Cate&gory' */
 
@@ -989,16 +990,18 @@ int do_reconfig(HWND hwnd, int protcfginfo)
     dp_cleanup(&dp);
 
     if (!ret)
-	cfg = backup_cfg;	       /* structure copy */
+	conf_copy_into(conf, backup_conf);
 
 #if (defined IMAGEPORT) && (!defined FDJ)
-	if( get_param("BACKGROUNDIMAGE") && (cfg.bg_slideshow!=backup_cfg.bg_slideshow) ) {
+	if( get_param("BACKGROUNDIMAGE") && (conf_get_int(conf,CONF_bg_slideshow)/*cfg.bg_slideshow*/!=conf_get_int(backup_conf,CONF_bg_slideshow)/*backup_cfg.bg_slideshow*/) ) {
 		KillTimer( hwnd, TIMER_SLIDEBG ) ;
-		if((cfg.bg_type!=0)&&(cfg.bg_slideshow>0)) 
-			SetTimer(hwnd, TIMER_SLIDEBG, (int)(cfg.bg_slideshow*1000), NULL) ;
+		if((conf_get_int(conf,CONF_bg_type)/*cfg.bg_type*/!=0)&&(conf_get_int(conf,CONF_bg_slideshow)/*cfg.bg_slideshow*/>0)) 
+			SetTimer(hwnd, TIMER_SLIDEBG, (int)(conf_get_int(conf,CONF_bg_slideshow)/*cfg.bg_slideshow*/*1000), NULL) ;
 		InvalidateRect(hwnd, NULL, TRUE);
 		}
 #endif
+
+    conf_free(backup_conf);
     return ret;
 }
 
@@ -1184,7 +1187,7 @@ int askalg(void *frontend, const char *algtype, const char *algname,
  * Ask whether to wipe a session log file before writing to it.
  * Returns 2 for wipe, 1 for append, 0 for cancel (don't log).
  */
-int askappend(void *frontend, Filename filename,
+int askappend(void *frontend, Filename *filename,
 	      void (*callback)(void *ctx, int result), void *ctx)
 {
     static const char msgtemplate[] =
@@ -1198,7 +1201,7 @@ int askappend(void *frontend, Filename filename,
     char *mbtitle;
     int mbret;
 
-    message = dupprintf(msgtemplate, FILENAME_MAX, filename.path);
+    message = dupprintf(msgtemplate, FILENAME_MAX, filename->path);
     mbtitle = dupprintf("%s Log to File", appname);
 
     mbret = MessageBox(NULL, message, mbtitle,

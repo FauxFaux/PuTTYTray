@@ -13,13 +13,14 @@
 #include "charset.h"
 
 struct Filename {
-    char path[FILENAME_MAX];
+    char *path;
 };
-FILE *f_open(struct Filename, char const *, int);
+FILE *f_open(const struct Filename *, char const *, int);
 
 struct FontSpec {
-    char name[256];
+    char *name;    /* may be "" to indicate no selected font at all */
 };
+struct FontSpec *fontspec_new(const char *name);
 
 typedef void *Context;                 /* FIXME: probably needs changing */
 
@@ -59,11 +60,6 @@ unsigned long getticks(void);	       /* based on gettimeofday(2) */
 #define GETTICKCOUNT getticks
 #define TICKSPERSEC    1000	       /* we choose to use milliseconds */
 #define CURSORBLINK     450	       /* no standard way to set this */
-/* getticks() works using gettimeofday(), so it's vulnerable to system clock
- * changes causing chaos. Therefore, we provide a compensation mechanism. */
-#define TIMING_SYNC
-#define TIMING_SYNC_ANOW
-extern long tickcount_offset;
 
 #define WCHAR wchar_t
 #define BYTE unsigned char
@@ -89,18 +85,23 @@ long get_windowid(void *frontend);
 void *get_window(void *frontend);      /* void * to avoid depending on gtk.h */
 
 /* Things pterm.c needs from gtkdlg.c */
-int do_config_box(const char *title, Config *cfg,
+int do_config_box(const char *title, Conf *conf,
 		  int midsession, int protcfginfo);
 void fatal_message_box(void *window, char *msg);
+void nonfatal_message_box(void *window, char *msg);
 void about_box(void *window);
 void *eventlogstuff_new(void);
 void showeventlog(void *estuff, void *parentwin);
 void logevent_dlg(void *estuff, const char *string);
 int reallyclose(void *frontend);
+#ifdef MAY_REFER_TO_GTK_IN_HEADERS
+int messagebox(GtkWidget *parentwin, char *title, char *msg, int minwid, ...);
+int string_width(char *text);
+#endif
 
 /* Things pterm.c needs from {ptermm,uxputty}.c */
 char *make_default_wintitle(char *hostname);
-int process_nonoption_arg(char *arg, Config *cfg, int *allow_launch);
+int process_nonoption_arg(char *arg, Conf *conf, int *allow_launch);
 
 /* pterm.c needs this special function in xkeysym.c */
 int keysym_to_unicode(int keysym);
@@ -155,7 +156,10 @@ void (*putty_signal(int sig, void (*func)(int)))(int);
 void block_signal(int sig, int block_it);
 
 /* uxmisc.c */
-int cloexec(int);
+void cloexec(int);
+void noncloexec(int);
+int nonblock(int);
+int no_nonblock(int);
 
 /*
  * Exports from unicode.c.
@@ -168,6 +172,13 @@ int init_ucs(struct unicode_data *ucsdata, char *line_codepage,
  * Spare function exported directly from uxnet.c.
  */
 void *sk_getxdmdata(void *sock, int *lenp);
+
+/*
+ * Function provided by front ends, and called by uxnet.c to indicate
+ * that net_pending_errors() would like to be called back when the
+ * front end has a spare moment and isn't deep in any other recursion.
+ */
+void frontend_net_error_pending(void);
 
 /*
  * General helpful Unix stuff: more helpful version of the FD_SET

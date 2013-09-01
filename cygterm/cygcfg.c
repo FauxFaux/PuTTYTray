@@ -9,7 +9,7 @@
 #include "putty.h"
 #include "dialog.h"
 
-static int CygTermFlag = 0 ;
+static int CygTermFlag = 1 ;
 
 void cygterm_set_flag( int flag ) {
 	if( flag >= 1 ) CygTermFlag = 1 ;
@@ -58,8 +58,9 @@ void cygterm_setup_config_box(struct controlbox *b, int midsession)
 	                "Configure Cygwin paths");
 	ctrl_checkbox(s, "Autodetect Cygwin installation", 'd',
 	              HELPCTX(no_help),
-	              dlg_stdcheckbox_handler,
-	              I(offsetof(Config,cygautopath)));
+	              conf_checkbox_handler/*dlg_stdcheckbox_handler*/,
+	              I(1)//I(offsetof(Config,cygautopath))
+		      );
     }
 }
 

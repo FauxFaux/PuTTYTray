@@ -15,9 +15,6 @@ Backend *backends[] = {
     &rlogin_backend,
     &raw_backend,
     &serial_backend,
-#ifdef CYGTERMPORT
-    &cygterm_backend,
-#endif
     NULL
 };
 

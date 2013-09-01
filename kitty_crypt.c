@@ -12,6 +12,10 @@ int decryptstring( char * st, const char * key ) {
 static char MASKKEY[128] = "†‡œ¤¥©ª³¼½¾" ;
 	
 void MASKPASS( char * password ) {
+	
+	//return ;    //   POUR SIMPLIFIER EN ATTENDANT QUE TOUT FONCTIONNE DANS LA MISE A JOUR > 2013/06/27
+	
+	
 	int i,j=0, len=strlen(password) ;
 	char c, *buffer ;
 	buffer=(char*)malloc(strlen(password)+1);

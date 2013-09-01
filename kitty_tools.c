@@ -204,3 +204,47 @@ int add_env( char * name, char * value ) {
 		}
 	return res ;
 	}
+
+// Creer un repertoire recurssif (rep1 / rep2 / ...)
+int _mkdir (const char*);
+void MakeDir( const char * directory ) {
+	char buffer[MAX_VALUE_NAME], fullpath[MAX_VALUE_NAME], *p, *pst ;
+	int i,j ;
+	
+	if( directory==NULL ) return ; if( strlen(directory)==0 ) return ;
+
+	for( i=0, j=0 ; i<=strlen(directory) ; i++,j++ ) { // On supprime les espaces après un '\' 
+		if( (directory[i]=='\\')||(directory[i]=='/') ) {
+			fullpath[j]='\\' ;
+			while( (directory[i+1]==' ')||(directory[i+1]=='	') ) i++ ;
+			}
+		else fullpath[j]=directory[i] ;
+		}
+	fullpath[j+1]='\0' ;
+		
+	// On supprime les espaces à la fin
+	while( (fullpath[strlen(fullpath)-1]==' ')||(fullpath[strlen(fullpath)-1]=='	') ) fullpath[strlen(fullpath)-1]='\0';
+
+	for( i=strlen(fullpath), j=strlen(fullpath) ; i>=0 ; i--, j-- ) { // On supprime les espaces avant un '\'
+		if( fullpath[i] == '\\' ) {
+			buffer[j]='\\' ;
+			while( (i>0)&&((fullpath[i-1]==' ')||(fullpath[i-1]=='	')) ) i-- ;
+			}
+		else buffer[j]=fullpath[i] ;
+		}
+	j++;
+		
+	// On supprime les espace au début
+	while( ((buffer+j)[0]==' ')||((buffer+j)[0]=='	') ) j++ ;
+	strcpy( fullpath, buffer+j ) ;
+	
+	// On crée les répertoire
+	pst = fullpath ;
+	while( (strlen(pst)>0)&&((p=strstr(pst,"\\"))!=NULL) ) {
+		p[0]='\0' ;
+		_mkdir( fullpath ) ;
+		p[0]='\\' ;
+		pst=p+1;
+		}
+	_mkdir( fullpath ) ;
+	}

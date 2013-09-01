@@ -21,19 +21,21 @@ typedef struct unifont {
     /*
      * public_charset is the charset used when the user asks for
      * `Use font encoding'.
-     * 
-     * real_charset is the charset used when translating text into
-     * a form suitable for sending to unifont_draw_text().
-     * 
-     * They can differ. For example, public_charset might be
-     * CS_ISO8859_1 while real_charset is CS_ISO8859_1_X11.
      */
-    int public_charset, real_charset;
+    int public_charset;
 
     /*
      * Font dimensions needed by clients.
      */
     int width, height, ascent, descent;
+
+    /*
+     * Indicates whether this font is capable of handling all glyphs
+     * (Pango fonts can do this because Pango automatically supplies
+     * missing glyphs from other fonts), or whether it would like a
+     * fallback font to cope with missing glyphs.
+     */
+    int want_fallback;
 } unifont;
 
 unifont *unifont_create(GtkWidget *widget, const char *name,
@@ -41,8 +43,20 @@ unifont *unifont_create(GtkWidget *widget, const char *name,
 			int shadowoffset, int shadowalways);
 void unifont_destroy(unifont *font);
 void unifont_draw_text(GdkDrawable *target, GdkGC *gc, unifont *font,
-		       int x, int y, const char *string, int len,
+		       int x, int y, const wchar_t *string, int len,
 		       int wide, int bold, int cellwidth);
+
+/*
+ * This function behaves exactly like the low-level unifont_create,
+ * except that as well as the requested font it also allocates (if
+ * necessary) a fallback font for filling in replacement glyphs.
+ *
+ * Return value is usable with unifont_destroy and unifont_draw_text
+ * as if it were an ordinary unifont.
+ */
+unifont *multifont_create(GtkWidget *widget, const char *name,
+                          int wide, int bold,
+                          int shadowoffset, int shadowalways);
 
 /*
  * Unified font selector dialog. I can't be bothered to do a

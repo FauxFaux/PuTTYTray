@@ -153,7 +153,7 @@ static int xyz_Check(Backend *back, void *backhandle, Terminal *term, int outerr
 
 void xyz_ReceiveInit(Terminal *term)
 {
-	if (xyz_SpawnProcess(term, term->cfg.rzcommand, term->cfg.rzoptions) == 0) {
+	if (xyz_SpawnProcess(term, conf_get_str(term->conf,CONF_rzcommand)/*term->cfg.rzcommand*/, conf_get_str(term->conf,CONF_rzoptions)/*term->cfg.rzoptions*/) == 0) {
 		term->xyz_transfering = 1;
 	}
 }
@@ -183,7 +183,7 @@ void xyz_StartSending(Terminal *term)
 		curparams = sz_full_params;
 		sz_full_params[0] = 0;
 
-		curparams += sprintf(curparams, "%s", term->cfg.szoptions);
+		curparams += sprintf(curparams, "%s", conf_get_str(term->conf,CONF_szoptions)/*term->cfg.szoptions*/);
 
 		if (*(p+strlen(filenames)+1)==0) {
 			sprintf(curparams, " \"%s\"", filenames);
@@ -195,7 +195,7 @@ void xyz_StartSending(Terminal *term)
 				curparams += sprintf(curparams, " \"%s\\%s\"", filenames, p);
 			}
 		}
-		if (xyz_SpawnProcess(term, term->cfg.szcommand, sz_full_params) == 0) {
+		if (xyz_SpawnProcess(term, conf_get_str(term->conf,CONF_szcommand)/*term->cfg.szcommand*/, sz_full_params) == 0) {
 			term->xyz_transfering = 1;
 		}
 	}
@@ -318,7 +318,7 @@ static int xyz_SpawnProcess(Terminal *term, const char *incommand, const char *i
 		}
 		sprintf(params, "%s %s", p, inparams);
 
-		if (!CreateProcess(incommand,params,NULL, NULL,TRUE,CREATE_NEW_CONSOLE, NULL,term->cfg.zdownloaddir,&si,&term->xyz_Internals->pi))
+		if (!CreateProcess(incommand,params,NULL, NULL,TRUE,CREATE_NEW_CONSOLE, NULL,conf_get_str(term->conf,CONF_zdownloaddir)/*term->cfg.zdownloaddir*/,&si,&term->xyz_Internals->pi))
 		{
 			//DWORD err = GetLastError();
 	//		ErrorMessage("CreateProcess");

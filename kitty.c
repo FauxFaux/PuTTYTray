@@ -25,25 +25,17 @@
 #define SAVEMODE_REG 0
 #endif
 #ifndef SAVEMODE_FILE
-#define SAVEMODE_FILE 1
+#define SAVEMODE_FIL
 #endif
 #ifndef SAVEMODE_DIR
 #define SAVEMODE_DIR 2
 #endif
 
-// Flag pour le fonctionnement en mode "portable" (gestion par fichiers)
-#ifdef PORTABLE
-int IniFileFlag = SAVEMODE_DIR ;
-#else
-int IniFileFlag = SAVEMODE_REG ;
-#endif
+// Flag pour le fonctionnement en mode "portable" (gestion par fichiers), defini dans kitty_commun.c
+extern int IniFileFlag ;
 
-// Flag permettant la gestion de l'arborscence (dossier=folder) dans le cas d'un savemode=dir
-#ifdef PORTABLE
-int DirectoryBrowseFlag = 1 ;
-#else
-int DirectoryBrowseFlag = 0 ;
-#endif
+// Flag permettant la gestion de l'arborscence (dossier=folder) dans le cas d'un savemode=dir, defini dans kitty_commun.c
+extern int DirectoryBrowseFlag ;
 
 
 #ifdef ZMODEMPORT
@@ -75,10 +67,10 @@ void xyz_updateMenuItems(Terminal *term);
 #define SI_RANDOM 2
 
 
-// Delai avant d'envoyer le password et d'envoyer vers le tray (automatiquement à la connexion) (en seconde)
-static double init_delay = 2.0 ;
-// Delai entre chaque ligne de la commande automatique (en seconde)
-static double autocommand_delay = 0.0005 ;
+// Delai avant d'envoyer le password et d'envoyer vers le tray (automatiquement à la connexion) (en milliseconde)
+static int init_delay = 2000 ;
+// Delai entre chaque ligne de la commande automatique (en milliseconde)
+static int autocommand_delay = 5 ;
 // Delai entre chaque caractères d'une commande (en millisecondes)
 static int between_char_delay = 0 ;
 // Delai entre deux lignes d'une même commande et entre deux raccourcis \x \k
@@ -92,12 +84,18 @@ static char * ScriptCommand = NULL ;
 static char * PasteCommand = NULL ;
 static int PasteCommandFlag = 0 ;
 
+// Flag de gestion de la fonction hyperlink
+#ifdef HYPERLINKPORT
+static int HyperlinkFlag = 1 ;
+#else
+static int HyperlinkFlag = 0 ;
+#endif
+
+// Flag de gestion de la Transparence
+static int TransparencyFlag = 0 ;
 
 // Gestion du script file au lancement
 static char * ScriptFileContent = NULL ;
-
-// Flag de gestion de la transparence (-1 = inactif, [0,255] actif)
-static int TransparencyNumber = -1 ;
 
 // Flag pour la protection contre les saisies malheureuses
 static int ProtectFlag = 0 ; 
@@ -182,11 +180,11 @@ static int NoKittyFileFlag = 0 ;
 // Hauteur de la boîte de configuration
 int ConfigBoxHeight = 21 ;
 
-// Flag permettant de desactiver la sauvegarde automatique des informations de connexion (user/password) à la connexion SSH
-static int UserPassSSHNoSave = 0 ;
-
 // Hauteur de la fenêtre de la boîte de configuration (0=valeur par defaut)
 static int ConfigBoxWindowHeight = 0 ;
+
+// Flag permettant de desactiver la sauvegarde automatique des informations de connexion (user/password) à la connexion SSH
+static int UserPassSSHNoSave = 0 ;
 
 // Flag pour repasser en mode Putty basic
 static int PuttyFlag = 0 ;
@@ -234,9 +232,6 @@ static char InitialDirectory[4096] ;
 static char * KittyIniFile = NULL ;
 static char * KittySavFile = NULL ;
 
-// Flag permettant d'activer l'acces a du code particulier permettant d'avoir plus d'info dans le kitty.dmp
-static int debug_flag = 0 ;
-
 // Nom de la classe de l'application
 static char KiTTYClassName[128] = "" ;
 
@@ -247,13 +242,30 @@ extern int PrintMaxCharPerLine ;
 
 extern char puttystr[1024] ;
 
+// Handle sur la fenetre principale
+HWND MainHwnd ;
+
+// Decompte du nombre de fenêtres en cours de KiTTY
+static int NbWindows = 0 ;
+
 NOTIFYICONDATA TrayIcone ;
 #define MYWM_NOTIFYICON		(WM_USER+3)
 
 static int IconeNum = 0 ;
 
-void SetNewIcon( HWND hwnd, Config cfg, const int mode ) ;
+void SetNewIcon( HWND hwnd, char * iconefile, int icone, const int mode ) ;
 
+#define TIMER_INIT 8701
+#define TIMER_AUTOCOMMAND 8702
+#if (defined IMAGEPORT) && (!defined FDJ)
+#define TIMER_SLIDEBG 8703
+#endif
+#define TIMER_REDRAW 8704
+#define TIMER_AUTOPASTE 8705
+#define TIMER_BLINKTRAYICON 8706
+#define TIMER_LOGROTATION 8707
+
+/*
 #define TIMER_INIT 12341
 #define TIMER_AUTOCOMMAND 12342
 #if (defined IMAGEPORT) && (!defined FDJ)
@@ -263,6 +275,7 @@ void SetNewIcon( HWND hwnd, Config cfg, const int mode ) ;
 #define TIMER_AUTOPASTE 12345
 #define TIMER_BLINKTRAYICON 12346
 #define TIMER_LOGROTATION 12347
+*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -323,7 +336,9 @@ char * InputBox( HINSTANCE hInstance, HWND hwnd ) ;
 char *itoa(int value, char *string, int radix);
 void GetAndSendLinePassword( HWND hwnd ) ;
 int unlink(const char *pathname);
+#ifdef LAUNCHERPORT
 void InitLauncherRegistry( void ) ;
+#endif
 void RunScriptFile( HWND hwnd, const char * filename ) ;
 void InfoBoxSetText( HWND hwnd, char * st ) ;
 void ReadInitScript( const char * filename ) ;
@@ -355,7 +370,6 @@ int InternalCommand( HWND hwnd, char * st ) ;
 
 #include "kitty_tools.h"
 #include "kitty_win.h"
-
 	
 #include "kitty_crypt.h"
 #include "kitty_commun.h"
@@ -401,6 +415,7 @@ int get_param( const char * val ) {
 	else if( !stricmp( val, "SESSIONFILTER" ) ) return SessionFilterFlag ;
 	else if( !stricmp( val, "INIFILE" ) ) return IniFileFlag ;
 	else if( !stricmp( val, "DIRECTORYBROWSE" ) ) return DirectoryBrowseFlag ;
+	else if( !stricmp( val, "HYPERLINK" ) ) return HyperlinkFlag ;
 #ifdef ZMODEMPORT
 	else if( !stricmp( val, "ZMODEM" ) ) return ZModemFlag ;
 #endif
@@ -453,8 +468,8 @@ return NULL ;  /* Ce code est très spécifique et ne marche pas partout */
 		if( strlen(dir) > 1 ) {
 			dir = dir + 1 ;
 			if(*dir == '~') { 
-				if(strlen(cfg.username)>0) { 
-				snprintf(cdir, 1024, "\"/home/%s/%s\"", cfg.username, dir + 1); 
+				if(strlen(conf_get_str(conf,CONF_username)/*cfg.username*/)>0) { 
+				snprintf(cdir, 1024, "\"/home/%s/%s\"", conf_get_str(conf,CONF_username)/*cfg.username*/, dir + 1); 
 				return cdir; 
 				} 
 			} 
@@ -468,7 +483,7 @@ return NULL ;  /* Ce code est très spécifique et ne marche pas partout */
 	} 
 
 // Liste des folder	
-char **FolderList ;
+char **FolderList=NULL ;
 
 int readINI( const char * filename, const char * section, const char * key, char * pStr) ;
 int writeINI( const char * filename, const char * section, const char * key, char * pStr) ;
@@ -476,7 +491,7 @@ int delINI( const char * filename, const char * section, const char * key ) ;
 #include <dirent.h>
 // Initialise la liste des folders à partir des sessions deja existantes et du fichier kitty.ini
 void InitFolderList( void ) {
-	char * pst, fList[4096], buffer[1024] ;
+	char * pst, fList[4096], buffer[4096] ;
 	int i ;
 	FolderList=(char**)malloc( 1024*sizeof(char*) );
 	FolderList[0] = NULL ;
@@ -693,19 +708,24 @@ int GetSessionField( const char * session_in, const char * folder_in, const char
 		}
 	else if( IniFileFlag==SAVEMODE_DIR ) {
 		if( DirectoryBrowseFlag ) {
-			if( !strcmp(folder,"Default") ) sprintf(buffer,"%s\\Sessions\\%s", ConfigDirectory, session ) ;
+			if( !strcmp(folder,"Default") || !strcmp(folder,"") ) sprintf(buffer,"%s\\Sessions\\%s", ConfigDirectory, session ) ;
 			else sprintf(buffer,"%s\\Sessions\\%s\\%s", ConfigDirectory, folder, session ) ;
 			}
-		else sprintf(buffer,"%s\\Sessions\\%s", ConfigDirectory, session ) ;
+		else {
+			sprintf(buffer,"%s\\Sessions\\%s", ConfigDirectory, session ) ;
+			}
+
+		if( debug_flag ) { debug_logevent( "GetSessionField(%s,%s,%s,%s)=%s", ConfigDirectory, session, folder, field, buffer ) ; }
 		if( (fp=fopen(buffer,"r"))!=NULL ) {
 			while( fgets(buffer,1024,fp)!=NULL ) {
 				while( (buffer[strlen(buffer)-1]=='\n')||(buffer[strlen(buffer)-1]=='\r') ) buffer[strlen(buffer)-1]='\0' ;
 				if( buffer[strlen(buffer)-1]=='\\' )
-					if( strstr( buffer, field ) == buffer ) {
+					if( (strstr( buffer, field )==buffer) && ((buffer+strlen(field))[0]=='\\') ) {
 						if( buffer[strlen(field)]=='\\' ) strcpy( result, buffer+strlen(field)+1 ) ;
 						result[strlen(result)-1] = '\0' ;
 						unmungestr(result, buffer,MAX_PATH) ;
 						strcpy( result, buffer) ;
+						if( debug_flag ) debug_logevent( "Result=%s", result );
 						res = 1 ;
 						break ;
 						}
@@ -717,30 +737,30 @@ int GetSessionField( const char * session_in, const char * folder_in, const char
 	}
 	
 void MASKPASS( char * password ) ;
-void RenewPassword( Config * cfg ) {
+void RenewPassword( Conf *conf /* Config * cfg*/ ) {
 	if( !UserPassSSHNoSave )
-	if( 1 || (strlen( cfg->password ) == 0) ) {
+	if( 1 || (strlen( conf_get_str(conf,CONF_password)/*cfg->password*/ ) == 0) ) {
 		char buffer[1024] = "", host[1024], termtype[1024] ;
-		if( GetSessionField( cfg->sessionname, cfg->folder, "Password", buffer ) ) {
-			GetSessionField( cfg->sessionname, cfg->folder, "HostName", host );
-			GetSessionField( cfg->sessionname, cfg->folder, "TerminalType", termtype );
+		if( GetSessionField( conf_get_str(conf,CONF_sessionname)/*cfg->sessionname*/, conf_get_str(conf,CONF_folder)/*cfg->folder*/, "Password", buffer ) ) {
+			GetSessionField( conf_get_str(conf,CONF_sessionname)/*cfg->sessionname*/, conf_get_str(conf,CONF_folder)/*cfg->folder*/, "HostName", host );
+			GetSessionField( conf_get_str(conf,CONF_sessionname)/*cfg->sessionname*/, conf_get_str(conf,CONF_folder)/*cfg->folder*/, "TerminalType", termtype );
 			sprintf( PassKey, "%s%sKiTTY", host, termtype ) ;
 			decryptstring(buffer, PassKey ) ;
-			strcpy( cfg->password, buffer ) ;
-			MASKPASS(cfg->password);
-			memset(buffer,0,strlen(cfg->password) );
+			MASKPASS(buffer);
+			conf_set_str(conf,CONF_password,buffer);/*strcpy( cfg->password, buffer ) ;*/
+			memset(buffer,0,strlen(buffer) );
 			}
 		}
 	}
 
 void SetPasswordInConfig( char * password ) {
 	int len ;
-	if( (!UserPassSSHNoSave)&&(password!=NULL)&&(strlen(cfg.username)>0) ) {
+	if( (!UserPassSSHNoSave)&&(password!=NULL)&&(strlen(conf_get_str(conf,CONF_username)/*cfg.username*/)>0) ) {
 		len = strlen( password ) ;
 		if( len > 126 ) len = 126 ;
-		memcpy( cfg.password, password, len+1 ) ;
-		MASKPASS(cfg.password) ;
-		cfg.password[len] = '\0' ;
+		password[len]='\0' ;
+		MASKPASS(password) ;
+		conf_set_str(conf,CONF_password,password); /*memcpy( cfg.password, password, len+1 ) ;*/
 		}
 	}
 	
@@ -749,8 +769,8 @@ void SetUsernameInConfig( char * username ) {
 	if( (!UserPassSSHNoSave)&&(username!=NULL) ) {
 		len = strlen( username ) ;
 		if( len > 126 ) len = 126 ;
-		memcpy( cfg.username, username, len+1 ) ;
-		cfg.username[len] = '\0' ;
+		username[len] = '\0' ;
+		conf_set_str(conf,CONF_username,username); /*memcpy( cfg.username, username, len+1 ) ;*/
 		}
 	}
 
@@ -1023,9 +1043,9 @@ void CreateDefaultIniFile( void ) {
 			writeINI( KittyIniFile, INIT_SECTION, "scriptfilefilter", "All files (*.*)|*.*" ) ;
 			writeINI( KittyIniFile, INIT_SECTION, "size", "no" ) ;
 			writeINI( KittyIniFile, INIT_SECTION, "shortcuts", "yes" ) ;
+			writeINI( KittyIniFile, INIT_SECTION, "hyperlink", "yes" ) ;
 #ifndef NO_TRANSPARENCY
 			writeINI( KittyIniFile, INIT_SECTION, "transparency", "no" ) ;
-			writeINI( KittyIniFile, INIT_SECTION, "transparencyvalue", "0" ) ;
 #endif
 			writeINI( KittyIniFile, INIT_SECTION, "#configdir", "" ) ;
 			writeINI( KittyIniFile, INIT_SECTION, "#downloaddir", "" ) ;
@@ -1047,7 +1067,7 @@ void CreateDefaultIniFile( void ) {
 #endif
 
 			writeINI( KittyIniFile, INIT_SECTION, "bcdelay", "0" ) ;
-			writeINI( KittyIniFile, INIT_SECTION, "commanddelay", "0.0005" ) ;
+			writeINI( KittyIniFile, INIT_SECTION, "commanddelay", "5" ) ;
 			writeINI( KittyIniFile, INIT_SECTION, "initdelay", "2.0" ) ;
 			writeINI( KittyIniFile, INIT_SECTION, "internaldelay", "10" ) ;
 			writeINI( KittyIniFile, INIT_SECTION, "slidedelay", "0" ) ;
@@ -1117,7 +1137,7 @@ void GetSaveMode( void ) {
 		while( (buffer[strlen(buffer)-1]=='\n')||(buffer[strlen(buffer)-1]=='\r')||(buffer[strlen(buffer)-1]==' ')||(buffer[strlen(buffer)-1]=='\t') ) buffer[strlen(buffer)-1]='\0';
 		if( !stricmp( buffer, "registry" ) ) IniFileFlag = SAVEMODE_REG ;
 		else if( !stricmp( buffer, "file" ) ) IniFileFlag = SAVEMODE_FILE ;
-		else if( !stricmp( buffer, "dir" ) ) IniFileFlag = SAVEMODE_DIR ;
+		else if( !stricmp( buffer, "dir" ) ) { IniFileFlag = SAVEMODE_DIR ; DirectoryBrowseFlag = 1 ; }
 		}
 #endif
 	if( IniFileFlag!=SAVEMODE_DIR ) DirectoryBrowseFlag = 0 ;
@@ -1218,7 +1238,7 @@ void LoadRegistryKey( HWND hdlg ) { // hdlg est la boîte de dialogue d'informati
 			  	Value++;
 			  	Value[strlen(Value)-1] = '\0' ;
 				DelDoubleBackSlash( Value ) ;
-			  	RegSetValueEx( hKey, TEXT( ValueName ), 0, REG_SZ, Value, strlen(Value)+1 ) ;
+			  	RegSetValueEx( hKey, TEXT( ValueName ), 0, REG_SZ, (LPBYTE)Value, strlen(Value)+1 ) ;
 			  	}
 			else if( strstr(Value,"dword:") == Value ) { //REG_DWORD
 				int dwData = 0 ;			  	
@@ -1421,6 +1441,12 @@ void SendAutoCommand( HWND hwnd, const char * cmd ) {
 			SendKeyboard( hwnd, "\n" ) ;
 			fclose( fp ) ;
 			}*/
+		char *buf;
+		buf=(char*)malloc( strlen(cmd)+30 ) ;
+		strcpy( buf, "Send automatic command" ) ;
+		if( debug_flag ) { strcat( buf, ": ") ; strcat( buf, cmd ) ; }
+		logevent(NULL, buf ) ;
+		free(buf);
 		if( existfile( cmd ) ) RunScriptFile( hwnd, cmd ) ;
 		else if( (toupper(cmd[0])=='C')&&(toupper(cmd[1])==':')&&(toupper(cmd[2])=='\\') ) {
 			//MessageBox( NULL, cmd,"Info", MB_OK );
@@ -1428,24 +1454,77 @@ void SendAutoCommand( HWND hwnd, const char * cmd ) {
 			}
 		else { SendKeyboardPlus( hwnd, cmd ) ; }
 		}
+	else { if( debug_flag ) logevent(NULL, "No automatic command !" ) ; }
+	}
+	
+// Command sender (envoi d'une meme commande a toutes les fenetres)
+BOOL CALLBACK SendCommandProc( HWND hwnd, LPARAM lParam ) {
+	char buffer[256] ;
+	GetClassName( hwnd, buffer, 256 ) ;
+	
+	if( !strcmp( buffer, KiTTYClassName ) )
+	if( hwnd != MainHwnd ) {
+		SendKeyboardPlus( hwnd, (char*)lParam ) ;
+		NbWindows++ ;
+		}
+
+	return TRUE ;
 	}
 
+int SendCommandAllWindows( HWND hwnd, char * cmd ) {
+	NbWindows=0 ;
+	if( cmd==NULL ) return 0 ;
+	if( strlen(cmd) > 0 ) EnumWindows( SendCommandProc, (LPARAM)cmd ) ;
+	return NbWindows ;
+	}
+	
+// Gestion de la taille des fenetres de la meme classe
+BOOL CALLBACK ResizeWinListProc( HWND hwnd, LPARAM lParam ) {
+	char buffer[256] ;
+	GetClassName( hwnd, buffer, 256 ) ;
+	
+	if( !strcmp( buffer, KiTTYClassName ) )
+	if( hwnd != MainHwnd ) {
+		RECT * rc = (RECT*) lParam ;
+		LPARAM pos = MAKELPARAM( rc->left, rc->top ) ;
+		LPARAM size = MAKELPARAM( rc->right, rc->bottom ) ;
+		//SendNotifyMessage( hwnd, WM_COMMAND, IDM_RESIZE, size ) ;
+		//SendNotifyMessage( hwnd, WM_COMMAND, IDM_REPOS, pos ) ;
+		PostMessage( hwnd, WM_COMMAND, IDM_REPOS, pos ) ;
+		PostMessage( hwnd, WM_COMMAND, IDM_RESIZE, size ) ;
+		//PostMessage( hwnd, WM_COMMAND, IDM_RESIZEH, rc->bottom ) ;
+		//SetWindowPos( hwnd, 0, 0, 0, rc->right-rc->left+1, rc->bottom-rc->top+1, SWP_NOZORDER|SWP_NOMOVE|SWP_NOREPOSITION|SWP_NOACTIVATE ) ;
+		//SetWindowPos( hwnd, 0, 0, 0, 50,50, SWP_NOZORDER|SWP_NOMOVE|SWP_NOREPOSITION|SWP_NOACTIVATE);
+		NbWindows++ ;
+		}
 
-void ManageProtect( HWND hwnd, Config cfg ) {
+	return TRUE ;
+	}
+
+int ResizeWinList( HWND hwnd, int width, int height ) {
+	NbWindows=0 ;
+	RECT rc;
+	GetWindowRect(hwnd, &rc) ;
+	rc.right = width ;
+	rc.bottom = height ;
+	EnumWindows( ResizeWinListProc, (LPARAM)&rc ) ;
+	SetForegroundWindow( hwnd ) ;
+	return NbWindows ;
+	}
+
+void ManageProtect( HWND hwnd, char * title ) {
 	HMENU m ;
 	if( ( m = GetSystemMenu (hwnd, FALSE) ) != NULL ) {
 		DWORD fdwMenu = GetMenuState( m, (UINT) IDM_PROTECT, MF_BYCOMMAND); 
 		if (!(fdwMenu & MF_CHECKED)) {
 			CheckMenuItem( m, (UINT)IDM_PROTECT, MF_BYCOMMAND|MF_CHECKED ) ;
 			ProtectFlag = 1 ;
-			//char buffer[1024] = "" ;
-			//sprintf( buffer, "%s  (PROTECTED)", cfg.wintitle ) ;
-			set_title(NULL, cfg.wintitle ) ;
+			set_title(NULL, title ) ;
 			}
 		else {
 			CheckMenuItem( m, (UINT)IDM_PROTECT, MF_BYCOMMAND|MF_UNCHECKED ) ;
 			ProtectFlag = 0 ;
-			set_title(NULL, cfg.wintitle);
+			set_title(NULL, title);
 			}
 		}
 	}
@@ -1486,6 +1565,7 @@ int ManageToTray( HWND hwnd ) {
 		strcpy( TrayIcone.szTip, buffer ) ;
 		ResShell = Shell_NotifyIcon(NIM_MODIFY, &TrayIcone);
 		if (IsWindowVisible(hwnd)) ShowWindow(hwnd, SW_HIDE);
+		VisibleFlag = VISIBLE_TRAY ;
 		//SendMessage(hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
 		return 1 ;
 		}
@@ -1515,11 +1595,11 @@ void ManageRestart( HWND hwnd ) {
 
 // Modification de l'icone de l'application
 //SendMessage( hwnd, WM_SETICON, ICON_SMALL, (LPARAM)LoadIcon( hInstIcons, MAKEINTRESOURCE(IDI_MAINICON_0 + IconeNum ) ) );
-void SetNewIcon( HWND hwnd, Config cfg, const int mode ) {
+void SetNewIcon( HWND hwnd, char * iconefile, int icone, const int mode ) {
 	
 	HICON hIcon = NULL ;
-	if( (strlen(cfg.iconefile)>0) && existfile(cfg.iconefile) ) { 
-		hIcon = LoadImage(NULL, cfg.iconefile, IMAGE_ICON, 32, 32, LR_LOADFROMFILE|LR_SHARED) ; 
+	if( (strlen(iconefile)>0) && existfile(iconefile) ) { 
+		hIcon = LoadImage(NULL, iconefile, IMAGE_ICON, 32, 32, LR_LOADFROMFILE|LR_SHARED) ; 
 		}
 
 	if(hIcon) {
@@ -1530,7 +1610,7 @@ void SetNewIcon( HWND hwnd, Config cfg, const int mode ) {
 		}
 	else {
 	if( mode == SI_INIT ) {
-		if( cfg.icone!=0 ) IconeNum = cfg.icone - 1 ;
+		if( icone!=0 ) IconeNum = icone - 1 ;
 		hIcon = LoadIcon( hInstIcons, MAKEINTRESOURCE(IDI_MAINICON_0 + IconeNum ) ) ;
 		SendMessage( hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon );
 		SendMessage( hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon );
@@ -1582,8 +1662,10 @@ void RunScriptFile( HWND hwnd, const char * filename ) {
 			fclose( fp ) ;
 			if( oldcmd!=NULL ) strcat( ScriptCommand, oldcmd ) ;
 			if( strlen( ScriptCommand) > 0 ) {
-				AutoCommand = ScriptCommand ;
-				SetTimer(hwnd, TIMER_AUTOCOMMAND, (int)(autocommand_delay*1000), NULL) ;
+				if( AutoCommand!= NULL ) { free(AutoCommand); AutoCommand=NULL; }
+				AutoCommand = (char*) malloc( strlen(ScriptCommand) + 10 ) ;
+				strcpy( AutoCommand, ScriptCommand ) ;//AutoCommand = ScriptCommand ;
+				SetTimer(hwnd, TIMER_AUTOCOMMAND, autocommand_delay, NULL) ;
 				}
 			}
 		if( oldcmd!=NULL ) free( oldcmd ) ;
@@ -1649,28 +1731,30 @@ void SendOneFile( HWND hwnd, char * directory, char * filename, char * distantdi
 	
 	strcat( buffer, "-r " ) ; //strcat( buffer, "-batch " ) ;
 	if( ReadParameter( INIT_SECTION, "pscpport", pscpport ) ) {
-		if( !strcmp( pscpport,"*" ) ) sprintf( pscpport, "%d", cfg.port ) ;
+		if( !strcmp( pscpport,"*" ) ) sprintf( pscpport, "%d", conf_get_int(conf, CONF_port)/*cfg.port*/ ) ;
 		strcat( buffer, "-P " ) ;
 		strcat( buffer, pscpport ) ;
 		strcat( buffer, " " ) ;
 		}
 	else {
-		sprintf( b1, "-P %d ", cfg.port ) ;
+		sprintf( b1, "-P %d ", conf_get_int(conf, CONF_port)/*cfg.port*/ ) ;
 		strcat( buffer, b1 ) ;
 		}
 
-	if( cfg.sshprot == 2 ) {
-		sprintf( b1, "-%d", cfg.sshprot ) ; strcat( buffer, b1 ); 
+	if( conf_get_int(conf, CONF_sshprot)/*cfg.sshprot*/ == 2 ) {
+		sprintf( b1, "-%d", conf_get_int(conf, CONF_sshprot)/*cfg.sshprot*/ ) ; strcat( buffer, b1 ); 
 		strcat( buffer, " " ) ;
 		}
-	if( strlen( cfg.password ) > 0 ) {
+	if( strlen( conf_get_str(conf,CONF_password)/*cfg.password*/ ) > 0 ) {
 		strcat( buffer, "-pw \"" ) ;
-		MASKPASS(cfg.password);	strcat( buffer, cfg.password ) ; MASKPASS(cfg.password);
+		char bufpass[128] ;
+		strcpy( bufpass, conf_get_str(conf,CONF_password) ) ;
+		MASKPASS(bufpass) ; strcat( buffer, bufpass ) ; memset( bufpass, 0, strlen(bufpass) ) ;
 		strcat( buffer, "\" " ) ;
 		}
-	if( strlen( cfg.keyfile.path ) > 0 ) {
+	if( strlen( conf_get_filename(conf, CONF_keyfile)/*cfg.keyfile*/->path ) > 0 ) {
 		strcat( buffer, "-i \"" ) ;
-		strcat( buffer, cfg.keyfile.path ) ;
+		strcat( buffer, conf_get_filename(conf, CONF_keyfile)/*cfg.keyfile*/->path ) ;
 		strcat( buffer, "\" " ) ;
 		}
 	strcat( buffer, "\"" ) ; //strcat( buffer, filename ) ; 
@@ -1682,12 +1766,14 @@ void SendOneFile( HWND hwnd, char * directory, char * filename, char * distantdi
 	else if( (directory!=NULL)&&(strlen(directory)>0) ) { strcat(buffer, directory ) ; }
 	else { strcat(buffer, filename ) ; }
 	strcat( buffer, "\" " ) ;
-	strcat( buffer, cfg.username ) ; strcat( buffer, "@" ) ;
-	strcat( buffer, cfg.host ) ; strcat( buffer, ":" ) ; strcat( buffer, remotedir ) ;
+	strcat( buffer, conf_get_str(conf,CONF_username)/*cfg.username*/ ) ; strcat( buffer, "@" ) ;
+	if( poss( ":", conf_get_str(conf,CONF_host)/*cfg.host*/ )>0 ) { strcat( buffer, "[" ) ; strcat( buffer, conf_get_str(conf,CONF_host)/*cfg.host*/ ) ; strcat( buffer, "]" ) ; }
+	else { strcat( buffer, conf_get_str(conf,CONF_host)/*cfg.host*/ ) ; }
+	strcat( buffer, ":" ) ; strcat( buffer, remotedir ) ;
 	//strcat( buffer, " > kitty.log 2>&1" ) ; //if( !system( buffer ) ) unlink( "kitty.log" ) ;
 
 	chdir( InitialDirectory ) ;
-	if( debug_flag ) logevent(NULL, buffer);
+	if( debug_flag ) { debug_logevent( "Run: %s", buffer ) ; }
 	if( system( buffer ) ) MessageBox( NULL, buffer, "Transfer problem", MB_OK|MB_ICONERROR  ) ;
 	memset(buffer,0,strlen(buffer));
 	//debug_log("%s\n",buffer);//MessageBox( NULL, buffer, "Info",MB_OK );
@@ -1725,8 +1811,7 @@ void SendFileList( HWND hwnd, char * filelist ) {
 void SendFile( HWND hwnd ) {
 	char filename[32768] ;
 
-	//if( cfg.protocol == PROT_SSH ) {
-	if( cfg.protocol != PROT_SSH ) {
+	if( conf_get_int(conf,CONF_protocol)/*cfg.protocol*/ != PROT_SSH ) {
 		MessageBox( hwnd, "This function is only available with SSH connections.", "Error", MB_OK|MB_ICONERROR ) ;
 		return ;
 		}
@@ -1783,29 +1868,33 @@ void GetOneFile( HWND hwnd, char * directory, char * filename ) {
 
 	strcat( buffer, "-r " ) ; //strcat( buffer, "-batch " ) ;
 	if( ReadParameter( INIT_SECTION, "pscpport", pscpport ) ) {
-		if( !strcmp( pscpport,"*" ) ) sprintf( pscpport, "%d", cfg.port ) ;
+		if( !strcmp( pscpport,"*" ) ) sprintf( pscpport, "%d", conf_get_int(conf,CONF_port)/*cfg.port*/ ) ;
 		strcat( buffer, "-P " ) ;
 		strcat( buffer, pscpport ) ;
 		strcat( buffer, " " ) ;
 		}
 	
-	if( cfg.sshprot == 2 ) {
-		sprintf( b1, "-%d", cfg.sshprot ) ; strcat( buffer, b1 ); 
+	if( conf_get_int(conf,CONF_sshprot)/*cfg.sshprot*/ == 2 ) {
+		sprintf( b1, "-%d", conf_get_int(conf,CONF_sshprot)/*cfg.sshprot*/ ) ; strcat( buffer, b1 ); 
 		strcat( buffer, " " ) ;
 		}
-	if( strlen( cfg.password ) > 0 ) {
+	if( strlen( conf_get_str(conf,CONF_password)/*cfg.password*/ ) > 0 ) {
 		strcat( buffer, "-pw \"" ) ;
-		MASKPASS(cfg.password); strcat( buffer, cfg.password ) ; MASKPASS(cfg.password);
+		char bufpass[128] ;
+		strcpy( bufpass,conf_get_str(conf,CONF_password) ) ;
+		MASKPASS(bufpass); strcat( buffer, bufpass ) ; memset(bufpass,0,strlen(bufpass));
 		strcat( buffer, "\" " ) ;
 		}
-	if( strlen( cfg.keyfile.path ) > 0 ) {
+	if( strlen( conf_get_filename(conf,CONF_keyfile)/*cfg.keyfile.*/->path ) > 0 ) {
 		strcat( buffer, "-i \"" ) ;
-		strcat( buffer, cfg.keyfile.path ) ;
+		strcat( buffer, conf_get_filename(conf,CONF_keyfile)/*cfg.keyfile.*/->path ) ;
 		strcat( buffer, "\" " ) ;
 		}
 	strcat( buffer, "\"" ) ; 
-	strcat( buffer, cfg.username ) ; strcat( buffer, "@" ) ;
-	strcat( buffer, cfg.host ) ; strcat( buffer, ":" ) ; 
+	strcat( buffer, conf_get_str(conf,CONF_username)/*cfg.username*/ ) ; strcat( buffer, "@" ) ;
+	if( poss( ":", conf_get_str(conf,CONF_host)/*cfg.host*/ )>0 ) { strcat( buffer, "[" ) ; strcat( buffer, conf_get_str(conf,CONF_host)/*cfg.host*/ ) ; strcat( buffer, "]" ) ; }
+	else { strcat( buffer, conf_get_str(conf,CONF_host)/*cfg.host*/ ) ; }
+	strcat( buffer, ":" ) ; 
 	
 	if( filename[0]=='/' ) { strcat(buffer, filename ) ; }
 	else {
@@ -1821,7 +1910,7 @@ void GetOneFile( HWND hwnd, char * directory, char * filename ) {
 
 	chdir( InitialDirectory ) ;
 
-	if( debug_flag ) logevent(NULL, buffer);
+	if( debug_flag ) {debug_logevent( "Run: %s", buffer); }
 	if( system( buffer ) ) MessageBox( NULL, buffer, "Transfer problem", MB_OK|MB_ICONERROR  ) ;
 	//debug_log("%s\n",buffer);//MessageBox( NULL, buffer, "Info",MB_OK );
 	}
@@ -1831,7 +1920,7 @@ void GetFile( HWND hwnd ) {
 	char buffer[4096]="", b1[256], *pst ;
 	char dir[4096], pscppath[4096]="", pscpport[16]="22" ;
 	
-	if( cfg.protocol != PROT_SSH ) {
+	if( conf_get_int(conf,CONF_protocol)/*cfg.protocol*/ != PROT_SSH ) {
 		MessageBox( hwnd, "This function is only available with SSH connections.", "Error", MB_OK|MB_ICONERROR ) ;
 		return ;
 		}
@@ -1871,28 +1960,32 @@ void GetFile( HWND hwnd ) {
 				//else { strcpy( dir, InitialDirectory ) ; }
 
 				sprintf( buffer, "start %s ", pscppath ) ;
-				if( cfg.sshprot == 2 ) {
-					sprintf( b1, "-%d", cfg.sshprot ) ; strcat( buffer, b1 ); 
+				if( conf_get_int(conf,CONF_sshprot)/*cfg.sshprot*/ == 2 ) {
+					sprintf( b1, "-%d", conf_get_int(conf,CONF_sshprot)/*cfg.sshprot*/ ) ; strcat( buffer, b1 ); 
 					strcat( buffer, " " ) ;
 					}
 				if( ReadParameter( INIT_SECTION, "pscpport", pscpport ) ) {
-					if( !strcmp( pscpport,"*" ) ) sprintf( pscpport, "%d", cfg.port ) ;
+					if( !strcmp( pscpport,"*" ) ) sprintf( pscpport, "%d", conf_get_int(conf,CONF_port)/*cfg.port*/ ) ;
 					strcat( buffer, "-P " ) ;
 					strcat( buffer, pscpport ) ;
 					strcat( buffer, " " ) ;
 					}
-				if( strlen( cfg.password ) > 0 ) {
+				if( strlen( conf_get_str(conf,CONF_password)/*cfg.password*/ ) > 0 ) {
 					strcat( buffer, "-pw " ) ;
-					MASKPASS(cfg.password); strcat( buffer, cfg.password ) ; MASKPASS(cfg.password);
+					char bufpass[128] ;
+					strcpy( bufpass, conf_get_str(conf,CONF_password) ) ;
+					MASKPASS(bufpass); strcat( buffer, bufpass ) ; memset(bufpass,0,strlen(bufpass));
 					strcat( buffer, " " ) ;
 					}
-				if( strlen( cfg.keyfile.path ) > 0 ) {
+				if( strlen( conf_get_filename(conf,CONF_keyfile)/*cfg.keyfile.*/->path ) > 0 ) {
 					strcat( buffer, "-i \"" ) ;
-					strcat( buffer, cfg.keyfile.path ) ;
+					strcat( buffer, conf_get_filename(conf,CONF_keyfile)/*cfg.keyfile.*/->path ) ;
 					strcat( buffer, "\" " ) ;
 					}
-				strcat( buffer, cfg.username ) ; strcat( buffer, "@" ) ;
-				strcat( buffer, cfg.host ) ; strcat( buffer, ":" ) ;
+				strcat( buffer, conf_get_str(conf,CONF_username)/*cfg.username*/ ) ; strcat( buffer, "@" ) ;
+				if( poss( ":", conf_get_str(conf,CONF_host)/*cfg.host*/ )>0 ) { strcat( buffer, "[" ) ; strcat( buffer, conf_get_str(conf,CONF_host)/*cfg.host*/ ) ; strcat( buffer, "]" ) ; }
+				else { strcat( buffer, conf_get_str(conf,CONF_host)/*cfg.host*/ ) ; }
+				strcat( buffer, ":" ) ;
 				strcat( buffer, pst ) ; strcat( buffer, " \"" ) ;
 				strcat( buffer, dir ) ; strcat( buffer, "\"" ) ;
 				//strcat( buffer, " > kitty.log 2>&1" ) ;
@@ -1905,7 +1998,7 @@ void GetFile( HWND hwnd ) {
 		}
 	if( strlen( buffer ) > 0 ) {
 		chdir( InitialDirectory ) ;
-		if( debug_flag ) logevent(NULL, buffer);
+		if( debug_flag ) { debug_logevent("Run: %s", buffer); }
 		if( system( buffer ) ) MessageBox( NULL, buffer, "Transfer problem", MB_OK|MB_ICONERROR  ) ;
 		//if( !system( buffer ) ) unlink( "kitty.log" ) ;
 		}
@@ -1994,6 +2087,7 @@ printf "\033]0;__cm:"$*"\007"
 */
 int ManageLocalCmd( HWND hwnd, char * cmd ) {
 	char buffer[1024] = "", title[1024] = "" ;
+	if( debug_flag ) { debug_logevent( "LocalCmd: %s", cmd ) ;  }
 	if( cmd == NULL ) return 0 ; if( (cmd[2] != ':')&&(cmd[2] != '\0') ) return 0 ;
 	if( (cmd[2] == ':')&&( strlen( cmd ) <= 3 ) ) return 0 ;
 	if( (cmd[0]=='p')&&(cmd[1]=='w')&&(cmd[2]==':') ) { // nouveau remote directory
@@ -2057,15 +2151,15 @@ void resize( int height, int width ) {
 		w = prev_cols ;
 		}
 
-	term_size(term, h, w, cfg.savelines) ; 
+	term_size(term, h, w, conf_get_int(conf,CONF_savelines)/*cfg.savelines*/) ; 
 	reset_window(0);
 
-	w = (width-cfg.window_border*2) / font_width ;
+	w = (width-conf_get_int(conf,CONF_window_border)/*cfg.window_border*/*2) / font_width ;
 	if (w < 1) w = 1;
-	h = (height-cfg.window_border*2) / font_height ;
+	h = (height-conf_get_int(conf,CONF_window_border)/*cfg.window_border*/*2) / font_height ;
 	if (h < 1) h = 1;
-	cfg.height = h ;
-	cfg.width = w ;
+	conf_set_int(conf,CONF_height,h); //cfg.height = h ;
+	conf_set_int(conf,CONF_width,w); //cfg.width = w ;
 	}
 
 // Recupere les coordonnees de la fenetre
@@ -2073,48 +2167,55 @@ void GetWindowCoord( HWND hwnd ) {
 	RECT rc ;
 	GetWindowRect( hwnd, &rc ) ;
 
-	cfg.xpos = rc.left ;
-	cfg.ypos = rc.top ;
+	conf_set_int(conf,CONF_xpos,rc.left); //cfg.xpos = rc.left ;
+	conf_set_int(conf,CONF_ypos,rc.top); //cfg.ypos = rc.top ;
 
-	cfg.windowstate = IsZoomed( hwnd ) ;
-	
-	//cfg.width = rc.right-rc.left ;
-	//cfg.height = rc.bottom-rc.top ;
+	conf_set_int(conf,CONF_windowstate,IsZoomed( hwnd )); //cfg.windowstate = IsZoomed( hwnd ) ;
 	}
 
 // Sauve les coordonnees de la fenetre
-void SaveWindowCoord( Config cfg ) {
+void SaveWindowCoord( Conf * conf ) {
 	char key[1024], session[1024] ;
-	if( cfg.saveonexit )
-	if( cfg.sessionname!= NULL )
-	if( strlen( cfg.sessionname ) > 0 ) {
+	if( conf_get_int(conf,CONF_saveonexit)/*cfg.saveonexit*/ )
+	if( conf_get_str(conf,CONF_sessionname)/*cfg.sessionname*/!= NULL )
+	if( strlen( conf_get_str(conf,CONF_sessionname)/*cfg.sessionname*/ ) > 0 ) {
 		if( IniFileFlag == SAVEMODE_REG ) {
-			mungestr( cfg.sessionname, session ) ;
+			mungestr( conf_get_str(conf,CONF_sessionname)/*cfg.sessionname*/, session ) ;
 			sprintf( key, "%s\\Sessions\\%s", TEXT(PUTTY_REG_POS), session ) ;
-			RegTestOrCreateDWORD( HKEY_CURRENT_USER, key, "TermXPos", cfg.xpos ) ;
-			RegTestOrCreateDWORD( HKEY_CURRENT_USER, key, "TermYPos", cfg.ypos ) ;
-			RegTestOrCreateDWORD( HKEY_CURRENT_USER, key, "TermWidth", cfg.width ) ;
-			RegTestOrCreateDWORD( HKEY_CURRENT_USER, key, "TermHeight", cfg.height ) ;
-			RegTestOrCreateDWORD( HKEY_CURRENT_USER, key, "WindowState", cfg.windowstate ) ;
-			RegTestOrCreateDWORD( HKEY_CURRENT_USER, key, "TransparencyValue", cfg.transparencynumber ) ;
+			RegTestOrCreateDWORD( HKEY_CURRENT_USER, key, "TermXPos", conf_get_int(conf,CONF_xpos)/*cfg.xpos*/ ) ;
+			RegTestOrCreateDWORD( HKEY_CURRENT_USER, key, "TermYPos", conf_get_int(conf,CONF_ypos)/*cfg.ypos*/ ) ;
+			RegTestOrCreateDWORD( HKEY_CURRENT_USER, key, "TermWidth", conf_get_int(conf,CONF_width)/*cfg.width*/ ) ;
+			RegTestOrCreateDWORD( HKEY_CURRENT_USER, key, "TermHeight", conf_get_int(conf,CONF_height)/*cfg.height*/ ) ;
+			RegTestOrCreateDWORD( HKEY_CURRENT_USER, key, "WindowState", conf_get_int(conf,CONF_windowstate)/*cfg.windowstate*/ ) ;
+			RegTestOrCreateDWORD( HKEY_CURRENT_USER, key, "TransparencyValue", conf_get_int(conf,CONF_transparencynumber)/*cfg.transparencynumber*/ ) ;
 			}
 		else { 
-			int xpos=cfg.xpos, ypos=cfg.ypos, width=cfg.width, height=cfg.height, windowstate=cfg.windowstate, transparency=cfg.transparencynumber ;
-			load_settings( cfg.sessionname, &cfg ) ;
-			cfg.xpos=xpos ; cfg.ypos=ypos ; cfg.width=width ; cfg.height=height ; cfg.windowstate=windowstate ; cfg.transparencynumber=transparency ;
-			save_settings( cfg.sessionname, &cfg ) ; 
+			int xpos=conf_get_int(conf,CONF_xpos)/*cfg.xpos*/
+				, ypos=conf_get_int(conf,CONF_ypos)/*cfg.ypos*/
+				, width=conf_get_int(conf,CONF_width)/*cfg.width*/
+				, height=conf_get_int(conf,CONF_height)/*cfg.height*/
+				, windowstate=conf_get_int(conf,CONF_windowstate)/*cfg.windowstate*/
+				, transparency=conf_get_int(conf,CONF_transparencynumber)/*cfg.transparencynumber*/ ;
+			load_settings( conf_get_str(conf,CONF_sessionname)/*cfg.sessionname*/, conf/*&cfg*/ ) ;
+			conf_set_int(conf,CONF_xpos,xpos) ; //cfg.xpos=xpos ; 
+			conf_set_int(conf,CONF_ypos,ypos) ; //cfg.ypos=ypos ; 
+			conf_set_int(conf,CONF_width,width) ; //cfg.width=width ; 
+			conf_set_int(conf,CONF_height,height) ; //cfg.height=height ; 
+			conf_set_int(conf,CONF_windowstate,windowstate) ; //cfg.windowstate=windowstate ; 
+			conf_set_int(conf,CONF_transparencynumber,transparency) ; //cfg.transparencynumber=transparency ;
+			save_settings( conf_get_str(conf,CONF_sessionname)/*cfg.sessionname*/, conf/*&cfg*/ ) ; 
 			}
 		}
 	}
-	
+
 // Gestion de la fonction winrol
-void ManageWinrol( HWND hwnd ) {
+void ManageWinrol( HWND hwnd, int resize_action ) {
 	RECT rcClient ;
 	int mode = -1 ;
 	
-	if( cfg.resize_action==RESIZE_DISABLED ) {
+	if( resize_action==RESIZE_DISABLED ) {
 	    	mode = GetWindowLong(hwnd, GWL_STYLE) ;
-		cfg.resize_action = RESIZE_TERM ;
+		resize_action = RESIZE_TERM ;
 		SetWindowLongPtr( hwnd, GWL_STYLE, mode|WS_THICKFRAME|WS_MAXIMIZEBOX ) ;
 		SetWindowPos( hwnd, 0, 0, 0, 0, 0, SWP_FRAMECHANGED|SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER ) ;
 		}
@@ -2137,7 +2238,7 @@ void ManageWinrol( HWND hwnd ) {
 	    //winmode &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
 		SetWindowLongPtr(hwnd, GWL_STYLE, mode ) ;
 		SetWindowPos( hwnd, 0, 0, 0, 0, 0, SWP_FRAMECHANGED|SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER ) ;
-		cfg.resize_action = RESIZE_DISABLED ;
+		resize_action = RESIZE_DISABLED ;
 		}
 
 	InvalidateRect(hwnd, NULL, TRUE);
@@ -2176,7 +2277,7 @@ int PreviousBgImage( HWND hwnd ) {
 	DIR * dir ;
 	struct dirent * de ;
 
-	strcpy( basename, cfg.bg_image_filename.path ) ;
+	strcpy( basename, conf_get_filename(conf,CONF_bg_image_filename)/*cfg.bg_image_filename.*/->path ) ;
 
 	for( i=(strlen(basename)-1) ; i>=0 ; i-- ) 
 		if( (basename[i]=='\\')||(basename[i]=='/') ) { basename[i]='\0' ; break ; }
@@ -2188,7 +2289,7 @@ int PreviousBgImage( HWND hwnd ) {
 		if( strcmp(de->d_name,".") && strcmp(de->d_name,"..") ) {
 			sprintf( buffer,"%s\\%s", basename, de->d_name ) ;
 			if( !(GetFileAttributes( buffer ) & FILE_ATTRIBUTE_DIRECTORY) ) {
-				if( !strcmp(buffer, cfg.bg_image_filename.path ) )
+				if( !strcmp(buffer, conf_get_filename(conf,CONF_bg_image_filename)/*cfg.bg_image_filename.*/->path ) )
 					if( strcmp( previous, "" ) ) break ;
 		
 				GetExt( de->d_name, ext ) ;
@@ -2198,7 +2299,9 @@ int PreviousBgImage( HWND hwnd ) {
 			}
 		}
 	if( strcmp( previous, "" ) ){
-		strcpy( cfg.bg_image_filename.path, previous ) ;
+		Filename * fn = filename_from_str( previous ) ;
+		conf_set_filename(conf,CONF_bg_image_filename,fn); //strcpy( cfg.bg_image_filename.path, previous ) ;
+		filename_free(fn);
 		RefreshBackground( hwnd ) ;
 		}
 	return 1 ;
@@ -2210,7 +2313,7 @@ int NextBgImage( HWND hwnd ) {
 	DIR * dir ;
 	struct dirent * de ;
 
-	strcpy( basename, cfg.bg_image_filename.path ) ;
+	strcpy( basename, conf_get_filename(conf,CONF_bg_image_filename)/*cfg.bg_image_filename.*/->path ) ;
 
 	for( i=(strlen(basename)-1) ; i>=0 ; i-- ) 
 		if( (basename[i]=='\\')||(basename[i]=='/') ) { basename[i]='\0' ; break ; }
@@ -2226,7 +2329,7 @@ int NextBgImage( HWND hwnd ) {
 			) {
 			sprintf( buffer,"%s\\%s", basename, de->d_name ) ;
 			if( !(GetFileAttributes( buffer ) & FILE_ATTRIBUTE_DIRECTORY) ) {
-				if( !stricmp( buffer, cfg.bg_image_filename.path ) ) {
+				if( !stricmp( buffer, conf_get_filename(conf,CONF_bg_image_filename)/*cfg.bg_image_filename.*/->path ) ) {
 					if( ( de = readdir(dir) ) != NULL ) 
 						GetExt( de->d_name, ext ) ; 
 					else 
@@ -2251,7 +2354,9 @@ int NextBgImage( HWND hwnd ) {
 		}
 	if( de != NULL  ) {
 		sprintf( buffer,"%s\\%s", basename, de->d_name ) ;
-		strcpy( cfg.bg_image_filename.path, buffer ) ;
+		Filename * fn = filename_from_str( buffer ) ;
+		conf_set_filename( conf,CONF_bg_image_filename,fn); //strcpy( cfg.bg_image_filename.path, buffer ) ;
+		filename_free(fn);
 		RefreshBackground( hwnd );
 		}
 	else { closedir(dir) ; return 0 ; }
@@ -2294,7 +2399,6 @@ void InfoBoxSetText( HWND hwnd, char * st ) { SendMessage( hwnd, WM_COMMAND, 100
 void InfoBoxClose( HWND hwnd ) { EndDialog(hwnd, LOWORD(0)) ; DestroyWindow( hwnd ) ; }
 
 //CallBack du dialog InputBox
-HWND MainHwnd ;
 static int InputBox_Flag = 0 ;
 
 static LRESULT CALLBACK InputCallBack (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam ) {
@@ -2405,7 +2509,7 @@ BOOL FAR PASCAL EditMultilineCallBack(HWND hwnd, UINT message, WPARAM wParam, LP
 			if( (wParam==VK_RETURN) && (GetKeyState( VK_SHIFT )& 0x8000) )
 				return 0;
 			else if( (wParam==VK_F2) && (GetKeyState( VK_SHIFT )& 0x8000) ) { // Charge une Notes
-				sprintf( key_name, "%s\\Sessions\\%s", TEXT(PUTTY_REG_POS), cfg.sessionname ) ;
+				sprintf( key_name, "%s\\Sessions\\%s", TEXT(PUTTY_REG_POS), conf_get_str(conf,CONF_sessionname)/*cfg.sessionname*/ ) ;
 				if( GetValueData(HKEY_CURRENT_USER, key_name, "Notes", buffer) != NULL ) {
 					if( GetWindowTextLength(hwnd) > 0 ) 
 						if( MessageBox(hwnd, "Are you sure you want to load Notes\nand erase this edit box ?","Load Warning", MB_YESNO|MB_ICONWARNING ) != IDYES ) break ;
@@ -2413,11 +2517,11 @@ BOOL FAR PASCAL EditMultilineCallBack(HWND hwnd, UINT message, WPARAM wParam, LP
 					}
 				}
 			else if( (wParam==VK_F3) && (GetKeyState( VK_SHIFT )& 0x8000) ) { // Sauve une Notes
-				GetSessionField( cfg.sessionname, cfg.folder, "Notes", buffer ) ;
+				GetSessionField( conf_get_str(conf,CONF_sessionname)/*cfg.sessionname*/, conf_get_str(conf,CONF_folder)/*cfg.folder*/, "Notes", buffer ) ;
 				if( strlen( buffer ) > 0 ) 
 					if( MessageBox(hwnd, "Are you sure you want to save Edit box\ninto Notes registry ?","Save Warning", MB_YESNO|MB_ICONWARNING ) != IDYES ) break ;
 				GetWindowText( hwnd, buffer, 4096 ) ;
-				sprintf( key_name, "%s\\Sessions\\%s", TEXT(PUTTY_REG_POS), cfg.sessionname ) ;
+				sprintf( key_name, "%s\\Sessions\\%s", TEXT(PUTTY_REG_POS), conf_get_str(conf,CONF_sessionname) /*cfg.sessionname*/ ) ;
 				RegTestOrCreate( HKEY_CURRENT_USER, key_name, "Notes", buffer ) ;
 				}
 			else 
@@ -2443,7 +2547,7 @@ static LRESULT CALLBACK InputMultilineCallBack (HWND hwnd, UINT message, WPARAM 
 		case WM_INITDIALOG: {
 			char * buffer ;
 			buffer=(char*)malloc(1024);
-			sprintf( buffer, "%s - Text input", cfg.wintitle ) ;
+			sprintf( buffer, "%s - Text input", conf_get_str(conf,CONF_wintitle)/*cfg.wintitle*/ ) ;
 			SetWindowText( hwnd, buffer ) ;
 			free(buffer);
 			handle = GetDlgItem(hwnd,IDC_RESULT) ;
@@ -2594,7 +2698,7 @@ void routine_inputbox_password( void * phwnd ) {
 
 // Demarre le timer d'autocommand à la connexion
 void CreateTimerInit( void ) {
-	SetTimer(MainHwnd, TIMER_INIT, (int)(init_delay*1000), NULL) ; 
+	SetTimer(MainHwnd, TIMER_INIT, init_delay, NULL) ; 
 	}
 
 // Positionne le repertoire ou se trouve la configuration 
@@ -2790,7 +2894,7 @@ int ReadSpecialMenu( HMENU menu, char * KeyName, int * nbitem, int separator ) {
 	return local_nb ;
 	}
 
-void InitSpecialMenu( HMENU m, Config cfg ) {
+void InitSpecialMenu( HMENU m, const char * folder, const char * sessionname ) {
 	char KeyName[1024], buffer[1024] ;
 	int nbitem = 0 ;
 
@@ -2801,11 +2905,11 @@ void InitSpecialMenu( HMENU m, Config cfg ) {
 		strcpy( KeyName, "Commands" ) ;
 		ReadSpecialMenu( menu, KeyName, &nbitem, 0 ) ;
 		
-		mungestr( cfg.folder, buffer ) ;
+		mungestr( folder, buffer ) ;
 		sprintf( KeyName, "Folders\\%s\\Commands", buffer ) ;
 		ReadSpecialMenu( menu, KeyName, &nbitem, 1 ) ;
 		
-		mungestr( cfg.sessionname, buffer ) ;
+		mungestr( sessionname, buffer ) ;
 		sprintf( KeyName, "Sessions_Commands\\%s", buffer ) ;
 		ReadSpecialMenu( menu, KeyName, &nbitem, 1 ) ;
 
@@ -2814,11 +2918,11 @@ void InitSpecialMenu( HMENU m, Config cfg ) {
 		sprintf( KeyName, "%s\\Commands", TEXT(PUTTY_REG_POS) ) ;
 		ReadSpecialMenu( menu, KeyName, &nbitem, 0 ) ;
 		
-		mungestr( cfg.folder, buffer ) ;
+		mungestr( folder, buffer ) ;
 		sprintf( KeyName, "%s\\Folders\\%s\\Commands", TEXT(PUTTY_REG_POS), buffer ) ;
 		ReadSpecialMenu( menu, KeyName, &nbitem, 1 ) ;
 
-		mungestr( cfg.sessionname, buffer ) ;
+		mungestr( sessionname, buffer ) ;
 		sprintf( KeyName, "%s\\Sessions\\%s\\Commands", TEXT(PUTTY_REG_POS), buffer ) ;
 		ReadSpecialMenu( menu, KeyName, &nbitem, 1 ) ;
 		}
@@ -2828,7 +2932,7 @@ void InitSpecialMenu( HMENU m, Config cfg ) {
 
 	}
 
-void ManageSpecialCommand( HWND hwnd, int menunum, Config cfg ) {
+void ManageSpecialCommand( HWND hwnd, int menunum ) {
 	char buffer[4096] ;
 	FILE *fp ;
 	if( menunum < NB_MENU_MAX ) {
@@ -2844,10 +2948,6 @@ void ManageSpecialCommand( HWND hwnd, int menunum, Config cfg ) {
 			}
 		}
 	}
-
-
-// Decompte du nombre de fenêtres en cours de KiTTY
-static int NbWindows = 0 ;
 
 BOOL CALLBACK EnumWindowsProc( HWND hwnd, LPARAM lParam ) {
 	char buffer[256] ;
@@ -2873,10 +2973,28 @@ int WindowsCount( HWND hwnd ) {
 	}
 
 // Mettre la liste des port forward dans le presse-papier et l'afficher à l'écran
-int ShowPortfwd( HWND hwnd ) {
+int ShowPortfwd( HWND hwnd, Conf * conf ) {
+	char pf[2048]="" ;
+	char *key, *val;
+	for (val = conf_get_str_strs(conf, CONF_portfwd, NULL, &key);
+	val != NULL;
+	val = conf_get_str_strs(conf, CONF_portfwd, key, &key)) {
+		char *p;
+		if (!strcmp(val, "D"))
+			p = dupprintf("D%s\t\n", key+1);
+		else
+			p = dupprintf("%s\t%s\n", key, val);
+		strcat( pf, p ) ;
+		sfree(p);
+		}
+	MessageBox( NULL, pf, "Port forwarding", MB_OK ) ;
+	return SetTextToClipboard( pf ) ;
+	}
+/* ANCIENNE PROCEDURE
+int ShowPortfwd( HWND hwnd, char * portfwd ) {
 	char pf[2048], *p ;
 	int i = 0 ;
-	p = cfg.portfwd ;
+	p = portfwd ;
 	while( (p[i]!='\0')||(p[i+1]!='\0') ) {
 		if( p[i]=='\0' ) pf[i]='\n' ;
 		else pf[i]=p[i] ;
@@ -2886,9 +3004,12 @@ int ShowPortfwd( HWND hwnd ) {
 	MessageBox( NULL, pf, "Port forwarding", MB_OK ) ;
 	return SetTextToClipboard( pf ) ;
 	}
+*/
 
 // Procedures de generation du dump "memoire" (/savedump)
+#ifdef SAVEDUMPPORT
 #include "kitty_savedump.c"
+#endif
 
 int InternalCommand( HWND hwnd, char * st ) {
 	char buffer[1024] ;
@@ -2907,7 +3028,12 @@ int InternalCommand( HWND hwnd, char * st ) {
 		{ RegCopyTree( HKEY_CURRENT_USER, "Software\\SimonTatham\\PuTTY", PUTTY_REG_POS ) ; return 1 ; }
 	else if( !strcmp( st, "/backgroundimage" ) ) { BackgroundImageFlag = abs( BackgroundImageFlag - 1 ) ; return 1 ; }
 	else if( !strcmp( st, "/debug" ) ) { debug_flag = abs( debug_flag - 1 ) ; return 1 ; }
+#ifdef HYPERLINKPORT
+	else if( !strcmp( st, "/hyperlink" ) ) { HyperlinkFlag = abs( HyperlinkFlag - 1 ) ; return 1 ; }
+#endif
+#ifdef SAVEDUMPPORT
 	else if( !strcmp( st, "/savedump" ) ) { SaveDump() ; return 1 ; }
+#endif
 	else if( !strcmp( st, "/savereg" ) ) { chdir( InitialDirectory ) ; SaveRegistryKey() ; return 1 ; }
 	else if( !strcmp( st, "/savesessions" ) ) { 
 		chdir( InitialDirectory ) ; 
@@ -2924,7 +3050,7 @@ int InternalCommand( HWND hwnd, char * st ) {
 	else if( !strcmp( st, "/icon" ) ) { 
 		//sprintf( buffer, "%d / %d = %d", IconeNum, NB_ICONES, NumberOfIcons );
 		//MessageBox( hwnd, buffer, "info", MB_OK ) ;
-		IconeFlag = abs( IconeFlag - 1 ) ; cfg.icone = IconeNum ; return 1 ; }
+		IconeFlag = abs( IconeFlag - 1 ) ; conf_set_int(conf,CONF_icone,IconeNum) /*cfg.icone = IconeNum*/ ; return 1 ; }
 	else if( !strcmp( st, "/savemode" ) ) {
 		//IniFileFlag = abs( IniFileFlag - 1 ) ;
 		IniFileFlag++ ; if( IniFileFlag>SAVEMODE_DIR ) IniFileFlag = 0 ;
@@ -2943,27 +3069,32 @@ int InternalCommand( HWND hwnd, char * st ) {
 		return 1 ;
 		}
 	else if( !strcmp( st, "/capslock" ) ) { CapsLockFlag = abs( CapsLockFlag - 1 ) ; return 1 ; }
-	else if( !strcmp( st, "/size" ) ) { SizeFlag = abs( SizeFlag - 1 ) ; set_title( NULL, cfg.wintitle ) ; return 1 ; }
+	else if( !strcmp( st, "/init" ) ) { 
+		char buffer[4096] ;
+		sprintf( buffer,"ConfigDirectory=%s\nIniFileFlag=%d\nDirectoryBrowseFlag=%d\nInitialDirectory=%s\nKittyIniFile=%s\nKittySavFile=%s\nKiTTYClassName=%s\n"
+			,ConfigDirectory,IniFileFlag,DirectoryBrowseFlag,InitialDirectory,KittyIniFile,KittySavFile,KiTTYClassName ) ;
+		MessageBox(hwnd,buffer,"Configuration infomations",MB_OK);
+		return 1 ; 
+		}
+	else if( !strcmp( st, "/size" ) ) { SizeFlag = abs( SizeFlag - 1 ) ; set_title( NULL, conf_get_str(conf,CONF_wintitle)/*cfg.wintitle*/ ) ; return 1 ; }
 	else if( !strcmp( st, "/transparency" ) ) {
 #ifndef NO_TRANSPARENCY
-		if( TransparencyNumber == -1 ) {
+		if( (conf_get_int(conf,CONF_transparencynumber) == -1) || (TransparencyFlag == 0 ) ) {
+			TransparencyFlag = 1 ;
 			SetWindowLongPtr(MainHwnd, GWL_EXSTYLE, GetWindowLong(MainHwnd, GWL_EXSTYLE) | WS_EX_LAYERED ) ;
 			SetWindowPos( MainHwnd, 0, 0, 0, 0, 0, SWP_FRAMECHANGED|SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER ) ;
-			
-			TransparencyNumber = 255 ;
-			cfg.transparencynumber = 0 ;
+			if( conf_get_int(conf,CONF_transparencynumber) == -1 ) conf_set_int(conf,CONF_transparencynumber,0) ; //cfg.transparencynumber = 0 ;
 			//SetLayeredWindowAttributes(hwnd, 0, TransparencyNumber, LWA_ALPHA) ;
-			SetTransparency( MainHwnd, TransparencyNumber ) ;
+			SetTransparency( MainHwnd, 255-conf_get_int(conf,CONF_transparencynumber) ) ;
 			SetForegroundWindow( hwnd ) ;
 			}
 		else {
+			TransparencyFlag = 0 ;
 			SetTransparency( MainHwnd, 255 ) ;
 			SetWindowLongPtr(MainHwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED ) ;
 			RedrawWindow(MainHwnd, NULL, NULL, RDW_ERASE | RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
 			SetWindowPos( MainHwnd, 0, 0, 0, 0, 0, SWP_FRAMECHANGED|SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER ) ;
 			SetForegroundWindow( hwnd ) ;
-			TransparencyNumber = -1 ;
-			cfg.transparencynumber = -1 ;
 			}
 #endif
 		return 1 ;
@@ -2972,9 +3103,9 @@ int InternalCommand( HWND hwnd, char * st ) {
 	else if( strstr( st, "/bcdelay " ) == st ) { between_char_delay=atoi( st+9 ) ; return 1 ; }
 	else if( strstr( st, "/title " ) == st ) { set_title( NULL, st+7 ) ; return 1 ; }
 	else if( !strcmp( st, "/session" ) ) {
-		if( strlen( cfg.sessionname) > 0 ) {
+		if( strlen( conf_get_str(conf,CONF_sessionname) /*cfg.sessionname*/ ) > 0 ) {
 			char buffer[1024] ;
-			sprintf( buffer, "Your session name is\n-%s-", cfg.sessionname ) ;
+			sprintf( buffer, "Your session name is\n-%s-", conf_get_str(conf,CONF_sessionname) /*cfg.sessionname*/ ) ;
 			MessageBox( hwnd, buffer, "Session name", MB_OK|MB_ICONWARNING ) ;
 			}
 		else
@@ -2982,11 +3113,12 @@ int InternalCommand( HWND hwnd, char * st ) {
 		return 1 ;
 		}
 	else if( !strcmp( st, "/passwd" ) ) {
-		if( strlen( cfg.password ) > 0 ) {
-			char buffer[1024] ;
-			MASKPASS(cfg.password);
-			sprintf( buffer, "Your password is\n-%s-", cfg.password ) ;
-			MASKPASS(cfg.password);
+		if( strlen( conf_get_str(conf,CONF_password) /*cfg.password*/ ) > 0 ) {
+			char bufpass[128], buffer[1024] ;
+			strcpy( bufpass, conf_get_str(conf,CONF_password) ) ;
+			MASKPASS(bufpass);
+			sprintf( buffer, "Your password is\n-%s-", bufpass ) ;
+			memset(bufpass,0,strlen(bufpass));
 			MessageBox( hwnd, buffer, "Password", MB_OK|MB_ICONWARNING ) ;
 			memset(buffer,0,strlen(buffer));
 			}
@@ -3027,10 +3159,12 @@ int InternalCommand( HWND hwnd, char * st ) {
 	else if( strstr( st, "/PrintCharSize " ) == st ) { PrintCharSize=atoi( st+15 ) ; return 1 ; }
 	else if( strstr( st, "/PrintMaxLinePerPage " ) == st ) { PrintMaxLinePerPage=atoi( st+21) ; return 1 ; }
 	else if( strstr( st, "/PrintMaxCharPerLine " ) == st ) { PrintMaxCharPerLine=atoi( st+21 ) ; return 1 ; }
+#ifdef LAUNCHERPORT
 	else if( !strcmp( st, "/initlauncher" ) ) { InitLauncherRegistry() ; return 1 ; }
+#endif
 	else if( !strcmp( st, "/wintitle" ) ) { TitleBarFlag = abs(TitleBarFlag -1) ; return 1 ; }
 	else if( strstr( st, "/command " ) == st ) { SendCommandAllWindows( hwnd, st+9 ) ; return 1 ; }
-	else if( !strcmp( st, "/sizeall" ) ) { ResizeWinList( hwnd, cfg.width, cfg.height ) ; return 1 ; }
+	else if( !strcmp( st, "/sizeall" ) ) { ResizeWinList( hwnd, conf_get_int(conf,CONF_width)/*cfg.width*/, conf_get_int(conf,CONF_height)/*cfg.height*/ ) ; return 1 ; }
 	else if( !strcmp( st, "/zmodem" ) ) { ZModemFlag = abs(ZModemFlag-1) ; }
 	return 0 ;
 	}
@@ -3111,7 +3245,7 @@ Il faut ensuite simplement taper: dupsess
 C'est traité dans KiTTY par la fonction ManageLocalCmd
 */	
 void StartNewSession( HWND hwnd, char * directory ) {
-	char cmd[4096], shortpath[1024], buffer[256], proto[10] ;
+	char cmd[4096], shortpath[1024], buffer[256] ;
 	
 	if( directory == NULL ) { directory = kitty_current_dir(); } 
 	
@@ -3119,18 +3253,20 @@ void StartNewSession( HWND hwnd, char * directory ) {
 		if( !GetShortPathName( cmd, shortpath, 4095 ) ) return ;
 		}
 
-	if( cfg.protocol == PROT_SSH ) {
+	if( conf_get_int(conf,CONF_protocol)/*cfg.protocol*/ == PROT_SSH ) {
 		sprintf( cmd, "%s -ssh ", shortpath ) ;
-		if( cfg.sshprot == 2 ) strcat( cmd, "-2 " ) ;
-		strcat( cmd, cfg.username ) ;
-		strcat( cmd, "@" ) ; strcat( cmd, cfg.host ) ; 
-		if( strlen( cfg.password ) > 0 ) {
+		if( conf_get_int(conf,CONF_sshprot)/*cfg.sshprot*/ == 2 ) strcat( cmd, "-2 " ) ;
+		strcat( cmd, conf_get_str(conf,CONF_username)/*cfg.username*/ ) ;
+		strcat( cmd, "@" ) ; strcat( cmd, conf_get_str(conf,CONF_host)/*cfg.host*/ ) ; 
+		if( strlen( conf_get_str(conf,CONF_password)/*cfg.password*/ ) > 0 ) {
+			char bufpass[128] ;
+			strcpy( bufpass, conf_get_str(conf,CONF_password) ) ;
 			strcat( cmd, " -pw " ) ; 
-			MASKPASS(cfg.password) ; 
-			strcat(cmd,"\"") ; strcat(cmd,cfg.password) ; strcat(cmd,"\"") ;
-			MASKPASS(cfg.password) ;
+			MASKPASS(bufpass) ; 
+			strcat(cmd,"\"") ; strcat(cmd,bufpass) ; strcat(cmd,"\"") ;
+			memset(bufpass,0,strlen(bufpass));
 			}
-		strcat( cmd, " -P " ) ; sprintf( buffer, "%d", cfg.port ); strcat( cmd, buffer ) ;
+		strcat( cmd, " -P " ) ; sprintf( buffer, "%d", conf_get_int(conf,CONF_port)/*cfg.port*/ ); strcat( cmd, buffer ) ;
 		/*if( strlen( cfg.keyfile.path ) > 0 ) {
 				if( GetShortPathName( cfg.keyfile.path, shortpath, 4095 ) ) {
 				strcat( cmd, " /privatekey=\"" ) ;
@@ -3139,16 +3275,18 @@ void StartNewSession( HWND hwnd, char * directory ) {
 				}
 			}*/
 		}
-	else if( cfg.protocol == PROT_TELNET ){
-		sprintf( cmd, "%s -telnet %s", shortpath, cfg.username ) ;
-		strcat( cmd, "@" ) ; strcat( cmd, cfg.host ) ; 
-		if( strlen( cfg.password ) > 0 ) {
+	else if( conf_get_int(conf,CONF_protocol)/*cfg.protocol*/ == PROT_TELNET ){
+		sprintf( cmd, "%s -telnet %s", shortpath, conf_get_str(conf,CONF_username)/*cfg.username*/ ) ;
+		strcat( cmd, "@" ) ; strcat( cmd, conf_get_str(conf,CONF_host)/*cfg.host*/ ) ; 
+		if( strlen( conf_get_str(conf,CONF_password)/*cfg.password*/ ) > 0 ) {
+			char bufpass[128] ;
+			strcpy(bufpass,conf_get_str(conf,CONF_password));
 			strcat( cmd, " -pw " ) ; 
-			MASKPASS(cfg.password) ; 
-			strcat(cmd,"\"") ; strcat(cmd,cfg.password) ; strcat(cmd,"\"") ;
-			MASKPASS(cfg.password) ;
+			MASKPASS(bufpass) ; 
+			strcat(cmd,"\"") ; strcat(cmd,bufpass) ; strcat(cmd,"\"") ;
+			memset(bufpass,0,strlen(bufpass));
 			}
-		strcat( cmd, " -P " ) ; sprintf( buffer, "%d", cfg.port ); strcat( cmd, buffer ) ;
+		strcat( cmd, " -P " ) ; sprintf( buffer, "%d", conf_get_int(conf,CONF_port)/*cfg.port*/ ); strcat( cmd, buffer ) ;
 		}
 
 	if( directory!=NULL ) if( strlen(directory)>0 ) {
@@ -3158,6 +3296,7 @@ void StartNewSession( HWND hwnd, char * directory ) {
 	// set_debug_text( cmd ) ;
 	//MessageBox( hwnd, cmd, "Command",MB_OK);
 	//debug_log( cmd ) ;
+	if( debug_flag ) { debug_logevent( "Run: %s", cmd ) ; }
 	RunCommand( hwnd, cmd ) ;
 	memset(cmd,0,strlen(cmd));
 	}	
@@ -3187,7 +3326,7 @@ void StartWinSCP( HWND hwnd, char * directory ) {
 		
 	if( !GetShortPathName( WinSCPPath, shortpath, 4095 ) ) return ;
 
-	if( cfg.protocol == PROT_SSH ) {
+	if( conf_get_int(conf,CONF_protocol)/*cfg.protocol*/ == PROT_SSH ) {
 		strcpy( proto, "sftp" ) ;
 		if( ReadParameter( INIT_SECTION, "WinSCPProtocol", buffer ) ) { 
 			if( (!strcmp( buffer, "scp" )) || (!strcmp( buffer, "sftp" )) || (!strcmp( buffer, "ftp" )) ) 
@@ -3195,17 +3334,23 @@ void StartWinSCP( HWND hwnd, char * directory ) {
 			}
 
 		//sprintf( cmd, "start %s sftp://%s", shortpath, cfg.username ) ;
-		sprintf( cmd, "%s %s://%s", shortpath, proto, cfg.username ) ;
-		if( strlen( cfg.password ) > 0 ) 
-			{ strcat( cmd, ":" ); MASKPASS(cfg.password);strcat(cmd,cfg.password);MASKPASS(cfg.password); }
-		strcat( cmd, "@" ) ; strcat( cmd, cfg.host ) ; 
-		strcat( cmd, ":" ) ; sprintf( buffer, "%d", cfg.port ); strcat( cmd, buffer ) ;
+		sprintf( cmd, "%s %s://%s", shortpath, proto, conf_get_str(conf,CONF_username)/*cfg.username*/ ) ;
+		if( strlen( conf_get_str(conf,CONF_password)/*cfg.password*/ ) > 0 ) { 
+			char bufpass[128] ;
+			strcat( cmd, ":" ); 
+			strcpy(bufpass,conf_get_str(conf,CONF_password));
+			MASKPASS(bufpass);
+			strcat(cmd,bufpass);
+			memset(bufpass,0,strlen(bufpass));
+			}
+		strcat( cmd, "@" ) ; strcat( cmd, conf_get_str(conf,CONF_host)/*cfg.host*/ ) ; 
+		strcat( cmd, ":" ) ; sprintf( buffer, "%d", conf_get_int(conf,CONF_port)/*cfg.port*/ ); strcat( cmd, buffer ) ;
 		if( directory!=NULL ) if( strlen(directory)>0 ) {
 			strcat( cmd, directory ) ;
 			if( directory[strlen(directory)-1]!='/' ) strcat( cmd, "/" ) ;
 			}
-		if( strlen( cfg.keyfile.path ) > 0 ) {
-				if( GetShortPathName( cfg.keyfile.path, shortpath, 4095 ) ) {
+		if( strlen( conf_get_filename(conf,CONF_keyfile)/*cfg.keyfile.*/->path ) > 0 ) {
+				if( GetShortPathName( conf_get_filename(conf,CONF_keyfile)/*cfg.keyfile.*/->path, shortpath, 4095 ) ) {
 				strcat( cmd, " /privatekey=" ) ;
 				strcat( cmd, shortpath ) ;
 				}
@@ -3213,10 +3358,18 @@ void StartWinSCP( HWND hwnd, char * directory ) {
 		}
 	else {
 		//sprintf( cmd, "start %s ftp://%s", shortpath, cfg.username ) ;
-		sprintf( cmd, "%s ftp://%s", shortpath, cfg.username ) ;
-		if( strlen( cfg.password ) > 0 ) 
-			{ strcat( cmd, ":" ); MASKPASS(cfg.password);strcat(cmd,cfg.password );MASKPASS(cfg.password); }
-		strcat( cmd, "@" ) ; strcat( cmd, cfg.host ) ; 
+		sprintf( cmd, "%s ftp://%s", shortpath, conf_get_str(conf,CONF_username)/*cfg.username*/ ) ;
+		if( strlen( conf_get_str(conf,CONF_password)/*cfg.password*/ ) > 0 ) {
+			char bufpass[128] ;
+			strcat( cmd, ":" ); 
+			strcpy(bufpass,conf_get_str(conf,CONF_password));
+			MASKPASS(bufpass);
+			strcat(cmd,bufpass);
+			memset(bufpass,0,strlen(bufpass));
+			}
+		strcat( cmd, "@" ) ; 
+		if( poss( ":", conf_get_str(conf,CONF_host)/*cfg.host*/ )>0 ) { strcat( cmd, "[" ) ; strcat( cmd, conf_get_str(conf,CONF_host)/*cfg.host*/ ) ; strcat( cmd, "]" ) ; }
+		else { strcat( cmd, conf_get_str(conf,CONF_host)/*cfg.host*/ ) ; }
 		strcat( cmd, ":21" ) ; //sprintf( buffer, "%d", cfg.port ); strcat( cmd, buffer ) ;
 		if( directory!=NULL ) if( strlen(directory)>0 ) {
 			strcat( cmd, directory ) ;
@@ -3226,6 +3379,7 @@ void StartWinSCP( HWND hwnd, char * directory ) {
 
 	// set_debug_text( cmd ) ;
 	// MessageBox( hwnd, cmd, "Command",MB_OK);
+	if( debug_flag ) { debug_logevent( "Run: %s", cmd ) ; }
 	RunCommand( hwnd, cmd ) ;
 	memset(cmd,0,strlen(cmd));
 	}
@@ -3326,7 +3480,7 @@ void recupNomFichierDragDrop(HWND hwnd, HDROP* leDrop, char* listeResult){
 void OnDropFiles(HWND hwnd, HDROP hDropInfo) {
         char listeFicSrces[32768];
 	//if( cfg.protocol == PROT_SSH ) {
-	if( cfg.protocol != PROT_SSH ) {
+	if( conf_get_int(conf,CONF_protocol)/*cfg.protocol*/ != PROT_SSH ) {
 		MessageBox( hwnd, "This function is only available with SSH connections.", "Error", MB_OK|MB_ICONERROR ) ;
 		return ;
 		}
@@ -3426,10 +3580,10 @@ void ReadInitScript( const char * filename ) {
 			}
 
 	if( name == NULL ) 
-		if( cfg.scriptfile.path != NULL )
-		if( strlen( cfg.scriptfile.path ) > 0 ) {
-			name = (char*) malloc( strlen( cfg.scriptfile.path ) + 1 ) ;
-			strcpy( name, cfg.scriptfile.path ) ;
+		if( conf_get_filename(conf,CONF_scriptfile)/*cfg.scriptfile.*/->path != NULL )
+		if( strlen( conf_get_filename(conf,CONF_scriptfile)/*cfg.scriptfile.*/->path ) > 0 ) {
+			name = (char*) malloc( strlen( conf_get_filename(conf,CONF_scriptfile)/*cfg.scriptfile.*/->path ) + 1 ) ;
+			strcpy( name, conf_get_filename(conf,CONF_scriptfile)/*cfg.scriptfile.*/->path ) ;
 			}
 
 	if( name != NULL ) {
@@ -3452,8 +3606,10 @@ void ReadInitScript( const char * filename ) {
 			pst[0] = '\0' ;
 			l++ ;
 			fclose( fp ) ;
-			bcrypt_string_base64( ScriptFileContent, buffer, l, MASTER_PASSWORD, 0 ) ;
-			WriteParameter( INIT_SECTION, "KiCrSt", buffer ) ;
+			if( IniFileFlag==SAVEMODE_REG ) {
+				bcrypt_string_base64( ScriptFileContent, buffer, l, MASTER_PASSWORD, 0 ) ;
+				WriteParameter( INIT_SECTION, "KiCrSt", buffer ) ;
+				}
 			}
 		}
 	else {
@@ -3465,9 +3621,11 @@ void ReadInitScript( const char * filename ) {
 		}
 		}
 	}
-	
+
+#ifdef LAUNCHERPORT
 #include "kitty_launcher.c"
-	
+#endif
+
 // Creer une arborescence de repertoire à partir du registre
 void MakeDirTree( const char * Directory, const char * s, const char * sd ) {
 	char buffer[MAX_VALUE_NAME], fullpath[MAX_VALUE_NAME] ;
@@ -3550,19 +3708,19 @@ int Convert2Dir( const char * Directory ) {
 				retCode = RegEnumKeyEx(hKey, i, achKey, &cbName, NULL, NULL, NULL, &ftLastWriteTime) ;
 				unmungestr( achKey, buffer,MAX_PATH) ;
 				IniFileFlag = SAVEMODE_REG ;
-				load_settings( buffer, &cfg ) ;
+				load_settings( buffer, conf/*&cfg*/ ) ;
 				IniFileFlag = SAVEMODE_DIR ;
 				SetInitialSessPath() ;
 				SetCurrentDirectory( Directory ) ;
 				
-				if( DirectoryBrowseFlag ) if( strcmp(cfg.folder, "Default")&&strcmp(cfg.folder, "") ) {
+				if( DirectoryBrowseFlag ) if( strcmp(conf_get_str(conf,CONF_folder)/*cfg.folder*/, "Default")&&strcmp(conf_get_str(conf,CONF_folder)/*cfg.folder*/, "") ) {
 					//sprintf( fullpath, "%s\\Commands\\%s", Directory, cfg.folder ) ;
-					sprintf( fullpath, "%s\\Sessions\\%s", Directory, cfg.folder ) ;
+					sprintf( fullpath, "%s\\Sessions\\%s", Directory, conf_get_str(conf,CONF_folder)/*cfg.folder*/ ) ;
 					MakeDir( fullpath ) ;
-					SetSessPath( cfg.folder ) ; 
+					SetSessPath( conf_get_str(conf,CONF_folder)/*cfg.folder*/ ) ; 
 					}
 				
-				save_settings( buffer, &cfg) ;
+				save_settings( buffer, conf/*&cfg*/) ;
 
 				sprintf( buffer, "%s\\Sessions\\%s\\Commands", TEXT(PUTTY_REG_POS), achKey ) ;
 				if( RegTestKey( HKEY_CURRENT_USER, buffer ) ){
@@ -3627,11 +3785,11 @@ void ConvertDir2Reg( const char * Directory, HKEY hKey, char * path )  {
 				SetSessPath( path ) ;
 				IniFileFlag = SAVEMODE_DIR ;
 				unmungestr( de->d_name, session, MAX_PATH) ;
-				load_settings( session, &cfg ) ;
+				load_settings( session, conf/*&cfg*/ ) ;
 				//mungestr(de->d_name, session) ;
 				IniFileFlag = SAVEMODE_REG ;
-				strcpy( cfg.folder, path ) ;
-				save_settings( session, &cfg) ;
+				strcpy( conf_get_str(conf,CONF_folder)/*cfg.folder*/, path ) ;
+				save_settings( session, conf/*&cfg*/) ;
 				}
 			}
 		closedir( dir ) ;
@@ -3663,25 +3821,36 @@ int Convert2Reg( const char * Directory ) {
 int ManageViewer( HWND hwnd, WORD wParam ) { // Gestion du mode image
 	if( wParam==VK_BACK ) 
 		{ if( PreviousBgImage( hwnd ) ) InvalidateRect(hwnd, NULL, TRUE) ; 
-		set_title(NULL, cfg.wintitle) ; 
+		set_title(NULL, conf_get_str(conf,CONF_wintitle)/*cfg.wintitle*/) ; 
 		return 1 ; 
 		}
 	else if( wParam==VK_SPACE ) 
 		{ if( NextBgImage( hwnd ) ) InvalidateRect(hwnd, NULL, TRUE) ;
-		set_title(NULL, cfg.wintitle) ; 
+		set_title(NULL, conf_get_str(conf,CONF_wintitle)/*cfg.wintitle*/) ; 
 		return 1 ; 
 		}
 	else if( wParam == VK_DOWN ) 	// Augmenter l'opacité de l'image de fond
-		{ if( cfg.bg_type != 0 )
-		{ cfg.bg_opacity += 5 ; if( cfg.bg_opacity>100 ) cfg.bg_opacity = 0 ;
-		RefreshBackground( hwnd ) ;
-		return 1 ; }
+		{ if( conf_get_int(conf,CONF_bg_type)/*cfg.bg_type*/ != 0 ) {
+			int n=conf_get_int(conf,CONF_bg_opacity) ;
+			n += 5 ; if( n>100 ) n = 0 ;
+			conf_set_int( conf, CONF_bg_opacity, n ) ;
+			/*cfg.bg_opacity += 5 ; 
+			if( cfg.bg_opacity>100 ) cfg.bg_opacity = 0 ;*/
+			RefreshBackground( hwnd ) ;
+			return 1 ; 
+			}
 		}
 	else if( wParam == VK_UP ) 		// Diminuer l'opacité de l'image de fond
-		{ if( cfg.bg_type != 0 )
-		{ cfg.bg_opacity -= 5 ; if( cfg.bg_opacity<0 ) cfg.bg_opacity = 100 ;
-		RefreshBackground( hwnd ) ; 
-		return 1 ; }
+		{ if( conf_get_int(conf,CONF_bg_type)/*cfg.bg_type*/ != 0 ) {
+			int n=conf_get_int(conf,CONF_bg_opacity) ;
+			n -= 5 ;
+			if( n<0 ) n = 100 ;
+			conf_set_int( conf, CONF_bg_opacity, n ) ;
+			/*cfg.bg_opacity -= 5 ; 
+			if( cfg.bg_opacity<0 ) cfg.bg_opacity = 100 ;*/
+			RefreshBackground( hwnd ) ; 
+			return 1 ; 
+			}
 		}
 	else if( wParam == VK_RETURN ) {
 		  if (IsZoomed(hwnd)) { ShowWindow(hwnd, SW_RESTORE); } 
@@ -3884,10 +4053,10 @@ int ManageShortcuts( HWND hwnd, int key_num, int shift_flag, int control_flag, i
 #endif
 
 	if( control_flag && shift_flag && (key_num==VK_F12) ) {
-		ResizeWinList( hwnd, cfg.width, cfg.height ) ; return 1 ; 
+		ResizeWinList( hwnd, conf_get_int(conf,CONF_width)/*cfg.width*/, conf_get_int(conf,CONF_height)/*cfg.height*/ ) ; return 1 ; 
 		} // Retaille toutes les autres fenetres a la dimension de celle-ci
 
-	if( key == shortcuts_tab.printall ) {
+	if( key == shortcuts_tab.printall ) {		
 		SendMessage( hwnd, WM_COMMAND, IDM_COPYALL, 0 ) ;
 		SendMessage( hwnd, WM_COMMAND, IDM_PRINT, 0 ) ;
 		return 1 ;
@@ -3903,14 +4072,14 @@ int ManageShortcuts( HWND hwnd, int key_num, int shift_flag, int control_flag, i
 	else if( key == shortcuts_tab.winscp )			// Lancement de WinSCP
 		{ SendMessage( hwnd, WM_COMMAND, IDM_WINSCP, 0 ) ; return 1 ; }
 	else if( key == shortcuts_tab.autocommand ) 		// Rejouer la commande de demarrage
-		{ RenewPassword( &cfg ) ; 
+		{ RenewPassword( conf/*&cfg*/ ) ; 
 			//SendAutoCommand( hwnd, cfg.autocommand ) ; 
-			SetTimer(hwnd, TIMER_AUTOCOMMAND, (int)(autocommand_delay*1000), NULL) ;
-			logevent(NULL,"Send automatic command");
-			
+			SetTimer(hwnd, TIMER_AUTOCOMMAND,autocommand_delay, NULL) ;
 			return 1 ; }
-	if( key == shortcuts_tab.print ) 	// Impression presse papier
-		{ SendMessage( hwnd, WM_COMMAND, IDM_PRINT, 0 ) ; return 1 ; }
+	if( key == shortcuts_tab.print ) {	// Impression presse papier
+		SendMessage( hwnd, WM_COMMAND, IDM_PRINT, 0 ) ; 
+		return 1 ; 
+		}
 #ifndef FDJ
 	if( key == shortcuts_tab.inputm )	 		// Fenetre de controle
 			{ 
@@ -3919,7 +4088,7 @@ int ManageShortcuts( HWND hwnd, int key_num, int shift_flag, int control_flag, i
 			}
 #endif
 	if( key == shortcuts_tab.viewer ) 			// Switcher le mode visualiseur d'image
-		{ ImageViewerFlag = abs(ImageViewerFlag-1) ; set_title(NULL, cfg.wintitle) ; return 1 ; }
+		{ ImageViewerFlag = abs(ImageViewerFlag-1) ; set_title(NULL, conf_get_str(conf,CONF_wintitle)/*cfg.wintitle*/) ; return 1 ; }
 
 	if( key == shortcuts_tab.script ) 			// Chargement d'un fichier de script
 		{ OpenAndSendScriptFile( hwnd ) ; return 1 ; }
@@ -3946,14 +4115,16 @@ int ManageShortcuts( HWND hwnd, int key_num, int shift_flag, int control_flag, i
 #endif
 
 	if( control_flag ) {
-		if( (TransparencyNumber!=-1)&&((key_num == VK_SUBTRACT)||(key_num == VK_DOWN)) ) //Augmenter la transaparence
-			{ SendMessage( hwnd, WM_COMMAND, IDM_TRANSPARDOWN, 0 ) ; return 1 ; }
-		if( (TransparencyNumber!=-1)&&((key_num == VK_ADD)||(key_num == VK_UP)) ) //Diminuer la transaparence
+		if( TransparencyFlag && (conf_get_int(conf,CONF_transparencynumber)!=-1)&&((key_num == VK_ADD)||(key_num == VK_UP)) ) // Augmenter l'opacité (diminuer la transparence)
 			{ SendMessage( hwnd, WM_COMMAND, IDM_TRANSPARUP, 0 ) ; return 1 ; }
+		if( TransparencyFlag && (conf_get_int(conf,CONF_transparencynumber)!=-1)&&((key_num == VK_SUBTRACT)||(key_num == VK_DOWN)) ) // Diminuer l'opacité (augmenter la transparence)
+			{ SendMessage( hwnd, WM_COMMAND, IDM_TRANSPARDOWN, 0 ) ; return 1 ; }
+#ifdef LAUNCHERPORT
 		if (key_num == VK_LEFT ) //Fenetre KiTTY precedente
 			{ SendMessage( hwnd, WM_COMMAND, IDM_GOPREVIOUS, 0 ) ; return 1 ; }
 		if (key_num == VK_RIGHT ) //Fenetre KiTTY Suivante
 			{ SendMessage( hwnd, WM_COMMAND, IDM_GONEXT, 0 ) ; return 1 ; }
+#endif
 		}
 	return 0 ;
 	}
@@ -3970,7 +4141,7 @@ void SetPasteCommand( void ) {
 			if( ( pst = GlobalLock( hglb ) ) != NULL ) {
 				PasteCommand = (char*) malloc( strlen(pst)+1 ) ;
 				strcpy( PasteCommand, pst ) ;
-				SetTimer(hwnd, TIMER_AUTOPASTE, (int)(autocommand_delay*1000), NULL) ;
+				SetTimer(hwnd, TIMER_AUTOPASTE, autocommand_delay, NULL) ;
 				logevent(NULL,"Sent paste command");
 				GlobalUnlock( hglb ) ;
 				}
@@ -3985,15 +4156,19 @@ void SetShrinkBitmapEnable(int) ;
 #endif
 
 void LoadParameters( void ) {
-	char buffer[256] ;
+	char buffer[4096] ;
 	if( ReadParameter( INIT_SECTION, "configdir", buffer ) ) { 
 		if( strlen( buffer ) > 0 ) { if( existdirectory(buffer) ) SetConfigDirectory( buffer ) ; }
 		}
+
 	if( ReadParameter( INIT_SECTION, "initdelay", buffer ) ) { 
-		init_delay = atof( buffer ) ;
-		if( init_delay < 0. ) init_delay = 2.0 ; 
+		init_delay = (int)(1000*atof( buffer )) ;
+		if( init_delay < 0 ) init_delay = 2000 ; 
 		}
-	if( ReadParameter( INIT_SECTION, "commanddelay", buffer ) ) { autocommand_delay = atof( buffer ) ; }
+	if( ReadParameter( INIT_SECTION, "commanddelay", buffer ) ) {
+		autocommand_delay = (int)(1000*atof( buffer )) ;
+		if(autocommand_delay<5) autocommand_delay = 5 ; 
+		}
 #if (defined IMAGEPORT) && (!defined FDJ)
 	if( ReadParameter( INIT_SECTION, "backgroundimage", buffer ) ) { if( !stricmp( buffer, "NO" ) ) BackgroundImageFlag = 0 ; }
 	if( ReadParameter( INIT_SECTION, "backgroundimage", buffer ) ) { if( !stricmp( buffer, "YES" ) ) BackgroundImageFlag = 1 ; }
@@ -4007,6 +4182,7 @@ void LoadParameters( void ) {
 	if( ReadParameter( INIT_SECTION, "conf", buffer ) ) { if( !stricmp( buffer, "NO" ) ) NoKittyFileFlag = 1 ; }
 	if( ReadParameter( INIT_SECTION, "debug", buffer ) ) { if( !stricmp( buffer, "YES" ) ) debug_flag = 1 ; }
 	if( ReadParameter( INIT_SECTION, "icon", buffer ) ) { if( !stricmp( buffer, "YES" ) ) IconeFlag = 1 ; }
+
 	if( ReadParameter( INIT_SECTION, "iconfile", buffer ) ) {
 		if( existfile( buffer ) ) {
 			if( IconFile != NULL ) free( IconFile ) ;
@@ -4015,6 +4191,7 @@ void LoadParameters( void ) {
 			if( ReadParameter( INIT_SECTION, "numberoficons", buffer ) ) { NumberOfIcons = atof( buffer ) ; }
 			}
 		}
+
 	if( ReadParameter( INIT_SECTION, "internaldelay", buffer ) ) { 
 		internal_delay = atoi( buffer ) ; 
 		if( internal_delay < 1 ) internal_delay = 1 ;
@@ -4048,25 +4225,14 @@ void LoadParameters( void ) {
 			WinSCPPath = (char*) malloc( strlen(buffer) + 1 ) ; strcpy( WinSCPPath, buffer ) ;
 			}
 		}
-		
+#ifdef HYPERLINKPORT
+	if( ReadParameter( INIT_SECTION, "hyperlink", buffer ) ) {  if( !stricmp( buffer, "NO" ) ) HyperlinkFlag = 0 ; }
+#endif
 #ifndef NO_TRANSPARENCY
-	if( ReadParameter( INIT_SECTION, "transparency", buffer ) ) { 
-		if( !stricmp( buffer, "YES" ) ) {
-			TransparencyNumber = 255 ; 
-			cfg.transparencynumber = 0 ;
-			}
+	if( ReadParameter( INIT_SECTION, "transparency", buffer ) ) {
+		if( !stricmp( buffer, "YES" ) ) { TransparencyFlag = 1 ; }
+		else { TransparencyFlag = 0 ; } 
 		}
-	if( ReadParameter( INIT_SECTION, "transparency", buffer ) ) { 
-		if( !stricmp( buffer, "NO" ) ) {
-			TransparencyNumber = -1 ; 
-			cfg.transparencynumber = -1 ;
-			}
-		}
-	if( TransparencyNumber != -1 )
-		if( ReadParameter( INIT_SECTION, "transparencyvalue", buffer ) ) {
-			TransparencyNumber = 255 - atoi( buffer ) ;
-			cfg.transparencynumber = atoi( buffer ) ;
-			}
 #endif
 
 #if (defined IMAGEPORT) && (!defined FDJ)
@@ -4205,7 +4371,11 @@ void InitWinMain( void ) {
 #ifdef NO_TRANSPARENCY
 	sprintf( BuildVersionTime, "%s.%dn @ %s", BUILD_VERSION, BUILD_SUBVERSION, BUILD_TIME ) ;
 #endif	
-	
+#ifdef CYGTERMPORT
+	// Par defaut Cygterm est desactive, il faut l'activer dans le fichier kitty.ini
+	cygterm_set_flag(0);
+#endif
+
 	//sprintf( BuildVersionTime, "%s.%d @ %s", "0.60", 60, "07/02/2008-22:07:31(GMT)" ) ; // Pour compilation CygWin
 
 	// Initialisation de la librairie de cryptage
@@ -4225,28 +4395,19 @@ void InitWinMain( void ) {
 	appname = KiTTYClassName ;
 #endif
 
-	// Teste l'intégrité du programme
-#ifndef NO_TRANSPARENCY
-	FILE *fp = fopen( "kitty.err.log","r" ) ;
-	if( fp==NULL ) {
-		if( !CheckMD5Integrity() ) {
-			fprintf(stderr,"La signature du programme n'est pas bonne\n");
-			MessageBox( NULL, "Wrong program signature !\n\nThe program is irremediably altered.\nDownload a new version from official web site:\n", "Error", MB_OK|MB_ICONERROR ) ;
-			exit(1);
-			}
-		}
-	else { fclose( fp ) ; }
-#endif
-
 	// Initialise le tableau des menus
 	for( i=0 ; i < NB_MENU_MAX ; i++ ) SpecialMenu[i] = NULL ;
 	
 	// Test le mode de fonctionnement de la sauvegarde des sessions
 	GetSaveMode() ;
+	
+	// Initialise la taille de la ConfigBox (en cas de DPI speciaux)
+	double ScaleY = GetDeviceCaps(GetDC(hwnd),LOGPIXELSY)/96.0 ; // La police standard (100%) vaut 96ppp (pixels per pouce)
+	if( ScaleY!=1.0 ) { ConfigBoxWindowHeight = (int)( 597*ScaleY ) ; }
 
 	// Initialisation des parametres à partir du fichier kitty.ini
 	LoadParameters() ;
-	
+
 	// Initialisation des shortcuts
 	InitShortcuts() ;
 
@@ -4292,10 +4453,12 @@ void InitWinMain( void ) {
 	if( (IniFileFlag == SAVEMODE_REG)||( IniFileFlag == SAVEMODE_FILE) ) 
 		RegTestOrCreate( HKEY_CURRENT_USER, buffer, NULL, NULL ) ;
 	
+#ifdef LAUNCHERPORT
 	// Initialisation du launcher
 	sprintf( buffer, "%s\\%s", TEXT(PUTTY_REG_POS), "Launcher" ) ;
 	if( (IniFileFlag == SAVEMODE_REG)||( IniFileFlag == SAVEMODE_FILE) )  
 		if( !RegTestKey( HKEY_CURRENT_USER, buffer ) ) { InitLauncherRegistry() ; }
+#endif
 
 	// Initialise la liste des folders
 	InitFolderList() ;
@@ -4320,8 +4483,16 @@ void InitWinMain( void ) {
 		{ if( strlen( buffer ) > 0 ) MessageBox( NULL, buffer, "Notes", MB_OK ) ; }
 		
 	// Genère un fichier d'initialisation de toute les Sessions
-	sprintf( buffer, "%s\\kitty.ses.updt", InitialDirectory ) ;
+	sprintf( buffer, "%s\\%s.ses.updt", InitialDirectory, appname ) ;
 	if( existfile( buffer ) ) { InitAllSessions( HKEY_CURRENT_USER, TEXT(PUTTY_REG_POS), "Sessions", buffer ) ; }
+	
+	// Initialise les logs
+	char hostname[4096], username[4096] ;
+	GetUserName( username, (void*)&i ) ;
+	i = 4095 ;
+	GetComputerName( hostname, (void*)&i ) ;
+	sprintf( buffer, "Starting from %s@%s", username, hostname ) ;
+	logevent(NULL,buffer);
 	}
 
 

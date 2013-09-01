@@ -330,11 +330,10 @@ void dlg_editbox_set(union control *ctrl, void *dlg, char const *text)
      * The first call to "changed", if allowed to proceed normally,
      * will cause an EVENT_VALCHANGE event on the edit box, causing
      * a call to dlg_editbox_get() which will read the empty string
-     * out of the GtkEntry - and promptly write it straight into
-     * the Config structure, which is precisely where our `text'
-     * pointer is probably pointing, so the second editing
-     * operation will insert that instead of the string we
-     * originally asked for.
+     * out of the GtkEntry - and promptly write it straight into the
+     * Conf structure, which is precisely where our `text' pointer
+     * is probably pointing, so the second editing operation will
+     * insert that instead of the string we originally asked for.
      *
      * Hence, we must take our own copy of the text before we do
      * this.
@@ -344,7 +343,7 @@ void dlg_editbox_set(union control *ctrl, void *dlg, char const *text)
     sfree(tmpstring);
 }
 
-void dlg_editbox_get(union control *ctrl, void *dlg, char *buffer, int length)
+char *dlg_editbox_get(union control *ctrl, void *dlg)
 {
     struct dlgparam *dp = (struct dlgparam *)dlg;
     struct uctrl *uc = dlg_find_byctrl(dp, ctrl);
@@ -353,25 +352,16 @@ void dlg_editbox_get(union control *ctrl, void *dlg, char *buffer, int length)
 #if GTK_CHECK_VERSION(2,4,0)
     if (uc->combo) {
 #if GTK_CHECK_VERSION(2,6,0)
-	strncpy(buffer,
-		gtk_combo_box_get_active_text(GTK_COMBO_BOX(uc->combo)),
-		length);
+	return dupstr(gtk_combo_box_get_active_text(GTK_COMBO_BOX(uc->combo)));
 #else
-	strncpy(buffer,
-		gtk_entry_get_text
-		(GTK_ENTRY(gtk_bin_get_child(GTK_BIN(uc->combo)))),
-		length);
+	return dupstr(gtk_entry_get_text
+		      (GTK_ENTRY(gtk_bin_get_child(GTK_BIN(uc->combo)))));
 #endif
-	buffer[length-1] = '\0';
-	return;
     }
 #endif
 
     if (uc->entry) {
-	strncpy(buffer, gtk_entry_get_text(GTK_ENTRY(uc->entry)),
-		length);
-	buffer[length-1] = '\0';
-	return;
+	return dupstr(gtk_entry_get_text(GTK_ENTRY(uc->entry)));
     }
 
     assert(!"We shouldn't get here");
@@ -916,44 +906,48 @@ void dlg_label_change(union control *ctrl, void *dlg, char const *text)
     }
 }
 
-void dlg_filesel_set(union control *ctrl, void *dlg, Filename fn)
+void dlg_filesel_set(union control *ctrl, void *dlg, Filename *fn)
+{
+    struct dlgparam *dp = (struct dlgparam *)dlg;
+    struct uctrl *uc = dlg_find_byctrl(dp, ctrl);
+    /* We must copy fn->path before passing it to gtk_entry_set_text.
+     * See comment in dlg_editbox_set() for the reasons. */
+    char *duppath = dupstr(fn->path);
+    assert(uc->ctrl->generic.type == CTRL_FILESELECT);
+    assert(uc->entry != NULL);
+    gtk_entry_set_text(GTK_ENTRY(uc->entry), duppath);
+    sfree(duppath);
+}
+
+Filename *dlg_filesel_get(union control *ctrl, void *dlg)
 {
     struct dlgparam *dp = (struct dlgparam *)dlg;
     struct uctrl *uc = dlg_find_byctrl(dp, ctrl);
     assert(uc->ctrl->generic.type == CTRL_FILESELECT);
     assert(uc->entry != NULL);
-    gtk_entry_set_text(GTK_ENTRY(uc->entry), fn.path);
+    return filename_from_str(gtk_entry_get_text(GTK_ENTRY(uc->entry)));
 }
 
-void dlg_filesel_get(union control *ctrl, void *dlg, Filename *fn)
+void dlg_fontsel_set(union control *ctrl, void *dlg, FontSpec *fs)
 {
     struct dlgparam *dp = (struct dlgparam *)dlg;
     struct uctrl *uc = dlg_find_byctrl(dp, ctrl);
-    assert(uc->ctrl->generic.type == CTRL_FILESELECT);
+    /* We must copy fs->name before passing it to gtk_entry_set_text.
+     * See comment in dlg_editbox_set() for the reasons. */
+    char *dupname = dupstr(fs->name);
+    assert(uc->ctrl->generic.type == CTRL_FONTSELECT);
     assert(uc->entry != NULL);
-    strncpy(fn->path, gtk_entry_get_text(GTK_ENTRY(uc->entry)),
-	    lenof(fn->path));
-    fn->path[lenof(fn->path)-1] = '\0';
+    gtk_entry_set_text(GTK_ENTRY(uc->entry), dupname);
+    sfree(dupname);
 }
 
-void dlg_fontsel_set(union control *ctrl, void *dlg, FontSpec fs)
+FontSpec *dlg_fontsel_get(union control *ctrl, void *dlg)
 {
     struct dlgparam *dp = (struct dlgparam *)dlg;
     struct uctrl *uc = dlg_find_byctrl(dp, ctrl);
     assert(uc->ctrl->generic.type == CTRL_FONTSELECT);
     assert(uc->entry != NULL);
-    gtk_entry_set_text(GTK_ENTRY(uc->entry), fs.name);
-}
-
-void dlg_fontsel_get(union control *ctrl, void *dlg, FontSpec *fs)
-{
-    struct dlgparam *dp = (struct dlgparam *)dlg;
-    struct uctrl *uc = dlg_find_byctrl(dp, ctrl);
-    assert(uc->ctrl->generic.type == CTRL_FONTSELECT);
-    assert(uc->entry != NULL);
-    strncpy(fs->name, gtk_entry_get_text(GTK_ENTRY(uc->entry)),
-	    lenof(fs->name));
-    fs->name[lenof(fs->name)-1] = '\0';
+    return fontspec_new(gtk_entry_get_text(GTK_ENTRY(uc->entry)));
 }
 
 /*
@@ -2826,12 +2820,12 @@ void set_dialog_action_area(GtkDialog *dlg, GtkWidget *w)
 #endif
 }
 
-int do_config_box(const char *title, Config *cfg, int midsession,
+int do_config_box(const char *title, Conf *conf, int midsession,
 		  int protcfginfo)
 {
     GtkWidget *window, *hbox, *vbox, *cols, *label,
 	*tree, *treescroll, *panels, *panelvbox;
-    int index, level;
+    int index, level, protocol;
     struct controlbox *ctrlbox;
     char *path;
 #if GTK_CHECK_VERSION(2,0,0)
@@ -2859,8 +2853,9 @@ int do_config_box(const char *title, Config *cfg, int midsession,
     window = gtk_dialog_new();
 
     ctrlbox = ctrl_new_box();
-    setup_config_box(ctrlbox, midsession, cfg->protocol, protcfginfo);
-    unix_setup_config_box(ctrlbox, midsession, cfg->protocol);
+    protocol = conf_get_int(conf, CONF_protocol);
+    setup_config_box(ctrlbox, midsession, protocol, protcfginfo);
+    unix_setup_config_box(ctrlbox, midsession, protocol);
     gtk_setup_config_box(ctrlbox, midsession, window);
 
     gtk_window_set_title(GTK_WINDOW(window), title);
@@ -3095,7 +3090,7 @@ int do_config_box(const char *title, Config *cfg, int midsession,
     }
 #endif
 
-    dp.data = cfg;
+    dp.data = conf;
     dlg_refresh(NULL, &dp);
 
     dp.shortcuts = &selparams[0].shortcuts;
@@ -3267,7 +3262,7 @@ int messagebox(GtkWidget *parentwin, char *title, char *msg, int minwid, ...)
     return dp.retval;
 }
 
-static int string_width(char *text)
+int string_width(char *text)
 {
     GtkWidget *label = gtk_label_new(text);
     GtkRequisition req;
@@ -3394,6 +3389,13 @@ void fatal_message_box(void *window, char *msg)
                "OK", 'o', 1, 1, NULL);
 }
 
+void nonfatal_message_box(void *window, char *msg)
+{
+    messagebox(window, "PuTTY Error", msg,
+               string_width("REASONABLY LONG LINE OF TEXT FOR BASIC SANITY"),
+               "OK", 'o', 1, 1, NULL);
+}
+
 void fatalbox(char *p, ...)
 {
     va_list ap;
@@ -3404,6 +3406,17 @@ void fatalbox(char *p, ...)
     fatal_message_box(NULL, msg);
     sfree(msg);
     cleanup_exit(1);
+}
+
+void nonfatal(char *p, ...)
+{
+    va_list ap;
+    char *msg;
+    va_start(ap, p);
+    msg = dupvprintf(p, ap);
+    va_end(ap);
+    fatal_message_box(NULL, msg);
+    sfree(msg);
 }
 
 static GtkWidget *aboutbox = NULL;
@@ -3419,7 +3432,7 @@ static void licence_clicked(GtkButton *button, gpointer data)
     char *title;
 
     char *licence =
-	"Copyright 1997-2011 Simon Tatham.\n\n"
+	"Copyright 1997-2013 Simon Tatham.\n\n"
 
 	"Portions copyright Robert de Bath, Joris van Rantwijk, Delian "
 	"Delchev, Andreas Schultz, Jeroen Massar, Wez Furlong, Nicolas "
@@ -3500,7 +3513,7 @@ void about_box(void *window)
 		       w, FALSE, FALSE, 5);
     gtk_widget_show(w);
 
-    w = gtk_label_new("Copyright 1997-2011 Simon Tatham. All rights reserved");
+    w = gtk_label_new("Copyright 1997-2013 Simon Tatham. All rights reserved");
     gtk_box_pack_start(GTK_BOX(GTK_DIALOG(aboutbox)->vbox),
 		       w, FALSE, FALSE, 5);
     gtk_widget_show(w);
@@ -3752,7 +3765,7 @@ void logevent_dlg(void *estuff, const char *string)
     es->nevents++;
 }
 
-int askappend(void *frontend, Filename filename,
+int askappend(void *frontend, Filename *filename,
 	      void (*callback)(void *ctx, int result), void *ctx)
 {
     static const char msgtemplate[] =
@@ -3764,7 +3777,7 @@ int askappend(void *frontend, Filename filename,
     char *mbtitle;
     int mbret;
 
-    message = dupprintf(msgtemplate, FILENAME_MAX, filename.path);
+    message = dupprintf(msgtemplate, FILENAME_MAX, filename->path);
     mbtitle = dupprintf("%s Log to File", appname);
 
     mbret = messagebox(get_window(frontend), mbtitle, message,

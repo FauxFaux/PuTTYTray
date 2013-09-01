@@ -63,6 +63,22 @@ void modalfatalbox(char *p, ...)
     }
     cleanup_exit(1);
 }
+void nonfatal(char *p, ...)
+{
+    struct termios cf;
+    va_list ap;
+    premsg(&cf);
+    fprintf(stderr, "ERROR: ");
+    va_start(ap, p);
+    vfprintf(stderr, p, ap);
+    va_end(ap);
+    fputc('\n', stderr);
+    postmsg(&cf);
+    if (logctx) {
+        log_free(logctx);
+        logctx = NULL;
+    }
+}
 void connection_fatal(void *frontend, char *p, ...)
 {
     struct termios cf;
@@ -98,7 +114,7 @@ static int local_tty = FALSE; /* do we have a local tty? */
 
 static Backend *back;
 static void *backhandle;
-static Config cfg;
+static Conf *conf;
 
 /*
  * Default settings that are specific to pterm.
@@ -116,30 +132,20 @@ char *platform_default_s(const char *name)
 
 int platform_default_i(const char *name, int def)
 {
-    if (!strcmp(name, "TermWidth") ||
-	!strcmp(name, "TermHeight")) {
-	struct winsize size;
-	if (ioctl(STDIN_FILENO, TIOCGWINSZ, (void *)&size) >= 0)
-	    return (!strcmp(name, "TermWidth") ? size.ws_col : size.ws_row);
-    }
     return def;
 }
 
-FontSpec platform_default_fontspec(const char *name)
+FontSpec *platform_default_fontspec(const char *name)
 {
-    FontSpec ret;
-    *ret.name = '\0';
-    return ret;
+    return fontspec_new("");
 }
 
-Filename platform_default_filename(const char *name)
+Filename *platform_default_filename(const char *name)
 {
-    Filename ret;
     if (!strcmp(name, "LogFileName"))
-	strcpy(ret.path, "putty.log");
+	return filename_from_str("putty.log");
     else
-	*ret.path = '\0';
-    return ret;
+	return filename_from_str("");
 }
 
 char *x_get_default(const char *key)
@@ -383,31 +389,33 @@ void cleanup_termios(void)
 }
 
 bufchain stdout_data, stderr_data;
+enum { EOF_NO, EOF_PENDING, EOF_SENT } outgoingeof;
 
 int try_output(int is_stderr)
 {
     bufchain *chain = (is_stderr ? &stderr_data : &stdout_data);
     int fd = (is_stderr ? STDERR_FILENO : STDOUT_FILENO);
     void *senddata;
-    int sendlen, ret, fl;
+    int sendlen, ret;
 
-    if (bufchain_size(chain) == 0)
-        return bufchain_size(&stdout_data) + bufchain_size(&stderr_data);
-
-    fl = fcntl(fd, F_GETFL);
-    if (fl != -1 && !(fl & O_NONBLOCK))
-	fcntl(fd, F_SETFL, fl | O_NONBLOCK);
-    do {
-	bufchain_prefix(chain, &senddata, &sendlen);
-	ret = write(fd, senddata, sendlen);
-	if (ret > 0)
-	    bufchain_consume(chain, ret);
-    } while (ret == sendlen && bufchain_size(chain) != 0);
-    if (fl != -1 && !(fl & O_NONBLOCK))
-	fcntl(fd, F_SETFL, fl);
-    if (ret < 0 && errno != EAGAIN) {
-	perror(is_stderr ? "stderr: write" : "stdout: write");
-	exit(1);
+    if (bufchain_size(chain) > 0) {
+        int prev_nonblock = nonblock(fd);
+        do {
+            bufchain_prefix(chain, &senddata, &sendlen);
+            ret = write(fd, senddata, sendlen);
+            if (ret > 0)
+                bufchain_consume(chain, ret);
+        } while (ret == sendlen && bufchain_size(chain) != 0);
+        if (!prev_nonblock)
+            no_nonblock(fd);
+        if (ret < 0 && errno != EAGAIN) {
+            perror(is_stderr ? "stderr: write" : "stdout: write");
+            exit(1);
+        }
+    }
+    if (outgoingeof == EOF_PENDING && bufchain_size(&stdout_data) == 0) {
+        close(STDOUT_FILENO);
+        outgoingeof = EOF_SENT;
     }
     return bufchain_size(&stdout_data) + bufchain_size(&stderr_data);
 }
@@ -419,6 +427,7 @@ int from_backend(void *frontend_handle, int is_stderr,
 	bufchain_add(&stderr_data, data, len);
 	return try_output(TRUE);
     } else {
+        assert(outgoingeof == EOF_NO);
 	bufchain_add(&stdout_data, data, len);
 	return try_output(FALSE);
     }
@@ -432,6 +441,14 @@ int from_backend_untrusted(void *frontend_handle, const char *data, int len)
      */
     assert(!"Unexpected call to from_backend_untrusted()");
     return 0; /* not reached */
+}
+
+int from_backend_eof(void *frontend_handle)
+{
+    assert(outgoingeof == EOF_NO);
+    outgoingeof = EOF_PENDING;
+    try_output(FALSE);
+    return FALSE;   /* do not respond to incoming EOF with outgoing */
 }
 
 int get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
@@ -576,6 +593,8 @@ static void version(void)
     exit(1);
 }
 
+void frontend_net_error_pending(void) {}
+
 int main(int argc, char **argv)
 {
     int sending;
@@ -588,7 +607,8 @@ int main(int argc, char **argv)
     int errors;
     int use_subsystem = 0;
     int got_host = FALSE;
-    long now;
+    unsigned long now;
+    struct winsize size;
 
     fdlist = NULL;
     fdcount = fdsize = 0;
@@ -599,16 +619,21 @@ int main(int argc, char **argv)
     default_protocol = PROT_SSH;
     default_port = 22;
 
+    bufchain_init(&stdout_data);
+    bufchain_init(&stderr_data);
+    outgoingeof = EOF_NO;
+
     flags = FLAG_STDERR | FLAG_STDERR_TTY;
 
     stderr_tty_init();
     /*
      * Process the command line.
      */
-    do_defaults(NULL, &cfg);
+    conf = conf_new();
+    do_defaults(NULL, conf);
     loaded_session = FALSE;
-    default_protocol = cfg.protocol;
-    default_port = cfg.port;
+    default_protocol = conf_get_int(conf, CONF_protocol);
+    default_port = conf_get_int(conf, CONF_port);
     errors = 0;
     {
 	/*
@@ -618,8 +643,10 @@ int main(int argc, char **argv)
 	if (p) {
 	    const Backend *b = backend_from_name(p);
 	    if (b) {
-		default_protocol = cfg.protocol = b->protocol;
-		default_port = cfg.port = b->default_port;
+		default_protocol = b->protocol;
+		default_port = b->default_port;
+		conf_set_int(conf, CONF_protocol, default_protocol);
+		conf_set_int(conf, CONF_port, default_port);
 	    }
 	}
     }
@@ -627,7 +654,7 @@ int main(int argc, char **argv)
 	char *p = *++argv;
 	if (*p == '-') {
 	    int ret = cmdline_process_param(p, (argc > 1 ? argv[1] : NULL),
-					    1, &cfg);
+					    1, conf);
 	    if (ret == -2) {
 		fprintf(stderr,
 			"plink: option \"%s\" requires an argument\n", p);
@@ -639,10 +666,13 @@ int main(int argc, char **argv)
 	    } else if (!strcmp(p, "-batch")) {
 		console_batch_mode = 1;
 	    } else if (!strcmp(p, "-s")) {
-                /* Save status to write to cfg later. */
+                /* Save status to write to conf later. */
 		use_subsystem = 1;
-	    } else if (!strcmp(p, "-V")) {
+	    } else if (!strcmp(p, "-V") || !strcmp(p, "--version")) {
                 version();
+	    } else if (!strcmp(p, "--help")) {
+                usage();
+                exit(0);
             } else if (!strcmp(p, "-pgpfp")) {
                 pgp_fingerprints();
                 exit(1);
@@ -660,7 +690,7 @@ int main(int argc, char **argv)
 		errors = 1;
 	    }
 	} else if (*p) {
-	    if (!cfg_launchable(&cfg) || !(got_host || loaded_session)) {
+	    if (!conf_launchable(conf) || !(got_host || loaded_session)) {
 		char *q = p;
 
 		/*
@@ -674,7 +704,7 @@ int main(int argc, char **argv)
 		    q += 7;
 		    if (q[0] == '/' && q[1] == '/')
 			q += 2;
-		    cfg.protocol = PROT_TELNET;
+		    conf_set_int(conf, CONF_protocol, PROT_TELNET);
 		    p = q;
 		    while (*p && *p != ':' && *p != '/')
 			p++;
@@ -682,11 +712,10 @@ int main(int argc, char **argv)
 		    if (*p)
 			*p++ = '\0';
 		    if (c == ':')
-			cfg.port = atoi(p);
+			conf_set_int(conf, CONF_port, atoi(p));
 		    else
-			cfg.port = -1;
-		    strncpy(cfg.host, q, sizeof(cfg.host) - 1);
-		    cfg.host[sizeof(cfg.host) - 1] = '\0';
+			conf_set_int(conf, CONF_port, -1);
+		    conf_set_str(conf, CONF_host, q);
 		    got_host = TRUE;
 		} else {
 		    char *r, *user, *host;
@@ -701,7 +730,9 @@ int main(int argc, char **argv)
 			*r = '\0';
 			b = backend_from_name(p);
 			if (b) {
-			    default_protocol = cfg.protocol = b->protocol;
+			    default_protocol = b->protocol;
+			    conf_set_int(conf, CONF_protocol,
+					 default_protocol);
 			    portnumber = b->default_port;
 			}
 			p = r + 1;
@@ -728,26 +759,24 @@ int main(int argc, char **argv)
 		     * same name as the hostname.
 		     */
 		    {
-			Config cfg2;
-			do_defaults(host, &cfg2);
-			if (loaded_session || !cfg_launchable(&cfg2)) {
+			Conf *conf2 = conf_new();
+			do_defaults(host, conf2);
+			if (loaded_session || !conf_launchable(conf2)) {
 			    /* No settings for this host; use defaults */
 			    /* (or session was already loaded with -load) */
-			    strncpy(cfg.host, host, sizeof(cfg.host) - 1);
-			    cfg.host[sizeof(cfg.host) - 1] = '\0';
-			    cfg.port = default_port;
+			    conf_set_str(conf, CONF_host, host);
+			    conf_set_int(conf, CONF_port, default_port);
 			    got_host = TRUE;
 			} else {
-			    cfg = cfg2;
+			    conf_copy_into(conf, conf2);
 			    loaded_session = TRUE;
 			}
+			conf_free(conf2);
 		    }
 
 		    if (user) {
 			/* Patch in specified username. */
-			strncpy(cfg.username, user,
-				sizeof(cfg.username) - 1);
-			cfg.username[sizeof(cfg.username) - 1] = '\0';
+			conf_set_str(conf, CONF_username, user);
 		    }
 
 		}
@@ -774,9 +803,9 @@ int main(int argc, char **argv)
 		}
 		if (cmdlen) command[--cmdlen]='\0';
 				       /* change trailing blank to NUL */
-		cfg.remote_cmd_ptr = command;
-		cfg.remote_cmd_ptr2 = NULL;
-		cfg.nopty = TRUE;      /* command => no terminal */
+		conf_set_str(conf, CONF_remote_cmd, command);
+		conf_set_str(conf, CONF_remote_cmd2, "");
+		conf_set_int(conf, CONF_nopty, TRUE);  /* command => no tty */
 
 		break;		       /* done with cmdline */
 	    }
@@ -786,70 +815,78 @@ int main(int argc, char **argv)
     if (errors)
 	return 1;
 
-    if (!cfg_launchable(&cfg) || !(got_host || loaded_session)) {
+    if (!conf_launchable(conf) || !(got_host || loaded_session)) {
 	usage();
     }
 
     /*
-     * Trim leading whitespace off the hostname if it's there.
+     * Muck about with the hostname in various ways.
      */
     {
-	int space = strspn(cfg.host, " \t");
-	memmove(cfg.host, cfg.host+space, 1+strlen(cfg.host)-space);
-    }
+	char *hostbuf = dupstr(conf_get_str(conf, CONF_host));
+	char *host = hostbuf;
+	char *p, *q;
 
-    /* See if host is of the form user@host */
-    if (cfg.host[0] != '\0') {
-	char *atsign = strrchr(cfg.host, '@');
-	/* Make sure we're not overflowing the user field */
-	if (atsign) {
-	    if (atsign - cfg.host < sizeof cfg.username) {
-		strncpy(cfg.username, cfg.host, atsign - cfg.host);
-		cfg.username[atsign - cfg.host] = '\0';
+	/*
+	 * Trim leading whitespace.
+	 */
+	host += strspn(host, " \t");
+
+	/*
+	 * See if host is of the form user@host, and separate out
+	 * the username if so.
+	 */
+	if (host[0] != '\0') {
+	    char *atsign = strrchr(host, '@');
+	    if (atsign) {
+		*atsign = '\0';
+		conf_set_str(conf, CONF_username, host);
+		host = atsign + 1;
 	    }
-	    memmove(cfg.host, atsign + 1, 1 + strlen(atsign + 1));
 	}
+
+	/*
+	 * Trim off a colon suffix if it's there.
+	 */
+	host[strcspn(host, ":")] = '\0';
+
+	/*
+	 * Remove any remaining whitespace.
+	 */
+	p = hostbuf;
+	q = host;
+	while (*q) {
+	    if (*q != ' ' && *q != '\t')
+		*p++ = *q;
+	    q++;
+	}
+	*p = '\0';
+
+	conf_set_str(conf, CONF_host, hostbuf);
+	sfree(hostbuf);
     }
 
     /*
      * Perform command-line overrides on session configuration.
      */
-    cmdline_run_saved(&cfg);
+    cmdline_run_saved(conf);
 
     /*
      * Apply subsystem status.
      */
     if (use_subsystem)
-        cfg.ssh_subsys = TRUE;
+        conf_set_int(conf, CONF_ssh_subsys, TRUE);
 
-    /*
-     * Trim a colon suffix off the hostname if it's there.
-     */
-    cfg.host[strcspn(cfg.host, ":")] = '\0';
-
-    /*
-     * Remove any remaining whitespace from the hostname.
-     */
-    {
-	int p1 = 0, p2 = 0;
-	while (cfg.host[p2] != '\0') {
-	    if (cfg.host[p2] != ' ' && cfg.host[p2] != '\t') {
-		cfg.host[p1] = cfg.host[p2];
-		p1++;
-	    }
-	    p2++;
-	}
-	cfg.host[p1] = '\0';
-    }
-
-    if (!cfg.remote_cmd_ptr && !*cfg.remote_cmd && !*cfg.ssh_nc_host)
+    if (!*conf_get_str(conf, CONF_remote_cmd) &&
+	!*conf_get_str(conf, CONF_remote_cmd2) &&
+	!*conf_get_str(conf, CONF_ssh_nc_host))
 	flags |= FLAG_INTERACTIVE;
 
     /*
      * Select protocol. This is farmed out into a table in a
      * separate file to enable an ssh-free variant.
      */
-    back = backend_from_proto(cfg.protocol);
+    back = backend_from_proto(conf_get_int(conf, CONF_protocol));
     if (back == NULL) {
 	fprintf(stderr,
 		"Internal fault: Unsupported protocol found\n");
@@ -860,7 +897,13 @@ int main(int argc, char **argv)
      * Select port.
      */
     if (portnumber != -1)
-	cfg.port = portnumber;
+	conf_set_int(conf, CONF_port, portnumber);
+
+    /*
+     * Block SIGPIPE, so that we'll get EPIPE individually on
+     * particular network connections that go wrong.
+     */
+    putty_signal(SIGPIPE, SIG_IGN);
 
     /*
      * Set up the pipe we'll use to tell us about SIGWINCH.
@@ -871,6 +914,15 @@ int main(int argc, char **argv)
     }
     putty_signal(SIGWINCH, sigwinch);
 
+    /*
+     * Now that we've got the SIGWINCH handler installed, try to find
+     * out the initial terminal size.
+     */
+    if (ioctl(STDIN_FILENO, TIOCGWINSZ, &size) >= 0) {
+	conf_set_int(conf, CONF_width, size.ws_col);
+	conf_set_int(conf, CONF_height, size.ws_row);
+    }
+
     sk_init();
     uxsel_init();
 
@@ -879,28 +931,34 @@ int main(int argc, char **argv)
      * connection is set up, so if there are none now, we can safely set
      * the "simple" flag.
      */
-    if (cfg.protocol == PROT_SSH && !cfg.x11_forward &&	!cfg.agentfwd &&
-	cfg.portfwd[0] == '\0' && cfg.portfwd[1] == '\0')
-	cfg.ssh_simple = TRUE;
+    if (conf_get_int(conf, CONF_protocol) == PROT_SSH &&
+	!conf_get_int(conf, CONF_x11_forward) &&
+	!conf_get_int(conf, CONF_agentfwd) &&
+	!conf_get_str_nthstrkey(conf, CONF_portfwd, 0))
+	conf_set_int(conf, CONF_ssh_simple, TRUE);
+
     /*
      * Start up the connection.
      */
-    logctx = log_init(NULL, &cfg);
+    logctx = log_init(NULL, conf);
     console_provide_logctx(logctx);
     {
 	const char *error;
 	char *realhost;
 	/* nodelay is only useful if stdin is a terminal device */
-	int nodelay = cfg.tcp_nodelay && isatty(0);
+	int nodelay = conf_get_int(conf, CONF_tcp_nodelay) && isatty(0);
 
-	error = back->init(NULL, &backhandle, &cfg, cfg.host, cfg.port,
-			   &realhost, nodelay, cfg.tcp_keepalives);
+	error = back->init(NULL, &backhandle, conf,
+			   conf_get_str(conf, CONF_host),
+			   conf_get_int(conf, CONF_port),
+			   &realhost, nodelay,
+			   conf_get_int(conf, CONF_tcp_keepalives));
 	if (error) {
 	    fprintf(stderr, "Unable to open connection:\n%s\n", error);
 	    return 1;
 	}
 	back->provide_logctx(backhandle, logctx);
-	ldisc_create(&cfg, NULL, back, backhandle, NULL);
+	ldisc_create(conf, NULL, back, backhandle, NULL);
 	sfree(realhost);
     }
     connopen = 1;
@@ -975,12 +1033,17 @@ int main(int argc, char **argv)
 	}
 
 	do {
-	    long next, ticks;
+	    unsigned long next, then;
+	    long ticks;
 	    struct timeval tv, *ptv;
 
 	    if (run_timers(now, &next)) {
-		ticks = next - GETTICKCOUNT();
-		if (ticks < 0) ticks = 0;   /* just in case */
+		then = now;
+		now = GETTICKCOUNT();
+		if (now - then > next - then)
+		    ticks = 0;
+		else
+		    ticks = next - now;
 		tv.tv_sec = ticks / 1000;
 		tv.tv_usec = ticks % 1000 * 1000;
 		ptv = &tv;
@@ -990,27 +1053,8 @@ int main(int argc, char **argv)
 	    ret = select(maxfd, &rset, &wset, &xset, ptv);
 	    if (ret == 0)
 		now = next;
-	    else {
-		long newnow = GETTICKCOUNT();
-		/*
-		 * Check to see whether the system clock has
-		 * changed massively during the select.
-		 */
-		if (newnow - now < 0 || newnow - now > next - now) {
-		    /*
-		     * If so, look at the elapsed time in the
-		     * select and use it to compute a new
-		     * tickcount_offset.
-		     */
-		    long othernow = now + tv.tv_sec * 1000 + tv.tv_usec / 1000;
-		    /* So we'd like GETTICKCOUNT to have returned othernow,
-		     * but instead it return newnow. Hence ... */
-		    tickcount_offset += othernow - newnow;
-		    now = othernow;
-		} else {
-		    now = newnow;
-		}
-	    }
+	    else
+		now = GETTICKCOUNT();
 	} while (ret < 0 && errno == EINTR);
 
 	if (ret < 0) {
@@ -1039,7 +1083,7 @@ int main(int argc, char **argv)
 	    if (read(signalpipe[0], c, 1) <= 0)
 		/* ignore error */;
 	    /* ignore its value; it'll be `x' */
-	    if (ioctl(0, TIOCGWINSZ, (void *)&size) >= 0)
+	    if (ioctl(STDIN_FILENO, TIOCGWINSZ, (void *)&size) >= 0)
 		back->size(backhandle, size.ws_col, size.ws_row);
 	}
 
@@ -1071,6 +1115,8 @@ int main(int argc, char **argv)
 	if (FD_ISSET(STDERR_FILENO, &wset)) {
 	    back->unthrottle(backhandle, try_output(TRUE));
 	}
+
+        net_pending_errors();
 
 	if ((!connopen || !back->connected(backhandle)) &&
 	    bufchain_size(&stdout_data) == 0 &&

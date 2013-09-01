@@ -1,5 +1,7 @@
+
 static char SaveKeyPressed[4096] = "" ;
 void WriteCountUpAndPath(void) ;
+void SaveDumpPortableConfig( FILE * fp ) ;
 
 
 // Buffer contenant du texte a ecrire au besoin dans le fichier kitty.dmp
@@ -148,142 +150,269 @@ void SaveDumpClipBoard( FILE *fp ) {
 		}
 	}
 	
-void SaveDumpConfig( FILE *fp, Config cfg ) {
-	fprintf( fp, "MASTER_PASSWORD=%s\n", MASTER_PASSWORD );
+void SaveDumpConfig( FILE *fp, Conf * conf ) {
+	CountUp();
+	fprintf( fp, "MASTER_PASSWORD=%s\n", MASTER_PASSWORD ) ;
+	fprintf( fp, "[[PuTTY structure configuration]]\n" ) ;
 	/* Basic options */
-	cfg.host[511]='\0' ; fprintf( fp, "host=%s\n", cfg.host ) ;
-	fprintf( fp
-	, "port=%d\nprotocol=%d\naddressfamily=%d\nclose_on_exit=%d\nwarn_on_close=%d\nping_interval=%d\ntcp_nodelay=%d\ntcp_keepalives=%d\n"
-	, cfg.port,cfg.protocol,cfg.addressfamily,cfg.close_on_exit,cfg.warn_on_close,cfg.ping_interval,cfg.tcp_nodelay,cfg.tcp_keepalives);
+	fprintf( fp, "host=%s\n", 			conf_get_str(conf,CONF_host) ) ;
+	fprintf( fp, "port=%d\n", 			conf_get_int(conf,CONF_port) ) ;
+	fprintf( fp, "protocol=%d\n", 			conf_get_int(conf,CONF_protocol) ) ;
+	fprintf( fp, "addressfamily=%d\n",		conf_get_int(conf,CONF_addressfamily) ) ;
+	fprintf( fp, "close_on_exit=%d\n",		conf_get_int(conf,CONF_close_on_exit) ) ;
+	fprintf( fp, "warn_on_close=%d\n",		conf_get_int(conf,CONF_warn_on_close) ) ;
+	fprintf( fp, "ping_interval=%d\n", 		conf_get_int(conf,CONF_ping_interval) ) ;
+	fprintf( fp, "tcp_nodelay=%d\n", 		conf_get_int(conf,CONF_tcp_nodelay) ) ;
+	fprintf( fp, "tcp_keepalives=%d\n", 		conf_get_int(conf,CONF_tcp_keepalives) ) ;
 	/* Proxy options */
-	cfg.proxy_exclude_list[511]='\0' ; fprintf( fp, "proxy_exclude_list=%s\n", cfg.proxy_exclude_list ) ;
-	fprintf( fp,"proxy_dns=%d\neven_proxy_localhost=%d\nproxy_type=%d\n", cfg.proxy_dns,cfg.even_proxy_localhost,cfg.proxy_type);
-	cfg.proxy_host[511]='\0' ; fprintf( fp, "proxy_host=%s\n", cfg.proxy_host ) ;
-	fprintf( fp, "proxy_port=%d\n", cfg.proxy_port ) ;
-	cfg.proxy_username[127]='\0' ; fprintf( fp, "proxy_username=%s\n", cfg.proxy_username ) ;
-	cfg.proxy_password[127]='\0' ; fprintf( fp, "proxy_password=%s\n", cfg.proxy_password ) ;
-	cfg.proxy_telnet_command[511]='\0' ; fprintf( fp, "proxy_telnet_command=%s\n", cfg.proxy_telnet_command ) ;
-	/* PERSOPORT OptionS */
-	fprintf( fp, "bcdelay=%g\ninitdelay=%g\n", cfg.bcdelay, cfg.initdelay ) ;
-	fprintf( fp, "transparencynumber=%d\nsendtotray=%d\nicone =%d\n", cfg.transparencynumber,cfg.sendtotray,cfg.icone  );
-	cfg.folder[127]='\0' ; fprintf( fp, "folder=%s\n", cfg.folder ) ;
-	MASKPASS(cfg.password);
-	cfg.password[127]='\0' ; fprintf( fp, "password=%s\n", cfg.password ) ;
-	MASKPASS(cfg.password);
-	cfg.sessionname[127]='\0' ; fprintf( fp, "sessionname=%s\n", cfg.sessionname ) ;
-	cfg.antiidle[127]='\0' ; fprintf( fp, "antiidle=%s\n", cfg.antiidle ) ;
-	cfg.autocommand[1023]='\0' ; fprintf( fp, "autocommand=%s\n", cfg.autocommand ) ;
-	cfg.autocommandout[511]='\0' ; fprintf( fp, "autocommandout=%s\n", cfg.autocommandout ) ;
-	//Filename scriptfile ; // ????
+	fprintf( fp, "proxy_exclude_list=%s\n",		conf_get_str(conf,CONF_proxy_exclude_list) ) ;
+	fprintf( fp, "proxy_dns=%d\n", 			conf_get_int(conf,CONF_proxy_dns) ) ;
+	fprintf( fp, "even_proxy_localhost=%d\n",	conf_get_int(conf,CONF_even_proxy_localhost) ) ;
+	fprintf( fp, "proxy_type=%d\n",			conf_get_int(conf,CONF_proxy_type) ) ;
+	
+	fprintf( fp, "proxy_host=%s\n", 		conf_get_str(conf,CONF_proxy_host) ) ;
+	fprintf( fp, "proxy_port=%d\n", 		conf_get_int(conf,CONF_proxy_port) ) ;
+	fprintf( fp, "proxy_username=%s\n", 		conf_get_str(conf,CONF_proxy_username) ) ;
+	fprintf( fp, "proxy_password=%s\n", 		conf_get_str(conf,CONF_proxy_password) ) ;
+	fprintf( fp, "proxy_telnet_command=%s\n", 	conf_get_str(conf,CONF_proxy_telnet_command) ) ;
+
+	/* PERSOPORT Options */
+		// fprintf( fp, "bcdelay=%d\n", 			conf_get_int(conf,CONF_bcdelay) ) ;		// Non présent systématiquement
+		// fprintf( fp, "initdelay=%d\n",			conf_get_int(conf,CONF_initdelay) ) ;		// Non présent systématiquement
+	fprintf( fp, "transparencynumber=%d\n", 	conf_get_int(conf,CONF_transparencynumber) ) ;
+	fprintf( fp, "sendtotray=%d\n",			conf_get_int(conf,CONF_sendtotray) ) ;
+	fprintf( fp, "maximize=%d\n",			conf_get_int(conf,CONF_maximize) ) ;
+	fprintf( fp, "icone =%d\n",			conf_get_int(conf,CONF_icone) ) ;
+	fprintf( fp, "folder=%s\n", 			conf_get_str(conf,CONF_folder) ) ;
+
+	char bufpass[256] ; 
+	strcpy( bufpass, conf_get_str(conf,CONF_password) ) ;
+	MASKPASS(bufpass);
+	fprintf( fp, "password=%s\n",			bufpass ) ;
+	memset(bufpass,0,strlen(bufpass));
+
+	fprintf( fp, "sessionname=%s\n", 		conf_get_str(conf,CONF_sessionname) ) ;
+	fprintf( fp, "antiidle=%s\n",			conf_get_str(conf,CONF_antiidle) ) ;
+	fprintf( fp, "autocommand=%s\n",		conf_get_str(conf,CONF_autocommand) ) ;
+	fprintf( fp, "autocommandout=%s\n",		conf_get_str(conf,CONF_autocommandout) ) ;
+	fprintf( fp, "scriptfile=%s\n",			conf_get_filename(conf,CONF_scriptfile)->path ) ;
+
 	/* SSH options */
-	cfg.remote_cmd[511]='\0' ; fprintf( fp, "remote_cmd=%s\n", cfg.remote_cmd ) ;
+	fprintf( fp, "remote_cmd=%s\n",			conf_get_str(conf,CONF_remote_cmd) ) ;
 	//char *remote_cmd_ptr;	       /* might point to a larger command but never for loading/saving */
 	//char *remote_cmd_ptr2;	       /* might point to a larger command but never for loading/saving */
-	fprintf( fp, "nopty=%d\ncompression=%d\nssh_rekey_time=%d\n", cfg.nopty,cfg.compression,cfg.ssh_rekey_time ) ;
+	fprintf( fp, "nopty=%d\n",			conf_get_int(conf,CONF_nopty) ) ;
+	fprintf( fp, "compression=%d\n",		conf_get_int(conf,CONF_compression) ) ;
+	fprintf( fp, "ssh_rekey_time=%d\n",		conf_get_int(conf,CONF_ssh_rekey_time) ) ;
 	//int ssh_kexlist[KEX_MAX];
-	cfg.ssh_rekey_data[15]='\0' ; fprintf( fp, "ssh_rekey_data=%s\n", cfg.ssh_rekey_data ) ;
-	fprintf( fp, "tryagent=%d\nagentfwd=%d\nchange_username=%d\n", cfg.tryagent, cfg.agentfwd,cfg.change_username);
+	fprintf( fp, "ssh_rekey_data=%s\n",		conf_get_str(conf,CONF_ssh_rekey_data) ) ;
+	fprintf( fp, "tryagent=%d\n",			conf_get_int(conf,CONF_tryagent) ) ;
+	fprintf( fp, "agentfwd=%d\n",			conf_get_int(conf,CONF_agentfwd) ) ;
+	fprintf( fp, "change_username=%d\n",		conf_get_int(conf,CONF_change_username) ) ;
 	//int ssh_cipherlist[CIPHER_MAX];
-	//Filename keyfile;
-	fprintf( fp
-	, "sshprot=%d\nssh2_des_cbc=%d\nssh_no_userauth=%d\ntry_tis_auth=%d\ntry_ki_auth=%d\nssh_subsys=%d\nssh_subsys2=%d\nssh_no_shell=%d\nssh_nc_port=%d\n"
-	, cfg.sshprot,cfg.ssh2_des_cbc,cfg.ssh_no_userauth,cfg.try_tis_auth,cfg.try_ki_auth,cfg.ssh_subsys,cfg.ssh_subsys2,cfg.ssh_no_shell,cfg.ssh_nc_port );
+	fprintf( fp, "keyfile=%s\n",			conf_get_filename(conf,CONF_keyfile)->path ) ;
+	fprintf( fp, "sshprot=%d\n",			conf_get_int(conf,CONF_sshprot) ) ;
+	fprintf( fp, "ssh2_des_cbc=%d\n",		conf_get_int(conf,CONF_ssh2_des_cbc) ) ;
+	fprintf( fp, "ssh_no_userauth=%d\n",		conf_get_int(conf,CONF_ssh_no_userauth) ) ;
+	fprintf( fp, "ssh_show_banner=%d\n",		conf_get_int(conf,CONF_ssh_show_banner) ) ;
+	fprintf( fp, "try_tis_auth=%d\n",		conf_get_int(conf,CONF_try_tis_auth) ) ;
+	fprintf( fp, "try_ki_auth=%d\n",		conf_get_int(conf,CONF_try_ki_auth) ) ;
+	fprintf( fp, "try_gssapi_auth=%d\n",		conf_get_int(conf,CONF_try_gssapi_auth) ) ;
+	fprintf( fp, "gssapifwd=%d\n",			conf_get_int(conf,CONF_gssapifwd) ) ;
+	//fprintf( fp, "ssh_gsslist=%d\n",		conf_get_int(conf,CONF_ssh_gsslist) ) ;
+	fprintf( fp, "ssh_gss_custom=%s\n",		conf_get_filename(conf,CONF_ssh_gss_custom)->path ) ;
+	//fprintf( fp, "ssh_subsys=%d\n",			conf_get_int(conf,CONF_ssh_subsys) ) ;
+	//fprintf( fp, "ssh_subsys2=%d\n",		conf_get_int(conf,CONF_ssh_subsys2) ) ;
+	fprintf( fp, "ssh_no_shell=%d\n",		conf_get_int(conf,CONF_ssh_no_shell) ) ;
+	//fprintf( fp, "ssh_nc_host=%s\n",		conf_get_str(conf,CONF_ssh_nc_host) ) ;
+	//fprintf( fp, "ssh_nc_port=%d\n",		conf_get_int(conf,CONF_ssh_nc_port) ) ;
 #ifdef SCPORT
-	fprintf( fp, "try_write_syslog=%d\ntry_pkcs11_auth=%d\n", cfg.try_write_syslog, cfg.try_pkcs11_auth );
-	cfg.pkcs11_token_label[69]='\0';
-	cfg.pkcs11_cert_label[69]='\0';
-	fprintf( fp,"pkcs11_token_label=%s\npkcs11_cert_label=%s\n",cfg.pkcs11_token_label,cfg.pkcs11_cert_label);
+	fprintf( fp, "try_write_syslog=%d\n",		conf_get_int(conf,CONF_try_write_syslog) ) ; 
+	fprintf( fp, "try_pkcs11_auth=%d\n",		conf_get_int(conf,CONF_try_pkcs11_auth) ) ;
+	fprintf( fp, "pkcs11_token_label=%s\n",		conf_get_str(conf,CONF_pkcs11_token_label) ) ;
+	fprintf( fp, "pkcs11_cert_label=%s\n",		conf_get_str(conf,CONF_pkcs11_cert_label) ) ;
 #endif
-	cfg.ssh_nc_host[511]='\0' ; fprintf( fp, "ssh_nc_host=%s\n", cfg.ssh_nc_host ) ;
 	/* Telnet options */
-	cfg.termtype[31]='\0' ; fprintf( fp, "termtype=%s\n", cfg.termtype ) ;
-	cfg.termspeed[31]='\0' ; fprintf( fp, "termspeed=%s\n", cfg.termspeed ) ;
-	cfg.ttymodes[767]='\0' ; fprintf( fp, "ttymodes=%s\n", cfg.ttymodes ) ;
-	cfg.environmt[1023]='\0' ; fprintf( fp, "environmt=%s\n", cfg.environmt ) ;
-	cfg.username[99]='\0' ; fprintf( fp, "username=%s\n", cfg.username ) ;
-	cfg.localusername[99]='\0' ; fprintf( fp, "localusername=%s\n", cfg.localusername ) ;
-	fprintf( fp, "rfc_environ=%d\npassive_telnet=%d\n", cfg.rfc_environ, cfg.passive_telnet ) ;
+	fprintf( fp, "termtype=%s\n",			conf_get_str(conf,CONF_termtype ) ) ;
+	fprintf( fp, "termspeed=%s\n",			conf_get_str(conf,CONF_termspeed ) ) ;
+	//fprintf( fp, "ttymodes=%s\n",			conf_get_str(conf,CONF_ttymodes ) ) ;
+	//fprintf( fp, "environmt=%s\n",			conf_get_str(conf,CONF_environmt ) ) ;
+	fprintf( fp, "username=%s\n",			conf_get_str(conf,CONF_username ) ) ;
+	fprintf( fp, "localusername=%s\n",		conf_get_str(conf,CONF_localusername ) ) ;
+	fprintf( fp, "rfc_environ=%d\n",		conf_get_int(conf,CONF_rfc_environ) ) ;
+	fprintf( fp, "passive_telnet=%d\n",		conf_get_int(conf,CONF_passive_telnet) ) ;
 	/* Serial port options */
-	cfg.serline[255]='\0' ; fprintf( fp, "serline=%s\n", cfg.serline ) ;
-	fprintf( fp, "serspeed=%d\nserdatabits=%d\nserstopbits=%d\nserparity=%d\nserflow=%d\n"
-	,cfg.serspeed,cfg.serdatabits,cfg.serstopbits,cfg.serparity,cfg.serflow);
+	fprintf( fp, "serline=%s\n", 			conf_get_str(conf,CONF_serline) ) ;
+	fprintf( fp, "serspeed=%d\n",			conf_get_int(conf,CONF_serspeed) ) ;
+	fprintf( fp, "serdatabits=%d\n",		conf_get_int(conf,CONF_serdatabits) ) ;
+	fprintf( fp, "serstopbits=%d\n",		conf_get_int(conf,CONF_serstopbits) ) ;
+	fprintf( fp, "serparity=%d\n",			conf_get_int(conf,CONF_serparity) ) ;
+	fprintf( fp, "serflow=%d\n",			conf_get_int(conf,CONF_serflow) ) ;
 #ifdef CYGTERMPORT
 	/* Cygterm options */
-	cfg.cygcmd[511]='\0' ; fprintf( fp, "cygcmd=%s\n", cfg.cygcmd ) ;
-	fprintf( fp, "alt_metabit=%d\n", cfg.alt_metabit ) ;
+	fprintf( fp, "cygcmd=%s\n", 			conf_get_str(conf,CONF_cygcmd) ) ;
+	fprintf( fp, "alt_metabit=%d\n", 		conf_get_int(conf,CONF_alt_metabit) ) ;
 #endif
 	/* Keyboard options */
-	fprintf( fp, "bksp_is_delete=%d\nrxvt_homeend=%d\nfunky_type=%d\nno_applic_c=%d\nno_applic_k=%d\nno_mouse_rep=%d\n"
-	,cfg.bksp_is_delete,cfg.rxvt_homeend,cfg.funky_type,cfg.no_applic_c,cfg.no_applic_k,cfg.no_mouse_rep );
-	fprintf( fp, "no_remote_resize=%d\nno_alt_screen=%d\nno_remote_wintitle=%d\nno_dbackspace=%d\nno_remote_charset=%d\n"
-	,cfg.no_remote_resize,cfg.no_alt_screen,cfg.no_remote_wintitle,cfg.no_dbackspace,cfg.no_remote_charset);
-	fprintf( fp, "remote_qtitle_action=%d\napp_cursor=%d\napp_keypad=%d\nnethack_keypad=%d\ntelnet_keyboard=%d\n"
-	,cfg.remote_qtitle_action,cfg.app_cursor,cfg.app_keypad,cfg.nethack_keypad,cfg.telnet_keyboard);
-	fprintf( fp, "telnet_newline=%d\nalt_f4=%d\nalt_space=%d\nalt_only=%d\n",cfg.telnet_newline,cfg.alt_f4,cfg.alt_space,cfg.alt_only);
-	fprintf( fp, "localecho=%d\nlocaledit=%d\nalwaysontop=%d\nfullscreenonaltenter=%d\nscroll_on_key=%d\nscroll_on_disp=%d\n"
-	,cfg.localecho,cfg.localedit,cfg.alwaysontop,cfg.fullscreenonaltenter,cfg.scroll_on_key,cfg.scroll_on_disp);
-	fprintf( fp, "erase_to_scrollback=%d\ncompose_key=%d\nctrlaltkeys=%d\n",cfg.erase_to_scrollback,cfg.compose_key,cfg.ctrlaltkeys);
-	cfg.wintitle[255]='\0' ; fprintf( fp, "wintitle=%s\n", cfg.wintitle ) ;
+	fprintf( fp, "bksp_is_delete=%d\n", 		conf_get_int(conf,CONF_bksp_is_delete) ) ;
+	fprintf( fp, "rxvt_homeend=%d\n", 		conf_get_int(conf,CONF_rxvt_homeend) ) ;
+	fprintf( fp, "funky_type=%d\n", 		conf_get_int(conf,CONF_funky_type) ) ;
+	fprintf( fp, "no_applic_c=%d\n", 		conf_get_int(conf,CONF_no_applic_c) ) ;
+	fprintf( fp, "no_applic_k=%d\n", 		conf_get_int(conf,CONF_no_applic_k) ) ;
+	fprintf( fp, "no_mouse_rep=%d\n", 		conf_get_int(conf,CONF_no_mouse_rep) ) ;
+	fprintf( fp, "no_remote_resize=%d\n", 		conf_get_int(conf,CONF_no_remote_resize) ) ;
+	fprintf( fp, "no_alt_screen=%d\n", 		conf_get_int(conf,CONF_no_alt_screen) ) ;
+	fprintf( fp, "no_remote_wintitle=%d\n", 	conf_get_int(conf,CONF_no_remote_wintitle) ) ;
+	fprintf( fp, "no_dbackspace=%d\n", 		conf_get_int(conf,CONF_no_dbackspace) ) ;
+	fprintf( fp, "no_remote_charset=%d\n", 		conf_get_int(conf,CONF_no_remote_charset) ) ;
+	fprintf( fp, "remote_qtitle_action=%d\n", 	conf_get_int(conf,CONF_remote_qtitle_action) ) ;
+	fprintf( fp, "app_cursor=%d\n", 		conf_get_int(conf,CONF_app_cursor) ) ;
+	fprintf( fp, "app_keypad=%d\n", 		conf_get_int(conf,CONF_app_keypad) ) ;
+	fprintf( fp, "nethack_keypad=%d\n", 		conf_get_int(conf,CONF_nethack_keypad) ) ;
+	fprintf( fp, "telnet_keyboard=%d\n", 		conf_get_int(conf,CONF_telnet_keyboard) ) ;
+	fprintf( fp, "telnet_newline=%d\n", 		conf_get_int(conf,CONF_telnet_newline) ) ;
+	fprintf( fp, "alt_f4=%d\n", 			conf_get_int(conf,CONF_alt_f4) ) ;
+	fprintf( fp, "alt_space=%d\n", 			conf_get_int(conf,CONF_alt_space) ) ;
+	fprintf( fp, "alt_only=%d\n", 			conf_get_int(conf,CONF_alt_only) ) ;
+	fprintf( fp, "localecho=%d\n", 			conf_get_int(conf,CONF_localecho) ) ;
+	fprintf( fp, "localedit=%d\n", 			conf_get_int(conf,CONF_localedit) ) ;
+	fprintf( fp, "alwaysontop=%d\n", 		conf_get_int(conf,CONF_alwaysontop) ) ;
+	fprintf( fp, "fullscreenonaltenter=%d\n", 	conf_get_int(conf,CONF_fullscreenonaltenter) ) ;
+	fprintf( fp, "scroll_on_key=%d\n", 		conf_get_int(conf,CONF_scroll_on_key) ) ;
+	fprintf( fp, "scroll_on_disp=%d\n", 		conf_get_int(conf,CONF_scroll_on_disp) ) ;
+	fprintf( fp, "erase_to_scrollback=%d\n",	conf_get_int(conf,CONF_erase_to_scrollback) ) ;
+	fprintf( fp, "compose_key=%d\n", 		conf_get_int(conf,CONF_compose_key) ) ;
+	fprintf( fp, "ctrlaltkeys=%d\n", 		conf_get_int(conf,CONF_ctrlaltkeys) ) ;
+	fprintf( fp, "wintitle=%s\n",			conf_get_str(conf,CONF_wintitle) ) ;
 	/* Terminal options */
-	fprintf( fp, "savelines=%d\ndec_om=%d\nwrap_mode=%d\nlfhascr=%d\ncursor_type=%d\nblink_cur=%d\nbeep=%d\nbeep_ind=%d\nbellovl=%d\nbellovl_n=%d\n"
-	,cfg.savelines,cfg.dec_om,cfg.wrap_mode,cfg.lfhascr,cfg.cursor_type,cfg.blink_cur,cfg.beep,cfg.beep_ind,cfg.bellovl,cfg.bellovl_n);
-	fprintf( fp, "bellovl_t=%d\nbellovl_s=%d\nscrollbar=%d\nscrollbar_in_fullscreen=%d\nresize_action=%d\nbce=%d\nblinktext=%d\nwin_name_always=%d\n"
-	,cfg.bellovl_t,cfg.bellovl_s,cfg.scrollbar,cfg.scrollbar_in_fullscreen,cfg.resize_action,cfg.bce,cfg.blinktext,cfg.win_name_always);
-	fprintf( fp, "width=%d\nheight=%d\nfont_quality=%d\nlogtype=%d\nlogxfovr=%d\nlogflush=%d\nlogomitpass=%d\nlogomitdata=%d\nhide_mouseptr=%d\n"
-	,cfg.width,cfg.height,cfg.font_quality,cfg.logtype,cfg.logxfovr,cfg.logflush,cfg.logomitpass,cfg.logomitdata,cfg.hide_mouseptr);
-	fprintf( fp, "sunken_edge=%d\nwindow_border=%d\n", cfg.sunken_edge, cfg.window_border);
-	fprintf( fp, "saveonexit=%d\nXPos=%d\nYPos=%d\n",cfg.saveonexit,cfg.xpos,cfg.ypos);
-	fprintf( fp, "foreground_on_bell=%d\n", cfg.foreground_on_bell );
-	//Filename bell_wavefile;
+	fprintf( fp, "savelines=%d\n", 			conf_get_int(conf,CONF_savelines) ) ;
+	fprintf( fp, "dec_om=%d\n", 			conf_get_int(conf,CONF_dec_om) ) ;
+	fprintf( fp, "wrap_mode=%d\n", 			conf_get_int(conf,CONF_wrap_mode) ) ;
+	fprintf( fp, "lfhascr=%d\n", 			conf_get_int(conf,CONF_lfhascr) ) ;
+	fprintf( fp, "cursor_type=%d\n", 		conf_get_int(conf,CONF_cursor_type) ) ;
+	fprintf( fp, "blink_cur=%d\n", 			conf_get_int(conf,CONF_blink_cur) ) ;
+	fprintf( fp, "beep=%d\n", 			conf_get_int(conf,CONF_beep) ) ;
+	fprintf( fp, "beep_ind=%d\n", 			conf_get_int(conf,CONF_beep_ind) ) ;
+	fprintf( fp, "bellovl=%d\n", 			conf_get_int(conf,CONF_bellovl) ) ;
+	fprintf( fp, "bellovl_n=%d\n", 			conf_get_int(conf,CONF_bellovl_n) ) ;
+	fprintf( fp, "bellovl_t=%d\n",			conf_get_int(conf,CONF_bellovl_t) ) ;
+	fprintf( fp, "bellovl_s=%d\n",			conf_get_int(conf,CONF_bellovl_s) ) ;
+	fprintf( fp, "scrollbar=%d\n",			conf_get_int(conf,CONF_scrollbar) ) ;
+	fprintf( fp, "scrollbar_in_fullscreen=%d\n",	conf_get_int(conf,CONF_scrollbar_in_fullscreen) ) ;
+	fprintf( fp, "resize_action=%d\n",		conf_get_int(conf,CONF_resize_action) ) ;
+	fprintf( fp, "bce=%d\n",			conf_get_int(conf,CONF_bce) ) ;
+	fprintf( fp, "blinktext=%d\n",			conf_get_int(conf,CONF_blinktext) ) ;
+	fprintf( fp, "win_name_always=%d\n",		conf_get_int(conf,CONF_win_name_always) ) ;
+	fprintf( fp, "width=%d\n",			conf_get_int(conf,CONF_width) ) ;
+	fprintf( fp, "height=%d\n",			conf_get_int(conf,CONF_height) ) ;
+	fprintf( fp, "font_quality=%d\n",		conf_get_int(conf,CONF_font_quality) ) ;
+	fprintf( fp, "logtype=%d\n",			conf_get_int(conf,CONF_logtype) ) ;
+	fprintf( fp, "logxfovr=%d\n",			conf_get_int(conf,CONF_logxfovr) ) ;
+	fprintf( fp, "logflush=%d\n",			conf_get_int(conf,CONF_logflush) ) ;
+	fprintf( fp, "logomitpass=%d\n",		conf_get_int(conf,CONF_logomitpass) ) ;
+	fprintf( fp, "logomitdata=%d\n",		conf_get_int(conf,CONF_logomitdata) ) ;
+	fprintf( fp, "hide_mouseptr=%d\n",		conf_get_int(conf,CONF_hide_mouseptr) ) ;
+	fprintf( fp, "sunken_edge=%d\n",		conf_get_int(conf,CONF_sunken_edge) ) ;
+	fprintf( fp, "window_border=%d\n",		conf_get_int(conf,CONF_window_border) ) ;
+	fprintf( fp, "saveonexit=%d\n",			conf_get_int(conf,CONF_saveonexit) ) ;
+	fprintf( fp, "XPos=%d\n",			conf_get_int(conf,CONF_xpos) ) ;
+	fprintf( fp, "YPos=%d\n",			conf_get_int(conf,CONF_ypos) ) ;
+	fprintf( fp, "fullscreen=%d\n",			conf_get_int(conf,CONF_fullscreen) ) ;
+	fprintf( fp, "foreground_on_bell=%d\n",		conf_get_int(conf,CONF_foreground_on_bell) ) ;
+	fprintf( fp, "bell_wavefile=%s\n",		conf_get_filename(conf,CONF_bell_wavefile)->path ) ;
 	//FontSpec font;
-	//Filename logfilename;
-	/* IMAGEPORT Options */
+	fprintf( fp, "logfilename=%s\n",		conf_get_filename(conf,CONF_logfilename)->path ) ;
 #if (defined IMAGEPORT) && (!defined FDJ)
-	fprintf( fp, "bg_opacity=%d\nbg_slideshow=%d\nbg_type=%d\nbg_image_style=%d\nbg_image_abs_x=%d\nbg_image_abs_y=%d\nbg_image_abs_fixed=%d\n"
-	,cfg.bg_opacity,cfg.bg_slideshow,cfg.bg_type,cfg.bg_image_style,cfg.bg_image_abs_x,cfg.bg_image_abs_y,cfg.bg_image_abs_fixed );
+	/* IMAGEPORT Options */
+	fprintf( fp, "bg_opacity=%d\n",			conf_get_int(conf,CONF_bg_opacity) ) ;
+	fprintf( fp, "bg_slideshow=%d\n",		conf_get_int(conf,CONF_bg_slideshow) ) ;
+	fprintf( fp, "bg_type=%d\n",			conf_get_int(conf,CONF_bg_type) ) ;
+	fprintf( fp, "bg_image_style=%d\n",		conf_get_int(conf,CONF_bg_image_style) ) ;
+	fprintf( fp, "bg_image_abs_x=%d\n",		conf_get_int(conf,CONF_bg_image_abs_x) ) ;
+	fprintf( fp, "bg_image_abs_y=%d\n",		conf_get_int(conf,CONF_bg_image_abs_y) ) ;
+	fprintf( fp, "bg_image_abs_fixed=%d\n",		conf_get_int(conf,CONF_bg_image_abs_fixed) ) ;
+	fprintf( fp, "bg_image_filename=%s\n",		conf_get_filename(conf,CONF_bg_image_filename)->path ) ;
 #endif
-	//Filename bg_image_filename;
-	cfg.answerback[255]='\0' ; fprintf( fp, "answerback=%s\n", cfg.answerback ) ;
-	cfg.printer[127]='\0' ; fprintf( fp, "printer=%s\n", cfg.printer ) ;
-	fprintf( fp, "arabicshaping=%d\nbidi=%d\n", cfg.arabicshaping, cfg.bidi ) ;
+	fprintf( fp, "answerback=%s\n",			conf_get_str(conf,CONF_answerback) ) ;
+	fprintf( fp, "printer=%s\n",			conf_get_str(conf,CONF_printer) ) ;
+	fprintf( fp, "arabicshaping=%d\n",		conf_get_int(conf,CONF_arabicshaping) ) ;
+	fprintf( fp, "bidi=%d\n",			conf_get_int(conf,CONF_bidi) ) ;
 	/* Colour options */
-	fprintf( fp, "ansi_colour=%d\nxterm_256_colour=%d\nsystem_colour=%d\ntry_palette%d\nbold_colour=%d\n"
-	,cfg.ansi_colour,cfg.xterm_256_colour,cfg.system_colour,cfg.try_palette,cfg.bold_colour);
+	fprintf( fp, "ansi_colour=%d\n",		conf_get_int(conf,CONF_ansi_colour) ) ;
+	fprintf( fp, "xterm_256_colour=%d\n",		conf_get_int(conf,CONF_xterm_256_colour) ) ;
+	fprintf( fp, "system_colour=%d\n",		conf_get_int(conf,CONF_system_colour) ) ;
+	fprintf( fp, "try_palette%d\n",			conf_get_int(conf,CONF_try_palette) ) ;
+	fprintf( fp, "bold_style=%d\n",			conf_get_int(conf,CONF_bold_style) ) ;
 	//unsigned char colours[22][3];
 	/* Selection options */
-	fprintf( fp, "mouse_is_xterm=%d\nrect_select=%d\nrawcnp=%d\nrtf_paste=%d\nmouse_override=%d\n"
-	,cfg.mouse_is_xterm,cfg.rect_select,cfg.rawcnp,cfg.rtf_paste,cfg.mouse_override);
+	fprintf( fp, "mouse_is_xterm=%d\n",		conf_get_int(conf,CONF_mouse_is_xterm) ) ;
+	fprintf( fp, "rect_select=%d\n",		conf_get_int(conf,CONF_rect_select) ) ;
+	fprintf( fp, "rawcnp=%d\n",			conf_get_int(conf,CONF_rawcnp) ) ;
+	fprintf( fp, "rtf_paste=%d\n",			conf_get_int(conf,CONF_rtf_paste) ) ;
+	fprintf( fp, "mouse_override=%d\n",		conf_get_int(conf,CONF_mouse_override) ) ;
 	//short wordness[256];
 	/* translations */
-	cfg.line_codepage[127]='\0' ; fprintf( fp, "line_codepage=%s\n", cfg.line_codepage ) ;
-	fprintf( fp, "vtmode=%d\ncjk_ambig_wide=%d\nutf8_override=%d\nxlat_capslockcyr=%d\n"
-	,cfg.vtmode,cfg.cjk_ambig_wide,cfg.utf8_override,cfg.xlat_capslockcyr );
+	fprintf( fp, "vtmode=%d\n",			conf_get_int(conf,CONF_vtmode) ) ;
+	fprintf( fp, "line_codepage=%s\n",		conf_get_str(conf,CONF_line_codepage) ) ;
+	fprintf( fp, "cjk_ambig_wide=%d\n",		conf_get_int(conf,CONF_cjk_ambig_wide) ) ;
+	fprintf( fp, "utf8_override=%d\n",		conf_get_int(conf,CONF_utf8_override) ) ;
+	fprintf( fp, "xlat_capslockcyr=%d\n",		conf_get_int(conf,CONF_xlat_capslockcyr) ) ;
 	/* X11 forwarding */
-	fprintf( fp, "x11_forward=%d\nx11_auth=%d\n", cfg.x11_forward, cfg.x11_auth );
-	cfg.x11_display[127]='\0' ; fprintf( fp, "x11_display=%s\n", cfg.x11_display ) ;
+	fprintf( fp, "x11_forward=%d\n",		conf_get_int(conf,CONF_x11_forward) ) ;
+	fprintf( fp, "x11_auth=%d\n",			conf_get_int(conf,CONF_x11_auth) ) ;
+	fprintf( fp, "x11_display=%s\n",		conf_get_str(conf,CONF_x11_display) ) ;
 	/* port forwarding */
-	fprintf( fp, "lport_acceptall=%d\nrport_acceptall=%d\n", cfg.lport_acceptall,cfg.rport_acceptall ) ;
-	cfg.portfwd[1023]='\0' ; fprintf( fp, "portfwd=%s\n", cfg.portfwd ) ;
+	fprintf( fp, "lport_acceptall=%d\n",		conf_get_int(conf,CONF_lport_acceptall) ) ;
+	fprintf( fp, "rport_acceptall=%d\n",		conf_get_int(conf,CONF_rport_acceptall) ) ;
+	fprintf( fp, "portfwd=\n") ;
+	char *key, *val;
+	for (val = conf_get_str_strs(conf, CONF_portfwd, NULL, &key);
+	val != NULL;
+	val = conf_get_str_strs(conf, CONF_portfwd, key, &key)) {
+		if (!strcmp(val, "D")) fprintf( fp, "	D%s\t\n", key+1 ) ;
+		else fprintf( fp, "	%s\t%s\n", key, val);
+		}
 	/* SSH bug compatibility modes */
-	fprintf( fp, "sshbug_ignore1=%d\nsshbug_plainpw1=%d\nsshbug_rsa1=%d\nsshbug_hmac2=%d\nsshbug_derivekey2=%d\nsshbug_rsapad2=%d\nsshbug_pksessid2=%d\nsshbug_rekey2=%d\n"
-	,cfg.sshbug_ignore1,cfg.sshbug_plainpw1,cfg.sshbug_rsa1,cfg.sshbug_hmac2,cfg.sshbug_derivekey2,cfg.sshbug_rsapad2,cfg.sshbug_pksessid2,cfg.sshbug_rekey2);
+	fprintf( fp, "sshbug_ignore1=%d\n",		conf_get_int(conf,CONF_sshbug_ignore1) ) ;
+	fprintf( fp, "sshbug_plainpw1=%d\n",		conf_get_int(conf,CONF_sshbug_plainpw1) ) ;
+	fprintf( fp, "sshbug_rsa1=%d\n",		conf_get_int(conf,CONF_sshbug_rsa1) ) ;
+	fprintf( fp, "sshbug_hmac2=%d\n",		conf_get_int(conf,CONF_sshbug_hmac2) ) ;
+	fprintf( fp, "sshbug_derivekey2=%d\n",		conf_get_int(conf,CONF_sshbug_derivekey2) ) ;
+	fprintf( fp, "sshbug_rsapad2=%d\n",		conf_get_int(conf,CONF_sshbug_rsapad2) ) ;
+	fprintf( fp, "sshbug_pksessid2=%d\n",		conf_get_int(conf,CONF_sshbug_pksessid2) ) ;
+	fprintf( fp, "sshbug_rekey2=%d\n",		conf_get_int(conf,CONF_sshbug_rekey2) ) ;
 	/* Options for pterm. Should split out into platform-dependent part. */
-	fprintf( fp, "stamp_utmp=%d\nlogin_shell=%d\nscrollbar_on_left=%d\nshadowbold=%d\nshadowboldoffset=%d\n"
-	,cfg.stamp_utmp,cfg.login_shell,cfg.scrollbar_on_left,cfg.shadowbold,cfg.shadowboldoffset);
+	fprintf( fp, "stamp_utmp=%d\n",			conf_get_int(conf,CONF_stamp_utmp) ) ;
+	fprintf( fp, "login_shell=%d\n",		conf_get_int(conf,CONF_login_shell) ) ;
+	fprintf( fp, "scrollbar_on_left=%d\n",		conf_get_int(conf,CONF_scrollbar_on_left) ) ;
+	fprintf( fp, "shadowbold=%d\n",			conf_get_int(conf,CONF_shadowbold) ) ;
+	fprintf( fp, "shadowboldoffset=%d\n",		conf_get_int(conf,CONF_shadowboldoffset) ) ;
 #ifdef RECONNECTPORT
-	fprintf( fp, "wakeup_reconnect=%d\nfailure_reconnect=%d\n", cfg.wakeup_reconnect,cfg.failure_reconnect );
+	fprintf( fp, "wakeup_reconnect=%d\n",		conf_get_int(conf,CONF_wakeup_reconnect) ) ;
+	fprintf( fp, "failure_reconnect=%d\n",		conf_get_int(conf,CONF_failure_reconnect) ) ;
 #endif
 #ifdef HYPERLINKPORT
-	fprintf( fp, "url_ctrl_click=%d\nurl_underline=%d\nurl_defbrowser=%d\nurl_defregex=%d\nurl_browser=%s\nurl_regex=%s\n", cfg.url_ctrl_click,cfg.url_underline, cfg.url_defbrowser, cfg.url_defregex, cfg.url_browser, cfg.url_regex );
+	fprintf( fp, "url_ctrl_click=%d\n",		conf_get_int(conf,CONF_url_ctrl_click) ) ; 
+	fprintf( fp, "url_underline=%d\n",		conf_get_int(conf,CONF_url_underline) ) ; 
+	fprintf( fp, "url_defbrowser=%d\n",		conf_get_int(conf,CONF_url_defbrowser) ) ; 
+	fprintf( fp, "url_defregex=%d\n",		conf_get_int(conf,CONF_url_defregex) ) ; 
+	fprintf( fp, "url_browser=%s\n",		conf_get_filename(conf,CONF_url_browser)->path ) ; 
+	fprintf( fp, "url_regex=%s\n",			conf_get_str(conf,CONF_url_regex) ) ; 
 #endif
 #ifdef ZMODEMPORT
-	fprintf( fp, "rzcommand=%s\nrzoptions=%s\nszcommand=%s\nszoptions=%s\nzdownloaddir=%s\n",cfg.rzcommand,cfg.rzoptions,cfg.szcommand,cfg.szoptions,cfg.zdownloaddir);
+	fprintf( fp, "rzcommand=%s\n",			conf_get_filename(conf,CONF_rzcommand)->path ) ;
+	fprintf( fp, "rzoptions=%s\n",			conf_get_str(conf,CONF_rzoptions) ) ;
+	fprintf( fp, "szcommand=%s\n",			conf_get_filename(conf,CONF_szcommand)->path ) ;
+	fprintf( fp, "szoptions=%s\n",			conf_get_str(conf,CONF_szoptions) ) ;
+	fprintf( fp, "zdownloaddir=%s\n",		conf_get_str(conf,CONF_zdownloaddir) ) ;
 #endif
 	//FontSpec boldfont; //FontSpec widefont; //FontSpec wideboldfont;
 
-	fprintf( fp, "\ninternal_delay=%d\ninit_delay=%g\nautocommand_delay=%g\nbetween_char_delay=%d\nTransparencyNumber=%d\nProtectFlag=%d\nIniFileFlag=%d\n"
-	,internal_delay,init_delay,autocommand_delay,between_char_delay,TransparencyNumber,ProtectFlag,IniFileFlag );
+	fprintf( fp, "\n[[KiTTY specific configuration]]\n" ) ;
+	fprintf( fp, "internal_delay=%d\ninit_delay=%g\nautocommand_delay=%g\nbetween_char_delay=%d\nProtectFlag=%d\nIniFileFlag=%d\n"
+	,internal_delay,init_delay,autocommand_delay,between_char_delay,ProtectFlag,IniFileFlag );
 	
+	fprintf( fp, "HyperlinkFlag=%d\n", HyperlinkFlag );
 	if( AutoCommand!= NULL ) fprintf( fp, "AutoCommand=%s\n", AutoCommand ) ;
 	if( ScriptCommand!= NULL ) fprintf( fp, "ScriptCommand=%s\n", ScriptCommand ) ;
 	if( PasteCommand!= NULL ) fprintf( fp, "PasteCommand=%s\n", PasteCommand ) ;
@@ -366,13 +495,14 @@ void SaveDump( void ) {
 	if( ( fpout = fopen( buffer, "w" ) ) != NULL ) {
 		
 		fputs( "\n@ InitialDirectoryListing @\n\n", fpout ) ;
-		SaveDumpListFile( fpout, InitialDirectory ) ;
+		SaveDumpListFile( fpout, InitialDirectory ) ; fflush( fpout ) ;
 		
 		fputs( "\n@ KiTTYIniFile @\n\n", fpout ) ;
 		if( ( fp = fopen( KittyIniFile, "r" ) ) != NULL ) {
 			while( fgets( buffer, 1024, fp ) != NULL ) fputs( buffer, fpout ) ;
 			fclose( fp ) ;
 			}
+		fflush( fpout ) ;
 
 		if( RegTestKey( HKEY_CURRENT_USER, TEXT("Software\\SimonTatham\\PuTTY") ) ) {
 			fputs( "\n@ PuTTY RegistryBackup @\n\n", fpout ) ;
@@ -383,6 +513,7 @@ void SaveDump( void ) {
 				}
 			unlink( KittySavFile ) ;
 			}
+		fflush( fpout ) ;
 
 		fputs( "\n@ KiTTY RegistryBackup @\n\n", fpout ) ;
 		if( (IniFileFlag == SAVEMODE_REG)||(IniFileFlag == SAVEMODE_FILE) ) {
@@ -400,25 +531,34 @@ void SaveDump( void ) {
 			sprintf( buffer, "%s\\Sessions_Commands", ConfigDirectory ) ; SaveDumpListConf( fpout, buffer ) ;
 			sprintf( buffer, "%s\\SshHostKeys", ConfigDirectory ) ; SaveDumpListConf( fpout, buffer ) ;
 			}
-			
+		fflush( fpout ) ;
+
 		fputs( "\n@ RunningProcess @\n\n", fpout ) ;
-		PrintAllProcess( fpout ) ;
-			
+		PrintAllProcess( fpout ) ; fflush( fpout ) ;
+
 		fputs( "\n@ ClipBoardContent @\n\n", fpout ) ;
-		SaveDumpClipBoard( fpout ) ;
-		
+		SaveDumpClipBoard( fpout ) ; fflush( fpout ) ;
+
 		if( debug_flag ) {
 			fputs( "\n@ KeyPressed @\n\n", fpout ) ;
 			fprintf( fpout, "%d: WM_KEYDOWN\n%d: WM_SYSKEYDOWN\n%d: WM_KEYUP\n%d: WM_SYSKEYUP\n%d: WM_CHAR\n\n", WM_KEYDOWN,WM_SYSKEYDOWN,WM_KEYUP,WM_SYSKEYUP,WM_CHAR);
 			fprintf( fpout, "SHIFT CONTROL ALT ALTGR WIN\n" ) ;
 			fprintf( fpout, "%s\n", SaveKeyPressed ) ;
 			}
-			
+		fflush( fpout ) ;
+
 		fputs( "\n@ RunningConfig @\n\n", fpout ) ;
-		SaveDumpConfig( fpout, cfg ) ;
+		SaveDumpConfig( fpout, conf ) ; fflush( fpout ) ;
+
+		if( IniFileFlag==SAVEMODE_DIR ) {
+			fputs( "\n@ RunningPortableConfig @\n\n", fpout ) ;
+			SaveDumpPortableConfig( fpout ) ;
+			}
+		fflush( fpout ) ;
 			
 		fputs( "\n@ CurrentEventLog @\n\n", fpout ) ;
 		i=0 ; while( print_event_log( fpout, i ) ) { i++ ; }
+		fflush( fpout ) ;
 
 		if( DebugText!= NULL ) {
 			fputs( "\n@ Debug @\n\n", fpout ) ;
@@ -426,10 +566,10 @@ void SaveDump( void ) {
 			}
 		
 		fputs( "\n@ Shortcuts @\n\n", fpout ) ;
-		SaveShortCuts( fpout ) ;
+		SaveShortCuts( fpout ) ; fflush( fpout ) ;
 		
 		fputs( "\n@ SpecialMenu @\n\n", fpout ) ;
-		SaveSpecialMenu( fpout ) ;
+		SaveSpecialMenu( fpout ) ; fflush( fpout ) ;
 		
 		fclose( fpout ) ;
 
@@ -438,4 +578,3 @@ void SaveDump( void ) {
 		bcrypt_file_base64( buffer, buffer2, MASTER_PASSWORD, 80 ) ; unlink( buffer ) ; rename( buffer2, buffer ) ;
 		}
 	}
-

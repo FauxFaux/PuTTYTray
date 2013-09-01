@@ -40,13 +40,12 @@ typedef struct cygterm_backend_data {
 	Socket s;
 	PROCESS_INFORMATION pi;
 	HANDLE ctl;
-	Config cfg;
+	Conf * conf;/*Config cfg;*/
 	int bufsize;
 	int editing, echoing;
 	int exitcode;
 } *Local;
 
-
 /* Plug functions for cthelper data connection */
 static void
 cygterm_log(Plug p, int type, SockAddr addr, int port, const char *error_msg, int error_code)
@@ -131,7 +130,7 @@ cygterm_accepting(Plug plug, OSSocket sock)
 	local->s = sk_register(sock, plug);
 	sk_set_frozen(local->s, 0);
 	/* Reset terminal size */
-	cygterm_size(local, local->cfg.width, local->cfg.height);
+	cygterm_size(local, conf_get_int(local->conf,CONF_width), conf_get_int(local->conf,CONF_height));/*cygterm_size(local, local->cfg.width, local->cfg.height);*/
 	cygterm_debug("OK");
 	return 0;
 }
@@ -139,7 +138,7 @@ cygterm_accepting(Plug plug, OSSocket sock)
 
 static char *getCygwinBin(void);
 static void appendPath(const char *append);
-static size_t makeAttributes(char *buf, Config *cfg);
+static size_t makeAttributes(char *buf, Conf *conf/*Config *cfg*/);
 static const char *spawnChild(char *cmd, LPPROCESS_INFORMATION ppi, PHANDLE pin);
 
 /* Backend functions for the cygterm backend */
@@ -147,7 +146,7 @@ void RunCommand( HWND hwnd, char * cmd ) ;
 	
 static const char *
 cygterm_init(void *frontend_handle, void **backend_handle,
-             Config *cfg,
+             Conf *conf,/*Config *cfg,*/
              char *unused_host, int unused_port,
              char **realhost, int nodelay, int keepalive)
 {
@@ -176,7 +175,7 @@ cygterm_init(void *frontend_handle, void **backend_handle,
 	local->fn = &fn_table;
 	local->a = NULL;
 	local->s = NULL;
-	local->cfg = *cfg;
+	local->conf = conf;/*local->cfg = *cfg;*/
 	local->editing = 0;
 	local->echoing = 0;
 	local->exitcode = 0;
@@ -201,7 +200,7 @@ cygterm_init(void *frontend_handle, void **backend_handle,
 		goto fail_close;
 	}
 
-	if (strchr(local->cfg.termtype, ' ')) {
+	if (strchr(conf_get_str(local->conf,CONF_termtype)/*local->cfg.termtype*/, ' ')) {
 		err = "term type contains spaces";
 		goto fail_close;
 	}
@@ -209,12 +208,12 @@ cygterm_init(void *frontend_handle, void **backend_handle,
 	/*  Build cthelper command line */
 char * CTHELPER_PATH = getenv( "CTHELPER_PATH" ) ;
 	if( CTHELPER_PATH==NULL ) { SearchCtHelper() ; CTHELPER_PATH = getenv( "CTHELPER_PATH" ) ; }
-if( CTHELPER_PATH!=NULL ) cmdlinelen = sprintf(cmdline, "\"%s\" %u %s ", CTHELPER_PATH, cport, local->cfg.termtype);
+if( CTHELPER_PATH!=NULL ) cmdlinelen = sprintf(cmdline, "\"%s\" %u %s ", CTHELPER_PATH, cport, conf_get_str(local->conf,CONF_termtype)/*local->cfg.termtype*/);
 else
-	cmdlinelen = sprintf(cmdline, CTHELPER" %u %s ", cport, local->cfg.termtype);
-	cmdlinelen += makeAttributes(cmdline + cmdlinelen, &local->cfg);
+	cmdlinelen = sprintf(cmdline, CTHELPER" %u %s ", cport,conf_get_str(local->conf,CONF_termtype)/*local->cfg.termtype*/);
+	cmdlinelen += makeAttributes(cmdline + cmdlinelen, local->conf/*&local->cfg*/);
 
-	command = cfg->cygcmd;
+	command = conf_get_str(conf,CONF_cygcmd);/*cfg->cygcmd;*/
 	
 	if( command[0]=='?' ) {
 		RunCommand(NULL,(char*)(command+1));
@@ -235,7 +234,7 @@ else
 	}
 
 	/* Add the Cygwin /bin path to the PATH. */
-	if (cfg->cygautopath) {
+	if (conf_get_int(conf,CONF_cygautopath)/*cfg->cygautopath*/) {
 		char *cygwinBinPath = getCygwinBin();
 		if (!cygwinBinPath) {
 			/* we'll try anyway */
@@ -279,11 +278,11 @@ cygterm_free(void *handle)
 }
 
 static void
-cygterm_reconfig(void *handle, Config *cfg)
+cygterm_reconfig(void *handle, Conf *conf /* Config *cfg*/)
 {
 	Local local = handle;
 	cygterm_debug("top");
-	local->cfg = *cfg;
+	local->conf = conf;/*local->cfg = *cfg;*/
 }
 
 static int
@@ -324,8 +323,8 @@ cygterm_size(void *handle, int width, int height)
 	cygterm_debug("top");
 	cygterm_debug("size=%d,%d (last=%d,%d)",
 	              width, height, local->cfg.width, local->cfg.height);
-	local->cfg.width = width;
-	local->cfg.height = height;
+	conf_set_int(local->conf,CONF_width,width);/*local->cfg.width = width;*/
+	conf_set_int(local->conf,CONF_height,height);/*local->cfg.height = height;*/
 	if (local->s) {
 		DWORD n;
 		Message m;
@@ -437,7 +436,6 @@ Backend cygterm_backend = {
 	1
 };
 
-
 /* like strcpy(), but return pointer to terminating null character */
 static char *
 strecpy(char *d,const char *s)
@@ -449,16 +447,16 @@ strecpy(char *d,const char *s)
 
 /* Make cthelper attribute string from PuTTY Config */
 static size_t
-makeAttributes(char *buf, Config *cfg)
+makeAttributes(char *buf, Conf *conf/*Config *cfg*/)
 {
 	char *e = buf;
 
-	if (cfg->bksp_is_delete)
+	if (conf_get_int(conf,CONF_bksp_is_delete)/*cfg->bksp_is_delete*/)
 		e = strecpy(e, ":erase=^?");
 	else
 		e = strecpy(e, ":erase=^H");
 
-	e += sprintf(e, ":size=%d,%d", cfg->height, cfg->width);
+	e += sprintf(e, ":size=%d,%d", conf_get_int(conf,CONF_height)/*cfg->height*/, conf_get_int(conf,CONF_width)/*cfg->width*/);
 
 	/* TODO: other options? localedit? localecho? */
 

@@ -156,7 +156,6 @@ void urlhack_launch_url(const char* app, const char *url, const int newbrowser )
 		else
 			u.insert(0, "http://");
 	}
-
 	if( newbrowser ) 
 		ShellExecute(NULL, NULL, browser_app.c_str(), u.c_str(), NULL, SW_SHOW);	// Lance un nouveau browser a chaque fois
 	else 

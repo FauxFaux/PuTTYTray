@@ -6,13 +6,6 @@
 
 #ifdef PERSOPORT
 
-// Flag pour le fonctionnement en mode "portable" (gestion par fichiers)
-extern int IniFileFlag ;
-
-// Flag permettant la gestion de l'arborscence (dossier=folder) dans le cas d'un savemode=dir
-extern int DirectoryBrowseFlag ;
-
-
 #ifndef SAVEMODE_REG
 #define SAVEMODE_REG 0
 #endif
@@ -22,6 +15,21 @@ extern int DirectoryBrowseFlag ;
 #ifndef SAVEMODE_DIR
 #define SAVEMODE_DIR 2
 #endif
+
+// Flag pour le fonctionnement en mode "portable" (gestion par fichiers)
+#ifdef PORTABLE
+int IniFileFlag = SAVEMODE_DIR ;
+#else
+int IniFileFlag = SAVEMODE_REG ;
+#endif
+
+// Flag permettant la gestion de l'arborscence (dossier=folder) dans le cas d'un savemode=dir
+#ifdef PORTABLE
+int DirectoryBrowseFlag = 1 ;
+#else
+int DirectoryBrowseFlag = 0 ;
+#endif
+
 
 // Répertoire de sauvegarde de la configuration (savemode=dir)
 char * ConfigDirectory = NULL ;
@@ -133,5 +141,24 @@ int IsPortableMode( void ) {
 int backend_connected = 0 ;
 
 void SetSSHConnected( void ) { backend_connected = 1 ; }
+
+char *dupvprintf(const char *fmt, va_list ap) ;
+void logevent(void *frontend, const char *string);
+
+// Affichage d'un message dans l'event log
+void debug_logevent( const char *fmt, ... ) {
+	va_list ap;
+	char *buf;
+
+	if( debug_flag ) {
+		va_start(ap, fmt);
+		buf = dupvprintf(fmt, ap) ;
+		va_end(ap);
+		logevent(NULL,buf);
+		free(buf);
+		}
+	}
+
+PVOID SecureZeroMemory( PVOID ptr, SIZE_T cnt) { return memset( ptr, 0, cnt ) ; }
 
 #endif

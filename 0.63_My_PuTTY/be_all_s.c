@@ -14,8 +14,7 @@
  * have tiny little source modules containing nothing but
  * declarations of appname, for as long as I can...
  */
- #if (defined PERSOPORT) && (!defined FDJ)
-//const char *const appname = "KiTTY";
+#if (defined PERSOPORT) && (!defined FDJ)
 char *appname = "KiTTY";
 #else
 const char *const appname = "PuTTY";

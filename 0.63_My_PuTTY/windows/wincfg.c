@@ -81,8 +81,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		    "Control the scrollback in the window");
     ctrl_checkbox(s, "Display scrollbar in full screen mode", 'i',
 		  HELPCTX(window_scrollback),
-		  dlg_stdcheckbox_handler,
-		  I(offsetof(Config,scrollbar_in_fullscreen)));
+		  conf_checkbox_handler,
+		  I(CONF_scrollbar_in_fullscreen));
     /*
      * Really this wants to go just after `Display scrollbar'. See
      * if we can find that control, and do some shuffling.
@@ -92,7 +92,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
         for (i = 0; i < s->ncontrols; i++) {
             c = s->ctrls[i];
             if (c->generic.type == CTRL_CHECKBOX &&
-                c->generic.context.i == offsetof(Config,scrollbar)) {
+                c->generic.context.i == CONF_scrollbar) {
                 /*
                  * Control i is the scrollbar checkbox.
                  * Control s->ncontrols-1 is the scrollbar-in-FS one.
@@ -116,15 +116,16 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		    "Enable extra keyboard features:");
     ctrl_checkbox(s, "AltGr acts as Compose key", 't',
 		  HELPCTX(keyboard_compose),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,compose_key)));
+		  conf_checkbox_handler, I(CONF_compose_key));
     ctrl_checkbox(s, "Control-Alt is different from AltGr", 'd',
 		  HELPCTX(keyboard_ctrlalt),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,ctrlaltkeys)));
+		  conf_checkbox_handler, I(CONF_ctrlaltkeys));
 #ifdef CYGTERMPORT
-    ctrl_checkbox(s, "Set meta bit on alt (instead of escape)", 'm',
+    ctrl_checkbox(s, "Set meta bit on alt (instead of escape)", NO_SHORTCUT,
 		  HELPCTX(no_help),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_metabit)));
+		  conf_checkbox_handler, I(CONF_alt_metabit)); //dlg_stdcheckbox_handler, I(offsetof(Config,alt_metabit)));
 #endif
+
     /*
      * Windows allows an arbitrary .WAV to be played as a bell, and
      * also the use of the PC speaker. For this we must search the
@@ -148,8 +149,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	for (i = 0; i < s->ncontrols; i++) {
 	    c = s->ctrls[i];
 	    if (c->generic.type == CTRL_RADIO &&
-		c->generic.context.i == offsetof(Config, beep)) {
-		assert(c->generic.handler == dlg_stdradiobutton_handler);
+		c->generic.context.i == CONF_beep) {
+		assert(c->generic.handler == conf_radiobutton_handler);
 		c->radio.nbuttons += 2;
 		c->radio.buttons =
 		    sresize(c->radio.buttons, c->radio.nbuttons, char *);
@@ -174,7 +175,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     ctrl_filesel(s, "Custom sound file to play as a bell:", NO_SHORTCUT,
 		 FILTER_WAVE_FILES, FALSE, "Select bell sound file",
 		 HELPCTX(bell_style),
-		 dlg_stdfilesel_handler, I(offsetof(Config, bell_wavefile)));
+		 conf_filesel_handler, I(CONF_bell_wavefile));
 
     /*
      * While we've got this box open, taskbar flashing on a bell is
@@ -182,8 +183,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
      */
     ctrl_radiobuttons(s, "Taskbar/caption indication on bell:", 'i', 3,
 		      HELPCTX(bell_taskbar),
-		      dlg_stdradiobutton_handler,
-		      I(offsetof(Config, beep_ind)),
+		      conf_radiobutton_handler,
+		      I(CONF_beep_ind),
 		      "Disabled", I(B_IND_DISABLED),
 		      "Flashing", I(B_IND_FLASH),
 		      "Steady", I(B_IND_STEADY), NULL);
@@ -195,7 +196,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		    "Adjust the window border");
     ctrl_checkbox(s, "Sunken-edge border (slightly thicker)", 's',
 		  HELPCTX(appearance_border),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,sunken_edge)));
+		  conf_checkbox_handler, I(CONF_sunken_edge));
 
     /*
      * Configurable font quality settings for Windows.
@@ -206,8 +207,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
                   HELPCTX(appearance_font), variable_pitch_handler, I(0));
     ctrl_radiobuttons(s, "Font quality:", 'q', 2,
 		      HELPCTX(appearance_font),
-		      dlg_stdradiobutton_handler,
-		      I(offsetof(Config, font_quality)),
+		      conf_radiobutton_handler,
+		      I(CONF_font_quality),
 		      "Antialiased", I(FQ_ANTIALIASED),
 		      "Non-Antialiased", I(FQ_NONANTIALIASED),
 		      "ClearType", I(FQ_CLEARTYPE),
@@ -221,8 +222,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     s = ctrl_getset(b, "Window/Translation", "tweaks", NULL);
     ctrl_checkbox(s, "Caps Lock acts as Cyrillic switch", 's',
 		  HELPCTX(translation_cyrillic),
-		  dlg_stdcheckbox_handler,
-		  I(offsetof(Config,xlat_capslockcyr)));
+		  conf_checkbox_handler,
+		  I(CONF_xlat_capslockcyr));
 
     /*
      * On Windows we can use but not enumerate translation tables
@@ -247,8 +248,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	for (i = 0; i < s->ncontrols; i++) {
 	    c = s->ctrls[i];
 	    if (c->generic.type == CTRL_RADIO &&
-		c->generic.context.i == offsetof(Config, vtmode)) {
-		assert(c->generic.handler == dlg_stdradiobutton_handler);
+		c->generic.context.i == CONF_vtmode) {
+		assert(c->generic.handler == conf_radiobutton_handler);
 		c->radio.nbuttons += 3;
 		c->radio.buttons =
 		    sresize(c->radio.buttons, c->radio.nbuttons, char *);
@@ -287,7 +288,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		    "Formatting of pasted characters");
     ctrl_checkbox(s, "Paste to clipboard in RTF as well as plain text", 'f',
 		  HELPCTX(selection_rtf),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,rtf_paste)));
+		  conf_checkbox_handler, I(CONF_rtf_paste));
 
     /*
      * Windows often has no middle button, so we supply a selection
@@ -298,8 +299,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		    "Control use of mouse");
     ctrl_radiobuttons(s, "Action of mouse buttons:", 'm', 1,
 		      HELPCTX(selection_buttons),
-		      dlg_stdradiobutton_handler,
-		      I(offsetof(Config, mouse_is_xterm)),
+		      conf_radiobutton_handler,
+		      I(CONF_mouse_is_xterm),
 		      "Windows (Middle extends, Right brings up menu)", I(2),
 		      "Compromise (Middle extends, Right pastes)", I(0),
 		      "xterm (Right extends, Middle pastes)", I(1), NULL);
@@ -319,10 +320,10 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		    "General options for colour usage");
     ctrl_checkbox(s, "Attempt to use logical palettes", 'l',
 		  HELPCTX(colours_logpal),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,try_palette)));
+		  conf_checkbox_handler, I(CONF_try_palette));
     ctrl_checkbox(s, "Use system colours", 's',
                   HELPCTX(colours_system),
-                  dlg_stdcheckbox_handler, I(offsetof(Config,system_colour)));
+                  conf_checkbox_handler, I(CONF_system_colour));
 
 
     /*
@@ -331,8 +332,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     s = ctrl_getset(b, "Window", "size", "Set the size of the window");
     ctrl_radiobuttons(s, "When window is resized:", 'z', 1,
 		      HELPCTX(window_resize),
-		      dlg_stdradiobutton_handler,
-		      I(offsetof(Config, resize_action)),
+		      conf_radiobutton_handler,
+		      I(CONF_resize_action),
 		      "Change the number of rows and columns", I(RESIZE_TERM),
 		      "Change the size of the font", I(RESIZE_FONT),
 		      "Change font size only when maximised", I(RESIZE_EITHER),
@@ -346,79 +347,86 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     s = ctrl_getset(b, "Window/Behaviour", "main", NULL);
     ctrl_checkbox(s, "Window closes on ALT-F4", '4',
 		  HELPCTX(behaviour_altf4),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_f4)));
+		  conf_checkbox_handler, I(CONF_alt_f4));
     ctrl_checkbox(s, "System menu appears on ALT-Space", 'y',
 		  HELPCTX(behaviour_altspace),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_space)));
+		  conf_checkbox_handler, I(CONF_alt_space));
     ctrl_checkbox(s, "System menu appears on ALT alone", 'l',
 		  HELPCTX(behaviour_altonly),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,alt_only)));
+		  conf_checkbox_handler, I(CONF_alt_only));
     ctrl_checkbox(s, "Ensure window is always on top", 'e',
 		  HELPCTX(behaviour_alwaysontop),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,alwaysontop)));
+		  conf_checkbox_handler, I(CONF_alwaysontop));
 #ifdef PERSOPORT
 	if( !get_param("PUTTY") ) {
-		ctrl_checkbox(s, "Send to tray on startup", '`',
-		  HELPCTX(behaviour_sendtotray),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,sendtotray)));
-		ctrl_checkbox(s, "Save position and size on exit", '=',
-		  HELPCTX(behaviour_saveonexit),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,saveonexit)));
+		ctrl_checkbox(s, "Send to tray on startup", NO_SHORTCUT,
+		  HELPCTX(no_help),
+		  conf_checkbox_handler, I(CONF_sendtotray)); // dlg_stdcheckbox_handler, I(offsetof(Config,sendtotray)));
+		ctrl_checkbox(s, "Maximize on startup", NO_SHORTCUT,
+		  HELPCTX(no_help),
+		  conf_checkbox_handler, I(CONF_maximize)); // dlg_stdcheckbox_handler, I(offsetof(Config,maximize)));
+		ctrl_checkbox(s, "Full screen on startup", NO_SHORTCUT,
+		  HELPCTX(behaviour_fullscreen),
+		  conf_checkbox_handler/*dlg_stdcheckbox_handler*/, I(CONF_fullscreen)/*I(offsetof(Config,fullscreen))*/);
+		ctrl_checkbox(s, "Save position and size on exit", NO_SHORTCUT,
+		  HELPCTX(no_help),
+		  conf_checkbox_handler, I(CONF_saveonexit)); // dlg_stdcheckbox_handler, I(offsetof(Config,saveonexit)));
 		}
 #endif
     ctrl_checkbox(s, "Full screen on Alt-Enter", 'f',
 		  HELPCTX(behaviour_altenter),
-		  dlg_stdcheckbox_handler,
-		  I(offsetof(Config,fullscreenonaltenter)));
-
+		  conf_checkbox_handler,
+		  I(CONF_fullscreenonaltenter));
+		  
 #ifdef HYPERLINKPORT
 	/*
 	 * HACK: PuttyTray / Nutty
 	 * Hyperlink stuff: The Window/Hyperlinks panel.
 	 */
-	if( !get_param("PUTTY") ) {
+	if( !get_param("PUTTY") && get_param("HYPERLINK") ) {
 	ctrl_settitle(b, "Window/Hyperlinks", "Options controlling behaviour of hyperlinks");
 	s = ctrl_getset(b, "Window/Hyperlinks", "general", "General options for hyperlinks");
 
 	ctrl_radiobuttons(s, "Underline hyperlinks:", NO_SHORTCUT, 1,
 			  HELPCTX(no_help),
-			  dlg_stdradiobutton_handler,
- 			  I(offsetof(Config, url_underline)),
+			  conf_radiobutton_handler, //dlg_stdradiobutton_handler,
+ 			  I(CONF_url_underline), //I(offsetof(Config, url_underline)),
 			  "Always", NO_SHORTCUT, I(URLHACK_UNDERLINE_ALWAYS),
 			  "When hovered upon", NO_SHORTCUT, I(URLHACK_UNDERLINE_HOVER),
 			  "Never", NO_SHORTCUT, I(URLHACK_UNDERLINE_NEVER),
 			  NULL);
 
-	ctrl_checkbox(s, "Use ctrl+click to launch hyperlinks", 'l',
+	ctrl_checkbox(s, "Use ctrl+click to launch hyperlinks", NO_SHORTCUT,
 		  HELPCTX(no_help),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,url_ctrl_click)));
+		  conf_checkbox_handler, I(CONF_url_ctrl_click)); //dlg_stdcheckbox_handler, I(offsetof(Config,url_ctrl_click)));
 
 	s = ctrl_getset(b, "Window/Hyperlinks", "browser", "Browser application");
 
 	ctrl_checkbox(s, "Use the default browser", 'b',
 		  HELPCTX(no_help),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,url_defbrowser)));
+		  conf_checkbox_handler, I(CONF_url_defbrowser)); //dlg_stdcheckbox_handler, I(offsetof(Config,url_defbrowser)));
 
-	ctrl_filesel(s, "or specify an application to open hyperlinks with:", 's',
+	ctrl_filesel(s, "or specify an application to open hyperlinks with:", NO_SHORTCUT,
 		"Application (*.exe)\0*.exe\0All files (*.*)\0*.*\0\0", TRUE,
 		"Select executable to open hyperlinks with", HELPCTX(no_help),
-		 dlg_stdfilesel_handler, I(offsetof(Config, url_browser)));
+		 conf_filesel_handler, I(CONF_url_browser)); // dlg_stdfilesel_handler, I(offsetof(Config, url_browser)));
 
 	s = ctrl_getset(b, "Window/Hyperlinks", "regexp", "Regular expression");
 
-	ctrl_checkbox(s, "Use the default regular expression", 'r',
+	ctrl_checkbox(s, "Use the default regular expression", NO_SHORTCUT,
 		  HELPCTX(no_help),
-		  dlg_stdcheckbox_handler, I(offsetof(Config,url_defregex)));
+		  conf_checkbox_handler, I(CONF_url_defregex)); //dlg_stdcheckbox_handler, I(offsetof(Config,url_defregex)));
 
 	ctrl_editbox(s, "or specify your own:", NO_SHORTCUT, 100,
 		 HELPCTX(no_help),
-		 dlg_stdeditbox_handler, I(offsetof(Config,url_regex)),
-		 I(sizeof(((Config *)0)->url_regex)));
+		 conf_editbox_handler, I(CONF_url_regex), I(1)); //dlg_stdeditbox_handler, I(offsetof(Config,url_regex)),I(sizeof(((Config *)0)->url_regex)));
 
 	ctrl_text(s, "The single white space will be cropped in front of the link, if exists.",
 		  HELPCTX(no_help));
+
 	}
 #endif
+
     /*
      * Windows supports a local-command proxy. This also means we
      * must adjust the text on the `Telnet command' control.
@@ -429,8 +437,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	for (i = 0; i < s->ncontrols; i++) {
 	    c = s->ctrls[i];
 	    if (c->generic.type == CTRL_RADIO &&
-		c->generic.context.i == offsetof(Config, proxy_type)) {
-		assert(c->generic.handler == dlg_stdradiobutton_handler);
+		c->generic.context.i == CONF_proxy_type) {
+		assert(c->generic.handler == conf_radiobutton_handler);
 		c->radio.nbuttons++;
 		c->radio.buttons =
 		    sresize(c->radio.buttons, c->radio.nbuttons, char *);
@@ -446,9 +454,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	for (i = 0; i < s->ncontrols; i++) {
 	    c = s->ctrls[i];
 	    if (c->generic.type == CTRL_EDITBOX &&
-		c->generic.context.i ==
-		offsetof(Config, proxy_telnet_command)) {
-		assert(c->generic.handler == dlg_stdeditbox_handler);
+		c->generic.context.i == CONF_proxy_telnet_command) {
+		assert(c->generic.handler == conf_editbox_handler);
 		sfree(c->generic.label);
 		c->generic.label = dupstr("Telnet command, or local"
 					  " proxy command");
@@ -472,7 +479,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	ctrl_filesel(s, "X authority file for local display", 't',
 		     NULL, FALSE, "Select X authority file",
 		     HELPCTX(ssh_tunnels_xauthority),
-		     dlg_stdfilesel_handler, I(offsetof(Config, xauthfile)));
+		     conf_filesel_handler, I(CONF_xauthfile));
     }
 #ifdef CYGTERMPORT
     /*
@@ -490,7 +497,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	ctrl_filesel(s, "Full path to scp", 's',
 		"Application (*.exe)\0*.exe\0All files (*.*)\0*.*\0\0", TRUE,
 		"Select executable to scp/sftp transfer", HELPCTX(no_help),
-		 dlg_stdfilesel_handler, I(offsetof(Config, url_browser)));
+		conf_filesel_handler, I(CONF_url_browser)); //dlg_stdfilesel_handler, I(offsetof(Config, url_browser)));
 		
 	//ctrl_checkbox(s, "Use the default browser", 'b',
 	//	  HELPCTX(no_help),
