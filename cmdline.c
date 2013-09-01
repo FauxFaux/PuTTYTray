@@ -495,6 +495,31 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
 	SAVEABLE(1);
 	conf_set_int(conf, CONF_addressfamily, ADDRTYPE_IPV6);
     }
+
+    if (!strcmp(p, "-log")) {
+        RETURN(2);
+        SAVEABLE(1);
+        UNAVAILABLE_IN(TOOLTYPE_NONNETWORK);
+        conf_set_filename(conf, CONF_logfilename, filename_from_str(value));
+        conf_set_int(conf, CONF_logtype, 1);
+        conf_set_int(conf, CONF_logxfovr, 1);
+        conf_set_int(conf, CONF_logflush, 1);
+    }
+
+    if (!strcmp(p, "-notrans")) {
+        RETURN(1);
+        SAVEABLE(1);
+        UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+        conf_set_int(conf, CONF_transparency, 255);
+    }
+    
+    if (!strcmp(p, "-title")) {
+        RETURN(2);
+        SAVEABLE(1);
+        UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+        conf_set_str( conf, CONF_wintitle, value);
+    }
+
     if (!strcmp(p, "-sercfg")) {
 	char* nextitem;
 	RETURN(2);
