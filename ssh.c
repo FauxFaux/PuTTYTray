@@ -4491,7 +4491,7 @@ static void ssh_setup_portfwd(Ssh ssh, Conf *conf)
 	type = 'L';
 	if (*kp == 'A' || *kp == '4' || *kp == '6')
 	    address_family = *kp++;
-	if (*kp == 'L' || *kp == 'R' || *kp == 'D') // this can only be 'D' for old-style config entries
+	if (*kp == 'L' || *kp == 'R')
 	    type = *kp++;
 
 	if ((kp2 = strchr(kp, ':')) != NULL) {
@@ -4517,7 +4517,7 @@ static void ssh_setup_portfwd(Ssh ssh, Conf *conf)
 	    }
 	}
 
-	if (type == 'D' || (type == 'L' && !strcmp(val, "D"))) {
+	if (type == 'L' && !strcmp(val, "D")) {
             /* dynamic forwarding */
 	    host = NULL;
 	    dports = NULL;
