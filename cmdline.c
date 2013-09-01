@@ -512,7 +512,7 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
         UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
         conf_set_int(conf, CONF_transparency, 255);
     }
-    
+
     if (!strcmp(p, "-title")) {
         RETURN(2);
         SAVEABLE(1);
