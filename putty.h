@@ -1164,6 +1164,11 @@ int conf_launchable(Conf *conf);
 char const *conf_dest(Conf *conf);
 
 /*
+ * Exports from *misc.c.
+ */
+void sanitise_path_leaving_slashes(char *path);
+
+/*
  * Exports from sercfg.c.
  */
 void ser_setup_config_box(struct controlbox *b, int midsession,

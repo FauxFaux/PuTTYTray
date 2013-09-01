@@ -586,3 +586,28 @@ Filename *get_id_rsa_path() {
     strcat(path, "\\.ssh\\id_rsa");
     return filename_from_str(path);
 }
+
+/* Naming Files, Paths, and Namespaces:
+ * http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247.aspx
+ */
+void sanitise_path_leaving_slashes(char *path) {
+    const char replacement = '_';
+    const size_t len = strlen(path);
+    size_t i;
+    for (i = 0; i < len; ++i) {
+        if (path[i] < 32) {
+            path[i] = replacement;
+            continue;
+        }
+        switch (path[i]) {
+        case '<':
+        case '>':
+        case ':':
+        case '|':
+        case '?':
+        case '*':
+            path[i] = replacement;
+            continue;
+        }
+    }
+}
