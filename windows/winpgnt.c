@@ -8,8 +8,6 @@
 #include <assert.h>
 #include <tchar.h>
 
-#define PUTTY_DO_GLOBALS
-
 #include "putty.h"
 #include "ssh.h"
 #include "misc.h"
@@ -2194,8 +2192,6 @@ void spawn_cmd(char *cmdline, char * args, int show)
     }
 }
 
-int flags = FLAG_SYNCAGENT;
-
 int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
     WNDCLASS wndclass;
@@ -2205,6 +2201,7 @@ int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     int argc, i;
     char **argv, **argstart;
 
+    flags = FLAG_SYNCAGENT;
     hinst = inst;
     hwnd = NULL;
 
