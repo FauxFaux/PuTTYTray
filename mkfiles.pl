@@ -633,7 +633,8 @@ if (defined $makefiles{'vc'}) {
       "MAKEFILE = Makefile.vc\n".
       "\n".
       "# C compilation flags\n".
-      "CFLAGS = /nologo /W3 /GS /Zi " .
+      "VC_HARDENING=/GS /Zi\n".
+      "CFLAGS = /nologo /W3 \$(VC_HARDENING) " .
       "/D_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=1 ".
       "/D_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES_MEMORY=1 ".
       "/D_CRT_SECURE_NO_WARNINGS=1 ".
@@ -641,12 +642,14 @@ if (defined $makefiles{'vc'}) {
       " /D_WINDOWS /D_WIN32_WINDOWS=0x500 /DWINVER=0x500\n".
       "LFLAGS = /dynamicbase /nxcompat /debug\n".
       "!if \"\$(DEBUG)\" == \"1\"\n".
-      "CFLAGS=\$(CFLAGS) /Od /DDEBUG /RTC1\n".
+      "VC_HARDENING_LINK=/RTC1\n".
+      "CFLAGS=\$(CFLAGS) /Od /DDEBUG \$(VC_HARDENING_LINK)\n".
       "!else\n".
-      "CFLAGS=\$(CFLAGS) /O1 /GL /Gy\n".
+      "VC_HARDENING_LINK=/GL /Gy\n".
+      "CFLAGS=\$(CFLAGS) /O1 \$(VC_HARDENING_LINK)\n".
       "LFLAGS=\$(LFLAGS) /incremental:no /release /ltcg\n".
       "!endif\n".
-      "RCFLAGS = -DWIN32 -D_WIN32 -DWINVER=0x0400\n".
+      "RCFLAGS = /nologo -DWIN32 -D_WIN32 -DWINVER=0x0400\n".
       "!if \"\$(PROCESSOR_ARCHITECTURE)\" == \"AMD64\"\n".
       "RCFLAGS = \$(RCFLAGS) -D_WIN64=1\n".
       "!endif\n".
