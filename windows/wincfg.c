@@ -90,7 +90,7 @@ static void window_icon_handler(union control *ctrl, void *dlg, void *data, int 
 	if (dlg_pick_icon(dlg, &ipointer, sizeof(iname), &iindex) /*&& iname[0]*/) {
             Filename *filename;
 	    if (iname[0]) {
-		sprintf(buf, "%s,%d", iname, iindex);
+		sprintf(buf, "%s,%lu", iname, iindex);
 	    } else {
 		sprintf(buf, "%s", iname);
 	    }

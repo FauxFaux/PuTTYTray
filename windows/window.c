@@ -1232,7 +1232,8 @@ static void update_mouse_pointer(void)
 	force_visible = TRUE;
 	break;
       default:
-	assert(0);
+        modalfatalbox("impossible busy_status");
+        return;
     }
     {
 	HCURSOR cursor = LoadCursor(NULL, curstype);
@@ -2474,7 +2475,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
                     hIcon = extract_icon(filename_to_str(conf_get_filename(conf, CONF_win_icon)), TRUE);
 		    DestroyIcon(puttyTray.hIcon);
 		    puttyTray.hIcon = hIcon;
-		    SetClassLongPtr(hwnd, GCLP_HICON, extract_icon(filename_to_str(conf_get_filename(conf, CONF_win_icon)), FALSE));
+		    SetClassLongPtr(hwnd, GCLP_HICON, (LONG_PTR)extract_icon(filename_to_str(conf_get_filename(conf, CONF_win_icon)), FALSE));
 		    SetClassLongPtr(hwnd, GCLP_HICONSM, (LONG_PTR)hIcon);
 		} else {
 		    inst = (HINSTANCE) GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
@@ -5958,21 +5959,6 @@ static void init_flashwindow(void)
     GET_WINDOWS_FUNCTION(user32_module, FlashWindowEx);
 }
 
-static BOOL flash_window_ex(DWORD dwFlags, UINT uCount, DWORD dwTimeout)
-{
-    if (p_FlashWindowEx) {
-	FLASHWINFO fi;
-	fi.cbSize = sizeof(fi);
-	fi.hwnd = hwnd;
-	fi.dwFlags = dwFlags;
-	fi.uCount = uCount;
-	fi.dwTimeout = dwTimeout;
-	return (*p_FlashWindowEx)(&fi);
-    }
-    else
-	return FALSE; /* shrug */
-}
-
 static void flash_window(int mode);
 static long next_flash;
 static int flashing = 0;
@@ -6520,7 +6506,8 @@ void tray_updatemenu(BOOL disableMenuItems)
 	mii.fState = MFS_ENABLED;
     }
 
-    SetMenuItemInfo(popup_menus[CTXMENU].menu, specials_menu, FALSE, &mii);
+    // This UINT cast of the specials_menu works, but I don't understand why
+    SetMenuItemInfo(popup_menus[CTXMENU].menu, (UINT)specials_menu, FALSE, &mii);
     SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_PASTE, FALSE, &mii);
     SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_FULLSCREEN, FALSE, &mii);
     SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_RESET, FALSE, &mii);

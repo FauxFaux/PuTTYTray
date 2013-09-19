@@ -173,7 +173,8 @@ void urlhack_set_regular_expression(int mode, const char* expression)
         to_use = urlhack_liberal_regex;
         break;
     default:
-        assert(!"illegal default regex setting");
+        modalfatalbox("illegal default regex setting");
+        return;
     }
 
     is_regexp_compiled = 0;

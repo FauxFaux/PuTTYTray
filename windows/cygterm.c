@@ -416,7 +416,7 @@ Backend cygterm_backend = {
 	cygterm_cfg_info,
 	"cygterm",
 	PROT_CYGTERM,
-	NULL
+        0
 };
 
 
@@ -458,8 +458,8 @@ getRegistry(char *valueData, LPDWORD psize, HKEY key, const char *subKey, const 
 	if (ERROR_SUCCESS != (ret = RegOpenKeyEx(key, subKey, 0, KEY_READ | (use64 ? KEY_WOW64_64KEY : KEY_WOW64_32KEY), &k )))
 		return ret;
 
-	ERROR_SUCCESS == (ret = RegQueryInfoKey(k, 0, 0, 0, 0, 0, 0, 0, 0, psize, 0, 0))
-		&& ERROR_SUCCESS == (ret = RegQueryValueEx(k, valueName, 0, 0, valueData, psize));
+	if (ERROR_SUCCESS == (ret = RegQueryInfoKey(k, 0, 0, 0, 0, 0, 0, 0, 0, psize, 0, 0)))
+	    ret = RegQueryValueEx(k, valueName, 0, 0, valueData, psize);
 
 	RegCloseKey(k);
 	return ret;

@@ -618,7 +618,7 @@ char* joinPath(char* pcDest, char* pcMain, char* pcSuf) {
 	    TOKEN_IMPERSONATE
 
 	    if (0 == (p_ExpandESforUser(NULL, pcSuf, pcBuf,	MAX_PATH))) {
-	    /* JK: failure -> revert back - but it ussualy won't work, so report error to user! *//*
+	    *//* JK: failure -> revert back - but it ussualy won't work, so report error to user! *//*
 		errorShow("Unable to ExpandEnvironmentStringsForUser for session path", pcBuf);
 		strncpy(pcSuf, pcBuf, strlen(pcSuf));
 	    }
@@ -1245,7 +1245,7 @@ char *file_enum_settings_next(void *handle, char *buffer, int buflen)
     
     otherbuf = snewn( (3*buflen)+1, char); /* must be here */
 
-    if (! ((struct enumsettings *)handle)->fromFile ) {
+    if (!e->fromFile) {
 
         /*if (RegEnumKey(e->key, e->i++, otherbuf, 3 * buflen) == ERROR_SUCCESS) {
             unmungestr(otherbuf, buffer, buflen);
@@ -1255,7 +1255,7 @@ char *file_enum_settings_next(void *handle, char *buffer, int buflen)
         }
         else {*/
             /* JK: registry scanning done, starting scanning directory "sessions" */
-            ((struct enumsettings *)handle)->fromFile = 1;
+            e->fromFile = 1;
             GetCurrentDirectory( (MAX_PATH*2), oldpath);
             if (!SetCurrentDirectory(sesspath)) {
                 sfree(otherbuf);
@@ -1272,7 +1272,7 @@ char *file_enum_settings_next(void *handle, char *buffer, int buflen)
             }
             /* JK: a file found */
             if (hFile != INVALID_HANDLE_VALUE && !((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || FindFileData.cFileName[0] == '.')) { // HACK: PUTTY TRAY / PUTTY FILE: Fixed directory check
-                ((struct enumsettings *)handle)->hFile = hFile;
+                e->hFile = hFile;
                 unmungestr(FindFileData.cFileName, buffer, buflen);
                 sfree(otherbuf);
                 /* JK: cut off sessionsuffix */
@@ -1289,8 +1289,8 @@ char *file_enum_settings_next(void *handle, char *buffer, int buflen)
             }
         //}
     }
-    else if ( ((struct enumsettings *)handle)->fromFile ) {
-        if (FindNextFile(((struct enumsettings *)handle)->hFile,&FindFileData) && !((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || FindFileData.cFileName[0] == '.')) { // HACK: PUTTY TRAY / PUTTY FILE: Fixed directory check
+    else if (e->fromFile) {
+        if (FindNextFile(e->hFile,&FindFileData) && !((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || FindFileData.cFileName[0] == '.')) { // HACK: PUTTY TRAY / PUTTY FILE: Fixed directory check
             unmungestr(FindFileData.cFileName, buffer, buflen);
             sfree(otherbuf);
             /* JK: cut off sessionsuffix */
@@ -1741,7 +1741,7 @@ static int transform_jumplist_registry
     int ret;
     HKEY pjumplist_key, psettings_tmp;
     DWORD type;
-    int value_length;
+    DWORD value_length;
     char *old_value, *new_value;
     char *piterator_old, *piterator_new, *piterator_tmp;
 

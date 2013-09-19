@@ -642,7 +642,7 @@ static void internal_mod(BignumInt *a, int alen,
 
     for (i = 0; i <= alen - mlen; i++) {
 	BignumDblInt t;
-	unsigned int q, r, c, ai1;
+	unsigned int q = 0, r = 0, c, ai1;
 
 	if (i == 0) {
 	    h = 0;

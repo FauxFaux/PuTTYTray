@@ -1062,7 +1062,7 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
                 if (cmdline_keygen) {
                     char *dir;
                     strcpy(filename, filename_to_str(cmdline_keygen));
-                    dir = strdup(filename);
+                    dir = _strdup(filename);
                     *strrchr(dir, '\\') = 0;
                     if (ERROR_ALREADY_EXISTS != CreateDirectory(dir, NULL)) {
                         EncryptFile(dir);

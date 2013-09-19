@@ -230,7 +230,7 @@ const char *win_strerror(int error)
                            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                            es->text, bufsize, NULL)) {
             sprintf(es->text,
-                    "Windows error code %d (and FormatMessage returned %d)", 
+                    "Windows error code %d (and FormatMessage returned %lu)", 
                     error, GetLastError());
         } else {
             int len = strlen(es->text);
@@ -555,7 +555,7 @@ HICON extract_icon(const char *iconpath, int smallicon)
 
 	if (comma) {
 	    *comma = '\0';
-	    *comma++;
+	    comma++;
 	    iindex = atoi(comma);
 
 	    ExtractIconEx(iname, iindex, &hiconLarge, &hiconSmall, 1);
