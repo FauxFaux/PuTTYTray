@@ -1966,89 +1966,7 @@ void cleanup_all(void)
      */
 }
 
-void *open_settings_w(const char *sessionname, char **errmsg)
-{
-    if (storagetype == 1) {
-        return file_open_settings_w(sessionname, errmsg);
-    } else {
-        return reg_open_settings_w(sessionname, errmsg);
-    }
-}
-
-void write_setting_s(void *handle, const char *key, const char *value)
-{
-    if (storagetype == 1) {
-        file_write_setting_s(handle, key, value);
-    } else {
-        reg_write_setting_s(handle, key, value);
-    }
-}
-
-void write_setting_i(void *handle, const char *key, int value)
-{
-    if (storagetype == 1) {
-        file_write_setting_i(handle, key, value);
-    } else {
-        reg_write_setting_i(handle, key, value);
-    }
-}
-
-void close_settings_w(void *handle)
-{
-    if (storagetype == 1) {
-        file_close_settings_w(handle);
-    } else {
-        reg_close_settings_w(handle);
-    }
-}
-
-void *open_settings_r(const char *sessionname)
-{
-    if (storagetype == 1) {
-        return file_open_settings_r(sessionname);
-    } else {
-        return reg_open_settings_r(sessionname);
-    }
-}
-
-char *read_setting_s(void *handle, const char *key)
-{
-    if (storagetype == 1) {
-        return file_read_setting_s(handle, key);
-    } else {
-        return reg_read_setting_s(handle, key);
-    }
-}
-
-int read_setting_i(void *handle, const char *key, int defvalue)
-{
-    if (storagetype == 1) {
-        return file_read_setting_i(handle, key, defvalue);
-    } else {
-        return reg_read_setting_i(handle, key, defvalue);
-    }
-}
-
-void close_settings_r(void *handle)
-{
-    if (storagetype == 1) {
-        file_close_settings_r(handle);
-    } else {
-        reg_close_settings_r(handle);
-    }
-}
-
-void del_settings(const char *sessionname)
-{
-    if (storagetype == 1) {
-        file_del_settings(sessionname);
-    } else {
-        reg_del_settings(sessionname);
-    }
-}
-
-void *enum_settings_start(enum storage_t new_storagetype)
-{
+void *enum_settings_start(enum storage_t new_storagetype) {
     storagetype = new_storagetype;
 
     if (storagetype == STORAGE_FILE) {
@@ -2058,40 +1976,73 @@ void *enum_settings_start(enum storage_t new_storagetype)
     }
 }
 
-char *enum_settings_next(void *handle, char *buffer, int buflen)
-{
-    if (storagetype == 1) {
-        return file_enum_settings_next(handle, buffer, buflen);
-    } else {
-        return reg_enum_settings_next(handle, buffer, buflen);
-    }
+#define CONCAT(...) __VA_ARGS__
+
+#define STORAGE_TYPE_SWITCHER_FULL(has_return, return_t, method, types, calls) \
+return_t method(types) { \
+    if (storagetype == STORAGE_FILE) { \
+        has_return file_##method(calls); \
+    } else { \
+        has_return reg_##method(calls); \
+    } \
 }
 
-void enum_settings_finish(void *handle)
-{
-    if (storagetype == 1) {
-        file_enum_settings_finish(handle);
-    } else {
-        reg_enum_settings_finish(handle);
-    }
-}
+#define STORAGE_TYPE_SWITCHER(return_t, method, types, calls) \
+    STORAGE_TYPE_SWITCHER_FULL(return, return_t, method, types, calls)
 
-int verify_host_key(const char *hostname, int port,
-            const char *keytype, const char *key)
-{
-    if (storagetype == 1) {
-        return file_verify_host_key(hostname, port, keytype, key);
-    } else {
-        return reg_verify_host_key(hostname, port, keytype, key);
-    }
-}
+#define STORAGE_TYPE_SWITCHER_VOID(method, types, calls) \
+    STORAGE_TYPE_SWITCHER_FULL(      , void, method, types, calls)
 
-void store_host_key(const char *hostname, int port,
-            const char *keytype, const char *key)
-{
-    if (storagetype == 1) {
-        file_store_host_key(hostname, port, keytype, key);
-    } else {
-        reg_store_host_key(hostname, port, keytype, key);
-    }
-}
+STORAGE_TYPE_SWITCHER(void *, open_settings_w,
+    CONCAT(const char *sessionname, char **errmsg),
+    CONCAT(sessionname, errmsg))
+
+STORAGE_TYPE_SWITCHER_VOID(write_setting_s,
+    CONCAT(void *handle, const char *key, const char *value),
+    CONCAT(handle, key, value))
+
+STORAGE_TYPE_SWITCHER_VOID(write_setting_i,
+    CONCAT(void *handle, const char *key, int value),
+    CONCAT(handle, key, value))
+
+STORAGE_TYPE_SWITCHER_VOID(close_settings_w,
+    CONCAT(void *handle),
+    CONCAT(handle))
+
+STORAGE_TYPE_SWITCHER(void *, open_settings_r,
+    CONCAT(const char *sessionname),
+    CONCAT(sessionname))
+
+STORAGE_TYPE_SWITCHER(char *, read_setting_s,
+    CONCAT(void *handle, const char *key),
+    CONCAT(handle, key))
+
+STORAGE_TYPE_SWITCHER(int, read_setting_i,
+    CONCAT(void *handle, const char *key, int defvalue),
+    CONCAT(handle, key, defvalue))
+
+STORAGE_TYPE_SWITCHER_VOID(close_settings_r,
+    CONCAT(void *handle),
+    CONCAT(handle))
+
+STORAGE_TYPE_SWITCHER_VOID(del_settings,
+    CONCAT(const char *sessionname),
+    CONCAT(sessionname))
+
+STORAGE_TYPE_SWITCHER(char*, enum_settings_next,
+    CONCAT(void *handle, char *buffer, int buflen),
+    CONCAT(      handle,       buffer,     buflen))
+
+STORAGE_TYPE_SWITCHER_VOID(enum_settings_finish,
+    CONCAT(void *handle),
+    CONCAT(      handle))
+
+STORAGE_TYPE_SWITCHER(int, verify_host_key,
+    CONCAT(const char *hostname, int port,
+            const char *keytype, const char *key),
+    CONCAT(hostname, port, keytype, key))
+
+STORAGE_TYPE_SWITCHER_VOID(store_host_key,
+    CONCAT(const char *hostname, int port,
+            const char *keytype, const char *key),
+    CONCAT(hostname, port, keytype, key))
