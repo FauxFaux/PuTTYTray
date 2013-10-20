@@ -355,6 +355,8 @@ static void start_backend(void)
      */
     for (i = 0; i < lenof(popup_menus); i++) {
 	DeleteMenu(popup_menus[i].menu, IDM_RESTART, MF_BYCOMMAND);
+        InsertMenu(popup_menus[i].menu, IDM_DUPSESS, MF_BYCOMMAND | MF_ENABLED,
+	    IDM_RESTART, "&Restart Session");
     }
 
     must_close_session = FALSE;
@@ -2374,12 +2376,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    }
 	    break;
 	  case IDM_RESTART:
-	    if (!back) {
-		logevent(NULL, "----- Session restarted -----");
-		term_pwron(term, FALSE);
-		start_backend();
-	    }
-
+	    if (back) {
+                close_session();
+            }
+            logevent(NULL, "----- Session restarted -----");
+            term_pwron(term, FALSE);
+            start_backend();
 	    break;
 	  case IDM_RECONF:
 	    {
