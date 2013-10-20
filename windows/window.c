@@ -2244,6 +2244,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	 * HACK: PuttyTray / Nutty
 	 */ 
 	POINT cursor_pt;
+    static UINT msgTaskbarCreated = 0;
 
     switch (message) {
       case WM_TIMER:
@@ -2258,6 +2259,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	}
 	return 0;
       case WM_CREATE:
+        msgTaskbarCreated = RegisterWindowMessage("TaskbarCreated");
 	break;
       case WM_CLOSE:
 	{
@@ -3709,6 +3711,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    }
 	    return 0;
 	}
+        if (message==msgTaskbarCreated) {
+            /*
+	     * Explorer has been restarted, so the tray icon will
+	     * have been lost.
+	     */
+            if (puttyTrayVisible) {
+                puttyTrayVisible = FALSE;
+                taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
+            }
+            return 0;
+        }
+
     }
 
     /*
