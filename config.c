@@ -1432,27 +1432,10 @@ void setup_config_box(struct controlbox *b, int midsession,
     }
     ctrl_columns(s, 1, 100);
 
-    /*
-     * HACK: PuttyTray / PuTTY File
-     * Add radio buttons
-     *
-     * Couldn't get the default selection to switch, so I switched the button position instead.
-     * Must be the lamest solution I ever came up with.
-     *
-     * In midsession, changing causes it to be reversed again (wrong). So don't.
-     */
-    if (midsession || current_storagetype == 0) {
-        c = ctrl_radiobuttons(s, NULL, 'f', 2,
-                            HELPCTX(no_help),
-                            storagetype_handler,
-                            P(ssd), "Sessions from registry", I(0), "Sessions from file", I(1), NULL);
-    } else {
-        c = ctrl_radiobuttons(s, NULL, 'f', 2,
-                            HELPCTX(no_help),
-                            storagetype_handler,
-                            P(ssd), "Sessions from file", I(1), "Sessions from registry", I(0), NULL);
-    }
-    /** HACK: END **/
+    c = ctrl_radiobuttons(s, NULL, 'f', 2,
+                        HELPCTX(no_help),
+                        storagetype_handler,
+                        P(ssd), "Sessions from registry", I(0), "Sessions from file", I(1), NULL);
 
     s = ctrl_getset(b, "Session", "otheropts", NULL);
     ctrl_radiobuttons(s, "Close window on exit:", 'x', 4,

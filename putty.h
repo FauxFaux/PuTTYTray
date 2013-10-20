@@ -991,6 +991,7 @@ void registry_cleanup(void);
  */
 void do_defaults_file(char *, Conf *);
 void do_defaults_then_file(char *, Conf *);
+void do_defaults_after_detection(char *session, Conf *conf);
 void load_settings_file(char *section, Conf * cfg);
 
 /*

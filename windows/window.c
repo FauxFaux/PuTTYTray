@@ -495,7 +495,7 @@ int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	}
 	conf_set_int(conf, CONF_logtype, LGTYP_NONE);
 
-	do_defaults(NULL, conf);
+        do_defaults_after_detection(NULL, conf);
 
 	p = cmdline;
 

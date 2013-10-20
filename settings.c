@@ -80,6 +80,8 @@ const char* urlhack_liberal_regex =
     ")"
     ;
 
+BOOL session_have_any_in_registry();
+
 /*
  * Convenience functions to access the backends[] array
  * (which is only present in tools that manage settings).
@@ -1085,6 +1087,18 @@ void do_defaults_file(char *session, Conf * cfg)
     load_settings_file(session, cfg);
 }
 
+/** Guess what storagetype we actually want (in the same way as get_sesslist does,
+  but without sharing code (for now), store it in the conf, and call the right do_defaults method */
+void do_defaults_after_detection(char *session, Conf *conf) {
+    enum storage_t st = session_have_any_in_registry() ? STORAGE_REG : STORAGE_FILE;
+    conf_set_int(conf, CONF_session_storagetype, st);
+    if (st == STORAGE_REG) {
+        do_defaults(session, conf);
+    } else {
+        do_defaults_file(session, conf);
+    }
+}
+
 /** Load from registry, and, if that doesn't make it launchable, load from the file */
 void do_defaults_then_file(char *session, Conf *conf)
 {
@@ -1113,13 +1127,29 @@ static int sessioncmp(const void *av, const void *bv)
     return strcmp(a, b);	       /* otherwise, compare normally */
 }
 
+enum {
+    OTHERBUF_SIZE = 2048
+};
+
+BOOL session_have_any_in_registry() {
+    char otherbuf[OTHERBUF_SIZE];
+    char *result;
+    void *handle = enum_settings_start(STORAGE_REG);
+    if (handle == NULL)
+        return FALSE;
+
+    result = enum_settings_next(handle, otherbuf, sizeof(otherbuf));
+    enum_settings_finish(handle);
+    return !!result;
+}
+
 /*
  * HACK: PuttyTray / PuTTY File
  * Updated get_sesslist with storagetype
  */
 int get_sesslist(struct sesslist *list, int allocate, int storagetype) // HACK: PuTTYTray / PuTTY File - changed return type
 {
-    char otherbuf[2048];
+    char otherbuf[OTHERBUF_SIZE];
     int buflen, bufsize, i;
     char *p, *ret;
     void *handle;

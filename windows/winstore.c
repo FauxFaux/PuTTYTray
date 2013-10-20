@@ -34,7 +34,7 @@ DECL_WINDOWS_FUNCTION(static, HRESULT, SHGetFolderPathA,
 		      (HWND, int, HANDLE, DWORD, LPSTR));
 
 // PUTTY Tray / PuTTY File - global storage type
-static int storagetype = 0;	// 0 = registry, 1 = file
+static enum storage_t storagetype = STORAGE_REG;
 
 static char seedpath[2 * MAX_PATH + 10] = "\0";
 static char sesspath[2 * MAX_PATH] = "\0";
@@ -56,7 +56,7 @@ struct setPack {
 };
 
 
-void set_storagetype(int new_storagetype)
+void set_storagetype(enum storage_t new_storagetype)
 {
     storagetype = new_storagetype;
 }
@@ -2047,11 +2047,11 @@ void del_settings(const char *sessionname)
     }
 }
 
-void *enum_settings_start(int new_storagetype)
+void *enum_settings_start(enum storage_t new_storagetype)
 {
     storagetype = new_storagetype;
 
-    if (storagetype == 1) {
+    if (storagetype == STORAGE_FILE) {
         return file_enum_settings_start();
     } else {
         return reg_enum_settings_start();
