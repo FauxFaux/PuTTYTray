@@ -346,15 +346,6 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     }
 
     /*
-     * RTF paste is Windows-specific.
-     */
-    s = ctrl_getset(b, "Window/Selection", "format",
-		    "Formatting of pasted characters");
-    ctrl_checkbox(s, "Paste to clipboard in RTF as well as plain text", 'f',
-		  HELPCTX(selection_rtf),
-		  conf_checkbox_handler, I(CONF_rtf_paste));
-
-    /*
      * Windows often has no middle button, so we supply a selection
      * mode in which the more critical Paste action is available on
      * the right button instead.
@@ -377,6 +368,11 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     c = s->ctrls[s->ncontrols-1];      /* this should be the new control */
     memmove(s->ctrls+1, s->ctrls, (s->ncontrols-1)*sizeof(union control *));
     s->ctrls[0] = c;
+
+    ctrl_checkbox(s, "Paste to clipboard in RTF as well as plain text", 'f',
+		HELPCTX(selection_rtf),
+		conf_checkbox_handler, I(CONF_rtf_paste));
+
 
     /*
      * Logical palettes don't even make sense anywhere except Windows.
