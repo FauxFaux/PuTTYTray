@@ -971,6 +971,8 @@ void noise_ultralight(unsigned long data);
 void random_save_seed(void);
 void random_destroy_seed(void);
 
+enum storage_t;
+
 /*
  * Exports from settings.c.
  */
@@ -982,6 +984,7 @@ void save_open_settings(void *sesskey, Conf *conf);
 void load_settings(char *section, Conf *conf);
 void load_open_settings(void *sesskey, Conf *conf);
 int get_sesslist(struct sesslist *, int allocate, int storagetype);
+int get_sesslist_autoswitch(struct sesslist *list, int allocate, enum storage_t storagetype, BOOL autoswitch);
 void do_defaults(char *, Conf *);
 void registry_cleanup(void);
 
@@ -1328,7 +1331,7 @@ void conf_filesel_handler(union control *ctrl, void *dlg,
 void conf_fontsel_handler(union control *ctrl, void *dlg,
 			  void *data, int event);
 void setup_config_box(struct controlbox *b, int midsession,
-		      int protocol, int protcfginfo, int session_storagetype);
+		      int protocol, int protcfginfo, enum storage_t session_storagetype);
 
 /*
  * Exports from minibidi.c.

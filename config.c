@@ -1292,7 +1292,7 @@ static void portfwd_handler(union control *ctrl, void *dlg,
 }
 
 void setup_config_box(struct controlbox *b, int midsession,
-                     int protocol, int protcfginfo, int session_storagetype)
+                     int protocol, int protcfginfo, enum storage_t session_storagetype)
 {
     struct controlset *s;
     struct sessionsaver_data *ssd;
@@ -1389,7 +1389,7 @@ void setup_config_box(struct controlbox *b, int midsession,
     ctrl_columns(s, 2, 75, 25);
 
     // HACK: PuttyTray / PuTTY File - The +2 triggers storagetype autoswitching
-    current_storagetype = get_sesslist(&ssd->sesslist, TRUE, session_storagetype + (midsession ? 0 : 2));
+    current_storagetype = get_sesslist_autoswitch(&ssd->sesslist, TRUE, session_storagetype, !midsession);
 
     ssd->editbox = ctrl_editbox(s, "Saved Sessions", 'e', 100,
                                 HELPCTX(session_saved),

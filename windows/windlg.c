@@ -641,7 +641,7 @@ int do_config(void)
     int ret;
 
     ctrlbox = ctrl_new_box();
-    setup_config_box(ctrlbox, FALSE, 0, 0, 0); // HACK: PuttyTray / PuTTY File, Added 0 for 'int session_storagetype'
+    setup_config_box(ctrlbox, FALSE, 0, 0, STORAGE_REG);
     win_setup_config_box(ctrlbox, &dp.hwnd, has_help(), FALSE, 0);
     dp_init(&dp);
     winctrl_init(&ctrls_base);

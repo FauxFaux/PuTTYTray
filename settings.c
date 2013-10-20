@@ -1143,25 +1143,14 @@ BOOL session_have_any_in_registry() {
     return !!result;
 }
 
-/*
- * HACK: PuttyTray / PuTTY File
- * Updated get_sesslist with storagetype
- */
-int get_sesslist(struct sesslist *list, int allocate, int storagetype) // HACK: PuTTYTray / PuTTY File - changed return type
+int get_sesslist_autoswitch(struct sesslist *list, int allocate, enum storage_t storagetype, BOOL autoswitch)
 {
     char otherbuf[OTHERBUF_SIZE];
     int buflen, bufsize, i;
     char *p, *ret;
     void *handle;
 	
-    // HACK: PUTTY FILE
-    int autoswitch = 0;
-    if (storagetype > 1) {
-	storagetype = storagetype - 2;
-	autoswitch = 1;
-    }
-
-    if (allocate) {
+     if (allocate) {
 	buflen = bufsize = 0;
 	list->buffer = NULL;
 	if ((handle = enum_settings_start(storagetype)) != NULL) { // HACK: PuTTYTray / PuTTY File - storagetype
@@ -1264,4 +1253,8 @@ int get_sesslist(struct sesslist *list, int allocate, int storagetype) // HACK: 
      * Return storagetype
      */
     return storagetype;
+}
+
+int get_sesslist(struct sesslist *list, int allocate, enum storage_t storagetype) {
+    return get_sesslist_autoswitch(list, allocate, storagetype, FALSE);
 }
