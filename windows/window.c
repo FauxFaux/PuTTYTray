@@ -968,7 +968,7 @@ int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	memset(&mi, 0, sizeof(MENUINFO));
 	mi.cbSize = sizeof(MENUINFO);
 	mi.fMask = MIM_STYLE;
-	mi.dwStyle = MNS_NOCHECK | MNS_AUTODISMISS;
+	mi.dwStyle = MNS_AUTODISMISS;
 	SetMenuInfo(popup_menus[CTXMENU].menu, &mi);
     }
 
