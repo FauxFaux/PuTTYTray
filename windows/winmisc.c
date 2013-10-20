@@ -173,6 +173,11 @@ HMODULE load_system32_dll(const char *libname)
     return ret;
 }
 
+void exec_browser(char *url)
+{
+    ShellExecute(NULL, NULL, url, NULL, NULL, SW_SHOWNORMAL);
+}
+
 /*
  * A tree234 containing mappings from system error codes to strings.
  */

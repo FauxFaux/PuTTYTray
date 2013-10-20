@@ -1,0 +1,27 @@
+#include "rcstuff.h"
+
+#define APPNAME "Plink without a console"
+#define APPDESC "Command-line SSH, Telnet, and Rlogin client without a console"
+
+200 ICON "putty.ico"
+201 ICON "puttyd.ico"
+
+101 DIALOG DISCARDABLE  0, 0, 200, 70
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+CAPTION "plinkw"
+FONT 9, "MS Shell Dlg"
+BEGIN
+END
+
+102 DIALOG DISCARDABLE  0, 0, 254, 129
+STYLE DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "plinkw"
+FONT 9, "MS Shell Dlg"
+BEGIN
+    LISTBOX         103,0,0,254,129,NOT LBS_NOTIFY | LBS_EXTENDEDSEL | 
+                    LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+END
+
+1 RT_MANIFEST "putty.mft"
+
+#include "version.rc2"

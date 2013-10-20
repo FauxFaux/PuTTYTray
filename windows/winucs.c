@@ -392,6 +392,22 @@ struct cp_list_item {
 static const struct cp_list_item cp_list[] = {
     {"UTF-8", CP_UTF8},
 
+    {"UTF-8 (CJK)", CP_UTF8},
+    {"UTF-8 (Non-CJK)", CP_UTF8},
+
+    {"EUC-JP", CP_UTF8},
+    {"ISO-2022-JP", CP_UTF8},
+    {"MS_Kanji", CP_UTF8},
+    {"Shift_JIS", CP_UTF8},
+    {"EUC-KR", CP_UTF8},
+    {"Big5", CP_UTF8},
+    {"EUC-CN", CP_UTF8},
+
+    {"UTF-8/Auto-Detect Japanese", CP_UTF8},
+    {"EUC-JP/Auto-Detect Japanese", CP_UTF8},
+    {"MS_Kanji/Auto-Detect Japanese", CP_UTF8},
+    {"Shift_JIS/Auto-Detect Japanese", CP_UTF8},
+
     {"ISO-8859-1:1998 (Latin-1, West Europe)", 0, 96, iso_8859_1},
     {"ISO-8859-2:1999 (Latin-2, East Europe)", 0, 96, iso_8859_2},
     {"ISO-8859-3:1999 (Latin-3, South Europe)", 0, 96, iso_8859_3},
@@ -450,6 +466,8 @@ void init_ucs(Conf *conf, struct unicode_data *ucsdata)
     /* Decide on the Line and Font codepages */
     ucsdata->line_codepage = decode_codepage(conf_get_str(conf,
 							  CONF_line_codepage));
+    ucsdata->iso2022 = !iso2022_init (&ucsdata->iso2022_data, 
+                                      conf_get_str(conf, CONF_line_codepage), 1);
 
     if (ucsdata->font_codepage <= 0) { 
 	ucsdata->font_codepage=0; 
@@ -576,7 +594,7 @@ void init_ucs(Conf *conf, struct unicode_data *ucsdata)
 	link_font(ucsdata->unitab_xterm, ucsdata->unitab_oemcp, CSET_OEMCP);
     }
 
-    if (ucsdata->dbcs_screenfont &&
+    if (!conf_get_int(conf, CONF_use_5casis) && ucsdata->dbcs_screenfont &&
 	ucsdata->font_codepage != ucsdata->line_codepage) {
 	/* F***ing Microsoft fonts, Japanese and Korean codepage fonts
 	 * have a currency symbol at 0x5C but their unicode value is 
@@ -1018,6 +1036,11 @@ int decode_codepage(char *cp_name)
 
     if (!cp_name || !*cp_name)
         return CP_UTF8;                /* default */
+
+    if (cp_name && *cp_name) {
+	if (!iso2022_init_test (cp_name))
+	    cp_name = "UTF-8";
+    }
 
     for (cpi = cp_list; cpi->name; cpi++) {
         s = cp_name;

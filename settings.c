@@ -551,6 +551,8 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "CRImpliesLF", conf_get_int(conf, CONF_crhaslf));
     write_setting_i(sesskey, "DisableArabicShaping", conf_get_int(conf, CONF_arabicshaping));
     write_setting_i(sesskey, "DisableBidi", conf_get_int(conf, CONF_bidi));
+    write_setting_i(sesskey, "ClipModify", conf_get_int(conf, CONF_clip_modify));
+    write_setting_i(sesskey, "ClipQuery", conf_get_int(conf, CONF_clip_query));
     write_setting_i(sesskey, "WinNameAlways", conf_get_int(conf, CONF_win_name_always));
     write_setting_s(sesskey, "WinTitle", conf_get_str(conf, CONF_wintitle));
     write_setting_i(sesskey, "TermWidth", conf_get_int(conf, CONF_width));
@@ -564,7 +566,7 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "Xterm256Colour", conf_get_int(conf, CONF_xterm_256_colour));
     write_setting_i(sesskey, "BoldAsColour", conf_get_int(conf, CONF_bold_style)-1);
 
-    for (i = 0; i < 22; i++) {
+    for (i = 0; i < NCFGCOLOURS; i++) {
 	char buf[20], buf2[30];
 	sprintf(buf, "Colour%d", i);
 	sprintf(buf2, "%d,%d,%d",
@@ -636,6 +638,53 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "SerialParity", conf_get_int(conf, CONF_serparity));
     write_setting_i(sesskey, "SerialFlowControl", conf_get_int(conf, CONF_serflow));
     write_setting_s(sesskey, "WindowClass", conf_get_str(conf, CONF_winclass));
+    /* HACK: PuttyTray / Reconnect */
+    write_setting_i(sesskey, "WakeupReconnect", conf_get_int(conf, CONF_wakeup_reconnect));
+    write_setting_i(sesskey, "FailureReconnect", conf_get_int(conf, CONF_failure_reconnect));
+    /* gotta ni */
+    write_setting_i(sesskey, "AltMetaBit", conf_get_int(conf, CONF_alt_metabit));
+    write_setting_i(sesskey, "CtrlTabSwitch", conf_get_int(conf, CONF_ctrl_tab_switch));
+    write_setting_i(sesskey, "RightAltKey", conf_get_int(conf, CONF_rightaltkey));
+    write_setting_i(sesskey, "Use5Casis", conf_get_int(conf, CONF_use_5casis));
+    write_setting_filename(sesskey, "IconFile", conf_get_filename(conf, CONF_iconfile));
+    /* iceiv */
+    write_setting_i(sesskey, "TermX", conf_get_int(conf, CONF_x));
+    write_setting_i(sesskey, "TermY", conf_get_int(conf, CONF_y));
+    write_setting_s(sesskey, "IgnoreChars", conf_get_str(conf, CONF_ignore_chars));
+    /* Hyperlink */
+    write_setting_i(sesskey, "HyperlinkEnable", conf_get_int(conf, CONF_url_enable));
+    write_setting_i(sesskey, "HyperlinkUnderline", conf_get_int(conf, CONF_url_underline));
+    write_setting_i(sesskey, "HyperlinkUseCtrlClick", conf_get_int(conf, CONF_url_ctrl_click));
+    /* Background */
+    for (i = 0; i < 4; i++) {
+	static const int CONF_alphas_pc[4][2] = {
+	    CONF_alphas_pc_cursor_active,
+	    CONF_alphas_pc_cursor_inactive,
+	    CONF_alphas_pc_defauly_fg_active,
+	    CONF_alphas_pc_defauly_fg_inactive,
+	    CONF_alphas_pc_degault_bg_active,
+	    CONF_alphas_pc_degault_bg_inactive,
+	    CONF_alphas_pc_bg_active,
+	    CONF_alphas_pc_bg_inactive
+	};
+	char buf[16], buf2[16];
+	sprintf(buf, "Alpha%d", i);
+	sprintf(buf2, "%d,%d",
+		conf_get_int(conf, CONF_alphas_pc[i][0]),
+		conf_get_int(conf, CONF_alphas_pc[i][1]));
+	write_setting_s(sesskey, buf, buf2);
+    }
+    write_setting_i(sesskey, "BackgroundWallpaper", conf_get_int(conf, CONF_bg_wallpaper));
+    write_setting_i(sesskey, "BackgroundEffect", conf_get_int(conf, CONF_bg_effect));
+    write_setting_filename(sesskey, "WallpaperFile", conf_get_filename(conf, CONF_wp_file));
+    write_setting_i(sesskey, "WallpaperPosition", conf_get_int(conf, CONF_wp_position));
+    write_setting_i(sesskey, "WallpaperAlign", conf_get_int(conf, CONF_wp_align));
+    write_setting_i(sesskey, "WallpaperVerticalAlign", conf_get_int(conf, CONF_wp_valign));
+    write_setting_i(sesskey, "WallpaperMoving", conf_get_int(conf, CONF_wp_moving));
+    /* ADB */
+    write_setting_s(sesskey, "AdbPort", conf_get_str(conf, CONF_adb_transport));
+    write_setting_i(sesskey, "AdbStart", conf_get_int(conf, CONF_adb_start));
+    write_setting_i(sesskey, "AdbKill", conf_get_int(conf, CONF_adb_kill));
 }
 
 void load_settings(char *section, Conf *conf)
@@ -855,6 +904,8 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "CRImpliesLF", 0, conf, CONF_crhaslf);
     gppi(sesskey, "DisableArabicShaping", 0, conf, CONF_arabicshaping);
     gppi(sesskey, "DisableBidi", 0, conf, CONF_bidi);
+    gppi(sesskey, "ClipModify", 0, conf, CONF_clip_modify);
+    gppi(sesskey, "ClipQuery", 0, conf, CONF_clip_query);
     gppi(sesskey, "WinNameAlways", 1, conf, CONF_win_name_always);
     gpps(sesskey, "WinTitle", "", conf, CONF_wintitle);
     gppi(sesskey, "TermWidth", 80, conf, CONF_width);
@@ -868,13 +919,14 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "Xterm256Colour", 1, conf, CONF_xterm_256_colour);
     i = gppi_raw(sesskey, "BoldAsColour", 0); conf_set_int(conf, CONF_bold_style, i+1);
 
-    for (i = 0; i < 22; i++) {
+    for (i = 0; i < NCFGCOLOURS; i++) {
 	static const char *const defaults[] = {
 	    "187,187,187", "255,255,255", "0,0,0", "85,85,85", "0,0,0",
 	    "0,255,0", "0,0,0", "85,85,85", "187,0,0", "255,85,85",
 	    "0,187,0", "85,255,85", "187,187,0", "255,255,85", "0,0,187",
 	    "85,85,255", "187,0,187", "255,85,255", "0,187,187",
-	    "85,255,255", "187,187,187", "255,255,255"
+	    "85,255,255", "187,187,187", "255,255,255",
+	    "0,0,0", "255,0,0"
 	};
 	char buf[20], *buf2;
 	int c0, c1, c2;
@@ -922,7 +974,11 @@ void load_open_settings(void *sesskey, Conf *conf)
      * The empty default for LineCodePage will be converted later
      * into a plausible default for the locale.
      */
-    gpps(sesskey, "LineCodePage", "", conf, CONF_line_codepage);
+    {
+      char buf[32];
+      get_l10n_setting("_LINECODEPAGE_", buf, sizeof(buf));
+      gpps(sesskey, "LineCodePage", buf, conf, CONF_line_codepage);
+    }
     gppi(sesskey, "CJKAmbigWide", 0, conf, CONF_cjk_ambig_wide);
     gppi(sesskey, "UTF8Override", 1, conf, CONF_utf8_override);
     gpps(sesskey, "Printer", "", conf, CONF_printer);
@@ -978,7 +1034,76 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "SerialParity", SER_PAR_NONE, conf, CONF_serparity);
     gppi(sesskey, "SerialFlowControl", SER_FLOW_XONXOFF, conf, CONF_serflow);
     gpps(sesskey, "WindowClass", "", conf, CONF_winclass);
-}
+    /* HACK: PuttyTray / Reconnect */
+    gppi(sesskey, "WakeupReconnect", 0, conf, CONF_wakeup_reconnect);
+    gppi(sesskey, "FailureReconnect", 0, conf, CONF_failure_reconnect);
+    /* gotta ni */
+    gppi(sesskey, "AltMetaBit", 0, conf, CONF_alt_metabit);
+    gppi(sesskey, "CtrlTabSwitch", 0, conf, CONF_ctrl_tab_switch);
+    gppi(sesskey, "RightAltKey", 0, conf, CONF_rightaltkey);
+    gppi(sesskey, "Use5Casis", 0, conf, CONF_use_5casis);
+    gppfile(sesskey, "IconFile", conf, CONF_iconfile);
+    /* iceiv */
+    for (i = 0; i < 256; i++) {
+	char tmp[16];
+	char *buf;
+	sprintf(tmp, "VKey%d", i);
+	buf = gpps_raw(sesskey, tmp, "");
+	conf_set_str_str(conf, CONF_pvkey_str, tmp, buf);
+	sfree(buf);
+    }
+    gppi(sesskey, "TermX", CW_USEDEFAULT, conf, CONF_x);
+    gppi(sesskey, "TermY", CW_USEDEFAULT, conf, CONF_y);
+    gpps(sesskey, "IgnoreChars", "", conf, CONF_ignore_chars);
+    /* Hyperlink */
+    gppi(sesskey, "HyperlinkEnable", 1, conf, CONF_url_enable);
+    gppi(sesskey, "HyperlinkUnderline", 1, conf, CONF_url_underline);
+    gppi(sesskey, "HyperlinkUseCtrlClick", 1, conf, CONF_url_ctrl_click);
+    /* Background */
+    for (i = 0; i < 4; i++) {
+	static const char *const defaults[] = {
+	    "100,100", "100,100", "100,100", "100,100"
+	};
+	static const int CONF_alphas_pc[4][2] = {
+	    CONF_alphas_pc_cursor_active,
+	    CONF_alphas_pc_cursor_inactive,
+	    CONF_alphas_pc_defauly_fg_active,
+	    CONF_alphas_pc_defauly_fg_inactive,
+	    CONF_alphas_pc_degault_bg_active,
+	    CONF_alphas_pc_degault_bg_inactive,
+	    CONF_alphas_pc_bg_active,
+	    CONF_alphas_pc_bg_inactive
+	};
+	char buf[16];
+	char *buf2;
+	int c0 = 100;
+	int c1 = 100;
+	sprintf(buf, "Alpha%d", i);
+	buf2 = gpps_raw(sesskey, buf, defaults[i]);
+	if (sscanf(buf2, "%d,%d", &c0, &c1)) {
+	    if (c0 > 100) {
+		c0 = 100;
+	    }
+	    if (c1 > 100) {
+		c1 = 100;
+	    }
+	    conf_set_int(conf, CONF_alphas_pc[i][0], c0);
+	    conf_set_int(conf, CONF_alphas_pc[i][1], c1);
+	}
+	sfree(buf2);
+    }
+    gppi(sesskey, "BackgroundWallpaper", 0, conf, CONF_bg_wallpaper);
+    gppi(sesskey, "BackgroundEffect", 0, conf, CONF_bg_effect);
+    gppfile(sesskey, "WallpaperFile", conf, CONF_wp_file);
+    gppi(sesskey, "WallpaperPosition", 0, conf, CONF_wp_position);
+    gppi(sesskey, "WallpaperAlign", 0, conf, CONF_wp_align);
+    gppi(sesskey, "WallpaperVerticalAlign", 0, conf, CONF_wp_valign);
+    gppi(sesskey, "WallpaperMoving", 0, conf, CONF_wp_moving);
+    /* ADB */
+    gpps(sesskey, "AdbPort", "transport-usb", conf, CONF_adb_transport);
+    gppi(sesskey, "AdbStart", 1, conf, CONF_adb_start);
+    gppi(sesskey, "AdbKill", 1, conf, CONF_adb_kill);
+ }
 
 void do_defaults(char *session, Conf *conf)
 {

@@ -3,7 +3,9 @@
 #define APPNAME "PuTTY"
 #define APPDESC "SSH, Telnet and Rlogin client"
 
+#pragma code_page(65001)
 #include "win_res.rc2"
+#pragma code_page(DEFAULT)
 
 #ifndef NO_MANIFESTS
 1 RT_MANIFEST "putty.mft"

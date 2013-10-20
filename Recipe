@@ -215,6 +215,8 @@ RCFLAGS += $(VER)
 !forceobj psftp.res
 !forceobj pageant.res
 !forceobj puttygen.res
+!forceobj pfwd.res
+!forceobj plinkw.res
 
 # `make install' target for Unix.
 !begin gtk
@@ -289,11 +291,14 @@ GUITERM  = TERMINAL window windlg winctrls sizetip winucs winprint
 
 # Same thing on Unix.
 UXTERM   = TERMINAL uxcfg sercfg uxucs uxprint timing
+         + uxl10n
 GTKTERM  = UXTERM gtkwin gtkcfg gtkdlg gtkfont gtkcols xkeysym
 OSXTERM  = UXTERM osxwin osxdlg osxctrls
 
 # Non-SSH back ends (putty, puttytel, plink).
 NONSSH   = telnet raw rlogin ldisc pinger
+         + iso2022 wcwidth
+         + adb
 
 # SSH back end (putty, plink, pscp, psftp).
 SSH      = ssh sshcrc sshdes sshmd5 sshrsa sshrand sshsha sshblowf
@@ -320,6 +325,7 @@ CHARSET  = sbcsdat slookup sbcs utf8 toucs fromucs xenc mimeenc macenc localenc
 # Standard libraries.
 LIBS     = advapi32.lib user32.lib gdi32.lib comctl32.lib comdlg32.lib
          + shell32.lib winmm.lib imm32.lib winspool.lib ole32.lib
+         + msimg32.lib
 
 # Network backend sets. This also brings in the relevant attachment
 # to proxy.c depending on whether we're crypto-avoidant or not.
@@ -341,26 +347,40 @@ U_BE_NOSSH = be_nos_s uxser nocproxy
 # X/GTK Unix app, [U] for command-line Unix app.
 
 putty    : [G] GUITERM NONSSH WINSSH W_BE_ALL WINMISC winx11 putty.res LIBS
+         + winl10n
 puttytel : [G] GUITERM NONSSH W_BE_NOSSH WINMISC puttytel.res nogss LIBS
+         + winl10n
 plink    : [C] winplink wincons NONSSH WINSSH W_BE_ALL logging WINMISC
          + winx11 plink.res winnojmp LIBS
+         + winl10ndummy
+plinkw   : [G] winplinkw winconsw NONSSH WINSSH W_BE_ALL logging WINMISC
+         + winx11 plinkw.res winnojmp LIBS
+         + winl10n
 pscp     : [C] pscp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
          + pscp.res winnojmp LIBS
+         + winl10ndummy
 psftp    : [C] psftp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
          + psftp.res winnojmp LIBS
+         + winl10ndummy
 
 pageant  : [G] winpgnt sshrsa sshpubk sshdes sshbn sshmd5 version tree234
          + misc sshaes sshsha winpgntc sshdss sshsh256 sshsh512 winutils
          + winmisc winhelp conf pageant.res LIBS
+         + winl10n
 
 puttygen : [G] winpgen sshrsag sshdssg sshprime sshdes sshbn sshmd5 version
          + sshrand winnoise sshsha winstore misc winctrls sshrsa sshdss winmisc
          + sshpubk sshaes sshsh256 sshsh512 import winutils puttygen.res
 	 + tree234 notiming winhelp winnojmp conf LIBS wintime
+	 + winl10n iso2022 wcwidth
+
+pfwd     : [G] pfwd wincons2 NONSSH WINSSH W_BE_ALL logging WINMISC
+         + winx11 pfwd.res winnojmp conf LIBS winl10n
 
 pterm    : [X] GTKTERM uxmisc misc ldisc settings uxpty uxsel BE_NONE uxstore
          + uxsignal CHARSET cmdline uxpterm version time xpmpterm xpmptcfg
 	 + nogss
+         + iso2022
 putty    : [X] GTKTERM uxmisc misc ldisc settings uxsel U_BE_ALL uxstore
          + uxsignal CHARSET uxputty NONSSH UXSSH UXMISC ux_x11 xpmputty
          + xpmpucfg

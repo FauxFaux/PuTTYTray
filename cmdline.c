@@ -220,6 +220,13 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
 	 * so copy it across */
 	conf_set_str(conf, CONF_serline, conf_get_str(conf, CONF_host));
     }
+    if (!strcmp(p, "-adb")) {
+	RETURN(1);
+	UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+	SAVEABLE(0);
+	default_protocol = PROT_ADB;
+	conf_set_int(conf, CONF_protocol, default_protocol);
+    }
     if (!strcmp(p, "-v")) {
 	RETURN(1);
 	flags |= FLAG_VERBOSE;

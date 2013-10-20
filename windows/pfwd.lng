@@ -1,0 +1,26 @@
+[Default]
+Language=Japanese
+
+[Japanese]
+_OFONTNAME_=MS Shell Dlg
+_FONTNAME_=MS UI Gothic
+_FONTSIZE_=12
+PFwd: Enter Password/Passphrase=パスワード/パスフレーズの入力
+&Cancel=取消(&C)
+PFwd: Disconected=PFwd: 接続の切断
+The session is disconnected. Retry to connect?=セッションは切断されました。再接続しますか?
+&Yes=はい(&Y)
+&No=いいえ(&N)
+PFwd: Error Log=PFwd: エラーログ
+Close=閉じる
+Hostname not specified!=ホスト名が指定されていません!
+No forwarding setting specified!=フォワードの設定が一つもありません!
+E&xit=閉じる
+Connect automatically after %25d seconds...=%25d秒後に自動的に接続します...
+Connect automatically soon...=まもなく自動的に接続します...
+&Connect now=再接続(&C)
+&Exit PFwd=閉じる(&E)
+&Details >>=詳細(&D) >>
+&Details <<=詳細(&D) <<
+%25.90s@%25.90s's password:%20=%25.90s@%25.90sのパスワード:%20
+Passphrase for key "%25.100s":%20="%25.100s"の鍵のパスフレーズ:%20

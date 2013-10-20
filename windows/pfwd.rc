@@ -1,0 +1,58 @@
+#include "rcstuff.h"
+
+#define APPNAME "Port fowarder"
+#define APPDESC "Port forwarding client"
+
+200 ICON "putty.ico"
+201 ICON "puttyd.ico"
+
+210 DIALOGEX 0, 0, 210, 91
+STYLE DS_MODALFRAME | DS_SETFOREGROUND | DS_CENTER | WS_POPUP | WS_VISIBLE | 
+    WS_CAPTION
+EXSTYLE WS_EX_TOOLWINDOW
+CAPTION "About PFwd"
+FONT 8, "MS Shell Dlg", 0, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,80,70,50,14
+    ICON            200,-1,7,11,21,23
+    LTEXT           "PFwd  (PuTTY Port Forwarder)",-1,43,11,112,8
+    LTEXT           "Ver. 1.0",211,43,23,99,8
+    LTEXT           "PLink  ...",-1,10,40,50,8
+    LTEXT           "(C) 1997-2003 Simon Tatham. All rights reserved.",
+                    -1,43,40,200,8
+    LTEXT           "PFwd  ...",-1,10,50,50,8
+    LTEXT           "(C) 2004 Sadao Arita. All rights reserved.",
+                    -1,43,50,200,8
+END
+
+220 DIALOGEX 0, 0, 140, 60
+STYLE DS_MODALFRAME | DS_SETFOREGROUND | DS_CENTER | WS_POPUP | WS_VISIBLE | 
+    WS_CAPTION
+EXSTYLE WS_EX_TOOLWINDOW
+CAPTION "PFwd: Enter Password/Passphrase"
+FONT 8, "MS Shell Dlg", 0, 0, 0x1
+BEGIN
+    LTEXT           "", 221, 10, 6, 120, 18
+    EDITTEXT        222, 10, 26, 120, 12, ES_PASSWORD | ES_AUTOHSCROLL
+    DEFPUSHBUTTON   "O&K", IDOK, 20, 42, 40, 14
+    PUSHBUTTON      "&Cancel", IDCANCEL, 80, 42, 40, 14
+END
+
+222 DIALOGEX 0, 0, 187, 61
+STYLE DS_MODALFRAME | DS_SETFOREGROUND | DS_CENTER | WS_POPUP | WS_CAPTION
+CAPTION "PFwd: Disconected"
+FONT 8, "MS Shell Dlg", 0, 0, 0x1
+BEGIN
+    LTEXT           "The session is disconnected. Retry to connect?",-1,7,7,173,8
+    LTEXT           "",222,7,22,173,8
+    DEFPUSHBUTTON   "&Connect now",IDOK,7,40,51,14
+    PUSHBUTTON      "&Exit PFwd",IDCANCEL,64,40,51,14
+    PUSHBUTTON      "&Details >>",223,122,40,51,14
+    EDITTEXT        224,7,61,173,65,ES_MULTILINE | ES_AUTOVSCROLL | 
+                    ES_AUTOHSCROLL | ES_READONLY | ES_WANTRETURN | 
+                    WS_VSCROLL | WS_HSCROLL
+END
+
+1 RT_MANIFEST "pfwd.mft"
+
+#include "version.rc2"

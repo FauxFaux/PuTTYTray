@@ -109,6 +109,12 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     ctrl_checkbox(s, "Control-Alt is different from AltGr", 'd',
 		  HELPCTX(keyboard_ctrlalt),
 		  conf_checkbox_handler, I(CONF_ctrlaltkeys));
+    ctrl_checkbox(s, "Right-Alt acts as it is", 'l',
+		  HELPCTX(no_help),
+		  conf_checkbox_handler, I(CONF_rightaltkey));
+    ctrl_checkbox(s, "Set meta bit on Alt (instead of escape-char)", 'm',
+		  HELPCTX(no_help),
+		  conf_checkbox_handler, I(CONF_alt_metabit));
 
     /*
      * Windows allows an arbitrary .WAV to be played as a bell, and
@@ -139,9 +145,9 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		c->radio.buttons =
 		    sresize(c->radio.buttons, c->radio.nbuttons, char *);
 		c->radio.buttons[c->radio.nbuttons-1] =
-		    dupstr("Play a custom sound file");
+		    l10n_dupstr("Play a custom sound file");
 		c->radio.buttons[c->radio.nbuttons-2] =
-		    dupstr("Beep using the PC speaker");
+		    l10n_dupstr("Beep using the PC speaker");
 		c->radio.buttondata =
 		    sresize(c->radio.buttondata, c->radio.nbuttons, intorptr);
 		c->radio.buttondata[c->radio.nbuttons-1] = I(BELL_WAVEFILE);
@@ -208,6 +214,11 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		  HELPCTX(translation_cyrillic),
 		  conf_checkbox_handler,
 		  I(CONF_xlat_capslockcyr));
+    if (!midsession)
+	ctrl_checkbox(s, "Use character code 5c as is", 't',
+		  HELPCTX(no_help),
+		  conf_checkbox_handler,
+		  I(CONF_use_5casis));
 
     /*
      * On Windows we can use but not enumerate translation tables
@@ -238,11 +249,11 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		c->radio.buttons =
 		    sresize(c->radio.buttons, c->radio.nbuttons, char *);
 		c->radio.buttons[c->radio.nbuttons-3] =
-		    dupstr("Font has XWindows encoding");
+		    l10n_dupstr("Font has XWindows encoding");
 		c->radio.buttons[c->radio.nbuttons-2] =
-		    dupstr("Use font in both ANSI and OEM modes");
+		    l10n_dupstr("Use font in both ANSI and OEM modes");
 		c->radio.buttons[c->radio.nbuttons-1] =
-		    dupstr("Use font in OEM mode only");
+		    l10n_dupstr("Use font in OEM mode only");
 		c->radio.buttondata =
 		    sresize(c->radio.buttondata, c->radio.nbuttons, intorptr);
 		c->radio.buttondata[c->radio.nbuttons-3] = I(VT_XWINDOWS);
@@ -345,6 +356,112 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		  HELPCTX(behaviour_altenter),
 		  conf_checkbox_handler,
 		  I(CONF_fullscreenonaltenter));
+    if (!midsession)
+	ctrl_checkbox(s, "Switch PuTTY windows with Ctrl + TAB", 's',
+		  HELPCTX(no_help),
+		  conf_checkbox_handler,
+		  I(CONF_ctrl_tab_switch));
+
+    /* HACK: PuttyTray / Reconnect */
+    s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options");
+    ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), conf_checkbox_handler, I(CONF_wakeup_reconnect));
+    ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'f', HELPCTX(no_help), conf_checkbox_handler, I(CONF_failure_reconnect));
+
+    /* Background */
+    ctrl_settitle(b, "Window/Background", "Options controlling background");
+    s = ctrl_getset(b, "Window/Background", "background", "Background");
+    ctrl_radiobuttons(s, "Effect:", 'e', 4,
+		      HELPCTX(no_help),
+		      conf_radiobutton_handler,
+		      I(CONF_bg_effect),
+		      "Plane", I(0),
+		      "Glass", I(1),
+		      "Double Glass", I(2),
+		      NULL);
+    ctrl_radiobuttons(s, "Wallpaper:", 'r', 2,
+		      HELPCTX(no_help),
+		      conf_radiobutton_handler,
+		      I(CONF_bg_wallpaper),
+		      "None", I(0),
+		      "Bitmap file", I(1),
+		      "Bitmap file on Desktop", I(2),
+		      "Desktop", I(3),
+		      NULL);
+
+    s = ctrl_getset(b, "Window/Background", "wallpaper", "Wallpaper");
+    ctrl_filesel(s, "Bitmap file:", NO_SHORTCUT,
+		 FILTER_IMAGE_FILES,
+		 FALSE, "Select bitmap file for background",
+		 HELPCTX(no_help),
+		 conf_filesel_handler, I(CONF_wp_file));
+    ctrl_checkbox(s, "Draw while moving/resizing", 'n',
+		  HELPCTX(no_help),
+		  conf_checkbox_handler,
+		  I(CONF_wp_moving));
+    ctrl_radiobuttons(s, "Position:", 'p', 3,
+		      HELPCTX(no_help),
+		      conf_radiobutton_handler,
+		      I(CONF_wp_position),
+		      "Fill", I(0),
+		      "Fit", I(1),
+		      "Stretch", I(2),
+		      "Tile", I(3),
+		      "Center", I(4),
+		      NULL);
+    ctrl_radiobuttons(s, "Horizontal Align:", 'l', 3,
+		      HELPCTX(no_help),
+		      conf_radiobutton_handler,
+		      I(CONF_wp_align),
+		      "Left", I(0),
+		      "Center", I(1),
+		      "Right", I(2),
+		      NULL);
+    ctrl_radiobuttons(s, "Vertical Align:", 'v', 3,
+		      HELPCTX(no_help),
+		      conf_radiobutton_handler,
+		      I(CONF_wp_valign),
+		      "Top", I(0),
+		      "Middle", I(1),
+		      "Bottom", I(2),
+		      NULL);
+
+    /* Transparency */
+    {
+	static const int CONF_alphas_pc[4][2] = {
+	    CONF_alphas_pc_cursor_active,
+	    CONF_alphas_pc_cursor_inactive,
+	    CONF_alphas_pc_defauly_fg_active,
+	    CONF_alphas_pc_defauly_fg_inactive,
+	    CONF_alphas_pc_degault_bg_active,
+	    CONF_alphas_pc_degault_bg_inactive,
+	    CONF_alphas_pc_bg_active,
+	    CONF_alphas_pc_bg_inactive
+	};
+	ctrl_settitle(b, "Window/Transparency", "Options controlling transparency");
+	s = ctrl_getset(b, "Window/Transparency", "alpha",
+			"Default Background Alpha Value 0-100");
+	ctrl_editbox(s, "Active Window", NO_SHORTCUT, 20,
+		     HELPCTX(no_help),
+		     conf_editbox_handler,
+		     I(CONF_alphas_pc[ALPHA_DEFAULT_BG][BG_ACTIVE]),
+		     I(-1));
+	ctrl_editbox(s, "Inactive Window", NO_SHORTCUT, 20,
+		     HELPCTX(no_help),
+		     conf_editbox_handler,
+		     I(CONF_alphas_pc[ALPHA_DEFAULT_BG][BG_INACTIVE]),
+		     I(-1));
+    }
+
+    /*
+     * The icon for Windows title bar
+     */
+    if (!midsession) {
+	s = ctrl_getset(b, "Window/Icon", "icon", NULL);
+	ctrl_filesel(s, "The icon on title bar", 'i',
+		 FILTER_ICON_FILES, FALSE, "Select icon file",
+		 HELPCTX(no_help),
+		 conf_filesel_handler, I(CONF_iconfile));
+    }
 
     /*
      * Windows supports a local-command proxy. This also means we
@@ -362,7 +479,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		c->radio.buttons =
 		    sresize(c->radio.buttons, c->radio.nbuttons, char *);
 		c->radio.buttons[c->radio.nbuttons-1] =
-		    dupstr("Local");
+		    l10n_dupstr("Local");
 		c->radio.buttondata =
 		    sresize(c->radio.buttondata, c->radio.nbuttons, intorptr);
 		c->radio.buttondata[c->radio.nbuttons-1] = I(PROXY_CMD);
@@ -376,7 +493,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		c->generic.context.i == CONF_proxy_telnet_command) {
 		assert(c->generic.handler == conf_editbox_handler);
 		sfree(c->generic.label);
-		c->generic.label = dupstr("Telnet command, or local"
+		c->generic.label = l10n_dupstr("Telnet command, or local"
 					  " proxy command");
 		break;
 	    }
@@ -399,5 +516,28 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		     NULL, FALSE, "Select X authority file",
 		     HELPCTX(ssh_tunnels_xauthority),
 		     conf_filesel_handler, I(CONF_xauthfile));
+    }
+
+    /* ADB */
+    if (!midsession || (protocol == PROT_ADB)) {
+	ctrl_settitle(b, "Connection/ADB", "Options controlling ADB settings");
+	s = ctrl_getset(b, "Connection/ADB", "adbcfg", "Configure the ADB");
+
+	if (!midsession) {
+	    ctrl_editbox(s, "Transport Type", NO_SHORTCUT, 60,
+			 HELPCTX(no_help),
+			 conf_editbox_handler,
+			 I(CONF_adb_transport),
+			 I(1));
+	    ctrl_checkbox(s, "Auto start-server", NO_SHORTCUT,
+			  HELPCTX(no_help),
+			  conf_checkbox_handler,
+			  I(CONF_adb_start));
+	}
+
+	ctrl_checkbox(s, "Auto kill-server", NO_SHORTCUT,
+		      HELPCTX(no_help),
+		      conf_checkbox_handler,
+		      I(CONF_adb_kill));
     }
 }

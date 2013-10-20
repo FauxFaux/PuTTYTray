@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <assert.h>
 #include <tchar.h>
+#include <malloc.h>
 
 #define PUTTY_DO_GLOBALS
 
@@ -16,6 +17,7 @@
 #include "tree234.h"
 
 #include <shellapi.h>
+#include <shlobj.h>
 
 #ifndef NO_SECURITY
 #include <aclapi.h>
@@ -30,6 +32,7 @@
 
 #define WM_SYSTRAY   (WM_APP + 6)
 #define WM_SYSTRAY2  (WM_APP + 7)
+#define TID_ADDSYSTRAY  1
 
 #define AGENT_COPYDATA_ID 0x804e50ba   /* random goop */
 
@@ -48,6 +51,7 @@
 #define IDM_ADDKEY   0x0030
 #define IDM_HELP     0x0040
 #define IDM_ABOUT    0x0050
+#define IDM_CONFIRM_REQUEST 0x0070
 
 #define APPNAME "Pageant"
 
@@ -58,6 +62,7 @@ static HWND aboutbox;
 static HMENU systray_menu, session_menu;
 static int already_running;
 
+static int confirm_any_request;
 static char *putty_path;
 
 /* CWD for "add key" file requester. */
@@ -69,6 +74,43 @@ static filereq *keypath = NULL;
 #define PUTTY_REGKEY      "Software\\SimonTatham\\PuTTY\\Sessions"
 #define PUTTY_DEFAULT     "Default%20Settings"
 static int initial_menuitems_count;
+
+static int use_inifile;
+static char inifile[2 * MAX_PATH + 10] = {'\0'};
+static const char HEADER[] = "Session:";
+
+static int get_use_inifile(void)
+{
+    if (inifile[0] == '\0') {
+    	char buf[10];
+	char *p;
+	GetModuleFileName(NULL, inifile, sizeof(inifile));
+	if((p = strrchr(inifile, '\\'))){
+	    *p = '\0';
+	}
+	strcat(inifile, "\\putty.ini");
+	GetPrivateProfileString("Generic", "UseIniFile", "", buf, sizeof (buf), inifile);
+	use_inifile = buf[0] == '1';
+	if (!use_inifile) {
+	    HMODULE module;
+	    HRESULT (WINAPI* SHGetFolderPath)(HWND, int, HANDLE, DWORD, LPSTR);
+	    module = LoadLibrary("shell32.dll");
+	    SHGetFolderPath = (HRESULT (WINAPI*)(HWND, int, HANDLE, DWORD, LPSTR)) GetProcAddress(module, "SHGetFolderPathA");
+	    if (SHGetFolderPath == NULL) {
+		FreeLibrary(module);
+		module = LoadLibrary("SHFolder.dll");
+		SHGetFolderPath = (HRESULT (WINAPI*)(HWND, int, HANDLE, DWORD, LPSTR)) GetProcAddress(module, "SHGetFolderPathA");
+	    }
+	    if (SHGetFolderPath != NULL && SUCCEEDED(SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, 0, inifile))) {
+		strcat(inifile, "\\PuTTY\\putty.ini");
+		GetPrivateProfileString("Generic", "UseIniFile", "", buf, sizeof (buf), inifile);
+		use_inifile = buf[0] == '1';
+	    }
+	    FreeLibrary(module);
+	}
+    }
+    return use_inifile;
+}
 
 /*
  * Print a modal (Really Bad) message box and perform a fatal exit.
@@ -162,6 +204,7 @@ static int cmpkeys_ssh2_asymm(void *av, void *bv);
 struct PassphraseProcStruct {
     char **passphrase;
     char *comment;
+    int save;
 };
 
 static tree234 *passphrases = NULL;
@@ -270,16 +313,19 @@ static int CALLBACK PassphraseProc(HWND hwnd, UINT msg,
 	SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0,
 		     SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
 	p = (struct PassphraseProcStruct *) lParam;
+	SetWindowLongPtr(hwnd, DWLP_USER, (LONG_PTR) lParam);
 	passphrase = p->passphrase;
 	if (p->comment)
 	    SetDlgItemText(hwnd, 101, p->comment);
         burnstr(*passphrase);
         *passphrase = dupstr("");
 	SetDlgItemText(hwnd, 102, *passphrase);
-	return 0;
+	return TRUE;
       case WM_COMMAND:
 	switch (LOWORD(wParam)) {
 	  case IDOK:
+	    p = (struct PassphraseProcStruct*) GetWindowLongPtr(hwnd, DWLP_USER);
+	    p->save = SendDlgItemMessage(hwnd, 103, BM_GETCHECK, 0, 0) == BST_CHECKED;
 	    if (*passphrase)
 		EndDialog(hwnd, 1);
 	    else
@@ -320,7 +366,7 @@ void old_keyfile_warning(void)
 	"You can perform this conversion by loading the key\n"
 	"into PuTTYgen and then saving it again.";
 
-    MessageBox(NULL, message, mbtitle, MB_OK);
+    MessageBox(hwnd, message, mbtitle, MB_OK);
 }
 
 /*
@@ -379,6 +425,230 @@ static void keylist_update(void)
     }
 }
 
+/* generate random number by MT(http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/MT2002/mt19937ar.html) */
+
+/* Period parameters */  
+#define N 624
+#define M 397
+#define MATRIX_A 0x9908b0dfUL   /* constant vector a */
+#define UPPER_MASK 0x80000000UL /* most significant w-r bits */
+#define LOWER_MASK 0x7fffffffUL /* least significant r bits */
+
+static void random_mask(char* buffer, int length) {
+    /* static variables of MT */
+    unsigned long mt[N]; /* the array for the state vector  */
+    int mti=N+1; /* mti==N+1 means mt[N] is not initialized */
+    unsigned long mag01[2]={0x0UL, MATRIX_A};
+    /* mag01[x] = x * MATRIX_A  for x=0,1 */
+
+    char* dst = buffer;
+    unsigned long s = 0xf92fedb5UL;
+    /* initializes mt[N] with a seed */
+    /* void init_genrand(unsigned long s) */
+    {
+	mt[0]= s & 0xffffffffUL;
+	for (mti=1; mti<N; mti++) {
+	    mt[mti] = 
+		(1812433253UL * (mt[mti-1] ^ (mt[mti-1] >> 30)) + mti); 
+	    /* See Knuth TAOCP Vol2. 3rd Ed. P.106 for multiplier. */
+	    /* In the previous versions, MSBs of the seed affect   */
+	    /* only MSBs of the array mt[].                        */
+	    /* 2002/01/09 modified by Makoto Matsumoto             */
+	    mt[mti] &= 0xffffffffUL;
+	    /* for >32 bit machines */
+	}
+    }
+    while (length-- > 0) {
+	unsigned long y;
+	/* generates a random number on [0,0xffffffff]-interval */
+	/* unsigned long genrand_int32(void) */
+	{
+	    /* unsigned long y; */
+	    /* static unsigned long mag01[2]={0x0UL, MATRIX_A}; */
+	    /* mag01[x] = x * MATRIX_A  for x=0,1 */
+
+	    if (mti >= N) { /* generate N words at one time */
+		int kk;
+
+		/* if (mti == N+1)   /* if init_genrand() has not been called, */
+		    /* init_genrand(5489UL); /* a default initial seed is used */
+
+		for (kk=0;kk<N-M;kk++) {
+		    y = (mt[kk]&UPPER_MASK)|(mt[kk+1]&LOWER_MASK);
+		    mt[kk] = mt[kk+M] ^ (y >> 1) ^ mag01[y & 0x1UL];
+		}
+		for (;kk<N-1;kk++) {
+		    y = (mt[kk]&UPPER_MASK)|(mt[kk+1]&LOWER_MASK);
+		    mt[kk] = mt[kk+(M-N)] ^ (y >> 1) ^ mag01[y & 0x1UL];
+		}
+		y = (mt[N-1]&UPPER_MASK)|(mt[0]&LOWER_MASK);
+		mt[N-1] = mt[M-1] ^ (y >> 1) ^ mag01[y & 0x1UL];
+
+		mti = 0;
+	    }
+  
+	    y = mt[mti++];
+
+	    /* Tempering */
+	    y ^= (y >> 11);
+	    y ^= (y << 7) & 0x9d2c5680UL;
+	    y ^= (y << 15) & 0xefc60000UL;
+	    y ^= (y >> 18);
+
+	    /* return y; */
+	}
+        *dst++ ^= (y >> 4);
+    }
+}
+
+static int encrypto(char* original, char* buffer) {
+    int length = strlen(original);
+    if (buffer != NULL) {
+	random_mask(original, length);
+	while (length > 0) {
+	    int n = (length < 3 ? length : 3);
+	    base64_encode_atom(original, n, buffer);
+	    original += n;
+	    length -= n;
+	    buffer += 4;
+	}
+	*buffer = '\0';
+    }
+    return (length + 2) / 3 * 4;
+}
+
+static int decrypto(const char* encrypted, char* buffer) {
+    int encrypted_len = strlen(encrypted);
+    if (buffer == NULL) {
+        return encrypted_len * 3 / 4;
+    }else{
+	const char* src = encrypted;
+	const char* src_end = encrypted + encrypted_len;
+	char* dst = buffer;
+	while (src < src_end) {
+	    int k = base64_decode_atom((char*) src, dst);
+	    src += 4;
+	    dst += k;
+	}
+        random_mask(buffer, dst - buffer);
+	*dst = '\0';
+	return dst - buffer;
+    }
+}
+
+static void save_passphrases(char* passphrase);
+
+static void load_passphrases() {
+    char key[16];
+    char buffer[1024];
+    int i = 1;
+    HKEY hkey;
+    char* original;
+    int original_len;
+    if (get_use_inifile()) {
+	while (1) {
+	    sprintf(key, "crypto%d", i++);
+	    if (GetPrivateProfileString("Passphrases", key, "\n:", buffer, sizeof buffer, inifile) < sizeof buffer - 1) {
+		if (buffer[0] == '\n')
+		    break;
+		original_len = decrypto(buffer, NULL);
+		original = (char*) malloc(original_len + 1);
+		if (original != NULL) {
+		    decrypto(buffer, original);
+		    addpos234(passphrases, original, 0);
+		}
+	    }
+	}
+	// convert from previous version data
+	i = 1;
+	while (1) {
+	    sprintf(key, "%d", i++);
+	    if (GetPrivateProfileString("Passphrases", key, "\n:", buffer, sizeof buffer, inifile) < sizeof buffer - 1) {
+		if (buffer[0] == '\n')
+		    break;
+		addpos234(passphrases, strdup(buffer), 0);
+		save_passphrases(buffer);
+		WritePrivateProfileString("Passphrases", key, NULL, inifile);
+	    }
+	}
+	return;
+    }
+    if (RegOpenKey(HKEY_CURRENT_USER, "Software\\SimonTatham\\PuTTY\\Passphrases", &hkey) == ERROR_SUCCESS) {
+        DWORD type, size;
+        int ret;
+        while (1) {
+	    sprintf(key, "crypto%d", i++);
+	    size = sizeof buffer;
+	    ret = RegQueryValueEx(hkey, key, 0, &type, buffer, &size);
+	    if (ret == ERROR_FILE_NOT_FOUND)
+		break;
+	    if (ret == ERROR_SUCCESS && type == REG_SZ) {
+		original_len = decrypto(buffer, NULL);
+		original = (char*) malloc(original_len + 1);
+		if (original != NULL) {
+		    decrypto(buffer, original);
+		    addpos234(passphrases, original, 0);
+		}
+	    }
+        }
+	// convert from previous version data
+        i = 1;
+        while (1) {
+	    sprintf(key, "%d", i++);
+	    size = sizeof buffer;
+	    ret = RegQueryValueEx(hkey, key, 0, &type, buffer, &size);
+	    if (ret == ERROR_FILE_NOT_FOUND)
+		break;
+	    if (ret == ERROR_SUCCESS && type == REG_SZ) {
+		addpos234(passphrases, strdup(buffer), 0);
+		save_passphrases(buffer);
+		RegDeleteValue(hkey, key);
+	    }
+        }
+        RegCloseKey(hkey);
+    }
+}
+
+static void save_passphrases(char* passphrase) {
+    char key[16];
+    char buffer[1024];
+    int i = 1;
+    HKEY hkey;
+    int encrypted_len = encrypto(passphrase, NULL);
+    char* encrypted = (char*) alloca(encrypted_len + 1);
+    encrypto(passphrase, encrypted);
+    if (get_use_inifile()) {
+	while (1) {
+	    sprintf(key, "crypto%d", i++);
+	    if (GetPrivateProfileString("Passphrases", key, "\n:", buffer, sizeof buffer, inifile) < sizeof buffer - 1) {
+		if (buffer[0] == '\n') {
+		    WritePrivateProfileString("Passphrases", key, encrypted, inifile);
+		    break;
+		}
+		if (strcmp(buffer, encrypted) == 0)
+		    break;
+	    }
+	}
+	return;
+    }
+    if (RegCreateKey(HKEY_CURRENT_USER, "Software\\SimonTatham\\PuTTY\\Passphrases", &hkey) == ERROR_SUCCESS) {
+        DWORD type, size;
+        int ret;
+        while (1) {
+	    sprintf(key, "crypto%d", i++);
+	    size = sizeof buffer;
+	    ret = RegQueryValueEx(hkey, key, 0, &type, buffer, &size);
+	    if (ret == ERROR_FILE_NOT_FOUND) {
+		RegSetValueEx(hkey, key, 0, REG_SZ, encrypted, strlen(encrypted) + 1);
+		break;
+	    }
+	    if (ret == ERROR_SUCCESS && type == REG_SZ && strcmp(buffer, encrypted) == 0)
+		break;
+        }
+        RegCloseKey(hkey);
+    }
+}
+
 /*
  * This function loads a key from a file and adds it.
  */
@@ -394,6 +664,7 @@ static void add_keyfile(Filename *filename)
     const char *error = NULL;
     int type;
     int original_pass;
+    struct PassphraseProcStruct pps;
 	
     type = key_type(filename);
     if (type != SSH_KEYTYPE_SSH1 && type != SSH_KEYTYPE_SSH2) {
@@ -445,7 +716,7 @@ static void add_keyfile(Filename *filename)
 	}
 	if (keylist) {
 	    if (keylistlen < 4) {
-		MessageBox(NULL, "Received broken key list?!", APPNAME,
+		MessageBox(hwnd, "Received broken key list?!", APPNAME,
 			   MB_OK | MB_ICONERROR);
 		return;
 	    }
@@ -469,7 +740,7 @@ static void add_keyfile(Filename *filename)
 		if (type == SSH_KEYTYPE_SSH1) {
 		    int n = rsa_public_blob_len(p, keylistlen);
 		    if (n < 0) {
-			MessageBox(NULL, "Received broken key list?!", APPNAME,
+			MessageBox(hwnd, "Received broken key list?!", APPNAME,
 				   MB_OK | MB_ICONERROR);
 			return;
 		    }
@@ -478,13 +749,13 @@ static void add_keyfile(Filename *filename)
 		} else {
 		    int n;
 		    if (keylistlen < 4) {
-			MessageBox(NULL, "Received broken key list?!", APPNAME,
+			MessageBox(hwnd, "Received broken key list?!", APPNAME,
 				   MB_OK | MB_ICONERROR);
 			return;
 		    }
 		    n = toint(4 + GET_32BIT(p));
 		    if (n < 0 || keylistlen < n) {
-			MessageBox(NULL, "Received broken key list?!", APPNAME,
+			MessageBox(hwnd, "Received broken key list?!", APPNAME,
 				   MB_OK | MB_ICONERROR);
 			return;
 		    }
@@ -495,13 +766,13 @@ static void add_keyfile(Filename *filename)
 		{
 		    int n;
 		    if (keylistlen < 4) {
-			MessageBox(NULL, "Received broken key list?!", APPNAME,
+			MessageBox(hwnd, "Received broken key list?!", APPNAME,
 				   MB_OK | MB_ICONERROR);
 			return;
 		    }
 		    n = toint(4 + GET_32BIT(p));
 		    if (n < 0 || keylistlen < n) {
-			MessageBox(NULL, "Received broken key list?!", APPNAME,
+			MessageBox(hwnd, "Received broken key list?!", APPNAME,
 				   MB_OK | MB_ICONERROR);
 			return;
 		    }
@@ -537,14 +808,14 @@ static void add_keyfile(Filename *filename)
 		passphrase = dupstr(pp);
 	    } else {
 		int dlgret;
-                struct PassphraseProcStruct pps;
 
                 pps.passphrase = &passphrase;
                 pps.comment = comment;
+                pps.save = 0;
 
 		original_pass = 1;
 		dlgret = DialogBoxParam(hinst, MAKEINTRESOURCE(210),
-					NULL, PassphraseProc, (LPARAM) &pps);
+					hwnd, PassphraseProc, (LPARAM) &pps);
 		passphrase_box = NULL;
 		if (!dlgret) {
 		    if (comment)
@@ -553,8 +824,6 @@ static void add_keyfile(Filename *filename)
 			sfree(rkey);
 		    return;		       /* operation cancelled */
 		}
-
-                assert(passphrase != NULL);
 	    }
 	} else
 	    passphrase = dupstr("");
@@ -576,6 +845,9 @@ static void add_keyfile(Filename *filename)
     if(original_pass && ret) {
         /* If they typed in an ok passphrase, remember it */
 	addpos234(passphrases, passphrase, 0);
+	if (pps.save) {
+	    save_passphrases(passphrase);
+	}
     } else {
         /* Otherwise, destroy it */
         burnstr(passphrase);
@@ -635,7 +907,7 @@ static void add_keyfile(Filename *filename)
 	    assert(ret == 1);
 	    response = vresponse;
 	    if (resplen < 5 || response[4] != SSH_AGENT_SUCCESS)
-		MessageBox(NULL, "The already running Pageant "
+		MessageBox(hwnd, "The already running Pageant "
 			   "refused to add the key.", APPNAME,
 			   MB_OK | MB_ICONERROR);
 
@@ -682,7 +954,7 @@ static void add_keyfile(Filename *filename)
 	    assert(ret == 1);
 	    response = vresponse;
 	    if (resplen < 5 || response[4] != SSH_AGENT_SUCCESS)
-		MessageBox(NULL, "The already running Pageant "
+		MessageBox(hwnd, "The already running Pageant "
 			   "refused to add the key.", APPNAME,
 			   MB_OK | MB_ICONERROR);
 
@@ -865,6 +1137,237 @@ static void *get_keylist2(int *length)
     return ret;
 }
 
+static int get_confirm_timeout() {
+    int timeout = -1;
+        if (get_use_inifile()) {
+            timeout = GetPrivateProfileInt(APPNAME, "ConfirmTimeout", -1, inifile);
+        } else {
+            HKEY hkey;
+            if (RegOpenKey(HKEY_CURRENT_USER, "Software\\SimonTatham\\PuTTY\\" APPNAME, &hkey) == ERROR_SUCCESS) {
+                DWORD type;
+                DWORD size = sizeof timeout;
+                if (RegQueryValueEx(hkey, "ConfirmTimeout", 0, &type, (LPBYTE) &timeout, &size) != ERROR_SUCCESS || type != REG_DWORD)
+                    timeout = -1;
+		RegCloseKey(hkey);
+	}
+    }
+    if (timeout < 0 || 3600 < timeout)
+        timeout = 30;
+    return timeout;
+}
+
+struct ConfirmAcceptAgentProcStruct {
+    int type;
+    const char* fingerprint;
+    int dont_ask_again;
+    DWORD tickCount;
+    int timeout;
+};
+
+BOOL CALLBACK ConfirmAcceptAgentProc(HWND dialog, UINT message, WPARAM wParam, LPARAM lParam) {
+    BOOL l10nSetDlgItemText(HWND dialog, int id, LPCSTR text);
+
+    switch (message) {
+    case WM_INITDIALOG:
+        {
+            struct ConfirmAcceptAgentProcStruct* info = (struct ConfirmAcceptAgentProcStruct*) lParam;
+            const char* s;
+            SetWindowLongPtr(dialog, DWLP_USER, (LONG_PTR) lParam);
+            switch (info->type) {
+            case SSH1_AGENTC_RSA_CHALLENGE:
+            case SSH2_AGENTC_SIGN_REQUEST:
+                s = "Accept query of the following key?";
+                break;
+            case SSH1_AGENTC_ADD_RSA_IDENTITY:
+            case SSH2_AGENTC_ADD_IDENTITY:
+                s = "Accept addition of the following key?";
+                break;
+            case SSH1_AGENTC_REMOVE_RSA_IDENTITY:
+            case SSH2_AGENTC_REMOVE_IDENTITY:
+                s = "Accept deletion of the following key?";
+                break;
+            case SSH1_AGENTC_REMOVE_ALL_RSA_IDENTITIES:
+                s = "Accept deletion of all SSH1 identities?";
+                break;
+            case SSH2_AGENTC_REMOVE_ALL_IDENTITIES:
+                s = "Accept deletion of all SSH2 identities?";
+                break;
+            default:
+                EndDialog(dialog, IDNO);
+                return FALSE;
+            }
+            l10nSetDlgItemText(dialog, 100, s);
+            if (info->fingerprint != NULL)
+                SetDlgItemText(dialog, 101, info->fingerprint);
+
+            SendDlgItemMessage(dialog, 102, BM_SETCHECK, info->dont_ask_again >= 0 ? BST_CHECKED : BST_UNCHECKED, 0);
+            SendMessage(dialog, WM_NEXTDLGCTL, (WPARAM) GetDlgItem(dialog, info->dont_ask_again > 0 ? IDYES : IDNO), TRUE);
+
+            info->timeout = get_confirm_timeout();
+            if (info->timeout != 0) {
+                info->tickCount = GetTickCount();
+                SetTimer(dialog, 1, 1000, NULL);
+            }
+        }
+        return FALSE;
+
+    case WM_TIMER:
+        if (wParam == 1) {
+            struct ConfirmAcceptAgentProcStruct* info = (struct ConfirmAcceptAgentProcStruct*) GetWindowLongPtr(dialog, DWLP_USER);
+            if ((int) (GetTickCount() - info->tickCount) > info->timeout * 1000) {
+                SendDlgItemMessage(dialog, 102, BM_SETCHECK, BST_UNCHECKED, 0);
+                SendMessage(dialog, WM_COMMAND, MAKEWPARAM(info->dont_ask_again > 0 ? IDYES : IDNO, BN_CLICKED), 0);
+            }
+            return TRUE;
+        }
+        break;
+
+    case WM_COMMAND:
+        switch (wParam) {
+        case MAKEWPARAM(IDYES, BN_CLICKED):
+        case MAKEWPARAM(IDNO, BN_CLICKED):
+            {
+                struct ConfirmAcceptAgentProcStruct* info = (struct ConfirmAcceptAgentProcStruct*) GetWindowLongPtr(dialog, DWLP_USER);
+                info->dont_ask_again = SendDlgItemMessage(dialog, 102, BM_GETCHECK, 0, 0) == BST_CHECKED;
+                EndDialog(dialog, LOWORD(wParam));
+            }
+            return TRUE;
+        }
+        break;
+    }
+    return FALSE;
+}
+
+static int accept_agent_request(int type, const void* key) {
+    static const char VALUE_ACCEPT[] = "accept";
+    static const char VALUE_REFUSE[] = "refuse";
+
+    const char* keyname;
+    char* fingerprint = NULL;
+    const size_t fingerprint_length = 512;
+    int accept = -1;
+
+    switch (type) {
+    case SSH1_AGENTC_RSA_CHALLENGE:
+    case SSH2_AGENTC_SIGN_REQUEST:
+        keyname = "QUERY:";
+        break;
+    case SSH1_AGENTC_ADD_RSA_IDENTITY:
+        keyname = "ADD:";
+        break;
+    case SSH2_AGENTC_ADD_IDENTITY:
+        keyname = "ADD:";
+        break;
+    case SSH1_AGENTC_REMOVE_RSA_IDENTITY:
+        keyname = "REMOVE:";
+        break;
+    case SSH2_AGENTC_REMOVE_IDENTITY:
+        keyname = "REMOVE:";
+        break;
+    case SSH1_AGENTC_REMOVE_ALL_RSA_IDENTITIES:
+        keyname = "SSH1_REMOVE_ALL";
+        break;
+    case SSH2_AGENTC_REMOVE_ALL_IDENTITIES:
+        keyname = "SSH2_REMOVE_ALL";
+        break;
+    default:
+        return 0;
+    }
+
+    if (type != SSH1_AGENTC_REMOVE_ALL_RSA_IDENTITIES && type != SSH2_AGENTC_REMOVE_ALL_IDENTITIES) {
+        if (key == NULL) {
+            return 0;
+        } else {
+            size_t keyname_length = strlen(keyname);
+            char* buffer = (char*) alloca(keyname_length + fingerprint_length);
+            strcpy(buffer, keyname);
+            fingerprint = buffer + keyname_length;
+            if (type == SSH1_AGENTC_RSA_CHALLENGE
+                || type == SSH1_AGENTC_ADD_RSA_IDENTITY
+                || type == SSH1_AGENTC_REMOVE_RSA_IDENTITY) {
+	        strcpy(fingerprint, "ssh1:");
+	        rsa_fingerprint(fingerprint + 5, fingerprint_length - 5, (struct RSAKey*) key);
+            } else {
+                size_t fp_length;
+                struct ssh2_userkey* skey = (struct ssh2_userkey*) key;
+	        char* fp = skey->alg->fingerprint(skey->data);
+	        strncpy(fingerprint, fp, fingerprint_length);
+	        fp_length = strlen(fingerprint);
+	        if (fp_length < fingerprint_length - 2) {
+		    fingerprint[fp_length] = ' ';
+		    strncpy(fingerprint + fp_length + 1, skey->comment,
+			    fingerprint_length - fp_length - 1);
+	        }
+            }
+            keyname = buffer;
+        }
+    }
+
+    if (keyname != NULL) {
+        char value[8];
+        if (get_use_inifile()) {
+            char null = '\0';
+	    GetPrivateProfileString(APPNAME, keyname, &null, value, sizeof value, inifile);
+        }else{
+	    HKEY hkey;
+	    if (RegOpenKey(HKEY_CURRENT_USER, "Software\\SimonTatham\\PuTTY\\" APPNAME, &hkey) == ERROR_SUCCESS) {
+	        DWORD type;
+	        DWORD size = sizeof value;
+	        if (RegQueryValueEx(hkey, keyname, 0, &type, (LPBYTE) value, &size) != ERROR_SUCCESS || type != REG_SZ)
+		    value[0] = '\0';
+	        RegCloseKey(hkey);
+	    }
+        }
+        if (strcmp(value, VALUE_ACCEPT) == 0)
+            accept = 1;
+        else if (strcmp(value, VALUE_REFUSE) == 0)
+            accept = 0;
+        else
+            accept = -1;
+        if (!confirm_any_request && accept >= 0)
+            return accept;
+    }
+
+    {
+        struct ConfirmAcceptAgentProcStruct info = {
+            type,
+            fingerprint,
+            accept,
+        };
+        HWND focus = GetForegroundWindow();
+        DWORD focusThreadId = focus != NULL ? GetWindowThreadProcessId(focus, NULL) : 0;
+        DWORD currentThreadId = GetCurrentThreadId();
+        if (focusThreadId != 0 && focusThreadId != currentThreadId)
+            AttachThreadInput(currentThreadId, focusThreadId, TRUE);
+        SetForegroundWindow(hwnd);
+        if (focusThreadId != 0 && focusThreadId != currentThreadId)
+            AttachThreadInput(currentThreadId, focusThreadId, FALSE);
+        accept = DialogBoxParam(hinst, MAKEINTRESOURCE(300), hwnd, ConfirmAcceptAgentProc, (LPARAM) &info) == IDYES ? 1 : 0;
+        if (focus != NULL)
+            SetForegroundWindow(focus);
+
+        if (keyname != NULL) {
+            if (get_use_inifile()) {
+                WritePrivateProfileString(APPNAME, keyname, info.dont_ask_again ? accept ? VALUE_ACCEPT : VALUE_REFUSE : NULL, inifile);
+            }else{
+	        HKEY hkey;
+	        if (info.dont_ask_again) {
+	            if (RegCreateKey(HKEY_CURRENT_USER, "Software\\SimonTatham\\PuTTY\\" APPNAME, &hkey) == ERROR_SUCCESS) {
+		        RegSetValueEx(hkey, keyname, 0, REG_SZ, (LPBYTE) (accept ? VALUE_ACCEPT : VALUE_REFUSE), accept ? sizeof VALUE_ACCEPT : sizeof VALUE_REFUSE);
+		        RegCloseKey(hkey);
+	            }
+	        }else{
+	            if (RegOpenKey(HKEY_CURRENT_USER, "Software\\SimonTatham\\PuTTY\\" APPNAME, &hkey) == ERROR_SUCCESS) {
+		        RegDeleteValue(hkey, keyname);
+		        RegCloseKey(hkey);
+	            }
+	        }
+            }
+        }
+        return accept;
+    }
+}
+
 /*
  * This is the main agent function that answers messages.
  */
@@ -974,6 +1477,12 @@ static void answer_msg(void *msg)
 		freebn(challenge);
 		goto failure;
 	    }
+	    if (!accept_agent_request(type, key)) {
+		freebn(reqkey.exponent);
+		freebn(reqkey.modulus);
+		freebn(challenge);
+		goto failure;
+	    }
 	    response = rsadecrypt(challenge, key);
 	    for (i = 0; i < 32; i++)
 		response_source[i] = bignum_byte(response, 31 - i);
@@ -1026,6 +1535,8 @@ static void answer_msg(void *msg)
 	    data = p;
 	    key = find234(ssh2keys, &b, cmpkeys_ssh2_asymm);
 	    if (!key)
+		goto failure;
+	    if (!accept_agent_request(type, key))
 		goto failure;
 	    signature = key->alg->sign(key->data, data, datalen, &siglen);
 	    len = 5 + 4 + siglen;
@@ -1108,6 +1619,12 @@ static void answer_msg(void *msg)
                 comment[commentlen] = '\0';
 		key->comment = comment;
 	    }
+            if (!accept_agent_request(type, key)) {
+		freersakey(key);
+		sfree(key);
+		sfree(comment);
+	        goto failure;
+	    }
 	    PUT_32BIT(ret, 1);
 	    ret[4] = SSH_AGENT_FAILURE;
 	    if (add234(rsakeys, key) == key) {
@@ -1184,6 +1701,12 @@ static void answer_msg(void *msg)
 	    }
 	    key->comment = comment;
 
+	    if (!accept_agent_request(type, key)) {
+		key->alg->freekey(key->data);
+		sfree(key);
+                sfree(comment);
+	        goto failure;
+	    }
 	    PUT_32BIT(ret, 1);
 	    ret[4] = SSH_AGENT_FAILURE;
 	    if (add234(ssh2keys, key) == key) {
@@ -1216,6 +1739,11 @@ static void answer_msg(void *msg)
 	    PUT_32BIT(ret, 1);
 	    ret[4] = SSH_AGENT_FAILURE;
 	    if (key) {
+	        if (!accept_agent_request(type, key)) {
+		    freersakey(key);
+		    sfree(key);
+		    goto failure;
+                }
 		del234(rsakeys, key);
 		keylist_update();
 		freersakey(key);
@@ -1248,6 +1776,9 @@ static void answer_msg(void *msg)
 	    if (!key)
 		goto failure;
 
+	    if (!accept_agent_request(type, key))
+	        goto failure;
+
 	    PUT_32BIT(ret, 1);
 	    ret[4] = SSH_AGENT_FAILURE;
 	    if (key) {
@@ -1263,6 +1794,9 @@ static void answer_msg(void *msg)
 	/*
 	 * Remove all SSH-1 keys. Always returns success.
 	 */
+	if (!accept_agent_request(type, NULL)) {
+	  goto failure;
+	}
 	{
 	    struct RSAKey *rkey;
 
@@ -1281,6 +1815,9 @@ static void answer_msg(void *msg)
 	/*
 	 * Remove all SSH-2 keys. Always returns success.
 	 */
+	if (!accept_agent_request(type, NULL)) {
+	  goto failure;
+	}
 	{
 	    struct ssh2_userkey *skey;
 
@@ -1428,14 +1965,14 @@ static int cmpkeys_ssh2_asymm(void *av, void *bv)
 /*
  * Prompt for a key file to add, and add it.
  */
-static void prompt_add_keyfile(void)
+static void prompt_add_keyfile(HWND owner)
 {
     OPENFILENAME of;
     char *filelist = snewn(8192, char);
 	
     if (!keypath) keypath = filereq_new();
     memset(&of, 0, sizeof(of));
-    of.hwndOwner = hwnd;
+    of.hwndOwner = owner;
     of.lpstrFilter = FILTER_KEY_FILES;
     of.lpstrCustomFilter = NULL;
     of.nFilterIndex = 1;
@@ -1446,6 +1983,7 @@ static void prompt_add_keyfile(void)
     of.lpstrTitle = "Select Private Key File";
     of.Flags = OFN_ALLOWMULTISELECT | OFN_EXPLORER;
     if (request_file(keypath, &of, TRUE, FALSE)) {
+	load_passphrases();
 	if(strlen(filelist) > of.nFileOffset) {
 	    /* Only one filename returned? */
             Filename *fn = filename_from_str(filelist);
@@ -1535,7 +2073,7 @@ static int CALLBACK KeyListProc(HWND hwnd, UINT msg,
 		    SetForegroundWindow(passphrase_box);
 		    break;
 		}
-		prompt_add_keyfile();
+		prompt_add_keyfile(hwnd);
 	    }
 	    return 0;
 	  case 102:		       /* remove key */
@@ -1652,6 +2190,8 @@ static BOOL AddTrayIcon(HWND hwnd)
     strcpy(tnid.szTip, "Pageant (PuTTY authentication agent)");
 
     res = Shell_NotifyIcon(NIM_ADD, &tnid);
+    if (!res)
+	SetTimer(hwnd, TID_ADDSYSTRAY, 1000, NULL);
 
     if (hicon) DestroyIcon(hicon);
     
@@ -1670,6 +2210,66 @@ static void update_sessions(void)
 
     if (!putty_path)
 	return;
+
+    if (get_use_inifile()) {
+        tree234* sessions;
+        int i;
+	char* buffer;
+	int length = 256;
+	char* p;
+	while (1) {
+	    buffer = snewn(length, char);
+	    if (GetPrivateProfileSectionNames(buffer, length, inifile) < (DWORD) length - 2)
+	        break;
+            sfree(buffer);
+	    length += 256;
+	}
+	p = buffer;
+
+	for (num_entries = GetMenuItemCount(session_menu);
+	    num_entries > initial_menuitems_count;
+	    num_entries--)
+	    RemoveMenu(session_menu, 0, MF_BYPOSITION);
+
+	index_menu = 0;
+
+        sessions = newtree234(strcmp);
+	while(*p != '\0') {
+	    if (!strncmp(p, HEADER, sizeof (HEADER) - 1)) {
+		if(strcmp(buf, PUTTY_DEFAULT) != 0) {
+		    TCHAR session_name[MAX_PATH + 1];
+		    unmungestr(p + sizeof (HEADER) - 1, session_name, MAX_PATH);
+                    add234(sessions, strdup(session_name));
+                }
+            }
+            p += strlen(p) + 1;
+        }
+        for (i = 0; (p = index234(sessions, i)) != NULL; i++) {
+	    memset(&mii, 0, sizeof(mii));
+	    mii.cbSize = sizeof(mii);
+	    mii.fMask = MIIM_TYPE | MIIM_STATE | MIIM_ID;
+	    mii.fType = MFT_STRING;
+	    mii.fState = MFS_ENABLED;
+	    mii.wID = (index_menu * 16) + IDM_SESSIONS_BASE;
+	    mii.dwTypeData = p;
+	    InsertMenuItem(session_menu, index_menu, TRUE, &mii);
+	    index_menu++;
+            free(p);
+	}
+        freetree234(sessions);
+
+	sfree(buffer);
+
+	if(index_menu == 0) {
+            mii.cbSize = sizeof(mii);
+            mii.fMask = MIIM_TYPE | MIIM_STATE;
+            mii.fType = MFT_STRING;
+            mii.fState = MFS_GRAYED;
+            mii.dwTypeData = _T("(No sessions)");
+            InsertMenuItem(session_menu, index_menu, TRUE, &mii);
+	}
+	return;
+    }
 
     if(ERROR_SUCCESS != RegOpenKey(HKEY_CURRENT_USER, PUTTY_REGKEY, &hkey))
 	return;
@@ -1803,13 +2403,19 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    menuinprogress = 0;
 	}
 	break;
+      case WM_TIMER:
+        if (wParam == TID_ADDSYSTRAY) {
+            KillTimer(hwnd, TID_ADDSYSTRAY);
+	    AddTrayIcon(hwnd);
+	}
+	break;
       case WM_COMMAND:
       case WM_SYSCOMMAND:
 	switch (wParam & ~0xF) {       /* low 4 bits reserved to Windows */
 	  case IDM_PUTTY:
 	    if((int)ShellExecute(hwnd, NULL, putty_path, _T(""), _T(""),
 				 SW_SHOW) <= 32) {
-		MessageBox(NULL, "Unable to execute PuTTY!",
+		MessageBox(hwnd, "Unable to execute PuTTY!",
 			   "Error", MB_OK | MB_ICONERROR);
 	    }
 	    break;
@@ -1821,7 +2427,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	  case IDM_VIEWKEYS:
 	    if (!keylist) {
 		keylist = CreateDialog(hinst, MAKEINTRESOURCE(211),
-				       NULL, KeyListProc);
+				       hwnd, KeyListProc);
 		ShowWindow(keylist, SW_SHOWNORMAL);
 	    }
 	    /* 
@@ -1841,12 +2447,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		SetForegroundWindow(passphrase_box);
 		break;
 	    }
-	    prompt_add_keyfile();
+	    prompt_add_keyfile(hwnd);
 	    break;
 	  case IDM_ABOUT:
 	    if (!aboutbox) {
 		aboutbox = CreateDialog(hinst, MAKEINTRESOURCE(213),
-					NULL, AboutProc);
+					hwnd, AboutProc);
 		ShowWindow(aboutbox, SW_SHOWNORMAL);
 		/* 
 		 * Sometimes the window comes up minimised / hidden
@@ -1859,6 +2465,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    break;
 	  case IDM_HELP:
 	    launch_help(hwnd, WINHELP_CTX_pageant_general);
+	    break;
+	  case IDM_CONFIRM_REQUEST:
+	    {
+                MENUITEMINFO mii = {sizeof mii, MIIM_STATE};
+                confirm_any_request = !confirm_any_request;
+                mii.fState = confirm_any_request ? MFS_CHECKED : MFS_UNCHECKED;
+                SetMenuItemInfo(systray_menu, IDM_CONFIRM_REQUEST, FALSE, &mii);
+	    }
 	    break;
 	  default:
 	    {
@@ -1876,7 +2490,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    strcat(param, mii.dwTypeData);
 		    if((int)ShellExecute(hwnd, NULL, putty_path, param,
 					 _T(""), SW_SHOW) <= 32) {
-			MessageBox(NULL, "Unable to execute PuTTY!", "Error",
+			MessageBox(hwnd, "Unable to execute PuTTY!", "Error",
 				   MB_OK | MB_ICONERROR);
 		    }
 		}
@@ -2012,7 +2626,7 @@ void spawn_cmd(char *cmdline, char * args, int show)
 	char *msg;
 	msg = dupprintf("Failed to run \"%.100s\", Error: %d", cmdline,
 			(int)GetLastError());
-	MessageBox(NULL, msg, APPNAME, MB_OK | MB_ICONEXCLAMATION);
+	MessageBox(hwnd, msg, APPNAME, MB_OK | MB_ICONEXCLAMATION);
 	sfree(msg);
     }
 }
@@ -2037,6 +2651,7 @@ int flags = FLAG_SYNCAGENT;
 
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
+    BOOL l10nAppendMenu(HMENU menu, UINT flags, UINT id, LPCSTR text);
     WNDCLASS wndclass;
     MSG msg;
     char *command = NULL;
@@ -2073,7 +2688,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	    return 1;
 	}
 #else
-	MessageBox(NULL,
+	MessageBox(hwnd,
 		   "This program has been compiled for Win9X and will\n"
 		   "not run on NT, in case it causes a security breach.",
 		   "Pageant Fatal Error", MB_ICONERROR | MB_OK);
@@ -2129,6 +2744,24 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
      * Process the command line and add keys as listed on it.
      */
     split_into_argv(cmdline, &argc, &argv, &argstart);
+    if (argc > 1 && !strcmp(argv[0], "-ini") && *(argv[1]) != '\0') {
+        char* dummy;
+        DWORD attributes;
+        GetFullPathName(argv[1], sizeof inifile, inifile, &dummy);
+        attributes = GetFileAttributes(inifile);
+        if (attributes != 0xFFFFFFFF && (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+            HANDLE handle = CreateFile(inifile, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (handle != INVALID_HANDLE_VALUE) {
+                CloseHandle(handle);
+                use_inifile = 1;
+                argc -= 2;
+                argv += 2;
+            }
+        }
+    }
+
+    load_passphrases();
+
     for (i = 0; i < argc; i++) {
 	if (!strcmp(argv[i], "-pgpfp")) {
 	    pgp_fingerprints();
@@ -2178,7 +2811,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
      */
     if (already_running) {
 	if (!command && !added_keys) {
-	    MessageBox(NULL, "Pageant is already running", "Pageant Error",
+	    MessageBox(hwnd, "Pageant is already running", "Pageant Error",
 		       MB_ICONERROR | MB_OK);
 	}
 	return 0;
@@ -2213,20 +2846,22 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     systray_menu = CreatePopupMenu();
     if (putty_path) {
 	session_menu = CreateMenu();
-	AppendMenu(systray_menu, MF_ENABLED, IDM_PUTTY, "&New Session");
-	AppendMenu(systray_menu, MF_POPUP | MF_ENABLED,
+	l10nAppendMenu(systray_menu, MF_ENABLED, IDM_PUTTY, "&New Session");
+	l10nAppendMenu(systray_menu, MF_POPUP | MF_ENABLED,
 		   (UINT) session_menu, "&Saved Sessions");
 	AppendMenu(systray_menu, MF_SEPARATOR, 0, 0);
     }
-    AppendMenu(systray_menu, MF_ENABLED, IDM_VIEWKEYS,
+    l10nAppendMenu(systray_menu, MF_ENABLED, IDM_VIEWKEYS,
 	   "&View Keys");
-    AppendMenu(systray_menu, MF_ENABLED, IDM_ADDKEY, "Add &Key");
+    l10nAppendMenu(systray_menu, MF_ENABLED, IDM_ADDKEY, "Add &Key");
+    confirm_any_request = 0;
+    l10nAppendMenu(systray_menu, MF_UNCHECKED, IDM_CONFIRM_REQUEST, "&Confirm Any Request");
     AppendMenu(systray_menu, MF_SEPARATOR, 0, 0);
     if (has_help())
-	AppendMenu(systray_menu, MF_ENABLED, IDM_HELP, "&Help");
-    AppendMenu(systray_menu, MF_ENABLED, IDM_ABOUT, "&About");
+	l10nAppendMenu(systray_menu, MF_ENABLED, IDM_HELP, "&Help");
+    l10nAppendMenu(systray_menu, MF_ENABLED, IDM_ABOUT, "&About");
     AppendMenu(systray_menu, MF_SEPARATOR, 0, 0);
-    AppendMenu(systray_menu, MF_ENABLED, IDM_CLOSE, "E&xit");
+    l10nAppendMenu(systray_menu, MF_ENABLED, IDM_CLOSE, "E&xit");
     initial_menuitems_count = GetMenuItemCount(session_menu);
 
     /* Set the default menu item. */

@@ -1390,6 +1390,13 @@ in the word processor in the same \i{font}, \i{colour}, and style
 This option can easily be inconvenient, so by default it is
 disabled.
 
+\S{config-ignorechars} Ignore characters
+
+\cfg{winhelp-topic}{selection.ignore}
+
+If you set \q{Ignore chars},
+PuTTY will not send the characters to the clipboard.
+
 \S{config-mouse} Changing the actions of the mouse buttons
 
 \cfg{winhelp-topic}{selection.buttons}

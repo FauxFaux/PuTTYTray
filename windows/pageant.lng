@@ -1,0 +1,51 @@
+[Default]
+Language=Japanese
+
+[Japanese]
+_OFONTNAME_=MS Shell Dlg
+_FONTNAME_=MS UI Gothic
+_FONTSIZE_=12
+Enter passphrase for key=鍵のパスフレーズを入力してください
+Pageant: Enter Passphrase=Pageant: パスフレーズの入力
+&Cancel=取消(&C)
+Pageant Key List=Pageant 鍵の一覧
+&Add Key=鍵の追加(&A)
+&Remove Key=鍵の削除(&R)
+&Help=ヘルプ(&H)
+About Pageant=Pageantについて
+&Close=閉じる(&C)
+View &Licence=ライセンスを見る(&L)
+PuTTY Key File Warning=PuTTY 鍵ファイルの警告
+You are loading an SSH-2 private key which has an%0Aold version of the file format. This means your key%0Afile is not fully tamperproof. Future versions of%0APuTTY may stop supporting this private key format,%0Aso we recommend you convert your key to the new%0Aformat.%0A%0AYou can perform this conversion by loading the key%0Ainto PuTTYgen and then saving it again.=ロードしているSSH-2秘密鍵はファイルフォーマットの%0Aバージョンが古くなっています。この鍵は完全には%0Atamperproofではありません。次以降の版のPuTTYでは%0Aこの秘密鍵フォーマットをサポートしなくなるかもしれ%0Aませんので新しいフォーマットにコンバートすることを%0Aお奨めします。%0A%0APuTTYgenで鍵を読み込んで再度保存することで%0Aコンバートできます。
+Couldn't load private key=秘密鍵を読み込めませんでした。
+The already running Pageant refused to add the key.=実行中のPageantが鍵の追加を拒否しました。
+(No sessions)=(なし)
+Unable to execute PuTTY!=PuTTYを実行できません!
+Error=エラー
+&New Session=新しいセッション(&N)
+&Saved Sessions=保存されたセッション(&S)
+&View Keys=鍵の一覧(&V)
+Add &Key=鍵の追加(&K)
+E&xit=閉じる(&X)
+Pageant is already running=Pageantは既に実行中です
+Pageant Error=Pageant エラー
+Couldn't load this key (%25s)=この鍵を読み込めませんでした。(%25s)
+Couldn't load private key.=秘密鍵を読み込めませんでした。
+Couldn't load private key (%25s)=秘密鍵を読み込めませんでした。(%25s)
+Pageant Fatal Error=Pageant 致命的なエラー
+Unable to access security APIs. Pageant will%0Anot run, in case it causes a security breach.=セキュリティAPIにアクセスできませんでした。%0APageantはセキュリティ侵害の原因となるため、実行しません。
+This program has been compiled for Win9X and will%0Anot run on NT, in case it causes a security breach.=このプログラムはWin9X向けにコンパイルされていて、セキュリティ侵害の原因となるためNT上では実行しません。
+Failed to run "%25.100s", Error: %25d="%25.100s"の起動に失敗しました(エラー:%25d)
+Windows refuses to report a version=Windowsがバージョンを報告することを拒否しました
+Out of memory! (%25s:%25d, size=%25d)=メモリが足りません! (%25s:%25d, size=%25d)
+Out of memory!=メモリが足りません!
+PuTTY Private Key Files (*.ppk)=PuTTY 秘密鍵ファイル (*.ppk)%00*.ppk%00全てのファイル (*.*)%00*%00%00%00
+Select Private Key File=秘密鍵ファイルの選択
+&Save this passphrase=パスフレーズを記憶する(&S)
+&Don't ask again=次回から確認しない(&D)
+&Confirm Any Request=常に要求を確認(&C)
+Accept query of the following key?=次の鍵への照会を許可しますか?
+Accept addition of the following key?=次の鍵の追加を許可しますか?
+Accept deletion of the following key?=次の鍵の削除を許可しますか?
+Accept deletion of all SSH1 identities?=全てのSSH1識別情報の削除を許可しますか?
+Accept deletion of all SSH2 identities?=全てのSSH2識別情報の削除を許可しますか?

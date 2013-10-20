@@ -39,7 +39,7 @@ struct termchar {
      * saying FULL-TERMCHAR.
      */
     unsigned long chr;
-    unsigned long attr;
+    unsigned long long attr;
 
     /*
      * The cc_next field is used to link multiple termchars
@@ -157,6 +157,7 @@ struct terminal_tag {
     int mouse_is_down;		       /* used while tracking mouse buttons */
 
     int bracketed_paste;
+    int osc_clipping;
 
     int cset_attr[2];
 
@@ -323,6 +324,13 @@ struct terminal_tag {
     int scroll_on_disp;
     int scroll_on_key;
     int xterm_256_colour;
+
+    /* Hyperlink */
+    int url_enable;
+    int url_ctrl_click;
+    /* Ignore Chars */
+    unsigned long ignore_uchars[IGNORE_CHARS_MAX + 1];
+    int ignore_length;
 };
 
 #define in_utf(term) ((term)->utf || (term)->ucsdata->line_codepage==CP_UTF8)

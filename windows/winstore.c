@@ -8,6 +8,7 @@
 #include <limits.h>
 #include "putty.h"
 #include "storage.h"
+#include <shlobj.h>
 
 #include <shlobj.h>
 #ifndef CSIDL_APPDATA
@@ -73,6 +74,52 @@ static void unmungestr(const char *in, char *out, int outlen)
     return;
 }
 
+int use_inifile = 0;
+char inifile[2 * MAX_PATH + 10] = {'\0'};
+
+static int get_use_inifile(void)
+{
+    if (inifile[0] == '\0') {
+    	char buf[10];
+	char *p;
+	GetModuleFileName(NULL, inifile, sizeof(inifile));
+	if((p = strrchr(inifile, '\\'))){
+	    *p = '\0';
+	}
+	strcat(inifile, "\\putty.ini");
+	GetPrivateProfileString("Generic", "UseIniFile", "", buf, sizeof (buf), inifile);
+	use_inifile = buf[0] == '1';
+	if (!use_inifile) {
+	    HMODULE module;
+	    HRESULT (WINAPI* SHGetFolderPath)(HWND, int, HANDLE, DWORD, LPSTR);
+	    module = LoadLibrary("shell32.dll");
+	    SHGetFolderPath = (HRESULT (WINAPI*)(HWND, int, HANDLE, DWORD, LPSTR)) GetProcAddress(module, "SHGetFolderPathA");
+	    if (SHGetFolderPath == NULL) {
+		FreeLibrary(module);
+		module = LoadLibrary("SHFolder.dll");
+		SHGetFolderPath = (HRESULT (WINAPI*)(HWND, int, HANDLE, DWORD, LPSTR)) GetProcAddress(module, "SHGetFolderPathA");
+	    }
+	    if (SHGetFolderPath != NULL && SUCCEEDED(SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, 0, inifile))) {
+		strcat(inifile, "\\PuTTY\\putty.ini");
+		GetPrivateProfileString("Generic", "UseIniFile", "", buf, sizeof (buf), inifile);
+		use_inifile = buf[0] == '1';
+	    }
+	    FreeLibrary(module);
+	}
+    }
+    return use_inifile;
+}
+
+static const char HEADER[] = "Session:";
+static char* generate_keyname(const char* p) {
+    int length = strlen(p) + sizeof (HEADER);
+    char* keyname = snewn(length, char);
+    strcpy(keyname, HEADER);
+    strcat(keyname, p);
+    sfree((void*)p);
+    return keyname;
+}
+
 void *open_settings_w(const char *sessionname, char **errmsg)
 {
     HKEY subkey1, sesskey;
@@ -87,6 +134,13 @@ void *open_settings_w(const char *sessionname, char **errmsg)
     p = snewn(3 * strlen(sessionname) + 1, char);
     mungestr(sessionname, p);
 
+    if (get_use_inifile()) {
+	char* keyname = generate_keyname(p);
+	WritePrivateProfileString(keyname, "Present", "1", inifile);
+	WritePrivateProfileString(keyname, "ISO2022", NULL, inifile);
+	WritePrivateProfileString(keyname, "ISO2022initstr", NULL, inifile);
+	return keyname;
+    }
     ret = RegCreateKey(HKEY_CURRENT_USER, puttystr, &subkey1);
     if (ret != ERROR_SUCCESS) {
 	sfree(p);
@@ -103,11 +157,25 @@ void *open_settings_w(const char *sessionname, char **errmsg)
 	return NULL;
     }
     sfree(p);
+    RegDeleteValue (sesskey, "ISO2022");  /* for compatibility with old patch */
+    RegDeleteValue (sesskey, "ISO2022initstr");
     return (void *) sesskey;
 }
 
 void write_setting_s(void *handle, const char *key, const char *value)
 {
+    if (get_use_inifile()) {
+	if (handle) {
+	    int length = strlen(value);
+	    char* buffer = snewn(length + 3, char);
+	    strcpy(buffer + 1, value);
+	    buffer[0] = buffer[length + 1] = '"';
+	    buffer[length + 2] = '\0';
+	    WritePrivateProfileString((char*) handle, key, buffer, inifile);
+	    sfree(buffer);
+	}
+	return;
+    }
     if (handle)
 	RegSetValueEx((HKEY) handle, key, 0, REG_SZ, value,
 		      1 + strlen(value));
@@ -115,6 +183,14 @@ void write_setting_s(void *handle, const char *key, const char *value)
 
 void write_setting_i(void *handle, const char *key, int value)
 {
+    if (get_use_inifile()) {
+	if (handle) {
+	    char v[10];
+	    sprintf(v, "%d", value);
+	    WritePrivateProfileString((char*) handle, key, v, inifile);
+	}
+	return;
+    }
     if (handle)
 	RegSetValueEx((HKEY) handle, key, 0, REG_DWORD,
 		      (CONST BYTE *) &value, sizeof(value));
@@ -122,6 +198,10 @@ void write_setting_i(void *handle, const char *key, int value)
 
 void close_settings_w(void *handle)
 {
+    if (get_use_inifile()) {
+	sfree(handle);
+	return;
+    }
     RegCloseKey((HKEY) handle);
 }
 
@@ -136,6 +216,16 @@ void *open_settings_r(const char *sessionname)
     p = snewn(3 * strlen(sessionname) + 1, char);
     mungestr(sessionname, p);
 
+    if (get_use_inifile()) {
+        char temp[3];
+	char* keyname = generate_keyname(p);
+	GetPrivateProfileString(keyname, "Present", "", temp, sizeof (temp), inifile);
+	if (temp[0] != '1') {
+	    sfree(keyname);
+	    return NULL;
+	}
+	return keyname;
+    }
     if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS) {
 	sesskey = NULL;
     } else {
@@ -157,6 +247,16 @@ char *read_setting_s(void *handle, const char *key)
 
     if (!handle)
 	return NULL;
+
+    if (get_use_inifile()) {
+	char buffer[1024];
+	GetPrivateProfileString((char*)handle, key, "\n:", buffer, 1024, inifile);
+	if (buffer[0] != '\n') {
+	    return dupstr(buffer);
+	} else {
+	    return NULL;
+	}
+    }
 
     /* Find out the type and size of the data. */
     if (RegQueryValueEx((HKEY) handle, key, 0,
@@ -180,6 +280,15 @@ int read_setting_i(void *handle, const char *key, int defvalue)
     DWORD type, val, size;
     size = sizeof(val);
 
+    if (get_use_inifile()) {
+	if (handle) {
+	    char buffer[32];
+	    GetPrivateProfileString((char*) handle, key, "", buffer, sizeof (buffer), inifile);
+	    if ('0' <= buffer[0] && buffer[0] <= '9')
+		return atoi(buffer);
+	}
+	return defvalue;
+    }
     if (!handle ||
 	RegQueryValueEx((HKEY) handle, key, 0, &type,
 			(BYTE *) &val, &size) != ERROR_SUCCESS ||
@@ -195,6 +304,7 @@ FontSpec *read_setting_fontspec(void *handle, const char *name)
     char *fontname;
     FontSpec *ret;
     int isbold, height, charset;
+    FontSpec *f;
 
     fontname = read_setting_s(handle, name);
     if (!fontname)
@@ -263,6 +373,10 @@ void write_setting_filename(void *handle, const char *name, Filename *result)
 
 void close_settings_r(void *handle)
 {
+    if (get_use_inifile()) {
+	sfree(handle);
+	return;
+    }
     RegCloseKey((HKEY) handle);
 }
 
@@ -271,6 +385,15 @@ void del_settings(const char *sessionname)
     HKEY subkey1;
     char *p;
 
+    if (get_use_inifile()) {
+	char* keyname;
+        p = snewn(3 * strlen(sessionname) + 1, char);
+        mungestr(sessionname, p);
+	keyname = generate_keyname(p);
+	WritePrivateProfileSection(keyname, NULL, inifile);
+	sfree(keyname);
+	return;
+    }
     if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS)
 	return;
 
@@ -289,11 +412,32 @@ struct enumsettings {
     int i;
 };
 
+struct enumsettings_ini {
+    char* buffer;
+    const char* p;
+};
+
 void *enum_settings_start(void)
 {
     struct enumsettings *ret;
     HKEY key;
 
+    if (get_use_inifile()) {
+	struct enumsettings_ini *ret;
+	char* buffer;
+	int length = 256;
+	while (1) {
+	    buffer = snewn(length, char);
+	    if (GetPrivateProfileSectionNames(buffer, length, inifile) < (DWORD) length - 2)
+	        break;
+            sfree(buffer);
+	    length += 256;
+	}
+	ret = snew(struct enumsettings_ini);
+	ret->buffer = buffer;
+	ret->p = buffer;
+	return ret;
+    }
     if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &key) != ERROR_SUCCESS)
 	return NULL;
 
@@ -310,6 +454,24 @@ char *enum_settings_next(void *handle, char *buffer, int buflen)
 {
     struct enumsettings *e = (struct enumsettings *) handle;
     char *otherbuf;
+    if (get_use_inifile()) {
+	struct enumsettings_ini *e = (struct enumsettings_ini*) handle;
+	while (*e->p != '\0') {
+		if (!strncmp((char*)e->p, HEADER, sizeof (HEADER) - 1)) {
+		        char temp[3];
+			GetPrivateProfileString(e->p, "Present", "", temp, sizeof (temp), inifile);
+			if (temp[0] == '1') {
+				unmungestr(e->p + sizeof (HEADER) - 1, buffer, buflen);
+				while (*e->p++ != '\0')
+					;
+				return buffer;
+			}
+		}
+		while (*e->p++ != '\0')
+			;
+	}
+	return NULL;
+    }
     otherbuf = snewn(3 * buflen, char);
     if (RegEnumKey(e->key, e->i++, otherbuf, 3 * buflen) == ERROR_SUCCESS) {
 	unmungestr(otherbuf, buffer, buflen);
@@ -324,6 +486,12 @@ char *enum_settings_next(void *handle, char *buffer, int buflen)
 void enum_settings_finish(void *handle)
 {
     struct enumsettings *e = (struct enumsettings *) handle;
+    if (get_use_inifile()) {
+	struct enumsettings_ini *e = (struct enumsettings_ini*) handle;
+	sfree(e->buffer);
+	sfree(e);
+	return;
+    }
     RegCloseKey(e->key);
     sfree(e);
 }
@@ -355,10 +523,91 @@ int verify_host_key(const char *hostname, int port,
      * Now read a saved key in from the registry and see what it
      * says.
      */
+    otherstr = snewn(len + 1, char);
     regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
 
     hostkey_regname(regname, hostname, port, keytype);
 
+    if (get_use_inifile()) {
+        if (GetPrivateProfileString("SshHostKeys", regname, "\n:", otherstr, len + 1, inifile) == (DWORD) len)
+            ret = ERROR_MORE_DATA;
+        else if (otherstr[0] == '\n')
+            ret = ERROR_FILE_NOT_FOUND;
+        else
+            ret = ERROR_SUCCESS;
+	if (ret != ERROR_SUCCESS && ret != ERROR_MORE_DATA &&
+		!strcmp(keytype, "rsa")) {
+	    char *justhost = regname + 1 + strcspn(regname, ":");
+	    char *oldstyle = snewn(len + 10, char);	/* safety margin */
+	    if (GetPrivateProfileString("SshHostKeys", justhost, "\n:", oldstyle, len + 1, inifile) == (DWORD) len)
+		ret = ERROR_MORE_DATA;
+	    else if (oldstyle[0] == '\n')
+		ret = ERROR_FILE_NOT_FOUND;
+	    else
+		ret = ERROR_SUCCESS;
+
+	    if (ret == ERROR_SUCCESS) {
+		/*
+		 * The old format is two old-style bignums separated by
+		 * a slash. An old-style bignum is made of groups of
+		 * four hex digits: digits are ordered in sensible
+		 * (most to least significant) order within each group,
+		 * but groups are ordered in silly (least to most)
+		 * order within the bignum. The new format is two
+		 * ordinary C-format hex numbers (0xABCDEFG...XYZ, with
+		 * A nonzero except in the special case 0x0, which
+		 * doesn't appear anyway in RSA keys) separated by a
+		 * comma. All hex digits are lowercase in both formats.
+		 */
+		char *p = otherstr;
+		char *q = oldstyle;
+		int i, j;
+
+		for (i = 0; i < 2; i++) {
+		    int ndigits, nwords;
+		    *p++ = '0';
+		    *p++ = 'x';
+		    ndigits = strcspn(q, "/");	/* find / or end of string */
+		    nwords = ndigits / 4;
+		    /* now trim ndigits to remove leading zeros */
+		    while (q[(ndigits - 1) ^ 3] == '0' && ndigits > 1)
+		        ndigits--;
+		    /* now move digits over to new string */
+		    for (j = 0; j < ndigits; j++)
+		        p[ndigits - 1 - j] = q[j ^ 3];
+		    p += ndigits;
+		    q += nwords * 4;
+		    if (*q) {
+		        q++;	       /* eat the slash */
+		        *p++ = ',';	       /* add a comma */
+		    }
+		    *p = '\0';	       /* terminate the string */
+		}
+
+		/*
+		 * Now _if_ this key matches, we'll enter it in the new
+		 * format. If not, we'll assume something odd went
+		 * wrong, and hyper-cautiously do nothing.
+		 */
+		if (!strcmp(otherstr, key))
+		    WritePrivateProfileString("SshHostKeys", regname, otherstr, inifile);
+	    }
+	    sfree(oldstyle);
+        }
+
+	compare = strcmp(otherstr, key);
+
+	sfree(otherstr);
+	sfree(regname);
+
+	if (ret == ERROR_MORE_DATA ||
+		(ret == ERROR_SUCCESS && compare))
+		return 2;		       /* key is different in registry */
+	else if (ret != ERROR_SUCCESS)
+		return 1;		       /* key does not exist in registry */
+	else
+		return 0;		       /* key matched OK in registry */
+    }
     if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys",
 		   &rkey) != ERROR_SUCCESS) {
         sfree(regname);
@@ -459,6 +708,10 @@ void store_host_key(const char *hostname, int port,
 
     hostkey_regname(regname, hostname, port, keytype);
 
+    if (get_use_inifile()) {
+	WritePrivateProfileString("SshHostKeys", regname, key, inifile);
+	return;
+    }
     if (RegCreateKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys",
 		     &rkey) == ERROR_SUCCESS) {
 	RegSetValueEx(rkey, regname, 0, REG_SZ, key, strlen(key) + 1);
@@ -512,6 +765,23 @@ static HANDLE access_random_seed(int action)
      * best location in which we actually find one, and then
      * writing to the best location in which we can _create_ one).
      */
+
+    if (get_use_inifile()) {
+	if (GetPrivateProfileString("Generic", "RandSeedFile", "\n:", seedpath, sizeof(seedpath), inifile) >= sizeof(seedpath) - 1 || seedpath[0] == '\n') {
+	    char* p;
+	    GetModuleFileName(NULL, seedpath, sizeof(seedpath));
+	    if((p = strrchr(seedpath, '\\')) != NULL){
+		*p = '\0';
+	    }else{
+	        seedpath[0] = '.';
+	        seedpath[1] = '\0';
+	    }
+	    strcat(seedpath, "\\putty.rnd");
+	}
+	if (*seedpath && try_random_seed(seedpath, action, &rethandle))
+	    return rethandle;
+	return INVALID_HANDLE_VALUE;
+    }
 
     /*
      * First, try the location specified by the user in the
@@ -646,18 +916,43 @@ static int transform_jumplist_registry
     char *old_value, *new_value;
     char *piterator_old, *piterator_new, *piterator_tmp;
 
+    const char *session = "Jumplist";
+
+    if (!get_use_inifile()) {
     ret = RegCreateKeyEx(HKEY_CURRENT_USER, reg_jumplist_key, 0, NULL,
                          REG_OPTION_NON_VOLATILE, (KEY_READ | KEY_WRITE), NULL,
                          &pjumplist_key, NULL);
     if (ret != ERROR_SUCCESS) {
 	return JUMPLISTREG_ERROR_KEYOPENCREATE_FAILURE;
     }
+    }
 
     /* Get current list of saved sessions in the registry. */
+    if (get_use_inifile()) {
+        value_length = 1024;
+        old_value = snewn(value_length, char);
+        ret = GetPrivateProfileString(session, reg_jumplist_value, "\n",
+                                      old_value, value_length, inifile);
+        if (old_value[0] == '\n') {
+            ret = ERROR_FILE_NOT_FOUND;
+        } else {
+            int i;
+            for (i = 0; i < ret; i++) {
+                if (old_value[i] == '\\') {
+                    old_value[i] = '\0';
+                }
+            }
+            ret = ERROR_SUCCESS;
+            type = REG_MULTI_SZ;
+        }
+
+    } else {
     value_length = 200;
     old_value = snewn(value_length, char);
     ret = RegQueryValueEx(pjumplist_key, reg_jumplist_value, NULL, &type,
                           old_value, &value_length);
+    }
+
     /* When the passed buffer is too small, ERROR_MORE_DATA is
      * returned and the required size is returned in the length
      * argument. */
@@ -738,8 +1033,20 @@ static int transform_jumplist_registry
         ++piterator_new;
 
         /* Save the new list to the registry. */
+        if (get_use_inifile()) {
+            int i;
+            for (i = 0; i < piterator_new - new_value - 1; i++) {
+                if (new_value[i] == '\0') {
+                    new_value[i] = '\\';
+                }
+            }
+            WritePrivateProfileString(session, reg_jumplist_value,
+                                      new_value, inifile);
+            ret = ERROR_SUCCESS;
+        } else {
         ret = RegSetValueEx(pjumplist_key, reg_jumplist_value, 0, REG_MULTI_SZ,
                             new_value, piterator_new - new_value);
+        }
 
         sfree(old_value);
         old_value = new_value;
@@ -755,7 +1062,9 @@ static int transform_jumplist_registry
         sfree(old_value);
 
     /* Clean up and return. */
+    if (!get_use_inifile()) {
     RegCloseKey(pjumplist_key);
+    }
 
     if (ret != ERROR_SUCCESS) {
         return JUMPLISTREG_ERROR_VALUEWRITE_FAILURE;
@@ -831,6 +1140,10 @@ void cleanup_all(void)
      * Destroy all registry information associated with PuTTY.
      */
 
+    if (get_use_inifile()) {
+        remove(inifile);
+        return;
+    }
     /*
      * Open the main PuTTY registry key and remove everything in it.
      */

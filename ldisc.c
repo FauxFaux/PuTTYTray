@@ -131,6 +131,33 @@ void ldisc_send(void *handle, char *buf, int len, int interactive)
 {
     Ldisc ldisc = (Ldisc) handle;
     int keyflag = 0;
+    struct iso2022_data *iso2022 = NULL;
+
+#define ISO2022_OUTPUT(a1,a2,a3,a4) do { \
+	if (!iso2022) a1 (a2, a3, a4); \
+	else { \
+	    char a[100]; \
+	    char *p = a3; \
+	    int b = 0; \
+	    int l; \
+	    l = a4; \
+	    while (l) { \
+		if (!iso2022_tbuflen (iso2022)) \
+		    iso2022_transmit (iso2022, *p++), l--; \
+		while (iso2022_tbuflen (iso2022)) { \
+		    a[b++] = iso2022_tgetbuf (iso2022); \
+		    if (b == sizeof a) \
+			a1 (a2, a, b), b = 0; \
+		} \
+	    } \
+	    if (b) \
+		a1 (a2, a, b); \
+	} \
+    } while (0)
+    if (in_utf (ldisc->term) && ldisc->term->ucsdata->iso2022)
+	iso2022 = &ldisc->term->ucsdata->iso2022_data;
+    if (iso2022)
+	iso2022_tbufclear (iso2022);
     /*
      * Called with len=0 when the options change. We must inform
      * the front end in case it needs to know.
@@ -311,7 +338,7 @@ void ldisc_send(void *handle, char *buf, int len, int interactive)
 	}
 	if (len > 0) {
 	    if (ECHOING)
-		c_write(ldisc, buf, len);
+		ISO2022_OUTPUT (c_write, ldisc, buf, len);
 	    if (keyflag && ldisc->protocol == PROT_TELNET && len == 1) {
 		switch (buf[0]) {
 		  case CTRL('M'):
@@ -342,7 +369,7 @@ void ldisc_send(void *handle, char *buf, int len, int interactive)
 		    break;
 		}
 	    } else
-		ldisc->back->send(ldisc->backhandle, buf, len);
+		ISO2022_OUTPUT (ldisc->back->send, ldisc->backhandle, buf, len);
 	}
     }
 }

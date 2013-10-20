@@ -201,7 +201,8 @@ void quit_help(HWND hwnd);
 GLOBAL Terminal *term;
 GLOBAL void *logctx;
 
-#define WM_NETEVENT  (WM_APP + 5)
+#define WM_NETEVENT  (WM_APP + 8)
+#define WM_ENACT_PENDING_NETEVENT  (WM_APP + 9)
 
 /*
  * On Windows, we send MA_2CLK as the only event marking the second
@@ -239,6 +240,11 @@ GLOBAL void *logctx;
 			       "All Files (*.*)\0*\0\0\0")
 #define FILTER_DYNLIB_FILES ("Dynamic Library Files (*.dll)\0*.dll\0" \
 				 "All Files (*.*)\0*\0\0\0")
+#define FILTER_IMAGE_FILES ("Bmp Files (*.bmp)\0*.bmp\0" \
+			       "All Files (*.*)\0*\0\0\0")
+#define FILTER_ICON_FILES ("Icon Files (*.ico)\0*.ico\0" \
+			       "Module Files (*.exe;*.dll)\0*.exe;*.dll\0" \
+			       "All Files (*.*)\0*\0\0\0")
 
 /*
  * winnet.c dynamically loads WinSock 2 or WinSock 1 depending on
@@ -552,5 +558,43 @@ int remove_from_jumplist_registry(const char *item);
  * sequence of NUL-terminated strings in memory, terminated with an
  * empty one. */
 char *get_jumplist_registry_entries(void);
+
+/*
+ * Exports from iso2022.c
+ */
+int xMultiByteToWideChar(UINT, DWORD, LPCSTR, int, LPWSTR, int);
+int xWideCharToMultiByte(UINT, DWORD, LPCWSTR, int, LPSTR, int,
+                         LPCSTR, LPBOOL);
+#define MultiByteToWideChar xMultiByteToWideChar
+#define WideCharToMultiByte xWideCharToMultiByte
+
+/*
+ * Exports from l10n.c
+ */
+int xMessageBoxA(HWND, LPCSTR, LPCSTR, UINT);
+HWND xCreateWindowExA(DWORD, LPCSTR, LPCSTR, DWORD, int, int,
+                      int, int, HWND, HMENU, HINSTANCE, LPVOID);
+int xDialogBoxParamA(HINSTANCE, LPCSTR, HWND, DLGPROC, LPARAM);
+HWND xCreateDialogParamA(HINSTANCE, LPCSTR, HWND, DLGPROC, LPARAM);
+#define MessageBoxA xMessageBoxA
+#define CreateWindowExA xCreateWindowExA
+#define DialogBoxParamA xDialogBoxParamA
+#define CreateDialogParamA xCreateDialogParamA
+void l10n (HINSTANCE);
+HFONT l10n_getfont (HFONT);
+void l10n_created_window (HWND);
+
+int xsprintf(char*,const char*, ...);
+int xvsnprintf(char*,int,const char*, va_list args);
+int xGetOpenFileNameA(OPENFILENAMEA* ofn);
+int xGetSaveFileNameA(OPENFILENAMEA* ofn);
+#define sprintf xsprintf
+#ifdef _WINDOWS
+#define _vsnprintf xvsnprintf
+#else//_WINDOWS
+#define vsnprintf xvsnprintf
+#endif//_WINDOWS
+#define GetOpenFileNameA xGetOpenFileNameA
+#define GetSaveFileNameA xGetSaveFileNameA
 
 #endif

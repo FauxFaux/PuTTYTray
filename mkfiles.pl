@@ -696,6 +696,9 @@ if (defined $makefiles{'vc'}) {
       "\t-del *.plg\n".
       "\t-del *.map\n".
       "\t-del *.idb\n".
+      "\t-del *.pgc\n".
+      "\t-del *.pgd\n".
+      "\t-del *.rnd\n".
       "\t-del debug.log\n";
     select STDOUT; close OUT;
 }

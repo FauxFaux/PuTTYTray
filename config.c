@@ -172,6 +172,9 @@ static void config_host_handler(union control *ctrl, void *dlg,
 	     */
 	    dlg_label_change(ctrl, dlg, "Serial line");
 	    dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_serline));
+	} else if (conf_get_int(conf, CONF_protocol) == PROT_ADB) {
+	    dlg_label_change(ctrl, dlg, "transport type");
+	    dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_adb_transport));
 	} else {
 	    dlg_label_change(ctrl, dlg, HOST_BOX_TITLE);
 	    dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_host));
@@ -180,6 +183,8 @@ static void config_host_handler(union control *ctrl, void *dlg,
 	char *s = dlg_editbox_get(ctrl, dlg);
 	if (conf_get_int(conf, CONF_protocol) == PROT_SERIAL)
 	    conf_set_str(conf, CONF_serline, s);
+	else if (conf_get_int(conf, CONF_protocol) == PROT_ADB)
+	    conf_set_str(conf, CONF_adb_transport, s);
 	else
 	    conf_set_str(conf, CONF_host, s);
 	sfree(s);
@@ -507,9 +512,12 @@ static void codepage_handler(union control *ctrl, void *dlg,
     if (event == EVENT_REFRESH) {
 	int i;
 	const char *cp, *thiscp;
+	char *lc;
 	dlg_update_start(ctrl, dlg);
-	thiscp = cp_name(decode_codepage(conf_get_str(conf,
-						      CONF_line_codepage)));
+	lc = conf_get_str(conf, CONF_line_codepage);
+	thiscp = cp_name(decode_codepage(lc));
+	if (decode_codepage (lc) == CP_UTF8 && !iso2022_init_test (lc))
+	    thiscp = lc;
 	dlg_listbox_clear(ctrl, dlg);
 	for (i = 0; (cp = cp_enumerate(i)) != NULL; i++)
 	    dlg_listbox_add(ctrl, dlg, cp);
@@ -518,8 +526,12 @@ static void codepage_handler(union control *ctrl, void *dlg,
 	dlg_update_done(ctrl, dlg);
     } else if (event == EVENT_VALCHANGE) {
 	char *codepage = dlg_editbox_get(ctrl, dlg);
-	conf_set_str(conf, CONF_line_codepage,
-		     cp_name(decode_codepage(codepage)));
+	if (decode_codepage(codepage) != CP_UTF8 || iso2022_init_test(codepage)) {
+	    conf_set_str(conf, CONF_line_codepage,
+			 cp_name(decode_codepage(codepage)));
+	} else {
+	    conf_set_str(conf, CONF_line_codepage, codepage);
+	}
 	sfree(codepage);
     }
 }
@@ -792,7 +804,8 @@ static const char *const colours[] = {
     "ANSI Blue", "ANSI Blue Bold",
     "ANSI Magenta", "ANSI Magenta Bold",
     "ANSI Cyan", "ANSI Cyan Bold",
-    "ANSI White", "ANSI White Bold"
+    "ANSI White", "ANSI White Bold",
+    "Cursor Text(IME ON)", "Cursor Colour(IME ON)",
 };
 
 static void colour_handler(union control *ctrl, void *dlg,
@@ -1278,21 +1291,23 @@ void setup_config_box(struct controlbox *b, int midsession,
 	ctrl_columns(s, 1, 100);
 
 	if (!backend_from_proto(PROT_SSH)) {
-	    ctrl_radiobuttons(s, "Connection type:", NO_SHORTCUT, 3,
-			      HELPCTX(session_hostname),
-			      config_protocolbuttons_handler, P(hp),
-			      "Raw", 'w', I(PROT_RAW),
-			      "Telnet", 't', I(PROT_TELNET),
-			      "Rlogin", 'i', I(PROT_RLOGIN),
-			      NULL);
-	} else {
 	    ctrl_radiobuttons(s, "Connection type:", NO_SHORTCUT, 4,
 			      HELPCTX(session_hostname),
 			      config_protocolbuttons_handler, P(hp),
 			      "Raw", 'w', I(PROT_RAW),
 			      "Telnet", 't', I(PROT_TELNET),
 			      "Rlogin", 'i', I(PROT_RLOGIN),
+			      "ADB", 'a', I(PROT_ADB),
+			      NULL);
+	} else {
+	    ctrl_radiobuttons(s, "Connection type:", NO_SHORTCUT, 3,
+			      HELPCTX(session_hostname),
+			      config_protocolbuttons_handler, P(hp),
+			      "Raw", 'w', I(PROT_RAW),
+			      "Telnet", 't', I(PROT_TELNET),
+			      "Rlogin", 'i', I(PROT_RLOGIN),
 			      "SSH", 's', I(PROT_SSH),
+			      "ADB", 'b', I(PROT_ADB),
 			      NULL);
 	}
     }
@@ -1579,6 +1594,13 @@ void setup_config_box(struct controlbox *b, int midsession,
     ctrl_checkbox(s, "Disable bidirectional text display",
 		  'd', HELPCTX(features_bidi), conf_checkbox_handler,
 		  I(CONF_bidi));
+    s = ctrl_getset(b, "Terminal/Features", "clipboard", "Allowed maximum number of characters");
+    ctrl_editbox(s, "Clipboard modify", 'm', 20,
+		 HELPCTX(no_help),
+		 conf_editbox_handler, I(CONF_clip_modify), I(-1));
+    ctrl_editbox(s, "Clipboard query", 'y', 20,
+		 HELPCTX(no_help),
+		 conf_editbox_handler, I(CONF_clip_query), I(-1));
 
     /*
      * The Window panel.
@@ -1754,6 +1776,12 @@ void setup_config_box(struct controlbox *b, int midsession,
     ccd->button->generic.column = 1;
     ctrl_columns(s, 1, 100);
 
+    s = ctrl_getset(b, "Window/Selection", "format",
+		    "Formatting of pasted characters");
+    ctrl_editbox(s, "Ignore characters", 'i', 50,
+		 HELPCTX(ignore_chars),
+		 conf_editbox_handler, I(CONF_ignore_chars), I(1));
+
     /*
      * The Window/Colours panel.
      */
@@ -1802,6 +1830,26 @@ void setup_config_box(struct controlbox *b, int midsession,
 				 colour_handler, P(cd));
     cd->button->generic.column = 1;
     ctrl_columns(s, 1, 100);
+
+    /* Hyperlink */
+    ctrl_settitle(b, "Window/Hyperlinks",
+		  "Options controlling behaviour of hyperlinks");
+    s = ctrl_getset(b, "Window/Hyperlinks", "general",
+		    "General options for hyperlinks");
+    ctrl_checkbox(s, "Enable hyperlinks", NO_SHORTCUT,
+		  HELPCTX(no_help),
+		  conf_checkbox_handler, I(CONF_url_enable));
+    ctrl_checkbox(s, "Press Ctrl to click hyperlinks", NO_SHORTCUT,
+		  HELPCTX(no_help),
+		  conf_checkbox_handler, I(CONF_url_ctrl_click));
+    ctrl_radiobuttons(s, "Underline hyperlinks:", NO_SHORTCUT, 1,
+		      HELPCTX(no_help),
+		      conf_radiobutton_handler,
+		      I(CONF_url_underline),
+		      "Always", NO_SHORTCUT, I(URL_UNDERLINE_ALWAYS),
+		      "When hovered upon", NO_SHORTCUT, I(URL_UNDERLINE_HOVER),
+		      "Never", NO_SHORTCUT, I(URL_UNDERLINE_NEVER),
+		      NULL);
 
     /*
      * The Connection panel. This doesn't show up if we're in a

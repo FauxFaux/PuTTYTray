@@ -292,6 +292,9 @@ void stdouterr_sent(struct handle *h, int new_backlog)
     }
 }
 
+extern int use_inifile;
+extern char inifile[2 * MAX_PATH + 10];
+
 int main(int argc, char **argv)
 {
     int sending;
@@ -337,6 +340,21 @@ int main(int argc, char **argv)
 		conf_set_int(conf, CONF_port, default_port);
 	    }
 	}
+    }
+    if (argc > 2 && !strcmp(argv[1], "-ini") && *(argv[2]) != '\0') {
+        char* dummy;
+        DWORD attributes;
+        GetFullPathName(argv[2], sizeof inifile, inifile, &dummy);
+        attributes = GetFileAttributes(inifile);
+        if (attributes != 0xFFFFFFFF && (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+            HANDLE handle = CreateFile(inifile, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (handle != INVALID_HANDLE_VALUE) {
+                CloseHandle(handle);
+                use_inifile = 1;
+                argc -= 2;
+                argv += 2;
+            }
+        }
     }
     while (--argc) {
 	char *p = *++argv;

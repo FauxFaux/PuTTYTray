@@ -1,0 +1,38 @@
+[Default]
+Language=Japanese
+
+[Japanese]
+_FONTNAME_=MS UI Gothic
+_FONTSIZE_=12
+_OFONTNAME_=MS Shell Dlg
+_LINECODEPAGE_=EUC-JP
+_DEFAULTFONTNAME_=Terminal
+_DEFAULTFONTCHARSET_=DEFAULT_CHARSET
+%25.90s@%25.90s's password:%20="%25.90s@%25.90sのパスワード: "
+Passphrase for key "%25.100s":%20="%25.100s"の鍵のパスフレーズ:%20
+Cancel=キャンセル
+The server's host key is not cached in the registry. You%0Ahave no guarantee that the server is the computer you%0Athink it is.%0AThe server's %25s key fingerprint is:%0A%25s%0AIf you trust this host, hit Yes to add the key to%0APuTTY's cache and carry on connecting.%0AIf you want to carry on connecting just once, without%0Aadding the key to the cache, hit No.%0AIf you do not trust this host, hit Cancel to abandon the%0Aconnection.%0AStore key in cache?=このサーバの鍵はレジストリにキャッシュされていません。%0Aこのサーバがあなたの期待するコンピューターである%0Aという保証はありません。%0A%0Aこのサーバの%25s鍵の指紋は次の通りです:%0A%25s%0A%0Aこのホストを信用するのであれば、「はい」を押して%0APuTTYのキャッシュに鍵を追加し接続してください。%0A%0Aキャッシュには追加せずに一度だけ接続したいので%0Aあれば、「いいえ」を押してください。%0A%0Aこのホストを信用しないのであれば、「キャンセル」%0Aを押して接続を破棄してください。%0Aキャッシュに鍵を保存しますか?
+The server's host key is not cached in the registry. You%0Ahave no guarantee that the server is the computer you%0Athink it is.%0AThe server's %25s key fingerprint is:%0A%25s%0AConnection abandoned.%0A=このサーバの鍵はレジストリにキャッシュされていません。%0Aこのサーバがあなたの期待するコンピューターである%0Aという保証はありません。%0A%0Aこのサーバの%25s鍵の指紋は次の通りです:%0A%25s%0A接続は破棄されました。%0A
+WARNING - POTENTIAL SECURITY BREACH!%0A%0AThe server's host key does not match the one PuTTY has%0Acached in the registry. This means that either the%0Aserver administrator has changed the host key, or you%0Ahave actually connected to another computer pretending%0Ato be the server.%0AThe new %25s key fingerprint is:%0A%25s%0AIf you were expecting this change and trust the new key,%0Ahit Yes to update PuTTY's cache and continue connecting.%0AIf you want to carry on connecting but without updating%0Athe cache, hit No.%0AIf you want to abandon the connection completely, hit%0ACancel. Hitting Cancel is the ONLY guaranteed safe%0Achoice.%0AUpdate cached key?=警告 - 潜在的なセキュリティ侵害!%0A%0Aこのサーバの鍵はPuTTYがレジストリにキャッシュしたものと%0A一致しませんでした。これはサーバー管理者がホストの%0A鍵を変えた、またはこのサーバーに成りすましている%0A別のコンピュータに接続してしまったことを意味します。%0A%0A新しい%25s鍵の指紋は次の通りです:%0A%25s%0A%0Aこの変更が想定されたものであり、新しい鍵を信頼する%0Aのであれば、「はい」を押してPuTTYのキャッシュを更新し、%0A接続してください。%0A%0Aキャッシュを更新しないで接続したいのであれば「いいえ」%0Aを押してください。%0A%0A接続を完全に破棄したいのであれば「キャンセル」を押して%0Aください。「キャンセル」を押すことが唯一の保証された%0A安全な選択です。%0Aキャッシュした鍵を更新しますか?
+WARNING - POTENTIAL SECURITY BREACH!%0AThe server's host key does not match the one PuTTY has%0Acached in the registry. This means that either the%0Aserver administrator has changed the host key, or you%0Ahave actually connected to another computer pretending%0Ato be the server.%0AThe new %25s key fingerprint is:%0A%25s%0AConnection abandoned.%0A=警告 - 潜在的なセキュリティ侵害!%0Aこのサーバの鍵はPuTTYがレジストリにキャッシュしたものと%0A一致しませんでした。これはサーバー管理者がホストの%0A鍵を変えた、またはこのサーバーに成りすましている%0A別のコンピュータに接続してしまったことを意味します。%0A%0A新しい%25s鍵の指紋は次の通りです:%0A%25s%0A接続は破棄されました。%0A
+PuTTY Security Alert=PuTTY セキュリティ警告
+Connection abandoned.%0A=接続は破棄されました。%0A
+The first %25s supported by the server is%0A%25s, which is below the configured warning threshold.%0AContinue with connection?%0A=このサーバでサポートされている最初の%25sは%0A%25sで、設定された警告する閾値を下回って%0Aいます。%0A接続を続けますか?%0A
+The first %25s supported by the server is%0A%25s, which is below the configured warning threshold.%0AConnection abandoned.%0A=このサーバでサポートされている最初の%25sは%0A%25sで、設定された警告する閾値を下回って%0Aいます。%0A接続は破棄されました。%0A
+The session log file "%25.*s" already exists.%0AYou can overwrite it with a new session log,%0Aappend your session log to the end of it,%0Aor disable session logging for this session.%0AHit Yes to wipe the file, No to append to it,%0Aor Cancel to disable logging.Wipe the log file?%20=このセッションのログファイル "%25.*s" は既に存在しています。%0A%0A新しいセッションのログとして上書きする、セッションログを%0Aファイルの最後に追記する、もしくはこのセッションではログを%0A記録しないのうちから選択できます。%0A%0A上書きするのであれば「はい」を、追記するのであれば「いいえ」%0Aを、ログを記録しない場合は「キャンセル」を押してください。ログファイルを上書きしますか?
+The session log file "%25.*s" already exists.%0ALogging will not be enabled.%0A=このセッションのログファイル "%25.*s" は既に存在しています。%0Aログは出力されません。
+PuTTY Log to File=PuTTY ファイルへのログ出力
+You are loading an SSH-2 private key which has an%0Aold version of the file format. This means your key%0Afile is not fully tamperproof. Future versions of%0APuTTY may stop supporting this private key format,%0Aso we recommend you convert your key to the new%0Aformat.%0A%0AOnce the key is loaded into PuTTYgen, you can perform%0Athis conversion simply by saving it again.%0A=ロードしているSSH2秘密鍵はファイルフォーマットの%0Aバージョンが古くなっています。この鍵は完全には%0Atamperproofではありません。次以降の版の%25sでは%0Aこの秘密鍵フォーマットをサポートしなくなるかもしれ%0Aませんので新しいフォーマットにコンバートすることを%0Aお奨めします。%0A%0APuTTYgenで鍵を読み込んで再度保存することで%0Aコンバートできます。
+PuTTY Key File Warning=PuTTY 鍵ファイルの警告
+&Copy=コピー(&C)
+C&lear=ログのクリア(&L)
+&Reconnect=再接続(&R)
+Ca&ncel Reconnect=再接続のキャンセル(&N)
+&Terminate=終了(&T)
+Show &Log Window=ログウィンドウの表示(&L)
+%25s (connect automatically after %25d seconds...)=%25s (%25d秒後に自動的に再接続します)
+%25s (connect automatically soon...)=%25s (まもなく自動的に再接続します)
+%25s (close automatically after %25d seconds...)=%25s (%25d秒後に自動的に終了します)
+%25s (close automatically soon...)=%25s (まもなく自動的に終了します)
+%25s (disconnected)=%25s (切断)
+login as:%20=ログイン名:

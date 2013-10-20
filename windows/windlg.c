@@ -86,6 +86,7 @@ static int CALLBACK LogProc(HWND hwnd, UINT msg,
 	for (i = 0; i < nevents; i++)
 	    SendDlgItemMessage(hwnd, IDN_LIST, LB_ADDSTRING,
 			       0, (LPARAM) events[i]);
+	l10n_created_window (hwnd);
 	return 1;
       case WM_COMMAND:
 	switch (LOWORD(wParam)) {
@@ -171,6 +172,7 @@ static int CALLBACK LicenceProc(HWND hwnd, UINT msg,
 	    SetWindowText(hwnd, str);
 	    sfree(str);
 	}
+	l10n_created_window (hwnd);
 	return 1;
       case WM_COMMAND:
 	switch (LOWORD(wParam)) {
@@ -199,6 +201,7 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
 	sfree(str);
 	SetDlgItemText(hwnd, IDA_TEXT1, appname);
 	SetDlgItemText(hwnd, IDA_VERSION, ver);
+	l10n_created_window (hwnd);
 	return 1;
       case WM_COMMAND:
 	switch (LOWORD(wParam)) {
@@ -254,6 +257,7 @@ static int SaneDialogBox(HINSTANCE hinst,
     RegisterClass(&wc);
 
     hwnd = CreateDialog(hinst, tmpl, hwndparent, lpDialogFunc);
+    l10n_created_window (hwnd);
 
     SetWindowLongPtr(hwnd, BOXFLAGS, 0); /* flags */
     SetWindowLongPtr(hwnd, BOXRESULT, 0); /* result from SaneEndDialog */
@@ -316,10 +320,11 @@ static HTREEITEM treeview_insert(struct treeview_faff *faff,
 #define INSITEM item
 #endif
     ins.INSITEM.mask = TVIF_TEXT | TVIF_PARAM;
-    ins.INSITEM.pszText = text;
-    ins.INSITEM.cchTextMax = strlen(text)+1;
+    ins.INSITEM.pszText = l10n_dupstr (text);
+    ins.INSITEM.cchTextMax = strlen(ins.INSITEM.pszText)+1;
     ins.INSITEM.lParam = (LPARAM)path;
     newitem = TreeView_InsertItem(faff->treeview, &ins);
+    sfree (ins.INSITEM.pszText);
     if (level > 0)
 	TreeView_Expand(faff->treeview, faff->lastat[level - 1],
 			(level > 1 ? TVE_COLLAPSE : TVE_EXPAND));
@@ -343,7 +348,7 @@ static void create_controls(HWND hwnd, char *path)
 	/*
 	 * Here we must create the basic standard controls.
 	 */
-	ctlposinit(&cp, hwnd, 3, 3, 235);
+	ctlposinit(&cp, hwnd, 3, 3, 235+15+15);
 	wc = &ctrls_base;
 	base_id = IDCX_STDBASE;
     } else {
@@ -430,7 +435,7 @@ static int CALLBACK GenericMainDlgProc(HWND hwnd, UINT msg,
 	    r.left = 3;
 	    r.right = r.left + 95;
 	    r.top = 13;
-	    r.bottom = r.top + 219;
+	    r.bottom = r.top + 219 + 25;
 	    MapDialogRect(hwnd, &r);
 	    treeview = CreateWindowEx(WS_EX_CLIENTEDGE, WC_TREEVIEW, "",
 				      WS_CHILD | WS_VISIBLE |
@@ -517,6 +522,7 @@ static int CALLBACK GenericMainDlgProc(HWND hwnd, UINT msg,
 	}
 
 	SetWindowLongPtr(hwnd, GWLP_USERDATA, 1);
+	l10n_created_window (hwnd);
 	return 0;
       case WM_LBUTTONUP:
 	/*
@@ -628,6 +634,7 @@ void defuse_showwindow(void)
 	HWND hwnd;
 	hwnd = CreateDialog(hinst, MAKEINTRESOURCE(IDD_ABOUTBOX),
 			    NULL, NullDlgProc);
+	l10n_created_window (hwnd);
 	ShowWindow(hwnd, SW_HIDE);
 	SetActiveWindow(hwnd);
 	DestroyWindow(hwnd);
@@ -686,7 +693,7 @@ int do_reconfig(HWND hwnd, int protcfginfo)
     dlg_auto_set_fixed_pitch_flag(&dp);
     dp.shortcuts['g'] = TRUE;	       /* the treeview: `Cate&gory' */
 
-    ret = SaneDialogBox(hinst, MAKEINTRESOURCE(IDD_MAINBOX), NULL,
+    ret = SaneDialogBox(hinst, MAKEINTRESOURCE(IDD_MAINBOX), hwnd,
 		  GenericMainDlgProc);
 
     ctrl_free_box(ctrlbox);
@@ -735,6 +742,7 @@ void showeventlog(HWND hwnd)
     if (!logbox) {
 	logbox = CreateDialog(hinst, MAKEINTRESOURCE(IDD_LOGBOX),
 			      hwnd, LogProc);
+	l10n_created_window (logbox);
 	ShowWindow(logbox, SW_SHOWNORMAL);
     }
     SetActiveWindow(logbox);

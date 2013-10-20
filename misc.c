@@ -375,6 +375,58 @@ void base64_encode_atom(unsigned char *data, int n, char *out)
 }
 
 /* ----------------------------------------------------------------------
+ * Base64 decoding routine.
+ */
+
+int base64_decode_atom(char *atom, unsigned char *out)
+{
+    int vals[4];
+    int i, v, len;
+    unsigned word;
+    char c;
+
+    for (i = 0; i < 4; i++) {
+	c = atom[i];
+	if (c >= 'A' && c <= 'Z')
+	    v = c - 'A';
+	else if (c >= 'a' && c <= 'z')
+	    v = c - 'a' + 26;
+	else if (c >= '0' && c <= '9')
+	    v = c - '0' + 52;
+	else if (c == '+')
+	    v = 62;
+	else if (c == '/')
+	    v = 63;
+	else if (c == '=')
+	    v = -1;
+	else
+	    return 0;		       /* invalid atom */
+	vals[i] = v;
+    }
+
+    if (vals[0] == -1 || vals[1] == -1)
+	return 0;
+    if (vals[2] == -1 && vals[3] != -1)
+	return 0;
+
+    if (vals[3] != -1)
+	len = 3;
+    else if (vals[2] != -1)
+	len = 2;
+    else
+	len = 1;
+
+    word = ((vals[0] << 18) |
+	    (vals[1] << 12) | ((vals[2] & 0x3F) << 6) | (vals[3] & 0x3F));
+    out[0] = (word >> 16) & 0xFF;
+    if (len > 1)
+	out[1] = (word >> 8) & 0xFF;
+    if (len > 2)
+	out[2] = word & 0xFF;
+    return len;
+}
+
+/* ----------------------------------------------------------------------
  * Generic routines to deal with send buffers: a linked list of
  * smallish blocks, with the operations
  * 
@@ -697,6 +749,8 @@ int conf_launchable(Conf *conf)
 {
     if (conf_get_int(conf, CONF_protocol) == PROT_SERIAL)
 	return conf_get_str(conf, CONF_serline)[0] != 0;
+    else if (conf_get_int(conf, CONF_protocol) == PROT_ADB)
+	return conf_get_str(conf, CONF_adb_transport)[0] != 0;
     else
 	return conf_get_str(conf, CONF_host)[0] != 0;
 }
@@ -705,6 +759,8 @@ char const *conf_dest(Conf *conf)
 {
     if (conf_get_int(conf, CONF_protocol) == PROT_SERIAL)
 	return conf_get_str(conf, CONF_serline);
+    else if (conf_get_int(conf, CONF_protocol) == PROT_ADB)
+	return conf_get_str(conf, CONF_adb_transport);
     else
 	return conf_get_str(conf, CONF_host);
 }
