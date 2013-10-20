@@ -4,5 +4,5 @@ if "%traypatch%" == "" set traypatch=9001
 nmake /F Makefile.vc DEBUG=1 ^
   "VER=/DSNAPSHOT= /DSVN_REV=%desc% /DSVN_REV1=%trayversion% /DSVN_REV2=%traypatch%" ^
   putty.exe ^
-  2>&1 ^
-  | findstr /v overriding
+  %1 %2 %3 %4 %5 %6 %7 %8 %9 ^
+  2>&1
