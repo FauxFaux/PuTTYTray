@@ -373,6 +373,10 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		HELPCTX(selection_rtf),
 		conf_checkbox_handler, I(CONF_rtf_paste));
 
+    ctrl_editbox(s, "Paste Delay per Line (ms)", '9', 20,
+	    HELPCTX(window_pastedelay),
+	    conf_editbox_handler,
+	    I(CONF_pastedelay), I(-1));
 
     /*
      * Logical palettes don't even make sense anywhere except Windows.

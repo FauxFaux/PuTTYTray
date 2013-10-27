@@ -60,6 +60,7 @@
 #define WINHELP_CTX_window_resize "window.resize:config-winsizelock"
 #define WINHELP_CTX_window_scrollback "window.scrollback:config-scrollback"
 #define WINHELP_CTX_window_erased "window.erased:config-erasetoscrollback"
+#define WINHELP_CTX_window_pastedelay "window.scrollback:config-pastedelay"
 #define WINHELP_CTX_behaviour_closewarn "behaviour.closewarn:config-warnonclose"
 #define WINHELP_CTX_behaviour_altf4 "behaviour.altf4:config-altf4"
 #define WINHELP_CTX_behaviour_altspace "behaviour.altspace:config-altspace"

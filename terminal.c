@@ -1344,6 +1344,7 @@ static void set_erase_char(Terminal *term)
 void term_copy_stuff_from_conf(Terminal *term)
 {
     term->ansi_colour = conf_get_int(term->conf, CONF_ansi_colour);
+    term->pastedelay = conf_get_int(term->conf, CONF_pastedelay);
     term->arabicshaping = conf_get_int(term->conf, CONF_arabicshaping);
     term->beep = conf_get_int(term->conf, CONF_beep);
     term->bellovl = conf_get_int(term->conf, CONF_bellovl);
@@ -6225,9 +6226,13 @@ void term_paste(Terminal *term)
     while (term->paste_pos < term->paste_len) {
 	int n = 0;
 	while (n + term->paste_pos < term->paste_len) {
-	    if (term->paste_buffer[term->paste_pos + n++] == '\015')
-		break;
-	}
+            if (term->paste_buffer[term->paste_pos + n++] == '\015') {
+                if (term->pastedelay > 0) {
+                    Sleep(term->pastedelay);
+		}
+                break;
+	    }
+        }
 	if (term->ldisc)
 	    luni_send(term->ldisc, term->paste_buffer + term->paste_pos, n, 0);
 	term->paste_pos += n;

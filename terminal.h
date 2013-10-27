@@ -151,6 +151,8 @@ struct terminal_tag {
     int seen_disp_event;
     int big_cursor;
 
+    int pastedelay;
+
     int xterm_mouse;		       /* send mouse messages to host */
     int xterm_extended_mouse;
     int urxvt_extended_mouse;
