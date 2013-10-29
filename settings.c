@@ -554,7 +554,6 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "NetHackKeypad", conf_get_int(conf, CONF_nethack_keypad));
     write_setting_i(sesskey, "Transparency", conf_get_int(conf, CONF_transparency));
     write_setting_i(sesskey, "WakeupReconnect", conf_get_int(conf, CONF_wakeup_reconnect));
-    write_setting_i(sesskey, "WakeupReconnectDelay", conf_get_int(conf, CONF_wakeup_reconnect_delay));
     write_setting_i(sesskey, "FailureReconnect", conf_get_int(conf, CONF_failure_reconnect));
     write_setting_i(sesskey, "StorageType", conf_get_int(conf, CONF_session_storagetype));
     write_setting_i(sesskey, "Tray", conf_get_int(conf, CONF_tray));
@@ -882,7 +881,6 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "NetHackKeypad", 0, conf, CONF_nethack_keypad);
     gppi(sesskey, "Transparency", 255, conf, CONF_transparency);
     gppi(sesskey, "WakeupReconnect", 0, conf, CONF_wakeup_reconnect);
-    gppi(sesskey, "WakeupReconnectDelay", 0, conf, CONF_wakeup_reconnect_delay);
     gppi(sesskey, "FailureReconnect", 0, conf, CONF_failure_reconnect);
     gppi(sesskey, "StorageType", 0, conf, CONF_session_storagetype);
     gppi(sesskey, "Tray", TRAY_NEVER, conf, CONF_tray);

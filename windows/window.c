@@ -156,7 +156,11 @@ static int n_specials = 0;
 static wchar_t *clipboard_contents;
 static size_t clipboard_length;
 
-#define TIMING_TIMER_ID 1234
+enum {
+    TIMING_TIMER_ID = 1234,
+    TIMING_RECONNECT_ID
+};
+
 static long timing_next_time;
 
 static struct {
@@ -241,7 +245,7 @@ static UINT wm_mousewheel = WM_MOUSEWHEEL;
 /*
  * HACK: PuttyTray / Reconnect
  */
-static time_t last_reconnect = 0;
+static DWORD last_reconnect = 0;
 
 /*
  * HACK: PuttyTray / Always on top
@@ -277,7 +281,10 @@ static HICON puttyTrayFlashIcon;
 static BOOL windowMinimized = FALSE;
 BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon);
 void tray_updatemenu(BOOL disableMenuItems);
-#define WM_NOTIFY_PUTTYTRAY (WM_USER + 1983)
+enum {
+    WM_NOTIFY_PUTTYTRAY = WM_USER + 1983,
+    WM_NOTIFY_RECONNECT
+};
 
 static int urlhack_cursor_is_hand = 0;
 
@@ -318,14 +325,6 @@ static void start_backend(void)
 		       conf_get_int(conf, CONF_tcp_nodelay),
 		       conf_get_int(conf, CONF_tcp_keepalives));
     back->provide_logctx(backhandle, logctx);
-    if (error) {
-	char *str = dupprintf("%s Error", appname);
-	sprintf(msg, "Unable to open connection to\n"
-		"%.800s\n" "%s", conf_dest(conf), error);
-	MessageBox(NULL, msg, str, MB_ICONERROR | MB_OK);
-	sfree(str);
-	exit(0);
-    }
     window_name = icon_name = NULL;
     title = conf_get_str(conf, CONF_wintitle);
     if (!*title) {
@@ -358,9 +357,14 @@ static void start_backend(void)
         InsertMenu(popup_menus[i].menu, IDM_DUPSESS, MF_BYCOMMAND | MF_ENABLED,
 	    IDM_RESTART, "&Restart Session");
     }
-
     must_close_session = FALSE;
     session_closed = FALSE;
+
+    if (error) {
+        connection_fatal(term, "Unable to open connection to\r\n"
+		"%.800s\r\n" "%s", conf_dest(conf), error);
+    }
+
 }
 
 static void close_session(void)
@@ -1268,6 +1272,28 @@ void set_raw_mouse_mode(void *frontend, int activate)
     update_mouse_pointer();
 }
 
+void reconnect() {
+    DWORD tnow = GetTickCount();
+    KillTimer(hwnd, TIMING_RECONNECT_ID);
+
+    if (back)
+        return;
+
+    if (last_reconnect > tnow)
+        last_reconnect = tnow;
+
+    if (last_reconnect && (tnow - last_reconnect) < 1000) {
+        SetTimer(hwnd, TIMING_RECONNECT_ID, 500, NULL);
+        return;
+    }
+
+    logevent(NULL, "Reconnecting...");
+    term_data(term, TRUE, ".  Reconnecting...", strlen(".  Reconnecting..."));
+    term_pwron(term, FALSE);
+    start_backend();
+    last_reconnect = GetTickCount();
+}
+
 /*
  * Print a message box and close the connection.
  */
@@ -1276,25 +1302,19 @@ void connection_fatal(void *frontend, char *fmt, ...)
     va_list ap;
     char *stuff, morestuff[100];
 
+    va_start(ap, fmt);
+    stuff = dupvprintf(fmt, ap);
+    va_end(ap);
+
     if (conf_get_int(conf, CONF_failure_reconnect)) {
-        time_t tnow = time(NULL);
         close_session();
-
-        if(last_reconnect && (tnow - last_reconnect) < 5) {
-            Sleep(5000);
-        }
-
-        last_reconnect = tnow;
-        logevent(NULL, "Lost connection, reconnecting...");
-        term_pwron(term, FALSE);
-        start_backend();
+        // write the error to the terminal itself
+        // someone's probably going to complain about this
+        term_data(term, TRUE, stuff, strlen(stuff));
+        PostMessage(hwnd, WM_NOTIFY_RECONNECT, 0, 0);
     } else {
-        va_start(ap, fmt);
-        stuff = dupvprintf(fmt, ap);
-        va_end(ap);
         sprintf(morestuff, "%.70s Fatal Error", appname);
         MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
-        sfree(stuff);
 
         if (conf_get_int(conf, CONF_close_on_exit) == FORCE_ON)
             PostQuitMessage(1);
@@ -1302,6 +1322,8 @@ void connection_fatal(void *frontend, char *fmt, ...)
             must_close_session = TRUE;
         }
     }
+
+    sfree(stuff);
 }
 
 /*
@@ -2250,14 +2272,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 
     switch (message) {
       case WM_TIMER:
-	if ((UINT_PTR)wParam == TIMING_TIMER_ID) {
+        switch ((UINT_PTR)wParam) {
+          case TIMING_TIMER_ID: {
 	    unsigned long next;
 
 	    KillTimer(hwnd, TIMING_TIMER_ID);
 	    if (run_timers(timing_next_time, &next)) {
-		timer_change_notify(next);
-	    } else {
+	        timer_change_notify(next);
 	    }
+          } break;
+          case TIMING_RECONNECT_ID: {
+              reconnect();
+          } break;
 	}
 	return 0;
       case WM_CREATE:
@@ -3570,18 +3596,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	      case PBT_APMRESUMECRITICAL:
 	      case PBT_APMQUERYSUSPENDFAILED:
 	        if(session_closed && !back) {
-	            time_t tnow = time(NULL);
-
-	            if(last_reconnect && (tnow - last_reconnect) < 5) {
-	                Sleep(1000);
-	            }
-
-                    Sleep(conf_get_int(conf, CONF_wakeup_reconnect_delay));
-
-	            last_reconnect = tnow;
-	            logevent(NULL, "Woken up from suspend, reconnecting...");
-	            term_pwron(term, FALSE);
-	            start_backend();
+	            reconnect();
 	        }
 	        break;
 	      case PBT_APMSUSPEND:
@@ -3641,6 +3656,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
             }
         }
 	break;
+      case WM_NOTIFY_RECONNECT:
+          reconnect();
+          break;
 
       default:
 	if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
