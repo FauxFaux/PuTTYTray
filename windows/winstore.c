@@ -55,6 +55,10 @@ struct setPack {
     char* fileBuf;
 };
 
+enum storage_t get_storagetype(void)
+{
+    return storagetype;
+}
 
 void set_storagetype(enum storage_t new_storagetype)
 {
@@ -1966,16 +1970,6 @@ void cleanup_all(void)
      */
 }
 
-void *enum_settings_start(enum storage_t new_storagetype) {
-    storagetype = new_storagetype;
-
-    if (storagetype == STORAGE_FILE) {
-        return file_enum_settings_start();
-    } else {
-        return reg_enum_settings_start();
-    }
-}
-
 #define CONCAT(...) __VA_ARGS__
 
 #define STORAGE_TYPE_SWITCHER_FULL(has_return, return_t, method, types, calls) \
@@ -2046,3 +2040,7 @@ STORAGE_TYPE_SWITCHER_VOID(store_host_key,
     CONCAT(const char *hostname, int port,
             const char *keytype, const char *key),
     CONCAT(hostname, port, keytype, key))
+
+STORAGE_TYPE_SWITCHER(void *, enum_settings_start,
+    CONCAT(),
+    CONCAT())

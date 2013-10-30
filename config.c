@@ -328,33 +328,17 @@ void storagetype_handler(union control *ctrl, void *dlg, void *data, int event)
      */
     if (event == EVENT_REFRESH) {
         // Button index = same as storagetype number. Set according to config
-        button = conf_get_int(conf, CONF_session_storagetype);
+        button = get_storagetype();
         dlg_radiobutton_set(ctrl, dlg, button);
     } else if (event == EVENT_VALCHANGE) {
         button = dlg_radiobutton_get(ctrl, dlg);
-
-        // Switch between registry and file
-        if (ctrl->radio.buttondata[button].i == 0) {
-            get_sesslist(&ssd->sesslist, FALSE, 0);
-            get_sesslist(&ssd->sesslist, TRUE, 0);
-            dlg_refresh(ssd->editbox, dlg);
-            dlg_refresh(ssd->listbox, dlg);
-
-            // Save setting into config (the whole *(int *)ATOFFSET(data, ctrl->radio.context.i) = ctrl->radio.buttondata[button].i; didn't work)
-            // and I don't see why I shouldn't do it this way (it works?)
-            conf_set_int(conf, CONF_session_storagetype, 0);
-        } else {
-            get_sesslist(&ssd->sesslist, FALSE, 1);
-            get_sesslist(&ssd->sesslist, TRUE, 1);
-            dlg_refresh(ssd->editbox, dlg);
-            dlg_refresh(ssd->listbox, dlg);
-
-            // Here as well
-            conf_set_int(conf, CONF_session_storagetype, 1);
-        }
+        set_storagetype(ctrl->radio.buttondata[button].i);
+        get_sesslist(&ssd->sesslist, FALSE);
+        get_sesslist(&ssd->sesslist, TRUE);
+        dlg_refresh(ssd->editbox, dlg);
+        dlg_refresh(ssd->listbox, dlg);
     }
 }
-/** HACK: END **/
 
 static void loggingbuttons_handler(union control *ctrl, void *dlg,
 				   void *data, int event)
@@ -733,8 +717,8 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
                     sfree(errmsg);
                 }
             }
-            get_sesslist(&ssd->sesslist, FALSE, conf_get_int(conf, CONF_session_storagetype));
-            get_sesslist(&ssd->sesslist, TRUE, conf_get_int(conf, CONF_session_storagetype));
+            get_sesslist(&ssd->sesslist, FALSE);
+            get_sesslist(&ssd->sesslist, TRUE);
 
 	    dlg_refresh(ssd->editbox, dlg);
 	    dlg_refresh(ssd->listbox, dlg);
@@ -750,8 +734,8 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
 		 * HACK: PuttyTray / PuTTY File
 		 * Added storagetype to get_sesslist
 		 */
-		get_sesslist(&ssd->sesslist, FALSE, conf_get_int(conf, CONF_session_storagetype));
-		get_sesslist(&ssd->sesslist, TRUE, conf_get_int(conf, CONF_session_storagetype));
+		get_sesslist(&ssd->sesslist, FALSE);
+		get_sesslist(&ssd->sesslist, TRUE);
 
 		dlg_refresh(ssd->listbox, dlg);
 	    }
@@ -1292,7 +1276,7 @@ static void portfwd_handler(union control *ctrl, void *dlg,
 }
 
 void setup_config_box(struct controlbox *b, int midsession,
-                     int protocol, int protcfginfo, enum storage_t session_storagetype)
+                     int protocol, int protcfginfo)
 {
     struct controlset *s;
     struct sessionsaver_data *ssd;
@@ -1303,7 +1287,6 @@ void setup_config_box(struct controlbox *b, int midsession,
     struct portfwd_data *pfd;
     union control *c;
     char *str;
-    int current_storagetype; // HACK: PuttyTray / PuTTY File - stores storagetype after sess_list may or may not have switched between file/registry because registry is empty
 
     ssd = (struct sessionsaver_data *)
 	ctrl_alloc_with_free(b, sizeof(struct sessionsaver_data),
@@ -1389,7 +1372,7 @@ void setup_config_box(struct controlbox *b, int midsession,
     ctrl_columns(s, 2, 75, 25);
 
     // HACK: PuttyTray / PuTTY File - The +2 triggers storagetype autoswitching
-    current_storagetype = get_sesslist_autoswitch(&ssd->sesslist, TRUE, session_storagetype, !midsession);
+    get_sesslist(&ssd->sesslist, TRUE);
 
     ssd->editbox = ctrl_editbox(s, "Saved Sessions", 'e', 100,
                                 HELPCTX(session_saved),
@@ -1435,7 +1418,10 @@ void setup_config_box(struct controlbox *b, int midsession,
     c = ctrl_radiobuttons(s, NULL, 'f', 2,
                         HELPCTX(no_help),
                         storagetype_handler,
-                        P(ssd), "Sessions from registry", I(0), "Sessions from file", I(1), NULL);
+                        P(ssd),
+                        "Sessions from registry", I(STORAGE_REG),
+                        "Sessions from file", I(STORAGE_FILE),
+                        NULL);
 
     s = ctrl_getset(b, "Session", "otheropts", NULL);
     ctrl_radiobuttons(s, "Close window on exit:", 'x', 4,

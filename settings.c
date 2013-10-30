@@ -80,7 +80,7 @@ const char* urlhack_liberal_regex =
     ")"
     ;
 
-BOOL session_have_any_in_registry();
+void autodetect_storage_type(void);
 
 /*
  * Convenience functions to access the backends[] array
@@ -555,7 +555,6 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "Transparency", conf_get_int(conf, CONF_transparency));
     write_setting_i(sesskey, "WakeupReconnect", conf_get_int(conf, CONF_wakeup_reconnect));
     write_setting_i(sesskey, "FailureReconnect", conf_get_int(conf, CONF_failure_reconnect));
-    write_setting_i(sesskey, "StorageType", conf_get_int(conf, CONF_session_storagetype));
     write_setting_i(sesskey, "Tray", conf_get_int(conf, CONF_tray));
     write_setting_i(sesskey, "StartTray", conf_get_int(conf, CONF_start_tray));
     write_setting_i(sesskey, "TrayRestore", conf_get_int(conf, CONF_tray_restore));
@@ -719,7 +718,7 @@ void load_settings(char *section, Conf *conf)
 void load_settings_file(char *section, Conf * cfg)
 {
     void *sesskey;
-    set_storagetype(1);
+    set_storagetype(STORAGE_FILE);
     sesskey = open_settings_r(section);
     load_open_settings(sesskey, cfg);
     close_settings_r(sesskey);
@@ -883,7 +882,6 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "Transparency", 255, conf, CONF_transparency);
     gppi(sesskey, "WakeupReconnect", 0, conf, CONF_wakeup_reconnect);
     gppi(sesskey, "FailureReconnect", 0, conf, CONF_failure_reconnect);
-    gppi(sesskey, "StorageType", 0, conf, CONF_session_storagetype);
     gppi(sesskey, "Tray", TRAY_NEVER, conf, CONF_tray);
     gppi(sesskey, "StartTray", 0, conf, CONF_start_tray);
     gppi(sesskey, "TrayRestore", 0, conf, CONF_tray_restore);
@@ -1079,7 +1077,11 @@ void load_open_settings(void *sesskey, Conf *conf)
 
 void do_defaults(char *session, Conf *conf)
 {
-    load_settings(session, conf);
+    if (STORAGE_REG == get_storagetype()) {
+        load_settings(session, conf);
+    } else {
+        do_defaults_file(session, conf);
+    }
 }
 
 void do_defaults_file(char *session, Conf * cfg)
@@ -1087,16 +1089,10 @@ void do_defaults_file(char *session, Conf * cfg)
     load_settings_file(session, cfg);
 }
 
-/** Guess what storagetype we actually want (in the same way as get_sesslist does,
-  but without sharing code (for now), store it in the conf, and call the right do_defaults method */
+/** Guess what storagetype we actually want, store it, and call the right do_defaults method */
 void do_defaults_after_detection(char *session, Conf *conf) {
-    enum storage_t st = session_have_any_in_registry() ? STORAGE_REG : STORAGE_FILE;
-    conf_set_int(conf, CONF_session_storagetype, st);
-    if (st == STORAGE_REG) {
-        do_defaults(session, conf);
-    } else {
-        do_defaults_file(session, conf);
-    }
+    autodetect_storage_type();
+    do_defaults(session, conf);
 }
 
 /** Load from registry, and, if that doesn't make it launchable, load from the file */
@@ -1131,29 +1127,37 @@ enum {
     OTHERBUF_SIZE = 2048
 };
 
-BOOL session_have_any_in_registry() {
+/** Assume we have files.  If we find anything, it's files.  Otherwise, assume registry. */
+void autodetect_storage_type(void) {
     char otherbuf[OTHERBUF_SIZE];
-    char *result;
-    void *handle = enum_settings_start(STORAGE_REG);
-    if (handle == NULL)
-        return FALSE;
+    void *handle;
+    char *result = NULL;
 
-    result = enum_settings_next(handle, otherbuf, sizeof(otherbuf));
-    enum_settings_finish(handle);
-    return !!result;
+    set_storagetype(STORAGE_FILE);
+    handle = enum_settings_start();
+    if (handle) {
+        result = enum_settings_next(handle, otherbuf, sizeof(otherbuf));
+        enum_settings_finish(handle);
+    }
+
+    if (result) {
+        set_storagetype(STORAGE_FILE);
+    } else {
+        set_storagetype(STORAGE_REG);
+    }
 }
 
-int get_sesslist_autoswitch(struct sesslist *list, int allocate, enum storage_t storagetype, BOOL autoswitch)
+void get_sesslist(struct sesslist *list, int allocate)
 {
     char otherbuf[OTHERBUF_SIZE];
     int buflen, bufsize, i;
     char *p, *ret;
     void *handle;
-	
-     if (allocate) {
+
+    if (allocate) {
 	buflen = bufsize = 0;
 	list->buffer = NULL;
-	if ((handle = enum_settings_start(storagetype)) != NULL) { // HACK: PuTTYTray / PuTTY File - storagetype
+	if ((handle = enum_settings_start()) != NULL) {
 	    do {
 		ret = enum_settings_next(handle, otherbuf, sizeof(otherbuf));
 		if (ret) {
@@ -1171,46 +1175,6 @@ int get_sesslist_autoswitch(struct sesslist *list, int allocate, enum storage_t 
 	}
 	list->buffer = sresize(list->buffer, buflen + 1, char);
 	list->buffer[buflen] = '\0';
-
-	/*
-	 * HACK: PuttyTray / PuTTY File
-	 * Switch to file mode if registry is empty (and in registry mode)
-	 */
-	if (autoswitch == 1 && storagetype != 1 && buflen == 0) {
-	    storagetype = 1;
-
-	    // Ok, this is a copy of the code above. Crude but working
-	    buflen = bufsize = 0;
-	    list->buffer = NULL;
-	    if ((handle = enum_settings_start(1)) != NULL) { // Force file storage type
-		do {
-		    ret = enum_settings_next(handle, otherbuf, sizeof(otherbuf));
-		    if (ret) {
-		        int len = strlen(otherbuf) + 1;
-		        if (bufsize < buflen + len) {
-		            bufsize = buflen + len + 2048;
-		            list->buffer = sresize(list->buffer, bufsize, char);
-		        }
-                        assert(list->buffer);
-		        strcpy(list->buffer + buflen, otherbuf);
-		        buflen += strlen(list->buffer + buflen) + 1;
-		    }
-		} while (ret);
-		enum_settings_finish(handle);
-	    }
-	    list->buffer = sresize(list->buffer, buflen + 1, char);
-	    list->buffer[buflen] = '\0';
-	}
-
-	/*
-	 * HACK: PuttyTray / PuTTY File
-	 * If registry is empty AND file store is empty, show empty registry
-	 */
-	if (autoswitch == 1 && storagetype == 1 && buflen == 0) {
-	    storagetype = 0;
-	    set_storagetype(storagetype);
-	}
-
 
 	/*
 	 * Now set up the list of sessions. Note that "Default
@@ -1247,14 +1211,4 @@ int get_sesslist_autoswitch(struct sesslist *list, int allocate, enum storage_t 
 	list->buffer = NULL;
 	list->sessions = NULL;
     }
-
-    /*
-     * HACK: PuttyTray / PuTTY File
-     * Return storagetype
-     */
-    return storagetype;
-}
-
-int get_sesslist(struct sesslist *list, int allocate, enum storage_t storagetype) {
-    return get_sesslist_autoswitch(list, allocate, storagetype, FALSE);
 }

@@ -914,7 +914,7 @@ int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
 	savedsess_menu = CreateMenu();
 
-	get_sesslist(&sesslist, TRUE, conf_get_int(conf, CONF_session_storagetype));
+	get_sesslist(&sesslist, TRUE);
 	update_savedsess_menu();
 
 	for (j = 0; j < lenof(popup_menus); j++) {
@@ -2311,12 +2311,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	if ((HMENU)wParam == savedsess_menu) {
 	    /* About to pop up Saved Sessions sub-menu.
 	     * Refresh the session list. */
-	    /*
-             * HACK: PuttyTray / PuTTY File
-             * Added storagetype to get_sesslist
-             */
-	    get_sesslist(&sesslist, FALSE, conf_get_int(conf, CONF_session_storagetype)); /* free */
-	    get_sesslist(&sesslist, TRUE, conf_get_int(conf, CONF_session_storagetype));
+	    get_sesslist(&sesslist, FALSE); /* free */
+	    get_sesslist(&sesslist, TRUE);
 	    update_savedsess_menu();
 	    return 0;
 	}
