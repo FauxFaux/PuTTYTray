@@ -1546,6 +1546,8 @@ Terminal *term_init(Conf *myconf, struct unicode_data *ucsdata,
     term->termstate = TOPLEVEL;
     term->selstate = NO_SELECTION;
     term->curstype = 0;
+	term->pastedelay = 0;
+	term->pasteDelayTimer_ID = 0;
 
     term_copy_stuff_from_conf(term);
 
@@ -6226,12 +6228,8 @@ void term_paste(Terminal *term)
     while (term->paste_pos < term->paste_len) {
 	int n = 0;
 	while (n + term->paste_pos < term->paste_len) {
-            if (term->paste_buffer[term->paste_pos + n++] == '\015') {
-                if (term->pastedelay > 0) {
-                    Sleep(term->pastedelay);
-		}
+            if (term->paste_buffer[term->paste_pos + n++] == '\015')
                 break;
-	    }
         }
 	if (term->ldisc)
 	    luni_send(term->ldisc, term->paste_buffer + term->paste_pos, n, 0);
@@ -6241,6 +6239,26 @@ void term_paste(Terminal *term)
 	    term->paste_hold = 1;
 	    return;
 	}
+
+	//if entire paste buffer has been read and sent then kill active pasteDelayTimer
+	if (term->paste_pos == term->paste_len)
+	{
+		MMRESULT mmResult;
+		mmResult = timeKillEvent(term->pasteDelayTimer_ID);
+
+		if (mmResult == TIMERR_NOERROR)
+		{   //MM Timer stopped OK
+			term->pasteDelayTimer_ID = 0;
+		}
+	}
+
+	//if pastedelay is enabled, we want to send one line at a time.
+	//putty already brakes the while loop on newline so here
+	//just break from outer while loop as well as to only send one line per
+	//term_paste call from pasteDelayTimer callback
+	if (term->pastedelay != 0)
+		break;
+
     }
     sfree(term->paste_buffer);
     term->paste_buffer = NULL;
