@@ -297,6 +297,11 @@ enum {
 
 static int urlhack_cursor_is_hand = 0;
 
+void CALLBACK pasteDelayTimer_callback(UINT uTimerID, UINT uMsg, DWORD_PTR param, DWORD_PTR dw1, DWORD_PTR dw2)
+{
+    term_paste(term);
+}
+
 /* Dummy routine, only required in plink. */
 void ldisc_update(void *frontend, int echo, int edit)
 {
@@ -1062,9 +1067,20 @@ int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 		goto finished;	       /* two-level break */
 
 	    if (!(IsWindow(logbox) && IsDialogMessage(logbox, &msg)))
-		DispatchMessage(&msg);
-	    /* Send the paste buffer if there's anything to send */
-	    term_paste(term);
+	        DispatchMessage(&msg);
+
+            /* Send the paste buffer if there's anything to send */
+            if (term_paste_pending(term))
+            {
+                if (term->pastedelay != 0 && term->pasteDelayTimer_ID == 0)
+                {
+	            term->pasteDelayTimer_ID = timeSetEvent(term->pastedelay, 0, pasteDelayTimer_callback, 0, TIME_PERIODIC);
+	            assert(term->pasteDelayTimer_ID);
+                }
+                else {
+	            term_paste(term);
+                }
+            }
 	    /* If there's nothing new in the queue then we can do everything
 	     * we've delayed, reading the socket, writing, and repainting
 	     * the window.
