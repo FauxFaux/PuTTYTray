@@ -1546,8 +1546,8 @@ Terminal *term_init(Conf *myconf, struct unicode_data *ucsdata,
     term->termstate = TOPLEVEL;
     term->selstate = NO_SELECTION;
     term->curstype = 0;
-	term->pastedelay = 0;
-	term->pasteDelayTimer_ID = 0;
+    term->pastedelay = 0;
+    term->pasteDelayTimer_ID = 0;
 
     term_copy_stuff_from_conf(term);
 
@@ -6243,13 +6243,14 @@ void term_paste(Terminal *term)
 	//if entire paste buffer has been read and sent then kill active pasteDelayTimer
 	if (term->paste_pos == term->paste_len)
 	{
-		MMRESULT mmResult;
-		mmResult = timeKillEvent(term->pasteDelayTimer_ID);
+            MMRESULT mmResult;
+            mmResult = timeKillEvent(term->pasteDelayTimer_ID);
 
-		if (mmResult == TIMERR_NOERROR)
-		{   //MM Timer stopped OK
-			term->pasteDelayTimer_ID = 0;
-		}
+            if (mmResult == TIMERR_NOERROR)
+            {
+                //MM Timer stopped OK
+                term->pasteDelayTimer_ID = 0;
+            }
 	}
 
 	//if pastedelay is enabled, we want to send one line at a time.
@@ -6257,7 +6258,7 @@ void term_paste(Terminal *term)
 	//just break from outer while loop as well as to only send one line per
 	//term_paste call from pasteDelayTimer callback
 	if (term->pastedelay != 0)
-		break;
+            break;
 
     }
     sfree(term->paste_buffer);

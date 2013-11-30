@@ -152,7 +152,7 @@ struct terminal_tag {
     int big_cursor;
 
     int pastedelay;
-	MMRESULT pasteDelayTimer_ID;	/* paste delay multimedia timer ID*/
+    MMRESULT pasteDelayTimer_ID;	/* paste delay multimedia timer ID*/
 
     int xterm_mouse;		       /* send mouse messages to host */
     int xterm_extended_mouse;
