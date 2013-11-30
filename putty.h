@@ -602,7 +602,6 @@ int char_width(Context ctx, int uc);
 void do_scroll(Context, int, int, int);
 #endif
 void set_title(void *frontend, char *);
-void set_title_encoded(void *frontend, char *, int);
 void set_icon(void *frontend, char *);
 void set_sbar(void *frontend, int, int, int);
 Context get_ctx(void *frontend);

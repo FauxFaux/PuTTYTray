@@ -2581,7 +2581,7 @@ static void do_osc(Terminal *term)
 	  case 2:
 	  case 21:
 	    if (!term->no_remote_wintitle)
-                set_title_encoded(term->frontend, term->osc_string, term->ucsdata->line_codepage);
+		set_title(term->frontend, term->osc_string);
 	    break;
 	}
     }
