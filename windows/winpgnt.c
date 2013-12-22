@@ -401,10 +401,8 @@ void save_filename(Filename *filename) {
     }
 }
 
-/*
- * This function loads a key from a file and adds it.
- */
-static void add_keyfile(Filename *filename)
+/** @return error message, or NULL if successful */
+static char *add_keyfile_ret(Filename *filename)
 {
     char *passphrase;
     struct RSAKey *rkey = NULL;
@@ -423,10 +421,7 @@ static void add_keyfile(Filename *filename)
         !import_possible(type)) {
 	char *msg = dupprintf("Couldn't load this key (%s)",
 			      key_type_to_str(type));
-	message_box(msg, APPNAME, MB_OK | MB_ICONERROR,
-		    HELPCTXID(errors_cantloadkey));
-	sfree(msg);
-	return;
+	return msg;
     }
 
     if (type != SSH_KEYTYPE_SSH1 &&
@@ -447,10 +442,7 @@ static void add_keyfile(Filename *filename)
 	if (type == SSH_KEYTYPE_SSH1) {
 	    if (!rsakey_pubblob(filename, &blob, &bloblen, NULL, &error)) {
 		char *msg = dupprintf("Couldn't load private key (%s)", error);
-		message_box(msg, APPNAME, MB_OK | MB_ICONERROR,
-			    HELPCTXID(errors_cantloadkey));
-		sfree(msg);
-		return;
+		return msg;
 	    }
 	    keylist = get_keylist1(&keylistlen);
 	} else {
@@ -470,10 +462,7 @@ static void add_keyfile(Filename *filename)
             }
 	    if (!blob) {
 		char *msg = dupprintf("Couldn't load private key (%s)", error);
-		message_box(msg, APPNAME, MB_OK | MB_ICONERROR,
-			    HELPCTXID(errors_cantloadkey));
-		sfree(msg);
-		return;
+		return msg;
 	    }
 	    /* For our purposes we want the blob prefixed with its length */
 	    blob2 = snewn(bloblen+4, unsigned char);
@@ -486,15 +475,11 @@ static void add_keyfile(Filename *filename)
 	}
 	if (keylist) {
 	    if (keylistlen < 4) {
-		MessageBox(NULL, "Received broken key list?!", APPNAME,
-			   MB_OK | MB_ICONERROR);
-		return;
+		return _strdup("Received broken key list; too short?!");
 	    }
 	    nkeys = toint(GET_32BIT(keylist));
 	    if (nkeys < 0) {
-		MessageBox(NULL, "Received broken key list?!", APPNAME,
-			   MB_OK | MB_ICONERROR);
-		return;
+		return _strdup("Received broken key list; negative keys?!");
 	    }
 	    p = keylist + 4;
 	    keylistlen -= 4;
@@ -504,30 +489,24 @@ static void add_keyfile(Filename *filename)
 		    /* Key is already present; we can now leave. */
 		    sfree(keylist);
 		    sfree(blob);
-		    return;
+		    return NULL;
 		}
 		/* Now skip over public blob */
 		if (type == SSH_KEYTYPE_SSH1) {
 		    int n = rsa_public_blob_len(p, keylistlen);
 		    if (n < 0) {
-			MessageBox(NULL, "Received broken key list?!", APPNAME,
-				   MB_OK | MB_ICONERROR);
-			return;
+			return _strdup("Received broken key list; negative blob?!");
 		    }
 		    p += n;
 		    keylistlen -= n;
 		} else {
 		    int n;
 		    if (keylistlen < 4) {
-			MessageBox(NULL, "Received broken key list?!", APPNAME,
-				   MB_OK | MB_ICONERROR);
-			return;
+			return _strdup("Received broken key list; no list?!");
 		    }
 		    n = toint(4 + GET_32BIT(p));
 		    if (n < 0 || keylistlen < n) {
-			MessageBox(NULL, "Received broken key list?!", APPNAME,
-				   MB_OK | MB_ICONERROR);
-			return;
+			return _strdup("Received broken key list; negative counts?!");
 		    }
 		    p += n;
 		    keylistlen -= n;
@@ -536,15 +515,11 @@ static void add_keyfile(Filename *filename)
 		{
 		    int n;
 		    if (keylistlen < 4) {
-			MessageBox(NULL, "Received broken key list?!", APPNAME,
-				   MB_OK | MB_ICONERROR);
-			return;
+			return _strdup("Received broken key list; no space for comments?!");
 		    }
 		    n = toint(4 + GET_32BIT(p));
 		    if (n < 0 || keylistlen < n) {
-			MessageBox(NULL, "Received broken key list?!", APPNAME,
-				   MB_OK | MB_ICONERROR);
-			return;
+                        return _strdup("Received broken key list; too many comments?!");
 		    }
 		    p += n;
 		    keylistlen -= n;
@@ -594,7 +569,7 @@ static void add_keyfile(Filename *filename)
 			sfree(comment);
 		    if (type == SSH_KEYTYPE_SSH1)
 			sfree(rkey);
-		    return;		       /* operation cancelled */
+		    return NULL;                /* operation cancelled */
 		}
 
                 assert(passphrase != NULL);
@@ -632,12 +607,9 @@ static void add_keyfile(Filename *filename)
 	sfree(comment);
     if (ret == 0) {
 	char *msg = dupprintf("Couldn't load private key (%s)", error);
-	message_box(msg, APPNAME, MB_OK | MB_ICONERROR,
-		    HELPCTXID(errors_cantloadkey));
-	sfree(msg);
 	if (type == SSH_KEYTYPE_SSH1)
 	    sfree(rkey);
-	return;
+	return msg;
     }
     
     save_filename(filename);
@@ -743,6 +715,21 @@ static void add_keyfile(Filename *filename)
 		sfree(skey);	       /* already present, don't waste RAM */
 	    }
 	}
+    }
+    return NULL;
+}
+
+/*
+ * This function loads a key from a file and adds it.
+ */
+static void add_keyfile(Filename *filename) {
+    char *msg = add_keyfile_ret(filename);
+    if (msg) {
+        char *extmsg = dupprintf("%s: %s", filename_to_str(filename), msg);
+        sfree(msg);
+        message_box(extmsg, APPNAME, MB_OK | MB_ICONERROR,
+	    HELPCTXID(errors_cantloadkey));
+        sfree(extmsg);
     }
 }
 
