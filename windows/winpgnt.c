@@ -401,6 +401,14 @@ void save_filename(Filename *filename) {
     }
 }
 
+void remove_filename(Filename *filename) {
+    HKEY hkey;
+    if (reg_create(&hkey)) {
+        RegDeleteValue(hkey, filename_to_str(filename));
+        RegCloseKey(hkey);
+    }
+}
+
 /** @return error message, or NULL if successful */
 static char *add_keyfile_ret(Filename *filename)
 {
@@ -741,9 +749,29 @@ static void load_registry_keys() {
         char name[MAX_PATH];
         while (ERROR_SUCCESS == RegEnumValue(hkey, i++, name, &namelen, NULL, NULL, NULL, NULL)) {
             Filename *filename = filename_from_str(name);
-            add_keyfile(filename);
-            sfree(filename);
+            char *msg = add_keyfile_ret(filename);
+            char *extmsg;
             namelen = MAX_PATH;
+            if (!msg) {
+                sfree(filename);
+                continue;
+            }
+
+            extmsg = dupprintf("Couldn't load '%s': %s\n\n"
+                "Would you like to remove it from the list of automatically loaded keys?", filename_to_str(filename), msg);
+            sfree(msg);
+            switch(message_box(extmsg, APPNAME, MB_YESNOCANCEL | MB_ICONERROR,
+	        HELPCTXID(errors_cantloadkey))) {
+            case IDYES: {
+                remove_filename(filename);
+            } break;
+            case IDCANCEL:
+                sfree(filename);
+                return;
+            default:
+                break;
+            }
+            sfree(filename);
         }
     }
 }
