@@ -1013,8 +1013,7 @@ void *file_open_settings_r(const char *sessionname)
         SetCurrentDirectory(oldpath);
         
         if (hFile == INVALID_HANDLE_VALUE) {
-            // This used to actively report an error, which doesn't
-            // happen on the registry path.  I couldn't see why.
+            errorShow("Unable to read session from file", p);
             sfree(p);
             return NULL;
         }

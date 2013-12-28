@@ -704,6 +704,12 @@ void load_settings(char *section, Conf *conf)
     void *sesskey;
 
     sesskey = open_settings_r(section);
+    if (!sesskey) {
+        // some of the code is okay with this being NULL,
+        // but it only happens on error paths and horrifies me
+        return;
+    }
+
     load_open_settings(sesskey, conf);
     close_settings_r(sesskey);
 
