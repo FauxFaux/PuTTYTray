@@ -5,6 +5,7 @@
 #include "urlhack.h"
 #include "misc.h"
 #include "puttymem.h"
+#include "terminal.h"
 
 
 int urlhack_mouse_old_x = -1, urlhack_mouse_old_y = -1, urlhack_current_region = -1;
@@ -40,6 +41,19 @@ int urlhack_is_in_this_link_region(text_region r, int x, int y)
     }
     
     return 0;
+}
+
+void urlhack_for_every_link(void (*output)(Terminal *, void *, wchar_t *, int *, int, int)) {
+    unsigned int i;
+    for (i = 0; i < link_regions_current_pos; ++i) {
+        text_region region = *link_regions[i];
+        pos top, bottom;
+        top.x = region.x0;
+        top.y = region.y0;
+        bottom.x = region.x1;
+        bottom.y = region.y1;
+        clipme(term, top, bottom, 0, i /* HACK */, output);
+    }
 }
 
 text_region urlhack_get_link_bounds(int x, int y)

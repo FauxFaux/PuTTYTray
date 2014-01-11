@@ -20,6 +20,12 @@ typedef struct {
     int y, x;
 } pos;
 
+void clipme(Terminal *term, pos top, pos bottom, int rect, int desel,
+    void (*output)(Terminal *, void *, wchar_t *, int *, int, int));
+
+void urlhack_launch_url_helper(Terminal *term, void *frontend, wchar_t * data,
+    int *attr, int len, int must_deselect);
+
 #ifdef OPTIMISE_SCROLL
 struct scrollregion {
     struct scrollregion *next;

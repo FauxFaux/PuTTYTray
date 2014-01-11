@@ -5407,7 +5407,7 @@ static void clip_addchar(clip_workbuf *b, wchar_t chr, int attr)
     b->bufpos++;
 }
 
-static void clipme(Terminal *term, pos top, pos bottom, int rect, int desel,
+void clipme(Terminal *term, pos top, pos bottom, int rect, int desel,
     void (*output)(Terminal *, void *, wchar_t *, int *, int, int))
 {
     clip_workbuf buf;
