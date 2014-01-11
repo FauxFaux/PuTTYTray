@@ -182,6 +182,7 @@ int vtmode;
 static unsigned int update_url_id;
 static unsigned int search_url_id;
 static unsigned int url_target_id;
+static BOOL url_character_used[UCHAR_MAX];
 
 static struct sesslist sesslist;       /* for saved-session menu */
 
@@ -1159,20 +1160,49 @@ static void update_savedsess_menu(void)
 }
 
 void append_url_to_menu(Terminal *term, void *menu, wchar_t * data, int *attr, int len, int must_deselect) {
+    unsigned int i = 0;
+    BOOL found = FALSE;
+    wchar_t *fixed, *fixing, *search;
     if (update_url_id > (IDM_URL_MAX-IDM_URL_MIN))
         return;
+    fixing = fixed = snewn(wcslen(data) + MAX_PATH, wchar_t);
+    search = data;
 
-    AppendMenuW(url_menu, MF_ENABLED, IDM_URL_MIN + (update_url_id), data);
+    if (search[strlen("http:/")] == '/')
+        for (i = 0; i < strlen("http:/"); ++i)
+            *fixing++ = *search++;
+
+    while (*search && i++ < MAX_PATH) {
+        if (!found && *search < 'z' && !url_character_used[*search]) {
+            url_character_used[*search] = TRUE;
+            found = TRUE;
+            *fixing++ = '&';
+        }
+        if (*search == '&')
+            *fixing++ = '&';
+        *fixing++ = *search++;
+    }
+
+    *fixing++ = 0;
+
+    AppendMenuW(url_menu, MF_ENABLED, IDM_URL_MIN + (update_url_id), *fixed ? fixed : data);
     ++update_url_id;
+    sfree(fixed);
 }
 
 void urlhack_for_every_link(void (*output)(Terminal *, void *, wchar_t *, int *, int, int));
 
 static void update_url_menu() {
+    int i;
     while (DeleteMenu(url_menu, 0, MF_BYPOSITION))
         ;
 
     update_url_id = 0;
+    for (i = 0; i < UCHAR_MAX; ++i)
+        url_character_used[i] = FALSE;
+    url_character_used['/'] = TRUE;
+    url_character_used['.'] = TRUE;
+
     urlhack_for_every_link(&append_url_to_menu);
 }
 
