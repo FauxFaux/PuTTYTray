@@ -282,6 +282,6 @@ FontSpec *fontspec_deserialise(void *vdata, int maxsize, int *used)
     return fontspec_new(data);
 }
 
-void sanitise_path_leaving_slashes(char *path) {
+void sanitise_path_leaving_slashes(Filename *original, char *path) {
     // nothing to do here; everything is typically legal
 }

@@ -587,14 +587,18 @@ Filename *get_id_rsa_path() {
     return filename_from_str(path);
 }
 
+int absolute_path(const char *path) {
+    return path[0] && path[1] == ':';
+}
+
 /* Naming Files, Paths, and Namespaces:
  * http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247.aspx
  */
-void sanitise_path_leaving_slashes(char *path) {
+void sanitise_path_leaving_slashes(Filename *original, char *path) {
     const char replacement = '_';
     const size_t len = strlen(path);
     size_t i;
-    for (i = 0; i < len; ++i) {
+    for (i = absolute_path(filename_to_str(original)) ? 2 : 0; i < len; ++i) {
         if (path[i] < 32) {
             path[i] = replacement;
             continue;

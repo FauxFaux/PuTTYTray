@@ -457,7 +457,7 @@ static Filename *xlatlognam(Filename *src, char *hostname, struct tm *tm)
     }
     buffer[buflen] = '\0';
 
-    sanitise_path_leaving_slashes(buffer);
+    sanitise_path_leaving_slashes(src, buffer);
 
     ret = filename_from_str(buffer);
     sfree(buffer);

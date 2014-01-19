@@ -1167,7 +1167,7 @@ char const *conf_dest(Conf *conf);
 /*
  * Exports from *misc.c.
  */
-void sanitise_path_leaving_slashes(char *path);
+void sanitise_path_leaving_slashes(Filename *original, char *path);
 
 /*
  * Exports from sercfg.c.
