@@ -1293,7 +1293,10 @@ char *file_enum_settings_next(void *handle, char *buffer, int buflen)
         //}
     }
     else if (e->fromFile) {
-        if (FindNextFile(e->hFile,&FindFileData) && !((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || FindFileData.cFileName[0] == '.')) { // HACK: PUTTY TRAY / PUTTY FILE: Fixed directory check
+        if (FindNextFile(e->hFile, &FindFileData)) {
+	    if ((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || FindFileData.cFileName[0] == '.') {
+                return enum_settings_next(handle, buffer, buflen);
+	    }
             unmungestr(FindFileData.cFileName, buffer, buflen);
             sfree(otherbuf);
             /* JK: cut off sessionsuffix */
