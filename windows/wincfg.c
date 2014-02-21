@@ -109,6 +109,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     union control *c;
     char *str;
     int col = 0;
+    int cancelColumn;
 
     /*
      * Add the About and Help buttons to the standard panel.
@@ -116,11 +117,24 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
      *  the about button if it can't fit.
      */
     s = ctrl_getset(b, "", "", "");
-    if (!has_help) {
-        c = ctrl_pushbutton(s, "About", NO_SHORTCUT, HELPCTX(no_help),
-			    about_handler, P(hwndp));
-        c->generic.column = col++;
+
+    // if there's help, we free up the cancel button's space,
+    // and put "about" there instead.  There's plenty of sensible
+    // ways to cancel the dialog already
+    if (has_help) {
+        int cancelLocation = s->ncontrols - 1;
+        assert('C' == s->ctrls[cancelLocation]->button.label[0]);
+        sfree(s->ctrls[cancelLocation]);
+        --s->ncontrols;
+
+        cancelColumn = 4;
+    } else {
+        cancelColumn = col++;
     }
+
+    c = ctrl_pushbutton(s, "About", NO_SHORTCUT, HELPCTX(no_help),
+		about_handler, P(hwndp));
+    c->generic.column = cancelColumn;
 
     c = ctrl_pushbutton(s, "Keygen", NO_SHORTCUT, HELPCTX(no_help),
                         child_launch_handler, I(CHILD_KEYGEN));
