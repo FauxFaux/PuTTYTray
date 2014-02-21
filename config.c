@@ -184,8 +184,11 @@ static void config_host_handler(union control *ctrl, void *dlg,
             dlg_label_change(ctrl, dlg, "Command (use - for login shell)");
             dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_cygcmd));
         } else if (conf_get_int(conf, CONF_protocol) == PROT_ADB) {
+            char *saved_host = conf_get_str(conf, CONF_host);
             dlg_label_change(ctrl, dlg, "-a: any, -d: usb, -e: emulator, or :serial");
-            dlg_editbox_set(ctrl, dlg, "-a");
+            if (!saved_host || !*saved_host)
+                saved_host = "-a";
+            dlg_editbox_set(ctrl, dlg, saved_host);
 	} else {
 	    dlg_label_change(ctrl, dlg, HOST_BOX_TITLE);
 	    dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_host));
