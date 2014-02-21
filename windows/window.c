@@ -146,7 +146,7 @@ static int kbd_codepage;
 
 static void *ldisc;
 static Backend *back;
-static void *backhandle;
+static void *backhandle = NULL;
 
 static struct unicode_data ucsdata;
 static int must_close_session, session_closed;
@@ -310,8 +310,8 @@ char *get_ttymode(void *frontend, const char *mode)
 static void start_backend(void)
 {
     const char *error;
-    char msg[1024], *title;
-    char *realhost;
+    char msg[1024] = {0}, *title = NULL;
+    char *realhost = NULL;
     int i;
 
     /*
@@ -334,6 +334,14 @@ static void start_backend(void)
 		       conf_get_int(conf, CONF_tcp_nodelay),
 		       conf_get_int(conf, CONF_tcp_keepalives));
     back->provide_logctx(backhandle, logctx);
+
+    // there used to be an exit(error) here.  It is gone.
+    // The rest of this code is run just so we can reach
+    // connection_fatal and hope that nothing is too broken.
+    // Hack some things that aren't happy.  Why, why.
+    if (!realhost)
+        realhost = _strdup("");
+
     window_name = icon_name = NULL;
     title = conf_get_str(conf, CONF_wintitle);
     if (!*title) {
