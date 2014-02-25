@@ -562,6 +562,8 @@ static void packstr(const char *in, char *out) {
 /*
  * JK: create directory if specified as dir1\dir2\dir3 and dir1|2 doesn't exists
  * handle if part of path already exists
+ *
+ * The travesty of leaking SetCurrentDirectory here is handled by callers.
 */
 int createPath(char* dir) {
     char *p;
@@ -885,6 +887,8 @@ void file_close_settings_w(void *handle)
 
     if (!handle) return;
 
+    GetCurrentDirectory( (MAX_PATH*2), oldpath);
+
     /* JK: we will write to disk now - open file, filename stored in handle already packed */
     if ((hFile = FindFirstFile(sesspath, &FindFile)) == INVALID_HANDLE_VALUE) {
         if (!createPath(sesspath)) {
@@ -893,7 +897,6 @@ void file_close_settings_w(void *handle)
         }
     }
     FindClose(hFile);
-    GetCurrentDirectory( (MAX_PATH*2), oldpath);
     SetCurrentDirectory(sesspath);
 
     hFile = CreateFile( ((struct setPack*) handle)->fileBuf, GENERIC_WRITE,0,NULL,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
@@ -1234,6 +1237,8 @@ void *file_enum_settings_start(void)
     ret->hFile = NULL;
     ret->i = 0;
 
+    GetCurrentDirectory( (MAX_PATH*2), oldpath);
+
     return ret;
 }
 
@@ -1259,7 +1264,6 @@ char *file_enum_settings_next(void *handle, char *buffer, int buflen)
         else {*/
             /* JK: registry scanning done, starting scanning directory "sessions" */
             e->fromFile = 1;
-            GetCurrentDirectory( (MAX_PATH*2), oldpath);
             if (!SetCurrentDirectory(sesspath)) {
                 sfree(otherbuf);
                 return NULL;
@@ -1351,7 +1355,7 @@ int file_verify_host_key(const char *hostname, int port,
 
     hostkey_regname(regname, hostname, port, keytype);
 
-	/* JK: settings on disk - every hostkey as file in dir */
+    /* JK: settings on disk - every hostkey as file in dir */
     GetCurrentDirectory( (MAX_PATH*2), oldpath);
     if (SetCurrentDirectory(sshkpath)) {
         
@@ -1483,6 +1487,9 @@ int file_verify_host_key(const char *hostname, int port,
             "Cancel \t-> nothing will be done\n", "Security risk", MB_YESNOCANCEL|MB_ICONWARNING);
 
         if ((userMB == IDYES) || (userMB == IDNO)) {
+            char oldDirectory[2048];
+            GetCurrentDirectory(2048, oldDirectory);
+
             /* JK: save key to file */
             if ((hFile = FindFirstFile(sshkpath, &FindFile)) == INVALID_HANDLE_VALUE) {
                 createPath(sshkpath);
@@ -1507,6 +1514,8 @@ int file_verify_host_key(const char *hostname, int port,
                 }
                 CloseHandle(hFile);
             }
+
+            SetCurrentDirectory(oldDirectory);
         }
         if (userMB == IDYES) {
             /* delete from registry */
@@ -1536,12 +1545,13 @@ void file_store_host_key(const char *hostname, int port,
     regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
     hostkey_regname(regname, hostname, port, keytype);
 
-	/* JK: save hostkey to file in dir */
+    GetCurrentDirectory( (MAX_PATH*2), oldpath);
+
+    /* JK: save hostkey to file in dir */
     if ((hFile = FindFirstFile(sshkpath, &FindFile)) == INVALID_HANDLE_VALUE) {
         createPath(sshkpath);
     }
     FindClose(hFile);
-    GetCurrentDirectory( (MAX_PATH*2), oldpath);
     SetCurrentDirectory(sshkpath);
 
     p = snewn(3*strlen(regname) + 1, char);
