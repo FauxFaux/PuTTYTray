@@ -260,7 +260,7 @@ sub mfval($) {
     # prints a warning and returns false;
     if (grep { $type eq $_ }
 	("vc","vcproj","cygwin","borland","lcc","devcppproj","gtk","unix",
-         "am","osx","vstudio10","vstudio12")) {
+         "am","osx","vstudio10","vstudio12","vstudio13")) {
         return 1;
     }
     warn "$.:unknown makefile type '$type'\n";
@@ -980,7 +980,8 @@ if (defined $makefiles{'vcproj'}) {
     }
 }
 
-if (defined $makefiles{'vstudio10'} || defined $makefiles{'vstudio12'}) {
+if (defined $makefiles{'vstudio10'} || defined $makefiles{'vstudio12'}
+    || defined $makefiles{'vstudio13'}) {
 
     ##-- Visual Studio 2010+ Solution and Projects
 
@@ -990,6 +991,10 @@ if (defined $makefiles{'vstudio10'} || defined $makefiles{'vstudio12'}) {
 
     if (defined $makefiles{'vstudio12'}) {
         create_vs_solution('vstudio12', "2012", "12.00", "v110");
+    }
+
+    if (defined $makefiles{'vstudio13'}) {
+        create_vs_solution('vstudio13', "2013", "13.00", "v120");
     }
 
     sub create_vs_solution {
@@ -1027,25 +1032,25 @@ if (defined $makefiles{'vstudio10'} || defined $makefiles{'vstudio12'}) {
 
         print
             "Global\n" .
-            "    GlobalSection(SolutionConfigurationPlatforms) = preSolution\n" .
-            "        Debug|Win32 = Debug|Win32\n" .
-            "        Release|Win32 = Release|Win32\n" .
-            "    EndGlobalSection\n" .
-            "    GlobalSection(ProjectConfigurationPlatforms) = postSolution\n" ;
+            "\tGlobalSection(SolutionConfigurationPlatforms) = preSolution\n" .
+            "\t\tDebug|Win32 = Debug|Win32\n" .
+            "\t\tRelease|Win32 = Release|Win32\n" .
+            "\tEndGlobalSection\n" .
+            "\tGlobalSection(ProjectConfigurationPlatforms) = postSolution\n" ;
 
         foreach my $projguid (values %projguids) {
             print
-                "        {$projguid}.Debug|Win32.ActiveCfg = Debug|Win32\n" .
-                "        {$projguid}.Debug|Win32.Build.0 = Debug|Win32\n" .
-                "        {$projguid}.Release|Win32.ActiveCfg = Release|Win32\n" .
-                "        {$projguid}.Release|Win32.Build.0 = Release|Win32\n";
+                "\t\t{$projguid}.Debug|Win32.ActiveCfg = Debug|Win32\n" .
+                "\t\t{$projguid}.Debug|Win32.Build.0 = Debug|Win32\n" .
+                "\t\t{$projguid}.Release|Win32.ActiveCfg = Release|Win32\n" .
+                "\t\t{$projguid}.Release|Win32.Build.0 = Release|Win32\n";
         }
 
         print
-            "    EndGlobalSection\n" .
-            "    GlobalSection(SolutionProperties) = preSolution\n" .
-            "        HideSolutionNode = FALSE\n" .
-            "    EndGlobalSection\n" .
+            "\tEndGlobalSection\n" .
+            "\tGlobalSection(SolutionProperties) = preSolution\n" .
+            "\t\tHideSolutionNode = FALSE\n" .
+            "\tEndGlobalSection\n" .
             "EndGlobal\n";
 
         select STDOUT; close OUT;
@@ -1996,7 +2001,7 @@ sub invent_guid($) {
     0xC7842451,0xA3194393,0xFBDC2C84,0xA6D2B577,0xC91E7924,0x01EDA708,
     0x22FBB61E,0x662F9B7B,0xDE3150C3,0x2397058C;
     my $digest = sha512_hex($name . "\0" . $randdata);
-    return sprintf("%s-%s-%04x-%04x-%s",
+    return uc sprintf("%s-%s-%04x-%04x-%s",
                    substr($digest,0,8),
                    substr($digest,8,4),
                    0x4000 | (0xFFF & hex(substr($digest,12,4))),

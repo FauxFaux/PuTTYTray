@@ -1,0 +1,37 @@
+Microsoft Visual Studio Solution File, Format Version 13.00
+# Visual Studio 2013
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "plink", "plink\plink.vcxproj", "{4478087B-1DC8-4C3E-B624-13661DE1947E}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pscp", "pscp\pscp.vcxproj", "{26D200F3-250A-494F-AAA4-C992EC4345AA}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "psftp", "psftp\psftp.vcxproj", "{3CAA8123-13FE-450D-BFE7-FCDA524D6830}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "putty", "putty\putty.vcxproj", "{8F44624A-D188-4188-B9AA-5F99F20723E1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4478087B-1DC8-4C3E-B624-13661DE1947E}.Debug|Win32.ActiveCfg = Debug|Win32
+		{4478087B-1DC8-4C3E-B624-13661DE1947E}.Debug|Win32.Build.0 = Debug|Win32
+		{4478087B-1DC8-4C3E-B624-13661DE1947E}.Release|Win32.ActiveCfg = Release|Win32
+		{4478087B-1DC8-4C3E-B624-13661DE1947E}.Release|Win32.Build.0 = Release|Win32
+		{3CAA8123-13FE-450D-BFE7-FCDA524D6830}.Debug|Win32.ActiveCfg = Debug|Win32
+		{3CAA8123-13FE-450D-BFE7-FCDA524D6830}.Debug|Win32.Build.0 = Debug|Win32
+		{3CAA8123-13FE-450D-BFE7-FCDA524D6830}.Release|Win32.ActiveCfg = Release|Win32
+		{3CAA8123-13FE-450D-BFE7-FCDA524D6830}.Release|Win32.Build.0 = Release|Win32
+		{8F44624A-D188-4188-B9AA-5F99F20723E1}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8F44624A-D188-4188-B9AA-5F99F20723E1}.Debug|Win32.Build.0 = Debug|Win32
+		{8F44624A-D188-4188-B9AA-5F99F20723E1}.Release|Win32.ActiveCfg = Release|Win32
+		{8F44624A-D188-4188-B9AA-5F99F20723E1}.Release|Win32.Build.0 = Release|Win32
+		{26D200F3-250A-494F-AAA4-C992EC4345AA}.Debug|Win32.ActiveCfg = Debug|Win32
+		{26D200F3-250A-494F-AAA4-C992EC4345AA}.Debug|Win32.Build.0 = Debug|Win32
+		{26D200F3-250A-494F-AAA4-C992EC4345AA}.Release|Win32.ActiveCfg = Release|Win32
+		{26D200F3-250A-494F-AAA4-C992EC4345AA}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

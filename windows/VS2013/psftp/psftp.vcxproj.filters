@@ -1,19 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <CustomBuild Include="..\..\putty.ico">
+    <CustomBuild Include="..\..\pscp.ico">
       <Filter>Resource Files</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="..\..\plink.rc">
+    <ResourceCompile Include="..\..\psftp.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\adb.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>    <ClCompile Include="..\..\..\be_all_s.c">
+    <ClCompile Include="..\..\..\be_ssh.c">
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\..\cmdline.c">
       <Filter>Source Files</Filter>
@@ -21,7 +19,7 @@
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\..\cproxy.c">
       <Filter>Source Files</Filter>
-    </ClCompile>    <ClCompile Include="..\..\..\ldisc.c">
+    </ClCompile>    <ClCompile Include="..\..\..\int64.c">
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\..\logging.c">
       <Filter>Source Files</Filter>
@@ -35,11 +33,11 @@
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\..\proxy.c">
       <Filter>Source Files</Filter>
-    </ClCompile>    <ClCompile Include="..\..\..\raw.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>    <ClCompile Include="..\..\..\rlogin.c">
+    </ClCompile>    <ClCompile Include="..\..\..\psftp.c">
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\..\settings.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sftp.c">
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\..\ssh.c">
       <Filter>Source Files</Filter>
@@ -79,8 +77,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\..\sshzlib.c">
       <Filter>Source Files</Filter>
-    </ClCompile>    <ClCompile Include="..\..\..\telnet.c">
-      <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\..\timing.c">
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\..\tree234.c">
@@ -88,8 +84,6 @@
     </ClCompile>    <ClCompile Include="..\..\..\version.c">
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\..\wildcard.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>    <ClCompile Include="..\..\cygterm.c">
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\wincons.c">
       <Filter>Source Files</Filter>
@@ -109,17 +103,13 @@
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\winpgntc.c">
       <Filter>Source Files</Filter>
-    </ClCompile>    <ClCompile Include="..\..\winplink.c">
-      <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\winproxy.c">
       <Filter>Source Files</Filter>
-    </ClCompile>    <ClCompile Include="..\..\winser.c">
+    </ClCompile>    <ClCompile Include="..\..\winsftp.c">
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\winstore.c">
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\wintime.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>    <ClCompile Include="..\..\winx11.c">
       <Filter>Source Files</Filter>
     </ClCompile>    <ClCompile Include="..\..\..\x11fwd.c">
       <Filter>Source Files</Filter>
@@ -128,8 +118,6 @@
     <ClInclude Include="..\..\..\charset\charset.h">
       <Filter>Header Files</Filter>
     </ClInclude>    <ClInclude Include="..\..\..\int64.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>    <ClInclude Include="..\..\..\ldisc.h">
       <Filter>Header Files</Filter>
     </ClInclude>    <ClInclude Include="..\..\..\macosx\osx.h">
       <Filter>Header Files</Filter>
@@ -141,11 +129,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>    <ClInclude Include="..\..\..\proxy.h">
       <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\psftp.h">
+      <Filter>Header Files</Filter>
     </ClInclude>    <ClInclude Include="..\..\..\putty.h">
       <Filter>Header Files</Filter>
     </ClInclude>    <ClInclude Include="..\..\..\puttymem.h">
       <Filter>Header Files</Filter>
     </ClInclude>    <ClInclude Include="..\..\..\puttyps.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\sftp.h">
       <Filter>Header Files</Filter>
     </ClInclude>    <ClInclude Include="..\..\..\ssh.h">
       <Filter>Header Files</Filter>
@@ -155,15 +147,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>    <ClInclude Include="..\..\..\storage.h">
       <Filter>Header Files</Filter>
-    </ClInclude>    <ClInclude Include="..\..\..\terminal.h">
-      <Filter>Header Files</Filter>
     </ClInclude>    <ClInclude Include="..\..\..\tree234.h">
       <Filter>Header Files</Filter>
     </ClInclude>    <ClInclude Include="..\..\..\unix\unix.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>    <ClInclude Include="..\..\cthelper\cthelper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>    <ClInclude Include="..\..\cthelper\message.h">
       <Filter>Header Files</Filter>
     </ClInclude>    <ClInclude Include="..\..\rcstuff.h">
       <Filter>Header Files</Filter>
@@ -180,13 +166,13 @@
     </ClInclude>  </ItemGroup>
   <ItemGroup>
     <Filter Include="Source Files">
-      <UniqueIdentifier>{cabf3930-a192-46fa-9d0b-c12a3c48fb64}</UniqueIdentifier>
+      <UniqueIdentifier>{156CE40F-DC1B-4721-B08F-6336B9F4D290}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files">
-      <UniqueIdentifier>{211b9eeb-2f7b-4f17-ba17-7fa34bd6d53f}</UniqueIdentifier>
+      <UniqueIdentifier>{198936A4-3DD8-46C7-8266-B3A081E1E0FC}</UniqueIdentifier>
     </Filter>
     <Filter Include="Resource Files">
-      <UniqueIdentifier>{7398cce3-d4c6-47d7-8876-968d1b521c8d}</UniqueIdentifier>
+      <UniqueIdentifier>{A85261DB-1733-4F46-B1B9-CF01DD3DA697}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>
