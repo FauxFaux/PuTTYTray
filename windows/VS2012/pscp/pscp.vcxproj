@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <SccProjectName />
+    <SccLocalPath />
+    <ProjectGuid>{26d200f3-250a-494f-aaa4-c992ec4345aa}</ProjectGuid>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseOfMfc>false</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v110</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseOfMfc>false</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v110</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>.\Release\</OutDir>
+    <IntDir>.\Release\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>.\Debug\</OutDir>
+    <IntDir>.\Debug\</IntDir>
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <StringPooling>true</StringPooling>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <Optimization>MaxSpeed</Optimization>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <WarningLevel>Level3</WarningLevel>
+      <AdditionalIncludeDirectories>..\..\..\./;..\..\..\charset/;..\..\..\windows/;..\..\..\windows/re_lib/;..\..\..\unix/;..\..\..\macosx/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;SECURITY_WIN32;POSIX;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AssemblerListingLocation>.\Release\</AssemblerListingLocation>
+      <PrecompiledHeaderOutputFile>.\Release\pscp.pch</PrecompiledHeaderOutputFile>
+      <ObjectFileName>.\Release\</ObjectFileName>
+      <ProgramDataBaseFileName>.\Release\</ProgramDataBaseFileName>
+    </ClCompile>
+    <Midl>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <TypeLibraryName>.\Release\pscp.tlb</TypeLibraryName>
+      <MkTypLibCompatible>true</MkTypLibCompatible>
+      <TargetEnvironment>Win32</TargetEnvironment>
+    </Midl>
+    <ResourceCompile>
+      <Culture>0x0809</Culture>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Bscmake>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <OutputFile>.\Release\pscp.bsc</OutputFile>
+    </Bscmake>
+    <Link>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <SubSystem>Console</SubSystem>
+      <OutputFile>.\Release\pscp.exe</OutputFile>
+      <AdditionalDependencies>advapi32.lib;comctl32.lib;comdlg32.lib;gdi32.lib;imm32.lib;ole32.lib;shell32.lib;user32.lib;winmm.lib;winspool.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <InlineFunctionExpansion>Default</InlineFunctionExpansion>
+      <FunctionLevelLinking>false</FunctionLevelLinking>
+      <Optimization>Disabled</Optimization>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <WarningLevel>Level3</WarningLevel>
+      <MinimalRebuild>true</MinimalRebuild>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <AdditionalIncludeDirectories>..\..\..\./;..\..\..\charset/;..\..\..\windows/;..\..\..\windows/re_lib/;..\..\..\unix/;..\..\..\macosx/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;SECURITY_WIN32;POSIX;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AssemblerListingLocation>.\Debug\</AssemblerListingLocation>
+      <PrecompiledHeaderOutputFile>.\Debug\pscp.pch</PrecompiledHeaderOutputFile>
+      <ObjectFileName>.\Debug\</ObjectFileName>
+      <ProgramDataBaseFileName>.\Debug\</ProgramDataBaseFileName>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+    </ClCompile>
+    <Midl>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <TypeLibraryName>.\Debug\pscp.tlb</TypeLibraryName>
+      <MkTypLibCompatible>true</MkTypLibCompatible>
+      <TargetEnvironment>Win32</TargetEnvironment>
+    </Midl>
+    <ResourceCompile>
+      <Culture>0x0809</Culture>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Bscmake>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <OutputFile>.\Debug\pscp.bsc</OutputFile>
+    </Bscmake>
+    <Link>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Console</SubSystem>
+      <OutputFile>$(TargetPath)</OutputFile>
+      <AdditionalDependencies>advapi32.lib;comctl32.lib;comdlg32.lib;gdi32.lib;imm32.lib;ole32.lib;shell32.lib;user32.lib;winmm.lib;winspool.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\pscp.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\..\pscp.rc">
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\be_ssh.c" />
+    <ClCompile Include="..\..\..\cmdline.c" />
+    <ClCompile Include="..\..\..\conf.c" />
+    <ClCompile Include="..\..\..\cproxy.c" />
+    <ClCompile Include="..\..\..\int64.c" />
+    <ClCompile Include="..\..\..\logging.c" />
+    <ClCompile Include="..\..\..\misc.c" />
+    <ClCompile Include="..\..\..\pgssapi.c" />
+    <ClCompile Include="..\..\..\pinger.c" />
+    <ClCompile Include="..\..\..\portfwd.c" />
+    <ClCompile Include="..\..\..\proxy.c" />
+    <ClCompile Include="..\..\..\pscp.c" />
+    <ClCompile Include="..\..\..\settings.c" />
+    <ClCompile Include="..\..\..\sftp.c" />
+    <ClCompile Include="..\..\..\ssh.c" />
+    <ClCompile Include="..\..\..\sshaes.c" />
+    <ClCompile Include="..\..\..\ssharcf.c" />
+    <ClCompile Include="..\..\..\sshblowf.c" />
+    <ClCompile Include="..\..\..\sshbn.c" />
+    <ClCompile Include="..\..\..\sshcrc.c" />
+    <ClCompile Include="..\..\..\sshcrcda.c" />
+    <ClCompile Include="..\..\..\sshdes.c" />
+    <ClCompile Include="..\..\..\sshdh.c" />
+    <ClCompile Include="..\..\..\sshdss.c" />
+    <ClCompile Include="..\..\..\sshgssc.c" />
+    <ClCompile Include="..\..\..\sshmd5.c" />
+    <ClCompile Include="..\..\..\sshpubk.c" />
+    <ClCompile Include="..\..\..\sshrand.c" />
+    <ClCompile Include="..\..\..\sshrsa.c" />
+    <ClCompile Include="..\..\..\sshsh256.c" />
+    <ClCompile Include="..\..\..\sshsh512.c" />
+    <ClCompile Include="..\..\..\sshsha.c" />
+    <ClCompile Include="..\..\..\sshzlib.c" />
+    <ClCompile Include="..\..\..\timing.c" />
+    <ClCompile Include="..\..\..\tree234.c" />
+    <ClCompile Include="..\..\..\version.c" />
+    <ClCompile Include="..\..\..\wildcard.c" />
+    <ClCompile Include="..\..\wincons.c" />
+    <ClCompile Include="..\..\windefs.c" />
+    <ClCompile Include="..\..\wingss.c" />
+    <ClCompile Include="..\..\winhandl.c" />
+    <ClCompile Include="..\..\winmisc.c" />
+    <ClCompile Include="..\..\winnet.c" />
+    <ClCompile Include="..\..\winnoise.c" />
+    <ClCompile Include="..\..\winnojmp.c" />
+    <ClCompile Include="..\..\winpgntc.c" />
+    <ClCompile Include="..\..\winproxy.c" />
+    <ClCompile Include="..\..\winsftp.c" />
+    <ClCompile Include="..\..\winstore.c" />
+    <ClCompile Include="..\..\wintime.c" />
+    <ClCompile Include="..\..\..\x11fwd.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\charset\charset.h" />
+    <ClInclude Include="..\..\..\int64.h" />
+    <ClInclude Include="..\..\..\macosx\osx.h" />
+    <ClInclude Include="..\..\..\misc.h" />
+    <ClInclude Include="..\..\..\network.h" />
+    <ClInclude Include="..\..\..\pgssapi.h" />
+    <ClInclude Include="..\..\..\proxy.h" />
+    <ClInclude Include="..\..\..\psftp.h" />
+    <ClInclude Include="..\..\..\putty.h" />
+    <ClInclude Include="..\..\..\puttymem.h" />
+    <ClInclude Include="..\..\..\puttyps.h" />
+    <ClInclude Include="..\..\..\sftp.h" />
+    <ClInclude Include="..\..\..\ssh.h" />
+    <ClInclude Include="..\..\..\sshgss.h" />
+    <ClInclude Include="..\..\..\sshgssc.h" />
+    <ClInclude Include="..\..\..\storage.h" />
+    <ClInclude Include="..\..\..\tree234.h" />
+    <ClInclude Include="..\..\..\unix\unix.h" />
+    <ClInclude Include="..\..\rcstuff.h" />
+    <ClInclude Include="..\..\re_lib\regexp.h" />
+    <ClInclude Include="..\..\urlhack.h" />
+    <ClInclude Include="..\..\win_res.h" />
+    <ClInclude Include="..\..\winhelp.h" />
+    <ClInclude Include="..\..\winstuff.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

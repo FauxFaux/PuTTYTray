@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="..\..\pageant.ico">
+      <Filter>Resource Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\putty.ico">
+      <Filter>Resource Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\puttycfg.ico">
+      <Filter>Resource Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\puttygen.ico">
+      <Filter>Resource Files</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\..\putty.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\adb.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\be_all_s.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\cmdline.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\conf.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\config.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\cproxy.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\dialog.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\import.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\ldisc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\ldiscucs.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\logging.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\minibidi.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\misc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\pgssapi.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\pinger.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\portfwd.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\proxy.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\raw.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\rlogin.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sercfg.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\settings.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\ssh.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshaes.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\ssharcf.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshblowf.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshbn.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshcrc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshcrcda.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshdes.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshdh.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshdss.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshdssg.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshgssc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshmd5.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshprime.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshpubk.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshrand.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshrsa.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshrsag.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshsh256.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshsh512.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshsha.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshzlib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\telnet.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\terminal.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\timing.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\tree234.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\urlhack.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\version.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\wcwidth.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\wildcard.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\cygcfg.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\cygterm.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\fatty.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\pickicondialog.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\re_lib\regexp.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\sizetip.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\urlhack_win.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\wincfg.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winctrls.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\windefs.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\windlg.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\window.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\wingss.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winhandl.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winhelp.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winjump.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winmisc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winnet.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winnoise.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winpgen.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winpgnt.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winpgntc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winprint.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winproxy.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winser.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winstore.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\wintime.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winucs.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winutils.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winx11.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\x11fwd.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\charset\charset.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\dialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\int64.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\ldisc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\macosx\osx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\misc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\network.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\pgssapi.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\proxy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\putty.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\puttymem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\puttyps.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\ssh.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\sshgss.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\sshgssc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\storage.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\terminal.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\tree234.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\unix\unix.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\cthelper\cthelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\cthelper\message.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\pickicondialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\rcstuff.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\re_lib\regexp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\re_lib\regmagic.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\urlhack.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\win_res.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\winhelp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\winstuff.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{382c3c77-0fea-4132-a5ae-2550d8a5f395}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{8c940eae-8579-4a10-b1a1-bd19ff6e8c9c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{e34b5d5d-ec5e-422e-9244-e7dd2783eead}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

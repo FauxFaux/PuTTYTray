@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="..\..\putty.ico">
+      <Filter>Resource Files</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\..\plink.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\adb.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\be_all_s.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\cmdline.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\conf.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\cproxy.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\ldisc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\logging.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\misc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\pgssapi.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\pinger.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\portfwd.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\proxy.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\raw.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\rlogin.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\settings.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\ssh.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshaes.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\ssharcf.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshblowf.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshbn.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshcrc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshcrcda.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshdes.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshdh.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshdss.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshgssc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshmd5.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshpubk.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshrand.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshrsa.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshsh256.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshsh512.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshsha.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\sshzlib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\telnet.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\timing.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\tree234.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\version.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\wildcard.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\cygterm.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\wincons.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\windefs.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\wingss.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winhandl.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winmisc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winnet.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winnoise.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winnojmp.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winpgntc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winplink.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winproxy.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winser.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winstore.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\wintime.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\winx11.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>    <ClCompile Include="..\..\..\x11fwd.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\charset\charset.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\int64.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\ldisc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\macosx\osx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\misc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\network.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\pgssapi.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\proxy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\putty.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\puttymem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\puttyps.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\ssh.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\sshgss.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\sshgssc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\storage.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\terminal.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\tree234.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\..\unix\unix.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\cthelper\cthelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\cthelper\message.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\rcstuff.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\re_lib\regexp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\urlhack.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\win_res.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\winhelp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>    <ClInclude Include="..\..\winstuff.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{cabf3930-a192-46fa-9d0b-c12a3c48fb64}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{211b9eeb-2f7b-4f17-ba17-7fa34bd6d53f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{7398cce3-d4c6-47d7-8876-968d1b521c8d}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

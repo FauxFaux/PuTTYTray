@@ -1,4 +1,5 @@
 windows/MSVC*
+windows/VS*
 windows/DEVCPP
 Makefile*
 charset/sbcsdat.c
