@@ -3781,10 +3781,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 				   TO_CHR_X(p.x),
 				   TO_CHR_Y(p.y), shift_pressed,
 				   control_pressed, is_alt_pressed());
-			term_mouse(term, b, translate_button(b),
-				   MA_RELEASE, TO_CHR_X(p.x),
-				   TO_CHR_Y(p.y), shift_pressed,
-				   control_pressed, is_alt_pressed());
+      // HACK (@unphased: I am removing the "button release" when triggered by
+      // mouse wheel to better replicate iTerm2's behavior)
+      // term_mouse(term, b, translate_button(b),
+			// 	   MA_RELEASE, TO_CHR_X(p.x),
+			// 	   TO_CHR_Y(p.y), shift_pressed,
+			// 	   control_pressed, is_alt_pressed());
 		    } /* else: not sure when this can fail */
 		} else {
                     if (control_pressed) {

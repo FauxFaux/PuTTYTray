@@ -5977,7 +5977,9 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
 		term->mouse_is_down = 0;
 		break;
 	      case MA_CLICK:
-			  if (term->mouse_is_down == braw) {// HACK: ADDED FOR hyperlink stuff
+        // HACK: ADDED FOR hyperlink stuff
+        // MORE HACKING (@unphased: allow sequences of mouse wheel up and mouse wheel down to pass through)
+			  if (term->mouse_is_down == braw && braw != MBT_WHEEL_UP && braw != MBT_WHEEL_DOWN) {
 				  unlineptr(ldata); 
 				  return;
 			  }
