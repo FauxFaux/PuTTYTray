@@ -307,6 +307,17 @@
                     </li>
                 </ul>
 
+                <br/>
+                <br/>
+
+                <p>What's that "SHA256/GPG" thing?</p>
+                <ul>
+                    <li>This allows you to increase your confidence that you downloaded the right thing.  If your browser tells you you're on <a href="https://puttytray.goeswhere.com/">https://puttytray.goeswhere.com</a>, and there's no errors about certificates, and your computer asks you if you if you're sure you want to run software made by Christopher West (that's me!), then you're already pretty safe.</li>
+                    <li>If you're worried that a government is out to get you, however, you can check further.  You need <a href="http://www.gnupg.org/">GnuPG</a>.  There's a problem here, in that it's quite hard to convince yourself that you got the <i>right</i> GnuPG.  That problem is best left to your friendly Linux machine, unfortunately.</li>
+                    <li>With GnuPG (gpg.exe), you can ask it to generate the SHA256 of the file, using <span style="font-family: monospace">gpg --print-md sha256 putty.exe</span>.  This should match (ignoring the spaces and new lines) the value you see above.</li>
+                    <li>To go one step further, you can check that the value you see above is correct.  It's signed (in the git tag) with my <a href="https://ssl.goeswhere.com/keys.asc">GnuPG key</a>.  Once you're sure you have <a href="https://en.wikipedia.org/wiki/Web_of_trust">the right gpg key</a>, you can be sure you've got the right tag, and hence the right hash, and hence the right binary.  Phew!</li>
+                </ul>
+
                 <p>If you are looking for the original version of PuTTY:</p>
                 <ul>
                     <li><a href="http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html">PuTTY download page</a></li>
