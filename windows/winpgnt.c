@@ -12,6 +12,7 @@
 #include "ssh.h"
 #include "misc.h"
 #include "tree234.h"
+#include "storage.h"
 
 #include <shellapi.h>
 
@@ -1806,14 +1807,13 @@ static BOOL AddTrayIcon(HWND hwnd)
 static void update_sessions(void)
 {
     int num_entries;
-    HKEY hkey;
-    TCHAR buf[MAX_PATH + 1];
-    MENUITEMINFO mii;
+    void *handle;
+    char otherbuf[2048];
+    MENUITEMINFOA mii;
 
     int index_key, index_menu;
 
-    if(ERROR_SUCCESS != RegOpenKey(HKEY_CURRENT_USER, PUTTY_REGKEY, &hkey))
-	return;
+    enum storage_t oldtype;
 
     for(num_entries = GetMenuItemCount(session_menu);
 	num_entries > initial_menuitems_count;
@@ -1823,24 +1823,29 @@ static void update_sessions(void)
     index_key = 0;
     index_menu = 0;
 
-    while(ERROR_SUCCESS == RegEnumKey(hkey, index_key, buf, MAX_PATH)) {
-	TCHAR session_name[MAX_PATH + 1];
-	unmungestr(buf, session_name, MAX_PATH);
-	if(strcmp(buf, PUTTY_DEFAULT) != 0) {
-	    memset(&mii, 0, sizeof(mii));
-	    mii.cbSize = sizeof(mii);
-	    mii.fMask = MIIM_TYPE | MIIM_STATE | MIIM_ID;
-	    mii.fType = MFT_STRING;
-	    mii.fState = MFS_ENABLED;
-	    mii.wID = (index_menu * 16) + IDM_SESSIONS_BASE;
-	    mii.dwTypeData = session_name;
-	    InsertMenuItem(session_menu, index_menu, TRUE, &mii);
-	    index_menu++;
-	}
-	index_key++;
+    oldtype = get_storagetype();
+    for (int i = 0; i < 2; ++ i) {
+        set_storagetype(i);
+        if ((handle = enum_settings_start()) != NULL) {
+            char *ret;
+            do {
+                ret = enum_settings_next(handle, otherbuf, sizeof(otherbuf));
+                if (ret != NULL && strcmp("Default Settings", otherbuf) != 0) {
+                    memset(&mii, 0, sizeof(mii));
+                    mii.cbSize = sizeof(mii);
+                    mii.fMask = MIIM_TYPE | MIIM_STATE | MIIM_ID;
+                    mii.fType = MFT_STRING;
+                    mii.fState = MFS_ENABLED;
+                    mii.wID = (index_menu * 16) + IDM_SESSIONS_BASE;
+                    mii.dwTypeData = otherbuf;
+                    InsertMenuItemA(session_menu, index_menu, TRUE, &mii);
+                    index_menu++;
+                }
+            } while (ret);
+            enum_settings_finish(handle);
+        }
     }
-
-    RegCloseKey(hkey);
+    set_storagetype(oldtype);
 
     if(index_menu == 0) {
 	mii.cbSize = sizeof(mii);
