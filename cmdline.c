@@ -501,9 +501,8 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
         SAVEABLE(1);
         UNAVAILABLE_IN(TOOLTYPE_NONNETWORK);
         conf_set_filename(conf, CONF_logfilename, filename_from_str(value));
-        conf_set_int(conf, CONF_logtype, 1);
-        conf_set_int(conf, CONF_logxfovr, 1);
-        conf_set_int(conf, CONF_logflush, 1);
+        if (conf_get_int(conf, CONF_logtype) == LGTYP_NONE) // Force out type only if set to none
+            conf_set_int(conf, CONF_logtype, LGTYP_ASCII);
     }
 
     if (!strcmp(p, "-notrans")) {
