@@ -342,6 +342,10 @@ static void start_backend(void)
     if (!realhost)
         realhost = _strdup("");
 
+    if (PROT_SSH != conf_get_int(conf, CONF_protocol)) {
+        fatalbox("%s", error);
+    }
+
     window_name = icon_name = NULL;
     title = conf_get_str(conf, CONF_wintitle);
     if (!*title) {
