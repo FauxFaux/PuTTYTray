@@ -679,7 +679,7 @@ int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
              * them with spaces to get the command line to execute.
              */
             char *p = conf_get_str(conf, CONF_cygcmd);
-            char *const end = conf_get_str(conf, CONF_cygcmd) + sizeof conf_get_str(conf, CONF_cygcmd);
+            char *const end = conf_get_str(conf, CONF_cygcmd) + strlen(conf_get_str(conf, CONF_cygcmd));
             for (; i < argc && p < end; i++) {
                 p = stpcpy_max(p, argv[i], end - p - 1);
                 *p++ = ' ';
