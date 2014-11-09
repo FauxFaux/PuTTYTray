@@ -1809,6 +1809,7 @@ static void update_sessions(void)
     int num_entries;
     void *handle;
     char otherbuf[2048];
+    int i;
     MENUITEMINFOA mii;
 
     int index_key, index_menu;
@@ -1824,7 +1825,7 @@ static void update_sessions(void)
     index_menu = 0;
 
     oldtype = get_storagetype();
-    for (int i = 0; i < 2; ++ i) {
+    for (i = 0; i < 2; ++ i) {
         set_storagetype(i);
         if ((handle = enum_settings_start()) != NULL) {
             char *ret;
