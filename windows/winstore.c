@@ -708,7 +708,8 @@ int loadPath() {
         }
         else {
             /* JK: parse conf file to path variables */
-            *(fileCont+fileSize) = '\0';
+            *(fileCont+fileSize) = '\n'; // ensure there's a newline at the end for strchr().
+            *(fileCont+fileSize+1) = '\0';
             p = fileCont;
             while (p) {
                 if (*p == ';') {    /* JK: comment -> skip line */
