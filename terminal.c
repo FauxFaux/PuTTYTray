@@ -1355,7 +1355,7 @@ void term_pwron(Terminal *term, int clear)
 {
     power_on(term, clear);
     if (term->ldisc)		       /* cause ldisc to notice changes */
-	ldisc_echoedit_update(term->ldisc);
+	ldisc_send(term->ldisc, NULL, 0, 0);
     term->disptop = 0;
     deselect(term);
     term_update(term);
@@ -2589,7 +2589,7 @@ static void toggle_mode(Terminal *term, int mode, int query, int state)
 	  case 10:		       /* DECEDM: set local edit mode */
 	    term->term_editing = state;
 	    if (term->ldisc)	       /* cause ldisc to notice changes */
-		ldisc_echoedit_update(term->ldisc);
+		ldisc_send(term->ldisc, NULL, 0, 0);
 	    break;
 	  case 25:		       /* DECTCEM: enable/disable cursor */
 	    compatibility2(OTHER, VT220);
@@ -2653,7 +2653,7 @@ static void toggle_mode(Terminal *term, int mode, int query, int state)
 	  case 12:		       /* SRM: set echo mode */
 	    term->term_echoing = !state;
 	    if (term->ldisc)	       /* cause ldisc to notice changes */
-		ldisc_echoedit_update(term->ldisc);
+		ldisc_send(term->ldisc, NULL, 0, 0);
 	    break;
 	  case 20:		       /* LNM: Return sends ... */
 	    term->cr_lf_return = state;
@@ -3377,7 +3377,7 @@ static void term_out(Terminal *term)
 		    compatibility(VT100);
 		    power_on(term, TRUE);
 		    if (term->ldisc)   /* cause ldisc to notice changes */
-			ldisc_echoedit_update(term->ldisc);
+			ldisc_send(term->ldisc, NULL, 0, 0);
 		    if (term->reset_132) {
 			if (!term->no_remote_resize)
 			    request_resize(term->frontend, 80, term->rows);

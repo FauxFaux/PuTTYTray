@@ -303,7 +303,7 @@ const int share_can_be_downstream = TRUE;
 const int share_can_be_upstream = TRUE;
 
 /* Dummy routine, only required in plink. */
-void frontend_echoedit_update(void *frontend, int echo, int edit)
+void ldisc_update(void *frontend, int echo, int edit)
 {
 }
 
@@ -2553,7 +2553,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		 */
 		if (ldisc) {
                     ldisc_configure(ldisc, conf);
-		    ldisc_echoedit_update(ldisc);
+		    ldisc_send(ldisc, NULL, 0, 0);
                 }
 		if (pal)
 		    DeleteObject(pal);
@@ -2746,7 +2746,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	  case IDM_RESET:
 	    term_pwron(term, TRUE);
 	    if (ldisc)
-		ldisc_echoedit_update(ldisc);
+		ldisc_send(ldisc, NULL, 0, 0);
 	    break;
 	  case IDM_ABOUT:
 	    showabout(hwnd);

@@ -195,7 +195,7 @@ int platform_default_i(const char *name, int def)
 }
 
 /* Dummy routine, only required in plink. */
-void frontend_echoedit_update(void *frontend, int echo, int edit)
+void ldisc_update(void *frontend, int echo, int edit)
 {
 }
 
@@ -3022,7 +3022,7 @@ void reset_terminal_menuitem(GtkMenuItem *item, gpointer data)
     struct gui_data *inst = (struct gui_data *)data;
     term_pwron(inst->term, TRUE);
     if (inst->ldisc)
-	ldisc_echoedit_update(inst->ldisc);
+	ldisc_send(inst->ldisc, NULL, 0, 0);
 }
 
 void copy_all_menuitem(GtkMenuItem *item, gpointer data)
@@ -3090,7 +3090,7 @@ void change_settings_menuitem(GtkMenuItem *item, gpointer data)
          */
         if (inst->ldisc) {
             ldisc_configure(inst->ldisc, inst->conf);
-            ldisc_echoedit_update(inst->ldisc);
+	    ldisc_send(inst->ldisc, NULL, 0, 0);
         }
         /* Pass new config data to the terminal */
         term_reconfig(inst->term, inst->conf);
@@ -3929,7 +3929,7 @@ int pt_main(int argc, char **argv)
 
     start_backend(inst);
 
-    ldisc_echoedit_update(inst->ldisc);     /* cause ldisc to notice changes */
+    ldisc_send(inst->ldisc, NULL, 0, 0);/* cause ldisc to notice changes */
 
     /* now we're reday to deal with the child exit handler being
      * called */

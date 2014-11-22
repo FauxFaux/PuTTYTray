@@ -150,7 +150,7 @@ int term_ldisc(Terminal *term, int mode)
 {
     return FALSE;
 }
-void frontend_echoedit_update(void *frontend, int echo, int edit)
+void ldisc_update(void *frontend, int echo, int edit)
 {
     /* Update stdin read mode to reflect changes in line discipline. */
     struct termios mode;
@@ -176,9 +176,8 @@ void frontend_echoedit_update(void *frontend, int echo, int edit)
 	mode.c_cc[VMIN] = 1;
 	mode.c_cc[VTIME] = 0;
 	/* FIXME: perhaps what we do with IXON/IXOFF should be an
-	 * argument to frontend_echoedit_update(), to allow
-	 * implementation of SSH-2 "xon-xoff" and Rlogin's
-	 * equivalent? */
+	 * argument to ldisc_update(), to allow implementation of SSH-2
+	 * "xon-xoff" and Rlogin's equivalent? */
 	mode.c_iflag &= ~IXON;
 	mode.c_iflag &= ~IXOFF;
     }
@@ -992,7 +991,7 @@ int main(int argc, char **argv)
      */
     local_tty = (tcgetattr(STDIN_FILENO, &orig_termios) == 0);
     atexit(cleanup_termios);
-    frontend_echoedit_update(NULL, 1, 1);
+    ldisc_update(NULL, 1, 1);
     sending = FALSE;
     now = GETTICKCOUNT();
 
