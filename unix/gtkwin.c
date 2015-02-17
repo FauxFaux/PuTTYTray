@@ -94,8 +94,8 @@ struct gui_data {
     int ignore_sbar;
     int mouseptr_visible;
     int busy_status;
-    guint term_paste_idle_id;
-    guint term_exit_idle_id;
+    guint toplevel_callback_idle_id;
+    int idle_fn_scheduled, quit_fn_scheduled;
     int alt_keycode;
     int alt_digits;
     char *wintitle;
@@ -137,6 +137,7 @@ static int send_raw_mouse;
 static char *app_name = "pterm";
 
 static void start_backend(struct gui_data *inst);
+static void exit_callback(void *vinst);
 
 char *x_get_default(const char *key)
 {
@@ -152,11 +153,10 @@ void connection_fatal(void *frontend, char *p, ...)
     va_start(ap, p);
     msg = dupvprintf(p, ap);
     va_end(ap);
-    inst->exited = TRUE;
     fatal_message_box(inst->window, msg);
     sfree(msg);
-    if (conf_get_int(inst->conf, CONF_close_on_exit) == FORCE_ON)
-        cleanup_exit(1);
+
+    queue_toplevel_callback(exit_callback, inst);
 }
 
 /*
@@ -195,7 +195,7 @@ int platform_default_i(const char *name, int def)
 }
 
 /* Dummy routine, only required in plink. */
-void ldisc_update(void *frontend, int echo, int edit)
+void frontend_echoedit_update(void *frontend, int echo, int edit)
 {
 }
 
@@ -1235,25 +1235,31 @@ gboolean button_internal(struct gui_data *inst, guint32 timestamp,
 			 GdkEventType type, guint ebutton, guint state,
 			 gdouble ex, gdouble ey)
 {
-    int shift, ctrl, alt, x, y, button, act;
+    int shift, ctrl, alt, x, y, button, act, raw_mouse_mode;
 
     /* Remember the timestamp. */
     inst->input_event_time = timestamp;
 
     show_mouseptr(inst, 1);
 
-    if (ebutton == 4 && type == GDK_BUTTON_PRESS) {
-	term_scroll(inst->term, 0, -5);
-	return TRUE;
-    }
-    if (ebutton == 5 && type == GDK_BUTTON_PRESS) {
-	term_scroll(inst->term, 0, +5);
-	return TRUE;
-    }
-
     shift = state & GDK_SHIFT_MASK;
     ctrl = state & GDK_CONTROL_MASK;
     alt = state & GDK_MOD1_MASK;
+
+    raw_mouse_mode =
+        send_raw_mouse && !(shift && conf_get_int(inst->conf,
+                                                  CONF_mouse_override));
+
+    if (!raw_mouse_mode) {
+        if (ebutton == 4 && type == GDK_BUTTON_PRESS) {
+            term_scroll(inst->term, 0, -5);
+            return TRUE;
+        }
+        if (ebutton == 5 && type == GDK_BUTTON_PRESS) {
+            term_scroll(inst->term, 0, +5);
+            return TRUE;
+        }
+    }
 
     if (ebutton == 3 && ctrl) {
 	gtk_menu_popup(GTK_MENU(inst->menu), NULL, NULL, NULL, NULL,
@@ -1267,6 +1273,10 @@ gboolean button_internal(struct gui_data *inst, guint32 timestamp,
 	button = MBT_MIDDLE;
     else if (ebutton == 3)
 	button = MBT_RIGHT;
+    else if (ebutton == 4)
+	button = MBT_WHEEL_UP;
+    else if (ebutton == 5)
+	button = MBT_WHEEL_DOWN;
     else
 	return FALSE;		       /* don't even know what button! */
 
@@ -1278,9 +1288,7 @@ gboolean button_internal(struct gui_data *inst, guint32 timestamp,
       default: return FALSE;	       /* don't know this event type */
     }
 
-    if (send_raw_mouse && !(shift && conf_get_int(inst->conf,
-						  CONF_mouse_override)) &&
-	act != MA_CLICK && act != MA_RELEASE)
+    if (raw_mouse_mode && act != MA_CLICK && act != MA_RELEASE)
 	return TRUE;		       /* we ignore these in raw mouse mode */
 
     x = (ex - inst->window_border) / inst->font_width;
@@ -1365,9 +1373,9 @@ void frontend_keypress(void *handle)
 	cleanup_exit(0);
 }
 
-static gint idle_exit_func(gpointer data)
+static void exit_callback(void *vinst)
 {
-    struct gui_data *inst = (struct gui_data *)data;
+    struct gui_data *inst = (struct gui_data *)vinst;
     int exitcode, close_on_exit;
 
     if (!inst->exited &&
@@ -1388,16 +1396,79 @@ static gint idle_exit_func(gpointer data)
         update_specials_menu(inst);
 	gtk_widget_set_sensitive(inst->restartitem, TRUE);
     }
-
-    gtk_idle_remove(inst->term_exit_idle_id);
-    return TRUE;
 }
 
 void notify_remote_exit(void *frontend)
 {
     struct gui_data *inst = (struct gui_data *)frontend;
 
-    inst->term_exit_idle_id = gtk_idle_add(idle_exit_func, inst);
+    queue_toplevel_callback(exit_callback, inst);
+}
+
+static void notify_toplevel_callback(void *frontend);
+
+static gint quit_toplevel_callback_func(gpointer data)
+{
+    struct gui_data *inst = (struct gui_data *)data;
+
+    notify_toplevel_callback(inst);
+
+    inst->quit_fn_scheduled = FALSE;
+
+    return 0;
+}
+
+static gint idle_toplevel_callback_func(gpointer data)
+{
+    struct gui_data *inst = (struct gui_data *)data;
+
+    if (gtk_main_level() > 1) {
+        /*
+         * We don't run the callbacks if we're in the middle of a
+         * subsidiary gtk_main. Instead, ask for a callback when we
+         * get back out of the subsidiary main loop (if we haven't
+         * already arranged one), so we can reschedule ourself then.
+         */
+        if (!inst->quit_fn_scheduled) {
+            gtk_quit_add(2, quit_toplevel_callback_func, inst);
+            inst->quit_fn_scheduled = TRUE;
+        }
+        /*
+         * And unschedule this idle function, since we've now done
+         * everything we can until the innermost gtk_main has quit and
+         * can reschedule us with a chance of actually taking action.
+         */
+        if (inst->idle_fn_scheduled) { /* double-check, just in case */
+            gtk_idle_remove(inst->toplevel_callback_idle_id);
+            inst->idle_fn_scheduled = FALSE;
+        }
+    } else {
+        run_toplevel_callbacks();
+    }
+
+    /*
+     * If we've emptied our toplevel callback queue, unschedule
+     * ourself. Otherwise, leave ourselves pending so we'll be called
+     * again to deal with more callbacks after another round of the
+     * event loop.
+     */
+    if (!toplevel_callback_pending() && inst->idle_fn_scheduled) {
+        gtk_idle_remove(inst->toplevel_callback_idle_id);
+        inst->idle_fn_scheduled = FALSE;
+    }
+
+    return TRUE;
+}
+
+static void notify_toplevel_callback(void *frontend)
+{
+    struct gui_data *inst = (struct gui_data *)frontend;
+
+    if (!inst->idle_fn_scheduled) {
+        inst->toplevel_callback_idle_id =
+            gtk_idle_add(idle_toplevel_callback_func, inst);
+        inst->idle_fn_scheduled = TRUE;
+    }
 }
 
 static gint timer_trigger(gpointer data)
@@ -1406,7 +1477,21 @@ static gint timer_trigger(gpointer data)
     unsigned long next, then;
     long ticks;
 
-    if (run_timers(now, &next)) {
+    /*
+     * Destroy the timer we got here on.
+     */
+    if (timer_id) {
+	gtk_timeout_remove(timer_id);
+        timer_id = 0;
+    }
+
+    /*
+     * run_timers() may cause a call to timer_change_notify, in which
+     * case a new timer will already have been set up and left in
+     * timer_id. If it hasn't, and run_timers reports that some timing
+     * still needs to be done, we do it ourselves.
+     */
+    if (run_timers(now, &next) && !timer_id) {
 	then = now;
 	now = GETTICKCOUNT();
 	if (now - then > next - then)
@@ -1418,8 +1503,9 @@ static gint timer_trigger(gpointer data)
     }
 
     /*
-     * Never let a timer resume. If we need another one, we've
-     * asked for it explicitly above.
+     * Returning FALSE means 'don't call this timer again', which
+     * _should_ be redundant given that we removed it above, but just
+     * in case, return FALSE anyway.
      */
     return FALSE;
 }
@@ -1980,27 +2066,11 @@ void selection_received(GtkWidget *widget, GtkSelectionData *seldata,
 
     term_do_paste(inst->term);
 
-    if (term_paste_pending(inst->term))
-	inst->term_paste_idle_id = gtk_idle_add(idle_paste_func, inst);
-
     if (free_list_required)
 	XFreeStringList(list);
     if (free_required)
 	XFree(text);
 }
-
-gint idle_paste_func(gpointer data)
-{
-    struct gui_data *inst = (struct gui_data *)data;
-
-    if (term_paste_pending(inst->term))
-	term_paste(inst->term);
-    else
-	gtk_idle_remove(inst->term_paste_idle_id);
-
-    return TRUE;
-}
-
 
 void get_clip(void *frontend, wchar_t ** p, int *len)
 {
@@ -2846,24 +2916,6 @@ void uxsel_input_remove(int id) {
     gdk_input_remove(id);
 }
 
-int frontend_net_pending_error_idle_id;
-int frontend_got_net_pending_errors = FALSE;
-gboolean frontend_net_pending_errors(gpointer data)
-{
-    net_pending_errors();
-    gtk_idle_remove(frontend_net_pending_error_idle_id);
-    frontend_got_net_pending_errors = FALSE;
-    return FALSE;
-}
-void frontend_net_error_pending(void)
-{
-    if (!frontend_got_net_pending_errors) {
-        frontend_got_net_pending_errors = TRUE;
-        frontend_net_pending_error_idle_id =
-            gtk_idle_add(frontend_net_pending_errors, NULL);
-    }
-}
-
 char *setup_fonts_ucs(struct gui_data *inst)
 {
     int shadowbold = conf_get_int(inst->conf, CONF_shadowbold);
@@ -2900,7 +2952,7 @@ char *setup_fonts_ucs(struct gui_data *inst)
             for (i = 0; i < 2; i++)
                 if (fonts[i])
                     unifont_destroy(fonts[i]);
-            return dupprintf("%s: unable to load wide font \"%s\"", fs->name);
+            return dupprintf("unable to load wide font \"%s\"", fs->name);
 	}
     } else {
 	fonts[2] = NULL;
@@ -2916,8 +2968,7 @@ char *setup_fonts_ucs(struct gui_data *inst)
             for (i = 0; i < 3; i++)
                 if (fonts[i])
                     unifont_destroy(fonts[i]);
-	    return dupprintf("%s: unable to load wide bold font \"%s\"",
-                             fs->name);
+	    return dupprintf("unable to load wide bold font \"%s\"", fs->name);
 	}
     }
 
@@ -2971,7 +3022,7 @@ void reset_terminal_menuitem(GtkMenuItem *item, gpointer data)
     struct gui_data *inst = (struct gui_data *)data;
     term_pwron(inst->term, TRUE);
     if (inst->ldisc)
-	ldisc_send(inst->ldisc, NULL, 0, 0);
+	ldisc_echoedit_update(inst->ldisc);
 }
 
 void copy_all_menuitem(GtkMenuItem *item, gpointer data)
@@ -3039,7 +3090,7 @@ void change_settings_menuitem(GtkMenuItem *item, gpointer data)
          */
         if (inst->ldisc) {
             ldisc_configure(inst->ldisc, inst->conf);
-	    ldisc_send(inst->ldisc, NULL, 0, 0);
+            ldisc_echoedit_update(inst->ldisc);
         }
         /* Pass new config data to the terminal */
         term_reconfig(inst->term, inst->conf);
@@ -3604,6 +3655,8 @@ int pt_main(int argc, char **argv)
     inst->busy_status = BUSY_NOT;
     inst->conf = conf_new();
     inst->wintitle = inst->icontitle = NULL;
+    inst->quit_fn_scheduled = FALSE;
+    inst->idle_fn_scheduled = FALSE;
 
     // oh this is a nasty global, which shouldn't be here at all
     urlhack_init();
@@ -3863,6 +3916,8 @@ int pt_main(int argc, char **argv)
 
     inst->eventlogstuff = eventlogstuff_new();
 
+    request_callback_notifications(notify_toplevel_callback, inst);
+
     inst->term = term_init(inst->conf, &inst->ucsdata, inst);
     inst->logctx = log_init(inst, inst->conf);
     term_provide_logctx(inst->term, inst->logctx);
@@ -3874,7 +3929,7 @@ int pt_main(int argc, char **argv)
 
     start_backend(inst);
 
-    ldisc_send(inst->ldisc, NULL, 0, 0);/* cause ldisc to notice changes */
+    ldisc_echoedit_update(inst->ldisc);     /* cause ldisc to notice changes */
 
     /* now we're reday to deal with the child exit handler being
      * called */

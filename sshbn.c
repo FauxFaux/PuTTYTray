@@ -1092,6 +1092,38 @@ Bignum modmul(Bignum p, Bignum q, Bignum mod)
     return result;
 }
 
+Bignum modsub(const Bignum a, const Bignum b, const Bignum n)
+{
+    Bignum a1, b1, ret;
+
+    if (bignum_cmp(a, n) >= 0) a1 = bigmod(a, n);
+    else a1 = a;
+    if (bignum_cmp(b, n) >= 0) b1 = bigmod(b, n);
+    else b1 = b;
+
+    if (bignum_cmp(a1, b1) >= 0) /* a >= b */
+    {
+        ret = bigsub(a1, b1);
+    }
+    else
+    {
+        /* Handle going round the corner of the modulus without having
+         * negative support in Bignum */
+        Bignum tmp = bigsub(n, b1);
+        if (tmp) {
+            ret = bigadd(tmp, a1);
+            freebn(tmp);
+        } else {
+            ret = NULL;
+        }
+    }
+
+    if (a != a1) freebn(a1);
+    if (b != b1) freebn(b1);
+
+    return ret;
+}
+
 /*
  * Compute p % mod.
  * The most significant word of mod MUST be non-zero.
@@ -1199,6 +1231,39 @@ Bignum bignum_from_bytes(const unsigned char *data, int nbytes)
     while (result[0] > 1 && result[result[0]] == 0)
 	result[0]--;
     return result;
+}
+
+Bignum bignum_random_in_range(const Bignum lower, const Bignum upper)
+{
+    Bignum ret = NULL;
+    unsigned char *bytes;
+    int upper_len = bignum_bitcount(upper);
+    int upper_bytes = upper_len / 8;
+    int upper_bits = upper_len % 8;
+    if (upper_bits) ++upper_bytes;
+
+    bytes = snewn(upper_bytes, unsigned char);
+    do {
+        int i;
+
+        if (ret) freebn(ret);
+
+        for (i = 0; i < upper_bytes; ++i)
+        {
+            bytes[i] = (unsigned char)random_byte();
+        }
+        /* Mask the top to reduce failure rate to 50/50 */
+        if (upper_bits)
+        {
+            bytes[i - 1] &= 0xFF >> (8 - upper_bits);
+        }
+
+        ret = bignum_from_bytes(bytes, upper_bytes);
+    } while (bignum_cmp(ret, lower) < 0 || bignum_cmp(ret, upper) > 0);
+    smemclr(bytes, upper_bytes);
+    sfree(bytes);
+
+    return ret;
 }
 
 /*
@@ -1370,6 +1435,45 @@ Bignum bignum_rshift(Bignum a, int shift)
 	    ai1 = (i + shiftw + 1 <= (int)a[0] ? a[i + shiftw + 1] : 0);
 	    ret[i] = ((ai >> shiftb) | (ai1 << shiftbb)) & BIGNUM_INT_MASK;
 	}
+    }
+
+    return ret;
+}
+
+/*
+ * Left-shift one bignum to form another.
+ */
+Bignum bignum_lshift(Bignum a, int shift)
+{
+    Bignum ret;
+    int bits, shiftWords, shiftBits;
+
+    assert(shift >= 0);
+
+    bits = bignum_bitcount(a) + shift;
+    ret = newbn((bits + BIGNUM_INT_BITS - 1) / BIGNUM_INT_BITS);
+    if (!ret) return NULL;
+
+    shiftWords = shift / BIGNUM_INT_BITS;
+    shiftBits = shift % BIGNUM_INT_BITS;
+
+    if (shiftBits == 0)
+    {
+        memcpy(&ret[1 + shiftWords], &a[1], sizeof(BignumInt) * a[0]);
+    }
+    else
+    {
+        int i;
+        BignumInt carry = 0;
+
+        /* Remember that Bignum[0] is length, so add 1 */
+        for (i = shiftWords + 1; i < ((int)a[0]) + shiftWords + 1; ++i)
+        {
+            BignumInt from = a[i - shiftWords];
+            ret[i] = (from << shiftBits) | carry;
+            carry = from >> (BIGNUM_INT_BITS - shiftBits);
+        }
+        if (carry) ret[i] = carry;
     }
 
     return ret;
@@ -1610,6 +1714,8 @@ Bignum bigdiv(Bignum a, Bignum b)
 {
     Bignum q = newbn(a[0]);
     bigdivmod(a, b, NULL, q);
+    while (q[0] > 1 && q[q[0]] == 0)
+        q[0]--;
     return q;
 }
 
@@ -1620,6 +1726,8 @@ Bignum bigmod(Bignum a, Bignum b)
 {
     Bignum r = newbn(b[0]);
     bigdivmod(a, b, r, NULL);
+    while (r[0] > 1 && r[r[0]] == 0)
+        r[0]--;
     return r;
 }
 
@@ -1679,6 +1787,8 @@ Bignum modinv(Bignum number, Bignum modulus)
 	bigdivmod(a, b, t, q);
 	while (t[0] > 1 && t[t[0]] == 0)
 	    t[0]--;
+	while (q[0] > 1 && q[q[0]] == 0)
+	    q[0]--;
 	freebn(a);
 	a = b;
 	b = t;

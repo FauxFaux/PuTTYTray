@@ -493,7 +493,10 @@ int do_eventsel_loop(HANDLE other_event)
     int skcount;
     unsigned long now = GETTICKCOUNT();
 
-    if (run_timers(now, &next)) {
+    if (toplevel_callback_pending()) {
+        ticks = 0;
+        next = now;
+    } else if (run_timers(now, &next)) {
 	then = now;
 	now = GETTICKCOUNT();
 	if (now - then > next - then)
@@ -502,6 +505,8 @@ int do_eventsel_loop(HANDLE other_event)
 	    ticks = next - now;
     } else {
 	ticks = INFINITE;
+        /* no need to initialise next here because we can never get
+         * WAIT_TIMEOUT */
     }
 
     handles = handle_get_events(&nhandles);
@@ -584,6 +589,8 @@ int do_eventsel_loop(HANDLE other_event)
     }
 
     sfree(handles);
+
+    run_toplevel_callbacks();
 
     if (n == WAIT_TIMEOUT) {
 	now = next;
@@ -689,6 +696,7 @@ char *ssh_sftp_get_cmdline(char *prompt, int no_fds_ok)
     int ret;
     struct command_read_ctx actx, *ctx = &actx;
     DWORD threadid;
+    HANDLE hThread;
 
     fputs(prompt, stdout);
     fflush(stdout);
@@ -705,8 +713,9 @@ char *ssh_sftp_get_cmdline(char *prompt, int no_fds_ok)
     ctx->event = CreateEvent(NULL, FALSE, FALSE, NULL);
     ctx->line = NULL;
 
-    if (!CreateThread(NULL, 0, command_read_thread,
-		      ctx, 0, &threadid)) {
+    hThread = CreateThread(NULL, 0, command_read_thread, ctx, 0, &threadid);
+    if (!hThread) {
+	CloseHandle(ctx->event);
 	fprintf(stderr, "Unable to create command input thread\n");
 	cleanup_exit(1);
     }
@@ -717,6 +726,9 @@ char *ssh_sftp_get_cmdline(char *prompt, int no_fds_ok)
 	/* Error return can only occur if netevent==NULL, and it ain't. */
 	assert(ret >= 0);
     } while (ret == 0);
+
+    CloseHandle(hThread);
+    CloseHandle(ctx->event);
 
     return ctx->line;
 }

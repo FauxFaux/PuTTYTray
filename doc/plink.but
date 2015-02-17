@@ -1,10 +1,8 @@
-\define{versionidplink} \versionid $Id$
-
 \C{plink} Using the command-line connection tool \i{Plink}
 
-\i{Plink} (PuTTY Link) is a command-line connection tool similar to
-UNIX \c{ssh}. It is mostly used for \i{automated operations}, such as
-making CVS access a repository on a remote server.
+\i{Plink} is a command-line connection tool similar to UNIX \c{ssh}.
+It is mostly used for \i{automated operations}, such as making CVS
+access a repository on a remote server.
 
 Plink is probably not what you want if you want to run an
 \i{interactive session} in a console window.
@@ -42,8 +40,8 @@ version of Plink you're using, and gives you a brief summary of how to
 use Plink:
 
 \c Z:\sysosd>plink
-\c PuTTY Link: command-line connection utility
-\c Release 0.63
+\c Plink: command-line connection utility
+\c Release 0.XX
 \c Usage: plink [options] [user@]host [command]
 \c        ("host" can also be a PuTTY saved session name)
 \c Options:
@@ -56,6 +54,8 @@ use Plink:
 \c   -P port   connect to specified port
 \c   -l user   connect with specified username
 \c   -batch    disable all interactive prompts
+\c   -sercfg configuration-string (e.g. 19200,8,n,1,X)
+\c             Specify the serial configuration (serial only)
 \c The following options only apply to SSH connections:
 \c   -pw passw login with specified password
 \c   -D [listen-IP:]listen-port
@@ -70,16 +70,16 @@ use Plink:
 \c   -1 -2     force use of particular protocol version
 \c   -4 -6     force use of IPv4 or IPv6
 \c   -C        enable compression
-\c   -i key    private key file for authentication
+\c   -i key    private key file for user authentication
 \c   -noagent  disable use of Pageant
 \c   -agent    enable use of Pageant
+\c   -hostkey aa:bb:cc:...
+\c             manually specify a host key (may be repeated)
 \c   -m file   read remote command(s) from file
 \c   -s        remote command is an SSH subsystem (SSH-2 only)
 \c   -N        don't start a shell/command (SSH-2 only)
 \c   -nc host:port
 \c             open tunnel in place of session (SSH-2 only)
-\c   -sercfg configuration-string (e.g. 19200,8,n,1,X)
-\c             Specify the serial configuration (serial only)
 
 Once this works, you are ready to use Plink.
 

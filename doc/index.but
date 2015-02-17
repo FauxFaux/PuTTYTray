@@ -1,5 +1,3 @@
-\define{versionidindex} \versionid $Id$
-
 \IM{Unix version} Unix version of PuTTY tools
 \IM{Unix version} Linux version of PuTTY tools
 
@@ -21,6 +19,10 @@
 \IM{host key fingerprint} fingerprint, of SSH host key
 \IM{host key fingerprint} host key fingerprint (SSH)
 \IM{host key fingerprint} SSH host key fingerprint
+
+\IM{manually configuring host keys} manually configuring host keys
+\IM{manually configuring host keys} overriding host keys
+\IM{manually configuring host keys} host keys, manually configuring
 
 \IM{starting a session} starting a session
 \IM{starting a session} session, starting
@@ -484,6 +486,10 @@ saved sessions from
 
 \IM{default foreground} foreground colour, default
 \IM{default foreground} colour, foreground, default
+
+\IM{bold black} bold black
+\IM{bold black} black, bold
+\IM{bold black} bright black
 
 \IM{TERM} \cw{TERM} environment variable
 

@@ -13,6 +13,7 @@
 #include "misc.h"
 #include "tree234.h"
 #include "storage.h"
+#include "winsecur.h"
 
 #include <shellapi.h>
 
@@ -110,12 +111,6 @@ static void unmungestr(char *in, char *out, int outlen)
 static tree234 *rsakeys, *ssh2keys;
 
 static int has_security;
-#ifndef NO_SECURITY
-DECL_WINDOWS_FUNCTION(extern, DWORD, GetSecurityInfo,
-		      (HANDLE, SE_OBJECT_TYPE, SECURITY_INFORMATION,
-		       PSID *, PSID *, PACL *, PACL *,
-		       PSECURITY_DESCRIPTOR *));
-#endif
 
 /*
  * Forward references
@@ -363,22 +358,24 @@ static void keylist_update(void)
 	}
 	for (i = 0; NULL != (skey = index234(ssh2keys, i)); i++) {
 	    char *listentry, *p;
-	    int fp_len;
+	    int pos, fp_len;
 	    /*
-	     * Replace two spaces in the fingerprint with tabs, for
-	     * nice alignment in the box.
+	     * Replace spaces with tabs in the fingerprint prefix, for
+	     * nice alignment in the list box, until we encounter a :
+	     * meaning we're into the fingerprint proper.
 	     */
 	    p = skey->alg->fingerprint(skey->data);
             listentry = dupprintf("%s\t%s", p, skey->comment);
             fp_len = strlen(listentry);
             sfree(p);
 
-	    p = strchr(listentry, ' ');
-	    if (p && p < listentry + fp_len)
-		*p = '\t';
-	    p = strchr(listentry, ' ');
-	    if (p && p < listentry + fp_len)
-		*p = '\t';
+            pos = 0;
+            while (1) {
+                pos += strcspn(listentry + pos, " :");
+                if (listentry[pos] == ':')
+                    break;
+                listentry[pos++] = '\t';
+            }
 
 	    SendDlgItemMessage(keylist, 100, LB_ADDSTRING, 0,
 			       (LPARAM) listentry);
@@ -1238,6 +1235,12 @@ static void answer_msg(void *msg)
 		key->alg = &ssh_rsa;
 	    else if (alglen == 7 && !memcmp(alg, "ssh-dss", 7))
 		key->alg = &ssh_dss;
+            else if (alglen == 19 && memcmp(alg, "ecdsa-sha2-nistp256", 19))
+                key->alg = &ssh_ecdsa_nistp256;
+            else if (alglen == 19 && memcmp(alg, "ecdsa-sha2-nistp384", 19))
+                key->alg = &ssh_ecdsa_nistp384;
+            else if (alglen == 19 && memcmp(alg, "ecdsa-sha2-nistp521", 19))
+                key->alg = &ssh_ecdsa_nistp521;
 	    else {
 		sfree(key);
 		goto failure;
@@ -1612,7 +1615,7 @@ static int CALLBACK KeyListProc(HWND hwnd, UINT msg,
 
 	keylist = hwnd;
 	{
-	    static int tabs[] = { 35, 60, 210 };
+	    static int tabs[] = { 35, 75, 250 };
 	    SendDlgItemMessage(hwnd, 100, LB_SETTABSTOPS,
 			       sizeof(tabs) / sizeof(*tabs),
 			       (LPARAM) tabs);
@@ -2244,7 +2247,7 @@ int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 	/*
 	 * Attempt to get the security API we need.
 	 */
-        if (!init_advapi()) {
+        if (!got_advapi()) {
 	    MessageBox(NULL,
 		       "Unable to access security APIs. Pageant will\n"
 		       "not run, in case it causes a security breach.",

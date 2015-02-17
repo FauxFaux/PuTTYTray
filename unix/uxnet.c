@@ -75,7 +75,6 @@ struct Socket_tag {
     const char *error;
     int s;
     Plug plug;
-    void *private_ptr;
     bufchain output_data;
     int connected;		       /* irrelevant for listening sockets */
     int writable;
@@ -127,9 +126,12 @@ struct SockAddr_tag {
      (addr)->superfamily == UNIX ? AF_UNIX : \
      (step).ai ? (step).ai->ai_family : AF_INET)
 #else
+/* Here we gratuitously reference 'step' to avoid gcc warnings about
+ * 'set but not used' when compiling -DNO_IPV6 */
 #define SOCKADDR_FAMILY(addr, step) \
     ((addr)->superfamily == UNRESOLVED ? AF_UNSPEC : \
-     (addr)->superfamily == UNIX ? AF_UNIX : AF_INET)
+     (addr)->superfamily == UNIX ? AF_UNIX : \
+     (step).curraddr ? AF_INET : AF_INET)
 #endif
 
 /*
@@ -222,7 +224,11 @@ SockAddr sk_namelookup(const char *host, char **canonicalname, int address_famil
     hints.ai_addr = NULL;
     hints.ai_canonname = NULL;
     hints.ai_next = NULL;
-    err = getaddrinfo(host, NULL, &hints, &ret->ais);
+    {
+        char *trimmed_host = host_strduptrim(host); /* strip [] on literals */
+        err = getaddrinfo(trimmed_host, NULL, &hints, &ret->ais);
+        sfree(trimmed_host);
+    }
     if (err != 0) {
 	ret->error = gai_strerror(err);
 	return ret;
@@ -316,10 +322,7 @@ static int sk_nextaddr(SockAddr addr, SockAddrStep *step)
 
 void sk_getaddr(SockAddr addr, char *buf, int buflen)
 {
-    /* XXX not clear what we should return for Unix-domain sockets; let's
-     * hope the question never arises */
-    assert(addr->superfamily != UNIX);
-    if (addr->superfamily == UNRESOLVED) {
+    if (addr->superfamily == UNRESOLVED || addr->superfamily == UNIX) {
 	strncpy(buf, addr->hostname, buflen);
 	buf[buflen-1] = '\0';
     } else {
@@ -338,6 +341,15 @@ void sk_getaddr(SockAddr addr, char *buf, int buflen)
 	strncpy(buf, inet_ntoa(a), buflen);
 	buf[buflen-1] = '\0';
 #endif
+    }
+}
+
+int sk_addr_needs_port(SockAddr addr)
+{
+    if (addr->superfamily == UNRESOLVED || addr->superfamily == UNIX) {
+        return FALSE;
+    } else {
+        return TRUE;
     }
 }
 
@@ -474,8 +486,6 @@ static void sk_tcp_close(Socket s);
 static int sk_tcp_write(Socket s, const char *data, int len);
 static int sk_tcp_write_oob(Socket s, const char *data, int len);
 static void sk_tcp_write_eof(Socket s);
-static void sk_tcp_set_private_ptr(Socket s, void *ptr);
-static void *sk_tcp_get_private_ptr(Socket s);
 static void sk_tcp_set_frozen(Socket s, int is_frozen);
 static const char *sk_tcp_socket_error(Socket s);
 
@@ -486,14 +496,13 @@ static struct socket_function_table tcp_fn_table = {
     sk_tcp_write_oob,
     sk_tcp_write_eof,
     sk_tcp_flush,
-    sk_tcp_set_private_ptr,
-    sk_tcp_get_private_ptr,
     sk_tcp_set_frozen,
     sk_tcp_socket_error
 };
 
-Socket sk_register(OSSocket sockfd, Plug plug)
+static Socket sk_tcp_accept(accept_ctx_t ctx, Plug plug)
 {
+    int sockfd = ctx.i;
     Actual_Socket ret;
 
     /*
@@ -775,7 +784,7 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only, i
 {
     int s;
 #ifndef NO_IPV6
-    struct addrinfo hints, *ai;
+    struct addrinfo hints, *ai = NULL;
     char portstr[6];
 #endif
     union sockaddr_union u;
@@ -805,6 +814,7 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only, i
     ret->incomingeof = FALSE;
     ret->listener = 1;
     ret->addr = NULL;
+    ret->s = -1;
 
     /*
      * Translate address_family from platform-independent constants
@@ -869,7 +879,11 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only, i
         hints.ai_next = NULL;
 	assert(port >= 0 && port <= 99999);
         sprintf(portstr, "%d", port);
-        retcode = getaddrinfo(srcaddr, portstr, &hints, &ai);
+        {
+            char *trimmed_addr = host_strduptrim(srcaddr);
+            retcode = getaddrinfo(trimmed_addr, portstr, &hints, &ai);
+            sfree(trimmed_addr);
+        }
 	if (retcode == 0) {
 	    addr = (union sockaddr_union *)ai->ai_addr;
 	    addrlen = ai->ai_addrlen;
@@ -916,6 +930,12 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only, i
     }
 
     retcode = bind(s, &addr->sa, addrlen);
+
+#ifndef NO_IPV6
+    if (ai)
+        freeaddrinfo(ai);
+#endif
+
     if (retcode < 0) {
         close(s);
 	ret->error = strerror(errno);
@@ -1030,6 +1050,26 @@ void *sk_getxdmdata(void *sock, int *lenp)
 }
 
 /*
+ * Deal with socket errors detected in try_send().
+ */
+static void socket_error_callback(void *vs)
+{
+    Actual_Socket s = (Actual_Socket)vs;
+
+    /*
+     * Just in case other socket work has caused this socket to vanish
+     * or become somehow non-erroneous before this callback arrived...
+     */
+    if (!find234(sktree, s, NULL) || !s->pending_error)
+        return;
+
+    /*
+     * An error has occurred on this socket. Pass it to the plug.
+     */
+    plug_closing(s->plug, strerror(s->pending_error), s->pending_error, 0);
+}
+
+/*
  * The function which tries to send on a socket once it's deemed
  * writable.
  */
@@ -1077,9 +1117,10 @@ void try_send(Actual_Socket s)
                  */
                 uxsel_tell(s);
                 /*
-                 * Notify the front end that it might want to call us.
+                 * Arrange to be called back from the top level to
+                 * deal with the error condition on this socket.
                  */
-                frontend_net_error_pending();
+                queue_toplevel_callback(socket_error_callback, s);
 		return;
 	    }
 	} else {
@@ -1250,6 +1291,7 @@ static int net_select_result(int fd, int event)
 	     */
 	    union sockaddr_union su;
 	    socklen_t addrlen = sizeof(su);
+            accept_ctx_t actx;
 	    int t;  /* socket of connection */
 
 	    memset(&su, 0, addrlen);
@@ -1259,11 +1301,12 @@ static int net_select_result(int fd, int event)
 	    }
 
             nonblock(t);
+            actx.i = t;
 
-	    if (s->localhost_only &&
-		!sockaddr_is_loopback(&su.sa)) {
+	    if ((!s->addr || s->addr->superfamily != UNIX) &&
+                s->localhost_only && !sockaddr_is_loopback(&su.sa)) {
 		close(t);	       /* someone let nonlocal through?! */
-	    } else if (plug_accepting(s->plug, t)) {
+	    } else if (plug_accepting(s->plug, sk_tcp_accept, actx)) {
 		close(t);	       /* denied or error */
 	    }
 	    break;
@@ -1353,59 +1396,6 @@ static int net_select_result(int fd, int event)
     }
 
     return 1;
-}
-
-/*
- * Deal with socket errors detected in try_send().
- */
-void net_pending_errors(void)
-{
-    int i;
-    Actual_Socket s;
-
-    /*
-     * This might be a fiddly business, because it's just possible
-     * that handling a pending error on one socket might cause
-     * others to be closed. (I can't think of any reason this might
-     * happen in current SSH implementation, but to maintain
-     * generality of this network layer I'll assume the worst.)
-     * 
-     * So what we'll do is search the socket list for _one_ socket
-     * with a pending error, and then handle it, and then search
-     * the list again _from the beginning_. Repeat until we make a
-     * pass with no socket errors present. That way we are
-     * protected against the socket list changing under our feet.
-     */
-
-    do {
-	for (i = 0; (s = index234(sktree, i)) != NULL; i++) {
-	    if (s->pending_error) {
-		/*
-		 * An error has occurred on this socket. Pass it to the
-		 * plug.
-		 */
-		plug_closing(s->plug, strerror(s->pending_error),
-			     s->pending_error, 0);
-		break;
-	    }
-	}
-    } while (s);
-}
-
-/*
- * Each socket abstraction contains a `void *' private field in
- * which the client can keep state.
- */
-static void sk_tcp_set_private_ptr(Socket sock, void *ptr)
-{
-    Actual_Socket s = (Actual_Socket) sock;
-    s->private_ptr = ptr;
-}
-
-static void *sk_tcp_get_private_ptr(Socket sock)
-{
-    Actual_Socket s = (Actual_Socket) sock;
-    return s->private_ptr;
 }
 
 /*
@@ -1509,4 +1499,106 @@ SockAddr platform_get_x11_unix_address(const char *sockpath, int displaynum)
 #endif
     ret->refcount = 1;
     return ret;
+}
+
+SockAddr unix_sock_addr(const char *path)
+{
+    SockAddr ret = snew(struct SockAddr_tag);
+    int n;
+
+    memset(ret, 0, sizeof *ret);
+    ret->superfamily = UNIX;
+    n = snprintf(ret->hostname, sizeof ret->hostname, "%s", path);
+
+    if (n < 0)
+	ret->error = "snprintf failed";
+    else if (n >= sizeof ret->hostname)
+	ret->error = "socket pathname too long";
+
+#ifndef NO_IPV6
+    ret->ais = NULL;
+#else
+    ret->addresses = NULL;
+    ret->naddresses = 0;
+#endif
+    ret->refcount = 1;
+    return ret;
+}
+
+Socket new_unix_listener(SockAddr listenaddr, Plug plug)
+{
+    int s;
+    union sockaddr_union u;
+    union sockaddr_union *addr;
+    int addrlen;
+    Actual_Socket ret;
+    int retcode;
+
+    /*
+     * Create Socket structure.
+     */
+    ret = snew(struct Socket_tag);
+    ret->fn = &tcp_fn_table;
+    ret->error = NULL;
+    ret->plug = plug;
+    bufchain_init(&ret->output_data);
+    ret->writable = 0;		       /* to start with */
+    ret->sending_oob = 0;
+    ret->frozen = 0;
+    ret->localhost_only = TRUE;
+    ret->pending_error = 0;
+    ret->parent = ret->child = NULL;
+    ret->oobpending = FALSE;
+    ret->outgoingeof = EOF_NO;
+    ret->incomingeof = FALSE;
+    ret->listener = 1;
+    ret->addr = listenaddr;
+    ret->s = -1;
+
+    assert(listenaddr->superfamily == UNIX);
+
+    /*
+     * Open socket.
+     */
+    s = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (s < 0) {
+	ret->error = strerror(errno);
+	return (Socket) ret;
+    }
+
+    cloexec(s);
+
+    ret->oobinline = 0;
+
+    memset(&u, '\0', sizeof(u));
+    u.su.sun_family = AF_UNIX;
+    strncpy(u.su.sun_path, listenaddr->hostname, sizeof(u.su.sun_path)-1);
+    addr = &u;
+    addrlen = sizeof(u.su);
+
+    if (unlink(u.su.sun_path) < 0 && errno != ENOENT) {
+        close(s);
+	ret->error = strerror(errno);
+	return (Socket) ret;
+    }
+
+    retcode = bind(s, &addr->sa, addrlen);
+    if (retcode < 0) {
+        close(s);
+	ret->error = strerror(errno);
+	return (Socket) ret;
+    }
+
+    if (listen(s, SOMAXCONN) < 0) {
+        close(s);
+	ret->error = strerror(errno);
+	return (Socket) ret;
+    }
+
+    ret->s = s;
+
+    uxsel_tell(ret);
+    add234(sktree, ret);
+
+    return (Socket) ret;
 }

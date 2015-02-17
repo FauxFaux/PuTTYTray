@@ -1,5 +1,3 @@
-\define{versionidsshnames} \versionid $Id$
-
 \A{sshnames} SSH-2 names specified for PuTTY
 
 There are various parts of the SSH-2 protocol where things are specified
@@ -26,6 +24,11 @@ large, and leave flow control to TCP.  There is no message-specific data.
 tuning.  It can be sent on any type of channel.  There is no
 message-specific data. Servers MUST treat it as an unrecognised request
 and respond with \cw{SSH_MSG_CHANNEL_FAILURE}.
+
+\lcont{
+(Some SSH servers get confused by this message, so there is a
+bug-compatibility mode for disabling it. See \k{config-ssh-bug-winadj}.)
+}
 
 \H{sshnames-kex} Key exchange method names
 

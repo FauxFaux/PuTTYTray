@@ -1,5 +1,3 @@
-\define{versionidfaq} \versionid $Id$
-
 \A{faq} PuTTY \i{FAQ}
 
 This FAQ is published on the PuTTY web site, and also provided as an
@@ -64,6 +62,9 @@ files into PuTTY's format.
 \S{faq-ssh1}{Question} Does PuTTY support SSH-1?
 
 Yes. SSH-1 support has always been available in PuTTY.
+
+However, the SSH-1 protocol has many weaknesses and is no longer
+considered secure; it should be avoided if at all possible.
 
 \S{faq-localecho}{Question} Does PuTTY support \i{local echo}?
 
@@ -151,13 +152,14 @@ military-strength cipher. That insignificant host key prompt really
 does make \e{that} much difference.
 
 If you're having a specific problem with host key checking - perhaps
-you want an automated batch job to make use of PSCP or Plink, and
-the interactive host key prompt is hanging the batch process - then
-the right way to fix it is to add the correct host key to the
-Registry in advance. That way, you retain the \e{important} feature
-of host key checking: the right key will be accepted and the wrong
-ones will not. Adding an option to turn host key checking off
-completely is the wrong solution and we will not do it.
+you want an automated batch job to make use of PSCP or Plink, and the
+interactive host key prompt is hanging the batch process - then the
+right way to fix it is to add the correct host key to the Registry in
+advance, or if the Registry is not available, to use the \cw{-hostkey}
+command-line option. That way, you retain the \e{important} feature of
+host key checking: the right key will be accepted and the wrong ones
+will not. Adding an option to turn host key checking off completely is
+the wrong solution and we will not do it.
 
 If you have host keys available in the common \i\c{known_hosts} format,
 we have a script called 
@@ -1075,7 +1077,7 @@ actively malicious PC and get away with typing passwords into it.
 If you do trust the PC, then it's probably OK to use PuTTY on it
 (but if you don't trust the network, then the PuTTY download might
 be tampered with, so it would be better to carry PuTTY with you on a
-floppy).
+USB stick).
 
 \S{faq-cleanup}{Question} What does PuTTY leave on a system? How can
 I \i{clean up} after it?
@@ -1188,7 +1190,7 @@ Partly, because we don't want to move the web site location (see
 Also, security reasons. PuTTY is a security product, and as such it
 is particularly important to guard the code and the web site against
 unauthorised modifications which might introduce subtle security
-flaws. Therefore, we prefer that the Subversion repository, web site and
+flaws. Therefore, we prefer that the Git repository, web site and
 FTP site remain where they are, under the direct control of system
 administrators we know and trust personally, rather than being run
 by a large organisation full of people we've never met and which is
@@ -1436,6 +1438,57 @@ applies to any other country's legal requirements and restrictions.
 Similarly, some people have asked us for FIPS certification of the
 PuTTY tools.  Unless someone else is prepared to do the necessary work
 and pay any costs, we can't provide this.
+
+\S{faq-vendor}{Question} As one of our existing software vendors, can
+you just fill in this questionnaire for us?
+
+We periodically receive requests like this, from organisations which
+have apparently sent out a form letter to everyone listed in their big
+spreadsheet of \q{software vendors} requiring them all to answer some
+long list of questions about supported OS versions, paid support
+arrangements, compliance with assorted local regulations we haven't
+heard of, contact phone numbers, and other such administrivia. Many of
+the questions are obviously meaningless when applied to PuTTY (we
+don't provide any paid support in the first place!), most of the rest
+could have been answered with only a very quick look at our website,
+and some we are actively unwilling to answer (we are private
+individuals, why would we want to give out our home phone numbers to
+large corporations?).
+
+We don't make a habit of responding in full to these questionnaires,
+because \e{we are not a software vendor}.
+
+A software \e{vendor} is a company to which you are paying lots of
+money in return for some software. They know who you are, and they
+know you're paying them money; so they have an incentive to fill in
+your forms and questionnaires, to research any local regulations you
+cite if they don't already know about them, and generally to provide
+every scrap of information you might possibly need in the most
+convenient manner for you, because they want to keep being paid.
+
+But we are a team of free software developers, and that means your
+relationship with us is nothing like that at all. If you once
+downloaded our software from our website, that's great and we hope you
+found it useful, but it doesn't mean we have the least idea who you
+are, or any incentive to do lots of unpaid work to support our
+\q{relationship} with you.
+
+It's not that we are unwilling to \e{provide information}. We put as
+much of it as we can on our website for your convenience, and if you
+actually need to know some fact about PuTTY which you haven't been
+able to find on the website (and which is not obviously inapplicable
+to free software in the first place) then please do ask us, and we'll
+try to answer as best we can. But we put up the website and this FAQ
+precisely so that we \e{don't} have to keep answering the same
+questions over and over again, so we aren't prepared to fill in
+completely generic form-letter questionnaires for people who haven't
+done their best to find the answers here first.
+
+If you work for an organisation which you think might be at risk of
+making this mistake, we urge you to reorganise your list of software
+suppliers so that it clearly distinguishes paid vendors who know about
+you from free software developers who don't have any idea who you are.
+Then, only send out these mass mailings to the former.
 
 \H{faq-misc} Miscellaneous questions
 

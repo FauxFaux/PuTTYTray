@@ -76,8 +76,7 @@ int process_nonoption_arg(char *arg, Conf *conf, int *allow_launch)
             q += 2;
         conf_set_int(conf, CONF_protocol, PROT_TELNET);
         p = q;
-        while (*p && *p != ':' && *p != '/')
-            p++;
+        p += host_strcspn(p, ":/");
         c = *p;
         if (*p)
             *p++ = '\0';
@@ -121,6 +120,9 @@ char *platform_get_x_display(void) {
 	display = getenv("DISPLAY");
     return dupstr(display);
 }
+
+const int share_can_be_downstream = TRUE;
+const int share_can_be_upstream = TRUE;
 
 int main(int argc, char **argv)
 {

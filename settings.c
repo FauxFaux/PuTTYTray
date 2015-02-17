@@ -25,6 +25,7 @@ static const struct keyvalwhere ciphernames[] = {
 };
 
 static const struct keyvalwhere kexnames[] = {
+    { "ecdh",               KEX_ECDH,       -1, +1 },
     { "dh-gex-sha1",        KEX_DHGEX,      -1, -1 },
     { "dh-group14-sha1",    KEX_DHGROUP14,  -1, -1 },
     { "dh-group1-sha1",     KEX_DHGROUP1,   -1, -1 },
@@ -199,7 +200,8 @@ static void gppi(void *handle, char *name, int def, Conf *conf, int primary)
  * Read a set of name-value pairs in the format we occasionally use:
  *   NAME\tVALUE\0NAME\tVALUE\0\0 in memory
  *   NAME=VALUE,NAME=VALUE, in storage
- * `def' is in the storage format.
+ * If there's no "=VALUE" (e.g. just NAME,NAME,NAME) then those keys
+ * are mapped to the empty string.
  */
 static int gppmap(void *handle, char *name, Conf *conf, int primary)
 {
@@ -265,9 +267,11 @@ static int gppmap(void *handle, char *name, Conf *conf, int primary)
 }
 
 /*
- * Write a set of name/value pairs in the above format.
+ * Write a set of name/value pairs in the above format, or just the
+ * names if include_values is FALSE.
  */
-static void wmap(void *handle, char const *outkey, Conf *conf, int primary)
+static void wmap(void *handle, char const *outkey, Conf *conf, int primary,
+                 int include_values)
 {
     char *buf, *p, *q, *key, *realkey, *val;
     int len;
@@ -312,12 +316,14 @@ static void wmap(void *handle, char const *outkey, Conf *conf, int primary)
 		*p++ = '\\';
 	    *p++ = *q;
 	}
-	*p++ = '=';
-	for (q = val; *q; q++) {
-	    if (*q == '=' || *q == ',' || *q == '\\')
-		*p++ = '\\';
-	    *p++ = *q;
-	}
+        if (include_values) {
+            *p++ = '=';
+            for (q = val; *q; q++) {
+                if (*q == '=' || *q == ',' || *q == '\\')
+                    *p++ = '\\';
+                *p++ = *q;
+            }
+        }
 
         if (realkey) {
             free(key);
@@ -517,7 +523,7 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "TCPKeepalives", conf_get_int(conf, CONF_tcp_keepalives));
     write_setting_s(sesskey, "TerminalType", conf_get_str(conf, CONF_termtype));
     write_setting_s(sesskey, "TerminalSpeed", conf_get_str(conf, CONF_termspeed));
-    wmap(sesskey, "TerminalModes", conf, CONF_ttymodes);
+    wmap(sesskey, "TerminalModes", conf, CONF_ttymodes, TRUE);
 
     /* Address family selection */
     write_setting_i(sesskey, "AddressFamily", conf_get_int(conf, CONF_addressfamily));
@@ -532,7 +538,7 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_s(sesskey, "ProxyUsername", conf_get_str(conf, CONF_proxy_username));
     write_setting_s(sesskey, "ProxyPassword", conf_get_str(conf, CONF_proxy_password));
     write_setting_s(sesskey, "ProxyTelnetCommand", conf_get_str(conf, CONF_proxy_telnet_command));
-    wmap(sesskey, "Environment", conf, CONF_environmt);
+    wmap(sesskey, "Environment", conf, CONF_environmt, TRUE);
     write_setting_s(sesskey, "UserName", conf_get_str(conf, CONF_username));
     write_setting_i(sesskey, "UserNameFromEnvironment", conf_get_int(conf, CONF_username_from_env));
     write_setting_s(sesskey, "LocalUserName", conf_get_str(conf, CONF_localusername));
@@ -693,7 +699,7 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_filename(sesskey, "X11AuthFile", conf_get_filename(conf, CONF_xauthfile));
     write_setting_i(sesskey, "LocalPortAcceptAll", conf_get_int(conf, CONF_lport_acceptall));
     write_setting_i(sesskey, "RemotePortAcceptAll", conf_get_int(conf, CONF_rport_acceptall));
-    wmap(sesskey, "PortForwardings", conf, CONF_portfwd);
+    wmap(sesskey, "PortForwardings", conf, CONF_portfwd, TRUE);
     write_setting_i(sesskey, "BugIgnore1", 2-conf_get_int(conf, CONF_sshbug_ignore1));
     write_setting_i(sesskey, "BugPlainPW1", 2-conf_get_int(conf, CONF_sshbug_plainpw1));
     write_setting_i(sesskey, "BugRSA1", 2-conf_get_int(conf, CONF_sshbug_rsa1));
@@ -705,6 +711,7 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "BugRekey2", 2-conf_get_int(conf, CONF_sshbug_rekey2));
     write_setting_i(sesskey, "BugMaxPkt2", 2-conf_get_int(conf, CONF_sshbug_maxpkt2));
     write_setting_i(sesskey, "BugWinadj", 2-conf_get_int(conf, CONF_sshbug_winadj));
+    write_setting_i(sesskey, "BugChanReq", 2-conf_get_int(conf, CONF_sshbug_chanreq));
     write_setting_i(sesskey, "StampUtmp", conf_get_int(conf, CONF_stamp_utmp));
     write_setting_i(sesskey, "LoginShell", conf_get_int(conf, CONF_login_shell));
     write_setting_i(sesskey, "ScrollbarOnLeft", conf_get_int(conf, CONF_scrollbar_on_left));
@@ -723,6 +730,10 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "CygtermAutoPath", conf_get_int(conf, CONF_cygautopath));
     write_setting_i(sesskey, "Cygterm64", conf_get_int(conf, CONF_cygterm64));
     write_setting_s(sesskey, "CygtermCommand", conf_get_str(conf, CONF_cygcmd));
+    write_setting_i(sesskey, "ConnectionSharing", conf_get_int(conf, CONF_ssh_connection_sharing));
+    write_setting_i(sesskey, "ConnectionSharingUpstream", conf_get_int(conf, CONF_ssh_connection_sharing_upstream));
+    write_setting_i(sesskey, "ConnectionSharingDownstream", conf_get_int(conf, CONF_ssh_connection_sharing_downstream));
+    wmap(sesskey, "SSHManualHostKeys", conf, CONF_ssh_manual_hostkeys, FALSE);
 }
 
 void load_settings(char *section, Conf *conf)
@@ -861,15 +872,18 @@ void load_open_settings(void *sesskey, Conf *conf)
 	char *default_kexes;
 	i = 2 - gppi_raw(sesskey, "BugDHGEx2", 0);
 	if (i == FORCE_ON)
-	    default_kexes = "dh-group14-sha1,dh-group1-sha1,rsa,WARN,dh-gex-sha1";
+            default_kexes = "ecdh,dh-group14-sha1,dh-group1-sha1,rsa,"
+                "WARN,dh-gex-sha1";
 	else
-	    default_kexes = "dh-gex-sha1,dh-group14-sha1,dh-group1-sha1,rsa,WARN";
+            default_kexes = "ecdh,dh-gex-sha1,dh-group14-sha1,"
+                "dh-group1-sha1,rsa,WARN";
 	gprefs(sesskey, "KEX", default_kexes,
 	       kexnames, KEX_MAX, conf, CONF_ssh_kexlist);
     }
     gppi(sesskey, "RekeyTime", 60, conf, CONF_ssh_rekey_time);
     gpps(sesskey, "RekeyBytes", "1G", conf, CONF_ssh_rekey_data);
-    gppi(sesskey, "SshProt", 2, conf, CONF_sshprot);
+    /* SSH-2 only by default */
+    gppi(sesskey, "SshProt", 3, conf, CONF_sshprot);
     gpps(sesskey, "LogHost", "", conf, CONF_loghost);
     gppi(sesskey, "SSH2DES", 0, conf, CONF_ssh2_des_cbc);
     gppi(sesskey, "SshNoAuth", 0, conf, CONF_ssh_no_userauth);
@@ -1086,6 +1100,7 @@ void load_open_settings(void *sesskey, Conf *conf)
     i = gppi_raw(sesskey, "BugRekey2", 0); conf_set_int(conf, CONF_sshbug_rekey2, 2-i);
     i = gppi_raw(sesskey, "BugMaxPkt2", 0); conf_set_int(conf, CONF_sshbug_maxpkt2, 2-i);
     i = gppi_raw(sesskey, "BugWinadj", 0); conf_set_int(conf, CONF_sshbug_winadj, 2-i);
+    i = gppi_raw(sesskey, "BugChanReq", 0); conf_set_int(conf, CONF_sshbug_chanreq, 2-i);
     conf_set_int(conf, CONF_ssh_simple, FALSE);
     gppi(sesskey, "StampUtmp", 1, conf, CONF_stamp_utmp);
     gppi(sesskey, "LoginShell", 1, conf, CONF_login_shell);
@@ -1105,6 +1120,10 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "Cygterm64", 0, conf, CONF_cygterm64);
     gpps(sesskey, "CygtermCommand", "-", conf, CONF_cygcmd);
     gpps(sesskey, "WindowClass", "", conf, CONF_winclass);
+    gppi(sesskey, "ConnectionSharing", 0, conf, CONF_ssh_connection_sharing);
+    gppi(sesskey, "ConnectionSharingUpstream", 1, conf, CONF_ssh_connection_sharing_upstream);
+    gppi(sesskey, "ConnectionSharingDownstream", 1, conf, CONF_ssh_connection_sharing_downstream);
+    gppmap(sesskey, "SSHManualHostKeys", conf, CONF_ssh_manual_hostkeys);
 }
 
 void do_defaults(char *session, Conf *conf)

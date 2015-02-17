@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <ctype.h>
+#include <assert.h>
 
 #include "putty.h"
 #include "terminal.h"
@@ -127,24 +128,38 @@ void ldisc_free(void *handle)
     sfree(ldisc);
 }
 
+void ldisc_echoedit_update(void *handle)
+{
+    Ldisc ldisc = (Ldisc) handle;
+    frontend_echoedit_update(ldisc->frontend, ECHOING, EDITING);
+}
+
 void ldisc_send(void *handle, char *buf, int len, int interactive)
 {
     Ldisc ldisc = (Ldisc) handle;
     int keyflag = 0;
-    /*
-     * Called with len=0 when the options change. We must inform
-     * the front end in case it needs to know.
-     */
-    if (len == 0) {
-	ldisc_update(ldisc->frontend, ECHOING, EDITING);
-	return;
-    }
+
+    assert(ldisc->term);
+    assert(len);
+
     /*
      * Notify the front end that something was pressed, in case
      * it's depending on finding out (e.g. keypress termination for
      * Close On Exit). 
      */
     frontend_keypress(ldisc->frontend);
+
+    if (interactive) {
+        /*
+         * Interrupt a paste from the clipboard, if one was in
+         * progress when the user pressed a key. This is easier than
+         * buffering the current piece of data and saving it until the
+         * terminal has finished pasting, and has the potential side
+         * benefit of permitting a user to cancel an accidental huge
+         * paste.
+         */
+        term_nopaste(ldisc->term);
+    }
 
     /*
      * Less than zero means null terminated special string.

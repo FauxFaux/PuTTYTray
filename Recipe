@@ -20,9 +20,11 @@
 !makefile lcc windows/Makefile.lcc
 !makefile gtk unix/Makefile.gtk
 !makefile unix unix/Makefile.ux
-!makefile am unix/Makefile.am
+!makefile am Makefile.am
 !makefile osx macosx/Makefile
 !makefile devcppproj windows/DEVCPP
+!makefile vstudio10 windows/VS2010
+!makefile vstudio12 windows/VS2012
 # Source directories.
 !srcdir charset/
 !srcdir windows/
@@ -36,14 +38,6 @@
 !begin help
 #
 # Extra options you can set:
-#
-#  - VER="/DSNAPSHOT=1999-01-25 /DSVN_REV=1234"
-#      Generates executables whose About box report them as being a
-#      development snapshot. SVN_REV is a Subversion revision number.
-#
-#  - VER=/DRELEASE=0.43
-#      Generates executables whose About box report them as being a
-#      release version.
 #
 #  - COMPAT=/DAUTO_WINSOCK (Windows only)
 #      Causes PuTTY to assume that <windows.h> includes its own WinSock
@@ -109,12 +103,6 @@
 #      Makes a couple of minor changes so that PuTTY compiles using
 #      MSVC 4. You will also need /DNO_SECURITY and /DNO_MULTIMON.
 #
-#  - RCFL=/DASCIICTLS (Windows only)
-#      Uses ASCII rather than Unicode to specify the tab control in
-#      the resource file. Probably most useful when compiling with
-#      Cygnus/mingw32, whose resource compiler may have less of a
-#      problem with it.
-#
 #  - COMPAT=/DNO_SECUREZEROMEMORY (Windows only)
 #      Disables PuTTY's use of SecureZeroMemory(), which is missing
 #      from some environments' header files.  This is enabled by
@@ -144,79 +132,9 @@
 # ------------------------------------------------------------
 # Additional text added verbatim to each individual Makefile.
 
-# Hack to force version.o to be rebuilt always.
-!begin vc
-version.obj: *.c *.h *.rc
-	cl $(VER) $(CFLAGS) /c ..\version.c
-!end
-!specialobj vc version
-!begin cygwin
-version.o: FORCE
-	$(CC) $(COMPAT) $(XFLAGS) $(CFLAGS) $(VER) -c ../version.c
-!end
-!specialobj cygwin version
-!begin borland
-version.obj: FORCE
-	bcc32 $(VER) $(CFLAGS) /c ..\version.c
-!end
-!specialobj borland version
-!begin lcc
-version.obj: FORCE
-	lcc $(VER) $(CFLAGS) /c ..\version.c
-!end
-!specialobj lcc version
-# For Unix, we also need the gross MD5 hack that causes automatic
-# version number selection in release source archives.
-!begin gtk
-version.o: FORCE
-	if test -z "$(VER)" && (cd ..; md5sum -c manifest); then \
-		$(CC) $(COMPAT) $(XFLAGS) $(CFLAGS) `cat ../version.def` -c ../version.c; \
-	else \
-		$(CC) $(COMPAT) $(XFLAGS) $(CFLAGS) $(VER) -c ../version.c; \
-	fi
-!end
-!specialobj gtk version
-# In the automake build, we have to do the whole job by supplying
-# extra CFLAGS, so we have to put the if statement inside one big
-# backtick expression. We also force rebuilding via a -D option that
-# makes version.o include empty.h, which we construct ourselves and
-# touch whenever any source file is updated.
-!cflags am version $(VER) -DINCLUDE_EMPTY_H `if test -z "$(VER)" && (cd $(srcdir)/..; md5sum -c manifest >/dev/null 2>&1); then cat $(srcdir)/../version.def; else echo "$(VER)"; fi`
-!begin am
-BUILT_SOURCES = empty.h
-empty.h: $(allsources)
-	echo '/* Empty file touched by automake makefile to force rebuild of version.o */' >$@
-
-!end
-!begin >empty.h
-/* Empty file touched by automake makefile to force rebuild of version.o */
-!end
-
-# Add VER to Windows resource targets, and force them to be rebuilt every
-# time, on the assumption that they will contain version information.
 !begin vc vars
-CFLAGS = $(CFLAGS) /DHAS_GSSAPI /DSECURITY_WIN32
-RCFLAGS = $(RCFLAGS) $(VER)
+CFLAGS = $(CFLAGS) /DHAS_GSSAPI
 !end
-!begin cygwin vars
-CFLAGS += -DSECURITY_WIN32
-# XXX GNU-ism, but it's probably all right for a Cygwin/MinGW Makefile.
-RCFLAGS += $(patsubst -D%,--define %,$(VER))
-!end
-!begin borland vars
-# Borland doesn't support +=. This probably shouldn't work, but seems to.
-RCFLAGS = $(RCFLAGS) $(VER)
-!end
-!begin lcc vars
-RCFLAGS += $(VER)
-!end
-!forceobj putty.res
-!forceobj puttytel.res
-!forceobj plink.res
-!forceobj pscp.res
-!forceobj psftp.res
-!forceobj pageant.res
-!forceobj puttygen.res
 
 # `make install' target for Unix.
 !begin gtk
@@ -253,8 +171,8 @@ CFLAGS += -DMACOSX
 
 # List the man pages for the automake makefile.
 !begin am
-man1_MANS = ../doc/plink.1 ../doc/pscp.1 ../doc/psftp.1 ../doc/pterm.1 \
-            ../doc/putty.1 ../doc/puttygen.1 ../doc/puttytel.1
+man1_MANS = doc/plink.1 doc/pscp.1 doc/psftp.1 doc/pterm.1 \
+            doc/putty.1 doc/puttygen.1 doc/puttytel.1
 !end
 
 # In automake, chgrp/chmod pterm after installation, if configured to.
@@ -304,18 +222,19 @@ NONSSH   = telnet adb raw rlogin ldisc pinger
 SSH      = ssh sshcrc sshdes sshmd5 sshrsa sshrand sshsha sshblowf
          + sshdh sshcrcda sshpubk sshzlib sshdss x11fwd portfwd
          + sshaes sshsh256 sshsh512 sshbn wildcard pinger ssharcf
-         + sshgssc pgssapi
-WINSSH   = SSH winnoise winpgntc wingss
-UXSSH    = SSH uxnoise uxagentc uxgss
+         + sshgssc pgssapi sshshare sshecc
+WINSSH   = SSH winnoise winsecur winpgntc wingss winshare winnps winnpc
+         + winhsock errsock
+UXSSH    = SSH uxnoise uxagentc uxgss uxshare
 
 # SFTP implementation (pscp, psftp).
 SFTP     = sftp int64 logging
 
 # Miscellaneous objects appearing in all the network utilities (not
 # Pageant or PuTTYgen).
-MISC     = timing misc version settings tree234 proxy conf
+MISC     = timing callback misc version settings tree234 proxy conf
 WINMISC  = MISC winstore winnet winhandl cmdline windefs winmisc winproxy
-         + wintime
+         + wintime winhsock errsock
 UXMISC   = MISC uxstore uxsel uxnet cmdline uxmisc uxproxy time
 OSXMISC  = MISC uxstore uxsel osxsel uxnet uxmisc uxproxy time
 
@@ -352,7 +271,7 @@ putty    : [G] GUITERM NONSSH WINSSH W_BE_ALL WINMISC winx11 putty.res urlhack r
          + winpgen sshrsag sshdssg sshprime import
          + winpgnt
 plink    : [C] winplink wincons NONSSH WINSSH W_BE_ALL logging WINMISC
-         + winx11 plink.res winnojmp LIBS
+         + winx11 plink.res winnojmp noterm LIBS
 pscp     : [C] pscp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
          + pscp.res winnojmp LIBS
 psftp    : [C] psftp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
@@ -368,12 +287,12 @@ puttytel : [X] GTKTERM uxmisc misc ldisc settings uxsel U_BE_NOSSH
 	 + nogss
 
 plink    : [U] uxplink uxcons NONSSH UXSSH U_BE_ALL logging UXMISC uxsignal
-         + ux_x11
+         + ux_x11 noterm
 
 puttygen : [U] cmdgen sshrsag sshdssg sshprime sshdes sshbn sshmd5 version
          + sshrand uxnoise sshsha misc sshrsa sshdss uxcons uxstore uxmisc
          + sshpubk sshaes sshsh256 sshsh512 import puttygen.res time tree234
-	 + uxgen notiming conf
+         + uxgen notiming conf sshecc sshecdsag
 
 pscp     : [U] pscp uxsftp uxcons UXSSH BE_SSH SFTP wildcard UXMISC
 psftp    : [U] psftp uxsftp uxcons UXSSH BE_SSH SFTP wildcard UXMISC

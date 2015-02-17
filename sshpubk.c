@@ -512,54 +512,6 @@ static char *read_body(FILE * fp)
     }
 }
 
-int base64_decode_atom(char *atom, unsigned char *out)
-{
-    int vals[4];
-    int i, v, len;
-    unsigned word;
-    char c;
-
-    for (i = 0; i < 4; i++) {
-	c = atom[i];
-	if (c >= 'A' && c <= 'Z')
-	    v = c - 'A';
-	else if (c >= 'a' && c <= 'z')
-	    v = c - 'a' + 26;
-	else if (c >= '0' && c <= '9')
-	    v = c - '0' + 52;
-	else if (c == '+')
-	    v = 62;
-	else if (c == '/')
-	    v = 63;
-	else if (c == '=')
-	    v = -1;
-	else
-	    return 0;		       /* invalid atom */
-	vals[i] = v;
-    }
-
-    if (vals[0] == -1 || vals[1] == -1)
-	return 0;
-    if (vals[2] == -1 && vals[3] != -1)
-	return 0;
-
-    if (vals[3] != -1)
-	len = 3;
-    else if (vals[2] != -1)
-	len = 2;
-    else
-	len = 1;
-
-    word = ((vals[0] << 18) |
-	    (vals[1] << 12) | ((vals[2] & 0x3F) << 6) | (vals[3] & 0x3F));
-    out[0] = (word >> 16) & 0xFF;
-    if (len > 1)
-	out[1] = (word >> 8) & 0xFF;
-    if (len > 2)
-	out[2] = word & 0xFF;
-    return len;
-}
-
 static unsigned char *read_blob(FILE * fp, int nlines, int *bloblen)
 {
     unsigned char *blob;
@@ -610,6 +562,12 @@ const struct ssh_signkey *find_pubkey_alg(const char *name)
 	return &ssh_rsa;
     else if (!strcmp(name, "ssh-dss"))
 	return &ssh_dss;
+    else if (!strcmp(name, "ecdsa-sha2-nistp256"))
+        return &ssh_ecdsa_nistp256;
+    else if (!strcmp(name, "ecdsa-sha2-nistp384"))
+        return &ssh_ecdsa_nistp384;
+    else if (!strcmp(name, "ecdsa-sha2-nistp521"))
+        return &ssh_ecdsa_nistp521;
     else
 	return NULL;
 }
@@ -826,6 +784,7 @@ struct ssh2_userkey *ssh2_load_userkey(const Filename *filename,
 	}
     }
     sfree(mac);
+    mac = NULL;
 
     /*
      * Create and return the key.
@@ -836,7 +795,6 @@ struct ssh2_userkey *ssh2_load_userkey(const Filename *filename,
     ret->data = alg->createkey(public_blob, public_blob_len,
 			       private_blob, private_blob_len);
     if (!ret->data) {
-	sfree(ret->comment);
 	sfree(ret);
 	ret = NULL;
 	error = "createkey failed";

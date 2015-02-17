@@ -373,6 +373,7 @@ union control *ctrl_listbox(struct controlset *s,char *label,char shortcut,
     c->listbox.percentwidth = 100;
     c->listbox.ncols = 0;
     c->listbox.percentages = NULL;
+    c->listbox.hscroll = TRUE;
     return c;
 }
 
@@ -389,6 +390,7 @@ union control *ctrl_droplist(struct controlset *s, char *label, char shortcut,
     c->listbox.percentwidth = percentage;
     c->listbox.ncols = 0;
     c->listbox.percentages = NULL;
+    c->listbox.hscroll = FALSE;
     return c;
 }
 
@@ -405,6 +407,7 @@ union control *ctrl_draglist(struct controlset *s,char *label,char shortcut,
     c->listbox.percentwidth = 100;
     c->listbox.ncols = 0;
     c->listbox.percentages = NULL;
+    c->listbox.hscroll = FALSE;
     return c;
 }
 
