@@ -10,4 +10,4 @@
 
 #define TEXTVER "Unidentified build"
 #define SSHVER "PuTTY-Unidentified-Local-Build"
-#define BINARY_VERSION 0,0,0,0
+#define BINARY_VERSION 0, 0, 0, 0
