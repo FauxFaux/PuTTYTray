@@ -1632,6 +1632,8 @@ Bignum bigdiv(Bignum a, Bignum b)
 {
   Bignum q = newbn(a[0]);
   bigdivmod(a, b, NULL, q);
+  while (q[0] > 1 && q[q[0]] == 0)
+    q[0]--;
   return q;
 }
 
@@ -1642,6 +1644,8 @@ Bignum bigmod(Bignum a, Bignum b)
 {
   Bignum r = newbn(b[0]);
   bigdivmod(a, b, r, NULL);
+  while (r[0] > 1 && r[r[0]] == 0)
+    r[0]--;
   return r;
 }
 
@@ -1701,6 +1705,8 @@ Bignum modinv(Bignum number, Bignum modulus)
     bigdivmod(a, b, t, q);
     while (t[0] > 1 && t[t[0]] == 0)
       t[0]--;
+    while (q[0] > 1 && q[q[0]] == 0)
+      q[0]--;
     freebn(a);
     a = b;
     b = t;

@@ -25,7 +25,7 @@ enddelegate
 # Windows scanner for download).
 delegate covscan32wine
   in putty do tar xzvf cov-int.tar.gz
-  in putty/windows do cov-build --dir ../cov-int make -f Makefile.cyg CC=winegcc RC=wrc
+  in putty/windows do cov-build --dir ../cov-int make -f Makefile.cyg CC=winegcc RC=wrc XFLAGS=-DCOVERITY
   in putty do tar czvf cov-int.tar.gz cov-int
   return putty/cov-int.tar.gz
 enddelegate
@@ -33,7 +33,7 @@ enddelegate
 # Provide the revision number as one of the build outputs, to make it
 # easy to construct a curl upload command which will annotate it
 # appropriately when uploaded.
-in putty do echo $(revision) > revision.txt
+in putty do echo $(vcsfullid) > revision.txt
 
 deliver putty/revision.txt $@
 deliver putty/cov-int.tar.gz $@

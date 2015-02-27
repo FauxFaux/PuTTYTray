@@ -102,6 +102,7 @@ const wchar_t sel_nl[] = SEL_NL;
 static void resizeline(Terminal *, termline *, int);
 static termline *lineptr(Terminal *, int, int, int);
 static void unlineptr(termline *);
+static void check_line_size(Terminal *, termline *);
 static void do_paint(Terminal *, Context, int);
 static void erase_lots(Terminal *, int, int, int);
 static int find_last_nonempty_line(Terminal *, tree234 *);
@@ -1080,14 +1081,47 @@ static termline *lineptr(Terminal *term, int y, int lineno, int screen)
   }
   assert(line != NULL);
 
-  resizeline(term, line, term->cols);
-  /* FIXME: should we sort the compressed scrollback out here? */
+  /*
+   * Here we resize lines to _at least_ the right length, but we
+   * don't truncate them. Truncation is done as a side effect of
+   * modifying the line.
+   *
+   * The point of this policy is to try to arrange that resizing the
+   * terminal window repeatedly - e.g. successive steps in an X11
+   * opaque window-resize drag, or resizing as a side effect of
+   * retiling by tiling WMs such as xmonad - does not throw away
+   * data gratuitously. Specifically, we want a sequence of resize
+   * operations with no terminal output between them to have the
+   * same effect as a single resize to the ultimate terminal size,
+   * and also (for the case in which xmonad narrows a window that's
+   * scrolling things) we want scrolling up new text at the bottom
+   * of a narrowed window to avoid truncating lines further up when
+   * the window is re-widened.
+   */
+  if (term->cols > line->cols)
+    resizeline(term, line, term->cols);
 
   return line;
 }
 
 #define lineptr(x) (lineptr)(term, x, __LINE__, FALSE)
 #define scrlineptr(x) (lineptr)(term, x, __LINE__, TRUE)
+
+/*
+ * Coerce a termline to the terminal's current width. Unlike the
+ * optional resize in lineptr() above, this is potentially destructive
+ * of text, since it can shrink as well as grow the line.
+ *
+ * We call this whenever a termline is actually going to be modified.
+ * Helpfully, putting a single call to this function in check_boundary
+ * deals with _nearly_ all such cases, leaving only a few things like
+ * bulk erase and ESC#8 to handle separately.
+ */
+static void check_line_size(Terminal *term, termline *line)
+{
+  if (term->cols != line->cols) /* trivial optimisation */
+    resizeline(term, line, term->cols);
+}
 
 static void term_schedule_tblink(Terminal *term);
 static void term_schedule_cblink(Terminal *term);
@@ -1520,12 +1554,44 @@ void term_reconfig(Terminal *term, Conf *conf)
 void term_clrsb(Terminal *term)
 {
   unsigned char *line;
+  int i;
+
+  /*
+   * Scroll forward to the current screen, if we were back in the
+   * scrollback somewhere until now.
+   */
   term->disptop = 0;
+
+  /*
+   * Clear the actual scrollback.
+   */
   while ((line = delpos234(term->scrollback, 0)) != NULL) {
     sfree(line); /* this is compressed data, not a termline */
   }
+
+  /*
+   * When clearing the scrollback, we also truncate any termlines on
+   * the current screen which have remembered data from a previous
+   * larger window size. Rationale: clearing the scrollback is
+   * sometimes done to protect privacy, so the user intention is
+   * specifically that we should not retain evidence of what
+   * previously happened in the terminal, and that ought to include
+   * evidence to the right as well as evidence above.
+   */
+  for (i = 0; i < term->rows; i++)
+    check_line_size(term, scrlineptr(i));
+
+  /*
+   * There are now no lines of real scrollback which can be pulled
+   * back into the screen by a resize, and no lines of the alternate
+   * screen which should be displayed as if part of the scrollback.
+   */
   term->tempsblines = 0;
   term->alt_sblines = 0;
+
+  /*
+   * Update the scrollbar to reflect the new state of the world.
+   */
   update_sbar(term);
 }
 
@@ -1550,7 +1616,6 @@ Terminal *term_init(Conf *myconf, struct unicode_data *ucsdata, void *frontend)
   term->cblink_pending = term->tblink_pending = FALSE;
   term->paste_buffer = NULL;
   term->paste_len = 0;
-  term->last_paste = 0;
   bufchain_init(&term->inbuf);
   bufchain_init(&term->printer_buf);
   term->printing = term->only_printing = FALSE;
@@ -2315,6 +2380,7 @@ static void check_boundary(Terminal *term, int x, int y)
     return;
 
   ldata = scrlineptr(y);
+  check_line_size(term, ldata);
   if (x == term->cols) {
     ldata->lattr &= ~LATTR_WRAPPED2;
   } else {
@@ -2387,6 +2453,7 @@ static void erase_lots(Terminal *term,
   } else {
     termline *ldata = scrlineptr(start.y);
     while (poslt(start, end)) {
+      check_line_size(term, ldata);
       if (start.x == term->cols) {
         if (!erase_lattr)
           ldata->lattr &= ~(LATTR_WRAPPED | LATTR_WRAPPED2);
@@ -2416,16 +2483,51 @@ static void insch(Terminal *term, int n)
 {
   int dir = (n < 0 ? -1 : +1);
   int m, j;
-  pos cursplus;
+  pos eol;
   termline *ldata;
 
   n = (n < 0 ? -n : n);
   if (n > term->cols - term->curs.x)
     n = term->cols - term->curs.x;
   m = term->cols - term->curs.x - n;
-  cursplus.y = term->curs.y;
-  cursplus.x = term->curs.x + n;
-  check_selection(term, term->curs, cursplus);
+
+  /*
+   * We must de-highlight the selection if it overlaps any part of
+   * the region affected by this operation, i.e. the region from the
+   * current cursor position to end-of-line, _unless_ the entirety
+   * of the selection is going to be moved to the left or right by
+   * this operation but otherwise unchanged, in which case we can
+   * simply move the highlight with the text.
+   */
+  eol.y = term->curs.y;
+  eol.x = term->cols;
+  if (poslt(term->curs, term->selend) && poslt(term->selstart, eol)) {
+    pos okstart = term->curs;
+    pos okend = eol;
+    if (dir > 0) {
+      /* Insertion: n characters at EOL will be splatted. */
+      okend.x -= n;
+    } else {
+      /* Deletion: n characters at cursor position will be splatted. */
+      okstart.x += n;
+    }
+    if (posle(okstart, term->selstart) && posle(term->selend, okend)) {
+      /* Selection is contained entirely in the interval
+       * [okstart,okend), so we need only adjust the selection
+       * bounds. */
+      term->selstart.x += dir * n;
+      term->selend.x += dir * n;
+      assert(term->selstart.x >= term->curs.x);
+      assert(term->selstart.x < term->cols);
+      assert(term->selend.x > term->curs.x);
+      assert(term->selend.x <= term->cols);
+    } else {
+      /* Selection is not wholly contained in that interval, so
+       * we must unhighlight it. */
+      deselect(term);
+    }
+  }
+
   check_boundary(term, term->curs.x, term->curs.y);
   if (dir < 0)
     check_boundary(term, term->curs.x + n, term->curs.y);
@@ -2518,7 +2620,8 @@ static void toggle_mode(Terminal *term, int mode, int query, int state)
       compatibility(OTHER);
       deselect(term);
       swap_screen(term, term->no_alt_screen ? 0 : state, FALSE, FALSE);
-      term->disptop = 0;
+      if (term->scroll_on_disp)
+        term->disptop = 0;
       break;
     case 1000: /* xterm mouse 1 (normal) */
       term->xterm_mouse = state ? 1 : 0;
@@ -2538,7 +2641,8 @@ static void toggle_mode(Terminal *term, int mode, int query, int state)
       compatibility(OTHER);
       deselect(term);
       swap_screen(term, term->no_alt_screen ? 0 : state, TRUE, TRUE);
-      term->disptop = 0;
+      if (term->scroll_on_disp)
+        term->disptop = 0;
       break;
     case 1048: /* save/restore cursor */
       if (!term->no_alt_screen)
@@ -2556,7 +2660,8 @@ static void toggle_mode(Terminal *term, int mode, int query, int state)
       swap_screen(term, term->no_alt_screen ? 0 : state, TRUE, FALSE);
       if (!state && !term->no_alt_screen)
         save_cursor(term, state);
-      term->disptop = 0;
+      if (term->scroll_on_disp)
+        term->disptop = 0;
       break;
     case 2004: /* xterm bracketed paste */
       term->bracketed_paste = state ? TRUE : FALSE;
@@ -3007,7 +3112,6 @@ static void term_out(Terminal *term)
         term->curs.x = 0;
         term->wrapnext = FALSE;
         seen_disp_event(term);
-        term->paste_hold = 0;
 
         if (term->crhaslf) {
           if (term->curs.y == term->marg_b)
@@ -3022,7 +3126,8 @@ static void term_out(Terminal *term)
         if (has_compat(SCOANSI)) {
           move(term, 0, 0, 0);
           erase_lots(term, FALSE, FALSE, TRUE);
-          term->disptop = 0;
+          if (term->scroll_on_disp)
+            term->disptop = 0;
           term->wrapnext = FALSE;
           seen_disp_event(term);
           break;
@@ -3038,7 +3143,6 @@ static void term_out(Terminal *term)
           term->curs.x = 0;
         term->wrapnext = FALSE;
         seen_disp_event(term);
-        term->paste_hold = 0;
         if (term->logctx)
           logtraffic(term->logctx, (unsigned char)c, LGTYP_ASCII);
         break;
@@ -3297,7 +3401,8 @@ static void term_out(Terminal *term)
               request_resize(term->frontend, 80, term->rows);
             term->reset_132 = 0;
           }
-          term->disptop = 0;
+          if (term->scroll_on_disp)
+            term->disptop = 0;
           seen_disp_event(term);
           break;
         case 'H': /* HTS: set a tab */
@@ -3314,13 +3419,15 @@ static void term_out(Terminal *term)
 
             for (i = 0; i < term->rows; i++) {
               ldata = scrlineptr(i);
+              check_line_size(term, ldata);
               for (j = 0; j < term->cols; j++) {
                 copy_termchar(ldata, j, &term->basic_erase_char);
                 ldata->chars[j].chr = 'E';
               }
               ldata->lattr = LATTR_NORM;
             }
-            term->disptop = 0;
+            if (term->scroll_on_disp)
+              term->disptop = 0;
             seen_disp_event(term);
             scrtop.x = scrtop.y = 0;
             scrbot.x = 0;
@@ -3336,6 +3443,7 @@ static void term_out(Terminal *term)
           compatibility(VT100);
           {
             int nlattr;
+            termline *ldata;
 
             switch (ANSI(c, term->esc_query)) {
             case ANSI('3', '#'): /* DECDHL: 2*height, top */
@@ -3351,7 +3459,9 @@ static void term_out(Terminal *term)
               nlattr = LATTR_WIDE;
               break;
             }
-            scrlineptr(term->curs.y)->lattr = nlattr;
+            ldata = scrlineptr(term->curs.y);
+            check_line_size(term, ldata);
+            ldata->lattr = nlattr;
           }
           break;
         /* GZD4: G0 designate 94-set */
@@ -3525,7 +3635,8 @@ static void term_out(Terminal *term)
               erase_lots(term, FALSE, !!(i & 2), !!(i & 1));
             }
           }
-            term->disptop = 0;
+            if (term->scroll_on_disp)
+              term->disptop = 0;
             seen_disp_event(term);
             break;
           case 'K': /* EL: erase line or parts of it */
@@ -4422,7 +4533,8 @@ static void term_out(Terminal *term)
           break;
         case 'J':
           erase_lots(term, FALSE, FALSE, TRUE);
-          term->disptop = 0;
+          if (term->scroll_on_disp)
+            term->disptop = 0;
           break;
         case 'K':
           erase_lots(term, TRUE, FALSE, TRUE);
@@ -4477,7 +4589,8 @@ static void term_out(Terminal *term)
           /* compatibility(ATARI) */
           move(term, 0, 0, 0);
           erase_lots(term, FALSE, FALSE, TRUE);
-          term->disptop = 0;
+          if (term->scroll_on_disp)
+            term->disptop = 0;
           break;
         case 'L':
           /* compatibility(ATARI) */
@@ -4500,7 +4613,8 @@ static void term_out(Terminal *term)
         case 'd':
           /* compatibility(ATARI) */
           erase_lots(term, FALSE, TRUE, FALSE);
-          term->disptop = 0;
+          if (term->scroll_on_disp)
+            term->disptop = 0;
           break;
         case 'e':
           /* compatibility(ATARI) */
@@ -5699,6 +5813,33 @@ static void sel_spread(Terminal *term)
   }
 }
 
+static void term_paste_callback(void *vterm)
+{
+  Terminal *term = (Terminal *)vterm;
+
+  if (term->paste_len == 0)
+    return;
+
+  while (term->paste_pos < term->paste_len) {
+    int n = 0;
+    while (n + term->paste_pos < term->paste_len) {
+      if (term->paste_buffer[term->paste_pos + n++] == '\015')
+        break;
+    }
+    if (term->ldisc)
+      luni_send(term->ldisc, term->paste_buffer + term->paste_pos, n, 0);
+    term->paste_pos += n;
+
+    if (term->paste_pos < term->paste_len) {
+      queue_toplevel_callback(term_paste_callback, term);
+      return;
+    }
+  }
+  sfree(term->paste_buffer);
+  term->paste_buffer = NULL;
+  term->paste_len = 0;
+}
+
 void term_do_paste(Terminal *term)
 {
   wchar_t *data;
@@ -5712,7 +5853,7 @@ void term_do_paste(Terminal *term)
 
     if (term->paste_buffer)
       sfree(term->paste_buffer);
-    term->paste_pos = term->paste_hold = term->paste_len = 0;
+    term->paste_pos = term->paste_len = 0;
     term->paste_buffer = snewn(len + 12, wchar_t);
 
     if (term->bracketed_paste) {
@@ -5754,10 +5895,12 @@ void term_do_paste(Terminal *term)
       if (term->paste_buffer)
         sfree(term->paste_buffer);
       term->paste_buffer = 0;
-      term->paste_pos = term->paste_hold = term->paste_len = 0;
+      term->paste_pos = term->paste_len = 0;
     }
   }
   get_clip(term->frontend, NULL, NULL);
+
+  queue_toplevel_callback(term_paste_callback, term);
 }
 
 void term_mouse(Terminal *term,
@@ -5823,7 +5966,7 @@ void term_mouse(Terminal *term,
    */
   if (raw_mouse && (term->selstate != ABOUT_TO) &&
       (term->selstate != DRAGGING)) {
-    int encstate = 0, r, c;
+    int encstate = 0, r, c, wheel;
     char abuf[32];
     int len = 0;
 
@@ -5832,43 +5975,56 @@ void term_mouse(Terminal *term,
       switch (braw) {
       case MBT_LEFT:
         encstate = 0x00; /* left button down */
+        wheel = FALSE;
         break;
       case MBT_MIDDLE:
         encstate = 0x01;
+        wheel = FALSE;
         break;
       case MBT_RIGHT:
         encstate = 0x02;
+        wheel = FALSE;
         break;
       case MBT_WHEEL_UP:
         encstate = 0x40;
+        wheel = TRUE;
         break;
       case MBT_WHEEL_DOWN:
         encstate = 0x41;
+        wheel = TRUE;
         break;
       default:
-        break; /* placate gcc warning about enum use */
+        return;
       }
-      switch (a) {
-      case MA_DRAG:
-        if (term->xterm_mouse == 1)
+      if (wheel) {
+        /* For mouse wheel buttons, we only ever expect to see
+         * MA_CLICK actions, and we don't try to keep track of
+         * the buttons being 'pressed' (since without matching
+         * click/release pairs that's pointless). */
+        if (a != MA_CLICK)
           return;
-        encstate += 0x20;
-        break;
-      case MA_RELEASE:
-        /* If multiple extensions are enabled, the xterm 1006 is used, so it's
-         * okay to check for only that */
-        if (!term->xterm_extended_mouse)
-          encstate = 0x03;
-        term->mouse_is_down = 0;
-        break;
-      case MA_CLICK:
-        if (term->mouse_is_down == braw)
+      } else
+        switch (a) {
+        case MA_DRAG:
+          if (term->xterm_mouse == 1)
+            return;
+          encstate += 0x20;
+          break;
+        case MA_RELEASE:
+          /* If multiple extensions are enabled, the xterm 1006 is used, so it's
+           * okay to check for only that */
+          if (!term->xterm_extended_mouse)
+            encstate = 0x03;
+          term->mouse_is_down = 0;
+          break;
+        case MA_CLICK:
+          if (term->mouse_is_down == braw)
+            return;
+          term->mouse_is_down = braw;
+          break;
+        default:
           return;
-        term->mouse_is_down = braw;
-        break;
-      default:
-        break; /* placate gcc warning about enum use */
-      }
+        }
       if (shift)
         encstate += 0x04;
       if (ctrl)
@@ -6060,47 +6216,6 @@ void term_nopaste(Terminal *term)
 {
   if (term->paste_len == 0)
     return;
-  sfree(term->paste_buffer);
-  term->paste_buffer = NULL;
-  term->paste_len = 0;
-}
-
-int term_paste_pending(Terminal *term)
-{
-  return term->paste_len != 0;
-}
-
-void term_paste(Terminal *term)
-{
-  long now, paste_diff;
-
-  if (term->paste_len == 0)
-    return;
-
-  /* Don't wait forever to paste */
-  if (term->paste_hold) {
-    now = GETTICKCOUNT();
-    paste_diff = now - term->last_paste;
-    if (paste_diff >= 0 && paste_diff < 450)
-      return;
-  }
-  term->paste_hold = 0;
-
-  while (term->paste_pos < term->paste_len) {
-    int n = 0;
-    while (n + term->paste_pos < term->paste_len) {
-      if (term->paste_buffer[term->paste_pos + n++] == '\015')
-        break;
-    }
-    if (term->ldisc)
-      luni_send(term->ldisc, term->paste_buffer + term->paste_pos, n, 0);
-    term->paste_pos += n;
-
-    if (term->paste_pos < term->paste_len) {
-      term->paste_hold = 1;
-      return;
-    }
-  }
   sfree(term->paste_buffer);
   term->paste_buffer = NULL;
   term->paste_len = 0;
