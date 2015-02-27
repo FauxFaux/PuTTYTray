@@ -14,6 +14,7 @@
 #include "ssh.h"
 #include "misc.h"
 #include "tree234.h"
+#include "winsecur.h"
 
 #include <shellapi.h>
 
@@ -116,19 +117,6 @@ static void unmungestr(char *in, char *out, int outlen)
 static tree234 *rsakeys, *ssh2keys;
 
 static int has_security;
-#ifndef NO_SECURITY
-DECL_WINDOWS_FUNCTION(extern,
-                      DWORD,
-                      GetSecurityInfo,
-                      (HANDLE,
-                       SE_OBJECT_TYPE,
-                       SECURITY_INFORMATION,
-                       PSID *,
-                       PSID *,
-                       PACL *,
-                       PACL *,
-                       PSECURITY_DESCRIPTOR *));
-#endif
 
 /*
  * Forward references
@@ -2110,7 +2098,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     /*
      * Attempt to get the security API we need.
      */
-    if (!init_advapi()) {
+    if (!got_advapi()) {
       MessageBox(NULL,
                  "Unable to access security APIs. Pageant will\n"
                  "not run, in case it causes a security breach.",

@@ -24,9 +24,6 @@ struct FontSpec *fontspec_new(const char *name);
 
 typedef void *Context; /* FIXME: probably needs changing */
 
-typedef int OSSocket;
-#define OSSOCKET_DEFINED /* stop network.h using its default */
-
 extern Backend pty_backend;
 
 typedef uint32_t uint32; /* C99: uint32_t defined in stdint.h */
@@ -180,13 +177,6 @@ int init_ucs(struct unicode_data *ucsdata,
  * Spare function exported directly from uxnet.c.
  */
 void *sk_getxdmdata(void *sock, int *lenp);
-
-/*
- * Function provided by front ends, and called by uxnet.c to indicate
- * that net_pending_errors() would like to be called back when the
- * front end has a spare moment and isn't deep in any other recursion.
- */
-void frontend_net_error_pending(void);
 
 /*
  * General helpful Unix stuff: more helpful version of the FD_SET

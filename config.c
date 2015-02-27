@@ -1123,9 +1123,24 @@ static void portfwd_handler(union control *ctrl,
       for (val = conf_get_str_strs(conf, CONF_portfwd, NULL, &key); val != NULL;
            val = conf_get_str_strs(conf, CONF_portfwd, key, &key)) {
         char *p;
-        if (!strcmp(val, "D"))
-          p = dupprintf("D%s\t", key + 1);
-        else
+        if (!strcmp(val, "D")) {
+          char *L;
+          /*
+           * A dynamic forwarding is stored as L12345=D or
+           * 6L12345=D (since it's mutually exclusive with
+           * L12345=anything else), but displayed as D12345
+           * to match the fiction that 'Local', 'Remote' and
+           * 'Dynamic' are three distinct modes and also to
+           * align with OpenSSH's command line option syntax
+           * that people will already be used to. So, for
+           * display purposes, find the L in the key string
+           * and turn it into a D.
+           */
+          p = dupprintf("%s\t", key);
+          L = strchr(p, 'L');
+          if (L)
+            *L = 'D';
+        } else
           p = dupprintf("%s\t%s", key, val);
         dlg_listbox_add(ctrl, dlg, p);
         sfree(p);
@@ -1153,8 +1168,8 @@ static void portfwd_handler(union control *ctrl,
       else if (whichbutton == 2)
         family = "6";
       else
-        family = "";
 #endif
+        family = "";
 
       whichbutton = dlg_radiobutton_get(pfd->direction, dlg);
       if (whichbutton == 0)
@@ -1172,7 +1187,7 @@ static void portfwd_handler(union control *ctrl,
       }
       if (*type != 'D') {
         val = dlg_editbox_get(pfd->destbox, dlg);
-        if (!*val || !strchr(val, ':')) {
+        if (!*val || !host_strchr(val, ':')) {
           dlg_error_msg(dlg,
                         "You need to specify a destination address\n"
                         "in the form \"host.name:port\"");
@@ -1250,6 +1265,73 @@ static void portfwd_handler(union control *ctrl,
   }
 }
 
+struct manual_hostkey_data {
+  union control *addbutton, *rembutton, *listbox, *keybox;
+};
+
+static void manual_hostkey_handler(union control *ctrl,
+                                   void *dlg,
+                                   void *data,
+                                   int event)
+{
+  Conf *conf = (Conf *)data;
+  struct manual_hostkey_data *mh =
+      (struct manual_hostkey_data *)ctrl->generic.context.p;
+
+  if (event == EVENT_REFRESH) {
+    if (ctrl == mh->listbox) {
+      char *key, *val;
+      dlg_update_start(ctrl, dlg);
+      dlg_listbox_clear(ctrl, dlg);
+      for (val = conf_get_str_strs(conf, CONF_ssh_manual_hostkeys, NULL, &key);
+           val != NULL;
+           val = conf_get_str_strs(conf, CONF_ssh_manual_hostkeys, key, &key)) {
+        dlg_listbox_add(ctrl, dlg, key);
+      }
+      dlg_update_done(ctrl, dlg);
+    }
+  } else if (event == EVENT_ACTION) {
+    if (ctrl == mh->addbutton) {
+      char *key;
+
+      key = dlg_editbox_get(mh->keybox, dlg);
+      if (!*key) {
+        dlg_error_msg(dlg,
+                      "You need to specify a host key or "
+                      "fingerprint");
+        sfree(key);
+        return;
+      }
+
+      if (!validate_manual_hostkey(key)) {
+        dlg_error_msg(dlg, "Host key is not in a valid format");
+      } else if (conf_get_str_str_opt(conf, CONF_ssh_manual_hostkeys, key)) {
+        dlg_error_msg(dlg, "Specified host key is already listed");
+      } else {
+        conf_set_str_str(conf, CONF_ssh_manual_hostkeys, key, "");
+      }
+
+      sfree(key);
+      dlg_refresh(mh->listbox, dlg);
+    } else if (ctrl == mh->rembutton) {
+      int i = dlg_listbox_index(mh->listbox, dlg);
+      if (i < 0) {
+        dlg_beep(dlg);
+      } else {
+        char *key;
+
+        key = conf_get_str_nthstrkey(conf, CONF_ssh_manual_hostkeys, i);
+        if (key) {
+          dlg_editbox_set(mh->keybox, dlg, key);
+          /* And delete it */
+          conf_del_str_str(conf, CONF_ssh_manual_hostkeys, key);
+        }
+      }
+      dlg_refresh(mh->listbox, dlg);
+    }
+  }
+}
+
 void setup_config_box(struct controlbox *b,
                       int midsession,
                       int protocol,
@@ -1262,6 +1344,7 @@ void setup_config_box(struct controlbox *b,
   struct ttymodes_data *td;
   struct environ_data *ed;
   struct portfwd_data *pfd;
+  struct manual_hostkey_data *mh;
   union control *c;
   char *str;
 
@@ -2567,7 +2650,8 @@ void setup_config_box(struct controlbox *b,
      */
     ctrl_settitle(b, "Connection/SSH", "Options controlling SSH connections");
 
-    if (midsession && protcfginfo == 1) {
+    /* SSH-1 or connection-sharing downstream */
+    if (midsession && (protcfginfo == 1 || protcfginfo == -1)) {
       s = ctrl_getset(b, "Connection/SSH", "disclaimer", NULL);
       ctrl_text(s,
                 "Nothing on this panel may be reconfigured in mid-"
@@ -2598,7 +2682,7 @@ void setup_config_box(struct controlbox *b,
                     I(CONF_ssh_no_shell));
     }
 
-    if (!midsession || protcfginfo != 1) {
+    if (!midsession || !(protcfginfo == 1 || protcfginfo == -1)) {
       s = ctrl_getset(b, "Connection/SSH", "protocol", "Protocol options");
 
       ctrl_checkbox(s,
@@ -2607,6 +2691,35 @@ void setup_config_box(struct controlbox *b,
                     HELPCTX(ssh_compress),
                     conf_checkbox_handler,
                     I(CONF_compression));
+    }
+
+    if (!midsession) {
+      s = ctrl_getset(b,
+                      "Connection/SSH",
+                      "sharing",
+                      "Sharing an SSH connection between PuTTY tools");
+
+      ctrl_checkbox(s,
+                    "Share SSH connections if possible",
+                    's',
+                    HELPCTX(ssh_share),
+                    conf_checkbox_handler,
+                    I(CONF_ssh_connection_sharing));
+
+      ctrl_text(
+          s, "Permitted roles in a shared connection:", HELPCTX(ssh_share));
+      ctrl_checkbox(s,
+                    "Upstream (connecting to the real server)",
+                    'u',
+                    HELPCTX(ssh_share),
+                    conf_checkbox_handler,
+                    I(CONF_ssh_connection_sharing_upstream));
+      ctrl_checkbox(s,
+                    "Downstream (connecting to the upstream PuTTY)",
+                    'd',
+                    HELPCTX(ssh_share),
+                    conf_checkbox_handler,
+                    I(CONF_ssh_connection_sharing_downstream));
     }
 
     if (!midsession) {
@@ -2634,30 +2747,13 @@ void setup_config_box(struct controlbox *b,
                         NULL);
     }
 
-    if (!midsession || protcfginfo != 1) {
-      s = ctrl_getset(b, "Connection/SSH", "encryption", "Encryption options");
-      c = ctrl_draglist(s,
-                        "Encryption cipher selection policy:",
-                        's',
-                        HELPCTX(ssh_ciphers),
-                        cipherlist_handler,
-                        P(NULL));
-      c->listbox.height = 6;
-
-      ctrl_checkbox(s,
-                    "Enable legacy use of single-DES in SSH-2",
-                    'i',
-                    HELPCTX(ssh_ciphers),
-                    conf_checkbox_handler,
-                    I(CONF_ssh2_des_cbc));
-    }
-
     /*
      * The Connection/SSH/Kex panel. (Owing to repeat key
-     * exchange, this is all meaningful in mid-session _if_
-     * we're using SSH-2 or haven't decided yet.)
+     * exchange, much of this is meaningful in mid-session _if_
+     * we're using SSH-2 and are not a connection-sharing
+     * downstream, or haven't decided yet.)
      */
-    if (protcfginfo != 1) {
+    if (protcfginfo != 1 && protcfginfo != -1) {
       ctrl_settitle(
           b, "Connection/SSH/Kex", "Options controlling SSH key exchange");
 
@@ -2695,6 +2791,91 @@ void setup_config_box(struct controlbox *b,
       ctrl_text(s,
                 "(Use 1M for 1 megabyte, 1G for 1 gigabyte etc)",
                 HELPCTX(ssh_kex_repeat));
+    }
+
+    /*
+     * Manual host key configuration is irrelevant mid-session,
+     * as we enforce that the host key for rekeys is the
+     * same as that used at the start of the session.
+     */
+    if (!midsession) {
+      s = ctrl_getset(b,
+                      "Connection/SSH/Kex",
+                      "hostkeys",
+                      "Manually configure host keys for this connection");
+
+      ctrl_columns(s, 2, 75, 25);
+      c = ctrl_text(s,
+                    "Host keys or fingerprints to accept:",
+                    HELPCTX(ssh_kex_manual_hostkeys));
+      c->generic.column = 0;
+      /* You want to select from the list, _then_ hit Remove. So
+       * tab order should be that way round. */
+      mh = (struct manual_hostkey_data *)ctrl_alloc(
+          b, sizeof(struct manual_hostkey_data));
+      mh->rembutton = ctrl_pushbutton(s,
+                                      "Remove",
+                                      'r',
+                                      HELPCTX(ssh_kex_manual_hostkeys),
+                                      manual_hostkey_handler,
+                                      P(mh));
+      mh->rembutton->generic.column = 1;
+      mh->rembutton->generic.tabdelay = 1;
+      mh->listbox = ctrl_listbox(s,
+                                 NULL,
+                                 NO_SHORTCUT,
+                                 HELPCTX(ssh_kex_manual_hostkeys),
+                                 manual_hostkey_handler,
+                                 P(mh));
+      /* This list box can't be very tall, because there's not
+       * much room in the pane on Windows at least. This makes
+       * it become really unhelpful if a horizontal scrollbar
+       * appears, so we suppress that. */
+      mh->listbox->listbox.height = 2;
+      mh->listbox->listbox.hscroll = FALSE;
+      ctrl_tabdelay(s, mh->rembutton);
+      mh->keybox = ctrl_editbox(s,
+                                "Key",
+                                'k',
+                                80,
+                                HELPCTX(ssh_kex_manual_hostkeys),
+                                manual_hostkey_handler,
+                                P(mh),
+                                P(NULL));
+      mh->keybox->generic.column = 0;
+      mh->addbutton = ctrl_pushbutton(s,
+                                      "Add key",
+                                      'y',
+                                      HELPCTX(ssh_kex_manual_hostkeys),
+                                      manual_hostkey_handler,
+                                      P(mh));
+      mh->addbutton->generic.column = 1;
+      ctrl_columns(s, 1, 100);
+    }
+
+    if (!midsession || !(protcfginfo == 1 || protcfginfo == -1)) {
+      /*
+       * The Connection/SSH/Cipher panel.
+       */
+      ctrl_settitle(
+          b, "Connection/SSH/Cipher", "Options controlling SSH encryption");
+
+      s = ctrl_getset(
+          b, "Connection/SSH/Cipher", "encryption", "Encryption options");
+      c = ctrl_draglist(s,
+                        "Encryption cipher selection policy:",
+                        's',
+                        HELPCTX(ssh_ciphers),
+                        cipherlist_handler,
+                        P(NULL));
+      c->listbox.height = 6;
+
+      ctrl_checkbox(s,
+                    "Enable legacy use of single-DES in SSH-2",
+                    'i',
+                    HELPCTX(ssh_ciphers),
+                    conf_checkbox_handler,
+                    I(CONF_ssh2_des_cbc));
     }
 
     if (!midsession) {
@@ -3140,6 +3321,13 @@ void setup_config_box(struct controlbox *b,
                     HELPCTX(ssh_bugs_maxpkt2),
                     sshbug_handler,
                     I(CONF_sshbug_maxpkt2));
+      ctrl_droplist(s,
+                    "Replies to requests on closed channels",
+                    'q',
+                    20,
+                    HELPCTX(ssh_bugs_chanreq),
+                    sshbug_handler,
+                    I(CONF_sshbug_chanreq));
     }
   }
 }

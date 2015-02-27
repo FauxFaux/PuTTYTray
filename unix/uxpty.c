@@ -945,7 +945,7 @@ static const char *pty_init(void *frontend,
 
   *backend_handle = pty;
 
-  *realhost = dupprintf("\0");
+  *realhost = dupstr("");
 
   return NULL;
 }
