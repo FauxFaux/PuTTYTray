@@ -13,11 +13,13 @@
   <ItemGroup>
     <ClCompile Include="..\..\..\adb.c" />
     <ClCompile Include="..\..\..\be_all_s.c" />
+    <ClCompile Include="..\..\..\callback.c" />
     <ClCompile Include="..\..\..\cmdline.c" />
     <ClCompile Include="..\..\..\conf.c" />
     <ClCompile Include="..\..\..\config.c" />
     <ClCompile Include="..\..\..\cproxy.c" />
     <ClCompile Include="..\..\..\dialog.c" />
+    <ClCompile Include="..\..\..\errsock.c" />
     <ClCompile Include="..\..\..\import.c" />
     <ClCompile Include="..\..\..\ldisc.c" />
     <ClCompile Include="..\..\..\ldiscucs.c" />
@@ -45,6 +47,8 @@
     <ClCompile Include="..\..\..\sshdh.c" />
     <ClCompile Include="..\..\..\sshdss.c" />
     <ClCompile Include="..\..\..\sshdssg.c" />
+    <ClCompile Include="..\..\..\sshecc.c" />
+    <ClCompile Include="..\..\..\sshecdsag.c" />
     <ClCompile Include="..\..\..\sshgssc.c" />
     <ClCompile Include="..\..\..\sshmd5.c" />
     <ClCompile Include="..\..\..\sshprime.c" />
@@ -55,6 +59,9 @@
     <ClCompile Include="..\..\..\sshsh256.c" />
     <ClCompile Include="..\..\..\sshsh512.c" />
     <ClCompile Include="..\..\..\sshsha.c" />
+    <ClCompile Include="..\..\..\sshshare.c">
+      <DebugInformationFormat Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
     <ClCompile Include="..\..\..\sshzlib.c" />
     <ClCompile Include="..\..\..\telnet.c" />
     <ClCompile Include="..\..\..\terminal.c" />
@@ -95,6 +102,11 @@
     <ClCompile Include="..\..\..\windows\winutils.c" />
     <ClCompile Include="..\..\..\windows\winx11.c" />
     <ClCompile Include="..\..\..\x11fwd.c" />
+    <ClCompile Include="..\..\winhsock.c" />
+    <ClCompile Include="..\..\winnpc.c" />
+    <ClCompile Include="..\..\winnps.c" />
+    <ClCompile Include="..\..\winsecur.c" />
+    <ClCompile Include="..\..\winshare.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\charset\charset.h" />

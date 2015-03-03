@@ -6,7 +6,7 @@
  * welcome.
  */
 
-#include "version.h"
+#include "../version.h"
 
 /*
  * The actual VERSIONINFO resource.
