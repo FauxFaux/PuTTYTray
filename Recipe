@@ -14,7 +14,6 @@
 # Locations and types of output Makefiles.
 !makefile vc windows/Makefile.vc
 !makefile vcproj windows/MSVC
-!makefile vcproj2010 windows/MSVC2010
 !makefile cygwin windows/Makefile.cyg
 !makefile borland windows/Makefile.bor
 !makefile lcc windows/Makefile.lcc

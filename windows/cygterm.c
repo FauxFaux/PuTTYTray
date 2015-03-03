@@ -116,11 +116,11 @@ static void
 cygterm_size(void *handle, int width, int height);
 
 static int
-cygterm_accepting(Plug plug, OSSocket sock)
+cygterm_accepting(Plug plug, accept_fn_t constructor, accept_ctx_t ctx)
 {
 	Local local = (Local)plug;
 	cygterm_debug("top");
-	local->s = sk_register(sock, plug);
+	local->s = constructor(ctx, (Plug)local);
 	sk_set_frozen(local->s, 0);
 	/* Reset terminal size */
 	cygterm_size(local, conf_get_int(local->conf, CONF_width), conf_get_int(local->conf, CONF_height));

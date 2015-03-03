@@ -1389,7 +1389,7 @@ void connection_fatal(void *frontend, char *fmt, ...)
     va_end(ap);
 
     if (conf_get_int(conf, CONF_failure_reconnect)) {
-        close_session();
+        close_session(NULL);
         // write the error to the terminal itself
         // someone's probably going to complain about this
         term_data(term, TRUE, stuff, strlen(stuff));
@@ -2476,7 +2476,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    break;
 	  case IDM_RESTART:
 	    if (back) {
-                close_session();
+                close_session(NULL);
             }
             logevent(NULL, "----- Session restarted -----");
             term_pwron(term, FALSE);
@@ -3670,7 +3670,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	      case PBT_APMSUSPEND:
 	        if(!session_closed && back) {
 	            logevent(NULL, "Suspend detected, disconnecting cleanly...");
-	            close_session();
+	            close_session(NULL);
 	        }
 	        break;
 	    }
