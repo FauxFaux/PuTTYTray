@@ -1258,8 +1258,8 @@ if (defined $makefiles{'vstudio10'} || defined $makefiles{'vstudio12'}) {
             $resource_file =~ s/..\\windows\\//;
             print
                 "    <ResourceCompile Include=\"..\\..\\$resource_file\">\n" .
-                "      <AdditionalIncludeDirectories Condition=\"'\$(Configuration)|\$(Platform)'=='Release|Win32'\">..\\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>\n" .
-                "      <AdditionalIncludeDirectories Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|Win32'\">..\\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>\n" .
+                "      <AdditionalIncludeDirectories Condition=\"'\$(Configuration)|\$(Platform)'=='Release|Win32'\">..\\..;..\\..\\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>\n" .
+                "      <AdditionalIncludeDirectories Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|Win32'\">..\\..;..\\..\\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>\n" .
                 "    </ResourceCompile>\n";
             print FILTERS
                 "    <ResourceCompile Include=\"..\\..\\$resource_file\">\n" .
