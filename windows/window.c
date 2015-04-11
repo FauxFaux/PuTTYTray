@@ -339,18 +339,14 @@ static void start_backend(void)
 		       conf_get_int(conf, CONF_tcp_nodelay),
 		       conf_get_int(conf, CONF_tcp_keepalives));
     back->provide_logctx(backhandle, logctx);
-
-    // there used to be an exit(error) here.  It is gone.
-    // The rest of this code is run just so we can reach
-    // connection_fatal and hope that nothing is too broken.
-    // Hack some things that aren't happy.  Why, why.
-    if (!realhost)
-        realhost = _strdup("");
-
-    if (PROT_SSH != conf_get_int(conf, CONF_protocol)) {
-        fatalbox("%s", error);
+    if (error) {
+	char *str = dupprintf("%s Error", appname);
+	sprintf(msg, "Unable to open connection to\n"
+		"%.800s\n" "%s", conf_dest(conf), error);
+	MessageBox(NULL, msg, str, MB_ICONERROR | MB_OK);
+	sfree(str);
+	exit(0);
     }
-
     window_name = icon_name = NULL;
     title = conf_get_str(conf, CONF_wintitle);
     if (!*title) {
@@ -380,17 +376,9 @@ static void start_backend(void)
      */
     for (i = 0; i < lenof(popup_menus); i++) {
 	DeleteMenu(popup_menus[i].menu, IDM_RESTART, MF_BYCOMMAND);
-        InsertMenu(popup_menus[i].menu, IDM_DUPSESS, MF_BYCOMMAND | MF_ENABLED,
-	    IDM_RESTART, "&Restart Session");
     }
 
     session_closed = FALSE;
-
-    if (error) {
-        connection_fatal(term, "Unable to open connection to\r\n"
-		"%.800s\r\n" "%s", conf_dest(conf), error);
-    }
-
 }
 
 static void close_session(void *ignored_context)
