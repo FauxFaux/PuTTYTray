@@ -2395,7 +2395,7 @@ void do_sftp_cleanup()
   }
 }
 
-void do_sftp(int mode, int modeflags, char *batchfile)
+int do_sftp(int mode, int modeflags, char *batchfile)
 {
   FILE *fp;
   int ret;
@@ -2428,8 +2428,9 @@ void do_sftp(int mode, int modeflags, char *batchfile)
     fp = fopen(batchfile, "r");
     if (!fp) {
       printf("Fatal: unable to open %s\n", batchfile);
-      return;
+      return 1;
     }
+    ret = 0;
     while (1) {
       struct sftp_command *cmd;
       cmd = sftp_getcmd(fp, mode, modeflags);
@@ -2444,7 +2445,14 @@ void do_sftp(int mode, int modeflags, char *batchfile)
       }
     }
     fclose(fp);
+    /*
+     * In batch mode, and if exit on command failure is enabled,
+     * any command failure causes the whole of PSFTP to fail.
+     */
+    if (ret == 0 && !(modeflags & 2))
+      return 2;
   }
+  return 0;
 }
 
 /* ----------------------------------------------------------------------
@@ -2905,7 +2913,7 @@ const int share_can_be_upstream = FALSE;
  */
 int psftp_main(int argc, char *argv[])
 {
-  int i;
+  int i, ret;
   int portnumber = 0;
   char *userhost, *user;
   int mode = 0;
@@ -3001,7 +3009,7 @@ int psftp_main(int argc, char *argv[])
            " to connect\n");
   }
 
-  do_sftp(mode, modeflags, batchfile);
+  ret = do_sftp(mode, modeflags, batchfile);
 
   if (back != NULL && back->connected(backhandle)) {
     char ch;
@@ -3015,5 +3023,5 @@ int psftp_main(int argc, char *argv[])
   console_provide_logctx(NULL);
   sk_cleanup();
 
-  return 0;
+  return ret;
 }

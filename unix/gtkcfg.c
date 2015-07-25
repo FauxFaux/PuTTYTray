@@ -83,6 +83,7 @@ void gtk_setup_config_box(struct controlbox *b, int midsession, void *win)
               b->ctrlsets + i + 1,
               (b->nctrlsets - i - 1) * sizeof(*b->ctrlsets));
       b->nctrlsets--;
+      ctrl_free_set(s2);
       break;
     }
   }

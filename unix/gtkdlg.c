@@ -37,8 +37,6 @@ struct Shortcuts {
 struct uctrl {
   union control *ctrl;
   GtkWidget *toplevel;
-  void *privdata;
-  int privdata_needs_free;
   GtkWidget **buttons;
   int nbuttons;      /* for radio buttons */
   GtkWidget *entry;  /* for editbox, filesel, fontsel */
@@ -199,8 +197,6 @@ static void dlg_cleanup(struct dlgparam *dp)
   dp->byctrl = NULL;
   while ((uc = index234(dp->bywidget, 0)) != NULL) {
     del234(dp->bywidget, uc);
-    if (uc->privdata_needs_free)
-      sfree(uc->privdata);
     sfree(uc->buttons);
     sfree(uc);
   }
@@ -236,34 +232,6 @@ static struct uctrl *dlg_find_bywidget(struct dlgparam *dp, GtkWidget *w)
     w = w->parent;
   } while (w);
   return ret;
-}
-
-void *dlg_get_privdata(union control *ctrl, void *dlg)
-{
-  struct dlgparam *dp = (struct dlgparam *)dlg;
-  struct uctrl *uc = dlg_find_byctrl(dp, ctrl);
-  return uc->privdata;
-}
-
-void dlg_set_privdata(union control *ctrl, void *dlg, void *ptr)
-{
-  struct dlgparam *dp = (struct dlgparam *)dlg;
-  struct uctrl *uc = dlg_find_byctrl(dp, ctrl);
-  uc->privdata = ptr;
-  uc->privdata_needs_free = FALSE;
-}
-
-void *dlg_alloc_privdata(union control *ctrl, void *dlg, size_t size)
-{
-  struct dlgparam *dp = (struct dlgparam *)dlg;
-  struct uctrl *uc = dlg_find_byctrl(dp, ctrl);
-  /*
-   * This is an internal allocation routine, so it's allowed to
-   * use smalloc directly.
-   */
-  uc->privdata = smalloc(size);
-  uc->privdata_needs_free = FALSE;
-  return uc->privdata;
 }
 
 union control *dlg_last_focused(union control *ctrl, void *dlg)
@@ -1892,8 +1860,6 @@ GtkWidget *layout_ctrls(struct dlgparam *dp,
 
     uc = snew(struct uctrl);
     uc->ctrl = ctrl;
-    uc->privdata = NULL;
-    uc->privdata_needs_free = FALSE;
     uc->buttons = NULL;
     uc->entry = NULL;
 #if !GTK_CHECK_VERSION(2, 4, 0)

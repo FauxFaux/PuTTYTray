@@ -255,7 +255,9 @@ Socket platform_new_connection(SockAddr addr,
       sk_localproxy_write_eof,
       sk_localproxy_flush,
       sk_localproxy_set_frozen,
-      sk_localproxy_socket_error};
+      sk_localproxy_socket_error,
+      NULL, /* peer_info */
+  };
 
   Local_Proxy_Socket ret;
   int to_cmd_pipe[2], from_cmd_pipe[2], pid;
