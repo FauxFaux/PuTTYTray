@@ -166,6 +166,10 @@ DECL_WINDOWS_FUNCTION(static,
 DECL_WINDOWS_FUNCTION(static, unsigned long, inet_addr, (const char FAR *));
 DECL_WINDOWS_FUNCTION(static, char FAR *, inet_ntoa, (struct in_addr));
 DECL_WINDOWS_FUNCTION(static,
+                      const char FAR *,
+                      inet_ntop,
+                      (int, void FAR *, char *, size_t));
+DECL_WINDOWS_FUNCTION(static,
                       int,
                       connect,
                       (SOCKET, const struct sockaddr FAR *, int));
@@ -185,6 +189,10 @@ DECL_WINDOWS_FUNCTION(static, int, ioctlsocket, (SOCKET, long, u_long FAR *));
 DECL_WINDOWS_FUNCTION(static,
                       SOCKET,
                       accept,
+                      (SOCKET, struct sockaddr FAR *, int FAR *));
+DECL_WINDOWS_FUNCTION(static,
+                      int,
+                      getpeername,
                       (SOCKET, struct sockaddr FAR *, int FAR *));
 DECL_WINDOWS_FUNCTION(static, int, recv, (SOCKET, char FAR *, int, int));
 DECL_WINDOWS_FUNCTION(static,
@@ -319,6 +327,7 @@ void sk_init(void)
   GET_WINDOWS_FUNCTION(winsock_module, getservbyname);
   GET_WINDOWS_FUNCTION(winsock_module, inet_addr);
   GET_WINDOWS_FUNCTION(winsock_module, inet_ntoa);
+  GET_WINDOWS_FUNCTION(winsock_module, inet_ntop);
   GET_WINDOWS_FUNCTION(winsock_module, connect);
   GET_WINDOWS_FUNCTION(winsock_module, bind);
   GET_WINDOWS_FUNCTION(winsock_module, setsockopt);
@@ -328,6 +337,7 @@ void sk_init(void)
   GET_WINDOWS_FUNCTION(winsock_module, shutdown);
   GET_WINDOWS_FUNCTION(winsock_module, ioctlsocket);
   GET_WINDOWS_FUNCTION(winsock_module, accept);
+  GET_WINDOWS_FUNCTION(winsock_module, getpeername);
   GET_WINDOWS_FUNCTION(winsock_module, recv);
   GET_WINDOWS_FUNCTION(winsock_module, WSAIoctl);
 
@@ -910,19 +920,23 @@ static int sk_tcp_write_oob(Socket s, const char *data, int len);
 static void sk_tcp_write_eof(Socket s);
 static void sk_tcp_set_frozen(Socket s, int is_frozen);
 static const char *sk_tcp_socket_error(Socket s);
+static char *sk_tcp_peer_info(Socket s);
 
 extern char *do_select(SOCKET skt, int startup);
 
 static Socket sk_tcp_accept(accept_ctx_t ctx, Plug plug)
 {
-  static const struct socket_function_table fn_table = {sk_tcp_plug,
-                                                        sk_tcp_close,
-                                                        sk_tcp_write,
-                                                        sk_tcp_write_oob,
-                                                        sk_tcp_write_eof,
-                                                        sk_tcp_flush,
-                                                        sk_tcp_set_frozen,
-                                                        sk_tcp_socket_error};
+  static const struct socket_function_table fn_table = {
+      sk_tcp_plug,
+      sk_tcp_close,
+      sk_tcp_write,
+      sk_tcp_write_oob,
+      sk_tcp_write_eof,
+      sk_tcp_flush,
+      sk_tcp_set_frozen,
+      sk_tcp_socket_error,
+      sk_tcp_peer_info,
+  };
 
   DWORD err;
   char *errstr;
@@ -1167,14 +1181,17 @@ Socket sk_new(SockAddr addr,
               int keepalive,
               Plug plug)
 {
-  static const struct socket_function_table fn_table = {sk_tcp_plug,
-                                                        sk_tcp_close,
-                                                        sk_tcp_write,
-                                                        sk_tcp_write_oob,
-                                                        sk_tcp_write_eof,
-                                                        sk_tcp_flush,
-                                                        sk_tcp_set_frozen,
-                                                        sk_tcp_socket_error};
+  static const struct socket_function_table fn_table = {
+      sk_tcp_plug,
+      sk_tcp_close,
+      sk_tcp_write,
+      sk_tcp_write_oob,
+      sk_tcp_write_eof,
+      sk_tcp_flush,
+      sk_tcp_set_frozen,
+      sk_tcp_socket_error,
+      sk_tcp_peer_info,
+  };
 
   Actual_Socket ret;
   DWORD err;
@@ -1219,14 +1236,17 @@ Socket sk_newlistener(char *srcaddr,
                       int local_host_only,
                       int orig_address_family)
 {
-  static const struct socket_function_table fn_table = {sk_tcp_plug,
-                                                        sk_tcp_close,
-                                                        sk_tcp_write,
-                                                        sk_tcp_write_oob,
-                                                        sk_tcp_write_eof,
-                                                        sk_tcp_flush,
-                                                        sk_tcp_set_frozen,
-                                                        sk_tcp_socket_error};
+  static const struct socket_function_table fn_table = {
+      sk_tcp_plug,
+      sk_tcp_close,
+      sk_tcp_write,
+      sk_tcp_write_oob,
+      sk_tcp_write_eof,
+      sk_tcp_flush,
+      sk_tcp_set_frozen,
+      sk_tcp_socket_error,
+      sk_tcp_peer_info,
+  };
 
   SOCKET s;
 #ifndef NO_IPV6
@@ -1785,6 +1805,38 @@ static const char *sk_tcp_socket_error(Socket sock)
 {
   Actual_Socket s = (Actual_Socket)sock;
   return s->error;
+}
+
+static char *sk_tcp_peer_info(Socket sock)
+{
+  Actual_Socket s = (Actual_Socket)sock;
+#ifdef NO_IPV6
+  struct sockaddr_in addr;
+#else
+  struct sockaddr_storage addr;
+#endif
+  int addrlen = sizeof(addr);
+  char buf[INET6_ADDRSTRLEN];
+
+  if (p_getpeername(s->s, (struct sockaddr *)&addr, &addrlen) < 0)
+    return NULL;
+
+  if (((struct sockaddr *)&addr)->sa_family == AF_INET) {
+    return dupprintf("%s:%d",
+                     p_inet_ntoa(((struct sockaddr_in *)&addr)->sin_addr),
+                     (int)p_ntohs(((struct sockaddr_in *)&addr)->sin_port));
+#ifndef NO_IPV6
+  } else if (((struct sockaddr *)&addr)->sa_family == AF_INET6) {
+    return dupprintf("[%s]:%d",
+                     p_inet_ntop(AF_INET6,
+                                 &((struct sockaddr_in6 *)&addr)->sin6_addr,
+                                 buf,
+                                 sizeof(buf)),
+                     (int)p_ntohs(((struct sockaddr_in6 *)&addr)->sin6_port));
+#endif
+  } else {
+    return NULL;
+  }
 }
 
 static void sk_tcp_set_frozen(Socket sock, int is_frozen)

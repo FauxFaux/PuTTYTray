@@ -727,6 +727,8 @@ void save_open_settings(void *sesskey, Conf *conf)
   write_setting_i(
       sesskey, "BugMaxPkt2", 2 - conf_get_int(conf, CONF_sshbug_maxpkt2));
   write_setting_i(
+      sesskey, "BugOldGex2", 2 - conf_get_int(conf, CONF_sshbug_oldgex2));
+  write_setting_i(
       sesskey, "BugWinadj", 2 - conf_get_int(conf, CONF_sshbug_winadj));
   write_setting_i(
       sesskey, "BugChanReq", 2 - conf_get_int(conf, CONF_sshbug_chanreq));
@@ -1128,6 +1130,8 @@ void load_open_settings(void *sesskey, Conf *conf)
   conf_set_int(conf, CONF_sshbug_rekey2, 2 - i);
   i = gppi_raw(sesskey, "BugMaxPkt2", 0);
   conf_set_int(conf, CONF_sshbug_maxpkt2, 2 - i);
+  i = gppi_raw(sesskey, "BugOldGex2", 0);
+  conf_set_int(conf, CONF_sshbug_oldgex2, 2 - i);
   i = gppi_raw(sesskey, "BugWinadj", 0);
   conf_set_int(conf, CONF_sshbug_winadj, 2 - i);
   i = gppi_raw(sesskey, "BugChanReq", 0);
