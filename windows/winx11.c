@@ -11,9 +11,9 @@
 
 void platform_get_x11_auth(struct X11Display *disp, Conf *conf)
 {
-    char *xauthpath = conf_get_filename(conf, CONF_xauthfile)->path;
-    if (xauthpath[0])
-	x11_get_auth_from_authfile(disp, xauthpath);
+  char *xauthpath = conf_get_filename(conf, CONF_xauthfile)->path;
+  if (xauthpath[0])
+    x11_get_auth_from_authfile(disp, xauthpath);
 }
 
 const int platform_uses_x11_unix_by_default = FALSE;

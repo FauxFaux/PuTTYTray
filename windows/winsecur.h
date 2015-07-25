@@ -15,28 +15,46 @@
 /*
  * Functions loaded from advapi32.dll.
  */
-DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL, BOOL, OpenProcessToken,
-		      (HANDLE, DWORD, PHANDLE));
-DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL, BOOL, GetTokenInformation,
-		      (HANDLE, TOKEN_INFORMATION_CLASS,
-                       LPVOID, DWORD, PDWORD));
-DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL, BOOL, InitializeSecurityDescriptor,
-		      (PSECURITY_DESCRIPTOR, DWORD));
-DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL, BOOL, SetSecurityDescriptorOwner,
-		      (PSECURITY_DESCRIPTOR, PSID, BOOL));
-DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL, DWORD, GetSecurityInfo,
-		      (HANDLE, SE_OBJECT_TYPE, SECURITY_INFORMATION,
-		       PSID *, PSID *, PACL *, PACL *,
-		       PSECURITY_DESCRIPTOR *));
-DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL, DWORD, SetEntriesInAclA,
-		      (ULONG, PEXPLICIT_ACCESS, PACL, PACL *));
+DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL,
+                      BOOL,
+                      OpenProcessToken,
+                      (HANDLE, DWORD, PHANDLE));
+DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL,
+                      BOOL,
+                      GetTokenInformation,
+                      (HANDLE, TOKEN_INFORMATION_CLASS, LPVOID, DWORD, PDWORD));
+DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL,
+                      BOOL,
+                      InitializeSecurityDescriptor,
+                      (PSECURITY_DESCRIPTOR, DWORD));
+DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL,
+                      BOOL,
+                      SetSecurityDescriptorOwner,
+                      (PSECURITY_DESCRIPTOR, PSID, BOOL));
+DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL,
+                      DWORD,
+                      GetSecurityInfo,
+                      (HANDLE,
+                       SE_OBJECT_TYPE,
+                       SECURITY_INFORMATION,
+                       PSID *,
+                       PSID *,
+                       PACL *,
+                       PACL *,
+                       PSECURITY_DESCRIPTOR *));
+DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL,
+                      DWORD,
+                      SetEntriesInAclA,
+                      (ULONG, PEXPLICIT_ACCESS, PACL, PACL *));
 int got_advapi(void);
 
 /*
  * Functions loaded from crypt32.dll.
  */
-DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL, BOOL, CryptProtectMemory,
-		      (LPVOID, DWORD, DWORD));
+DECL_WINDOWS_FUNCTION(WINSECUR_GLOBAL,
+                      BOOL,
+                      CryptProtectMemory,
+                      (LPVOID, DWORD, DWORD));
 int got_crypt(void);
 
 /*
