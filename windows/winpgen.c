@@ -287,8 +287,6 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg,
     return 0;
 }
 
-typedef enum {RSA, DSA, ECDSA} keytype;
-
 /*
  * Thread to generate a key.
  */
@@ -296,11 +294,9 @@ struct rsa_key_thread_params {
     HWND progressbar;		       /* notify this with progress */
     HWND dialog;		       /* notify this on completion */
     int keysize;		       /* bits in key */
-    keytype keytype;
-    union {
-        struct RSAKey *key;
-        struct dss_key *dsskey;
-    };
+    int is_dsa;
+    struct RSAKey *key;
+    struct dss_key *dsskey;
 };
 static DWORD WINAPI generate_rsa_key_thread(void *param)
 {
@@ -311,7 +307,7 @@ static DWORD WINAPI generate_rsa_key_thread(void *param)
 
     progress_update(&prog, PROGFN_INITIALISE, 0, 0);
 
-    if (params->keytype == DSA)
+    if (params->is_dsa)
 	dsa_generate(params->dsskey, params->keysize, progress_update, &prog);
     else
 	rsa_generate(params->key, params->keysize, progress_update, &prog);
@@ -328,15 +324,12 @@ struct MainDlgState {
     int key_exists;
     int entropy_got, entropy_required, entropy_size;
     int keysize;
-    int ssh2;
-    keytype keytype;
+    int ssh2, is_dsa;
     char **commentptr;		       /* points to key.comment or ssh2key.comment */
     struct ssh2_userkey ssh2key;
     unsigned *entropy;
-    union {
-        struct RSAKey key;
-        struct dss_key dsskey;
-    };
+    struct RSAKey key;
+    struct dss_key dsskey;
     HMENU filemenu, keymenu, cvtmenu;
 };
 
@@ -932,7 +925,7 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 		params->progressbar = GetDlgItem(hwnd, IDC_PROGRESS);
 		params->dialog = hwnd;
 		params->keysize = state->keysize;
-                params->keytype = state->keytype;
+		params->is_dsa = state->is_dsa;
 		params->key = &state->key;
 		params->dsskey = &state->dsskey;
 
@@ -1012,10 +1005,7 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 		    state->keysize = DEFAULT_KEYSIZE;
 		/* If we ever introduce a new key type, check it here! */
 		state->ssh2 = !IsDlgButtonChecked(hwnd, IDC_KEYSSH1);
-                state->keytype = RSA;
-                if (IsDlgButtonChecked(hwnd, IDC_KEYSSH2DSA)) {
-                    state->keytype = DSA;
-                }
+		state->is_dsa = IsDlgButtonChecked(hwnd, IDC_KEYSSH2DSA);
 		if (state->keysize < 256) {
 		    int ret = MessageBox(hwnd,
 					 "PuTTYgen will not generate a key"
@@ -1269,7 +1259,7 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 			   MAKELPARAM(0, PROGRESSRANGE));
 	SendDlgItemMessage(hwnd, IDC_PROGRESS, PBM_SETPOS, PROGRESSRANGE, 0);
 	if (state->ssh2) {
-            if (state->keytype == DSA) {
+	    if (state->is_dsa) {
 		state->ssh2key.data = &state->dsskey;
 		state->ssh2key.alg = &ssh_dss;
 	    } else {
@@ -1290,7 +1280,7 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 	{
 	    struct tm tm;
 	    tm = ltime();
-            if (state->keytype == DSA)
+	    if (state->is_dsa)
 		strftime(*state->commentptr, 30, "dsa-key-%Y%m%d", &tm);
 	    else
 		strftime(*state->commentptr, 30, "rsa-key-%Y%m%d", &tm);
