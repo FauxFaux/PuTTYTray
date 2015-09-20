@@ -142,12 +142,6 @@ void ssh_rsakex_encrypt(const struct ssh_hash *h, unsigned char *in, int inlen,
                         unsigned char *out, int outlen,
                         void *key);
 
-/*
- * Helper function for k generation in DSA, reused in ECDSA
- */
-Bignum *dss_gen_k(const char *id_string, Bignum modulus, Bignum private_key,
-                  unsigned char *digest, int digest_len);
-
 typedef struct {
     uint32 h[4];
 } MD5_Core_State;
