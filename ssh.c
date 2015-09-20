@@ -77,6 +77,10 @@ static const char *const ssh2_disconnect_reasons[] = {
 #define BUG_CHOKES_ON_SSH2_IGNORE               512
 #define BUG_CHOKES_ON_WINADJ                   1024
 #define BUG_SENDS_LATE_REQUEST_REPLY           2048
+#define BUG_SSH2_OLDGEX                        4096
+
+#define DH_MIN_SIZE 1024
+#define DH_MAX_SIZE 8192
 
 /*
  * Codes for terminal modes.
@@ -248,6 +252,7 @@ static char *ssh2_pkt_type(Pkt_KCtx pkt_kctx, Pkt_ACtx pkt_actx, int type)
     translate(SSH2_MSG_NEWKEYS);
     translatek(SSH2_MSG_KEXDH_INIT, SSH2_PKTCTX_DHGROUP);
     translatek(SSH2_MSG_KEXDH_REPLY, SSH2_PKTCTX_DHGROUP);
+    translatek(SSH2_MSG_KEX_DH_GEX_REQUEST_OLD, SSH2_PKTCTX_DHGEX);
     translatek(SSH2_MSG_KEX_DH_GEX_REQUEST, SSH2_PKTCTX_DHGEX);
     translatek(SSH2_MSG_KEX_DH_GEX_GROUP, SSH2_PKTCTX_DHGEX);
     translatek(SSH2_MSG_KEX_DH_GEX_INIT, SSH2_PKTCTX_DHGEX);
@@ -2811,6 +2816,17 @@ static void ssh_detect_bugs(Ssh ssh, char *vstring)
 	logevent("We believe remote version has SSH-2 ignore bug");
     }
 
+    if (conf_get_int(ssh->conf, CONF_sshbug_oldgex2) == FORCE_ON ||
+	(conf_get_int(ssh->conf, CONF_sshbug_oldgex2) == AUTO &&
+	 (wc_match("OpenSSH_2.[235]*", imp)))) {
+	/*
+	 * These versions only support the original (pre-RFC4419)
+	 * SSH-2 GEX request.
+	 */
+	ssh->remote_bugs |= BUG_SSH2_OLDGEX;
+	logevent("We believe remote version has outdated SSH-2 GEX");
+    }
+
     if (conf_get_int(ssh->conf, CONF_sshbug_winadj) == FORCE_ON) {
 	/*
 	 * Servers that don't support our winadj request for one
@@ -2823,11 +2839,15 @@ static void ssh_detect_bugs(Ssh ssh, char *vstring)
     if (conf_get_int(ssh->conf, CONF_sshbug_chanreq) == FORCE_ON ||
 	(conf_get_int(ssh->conf, CONF_sshbug_chanreq) == AUTO &&
 	 (wc_match("OpenSSH_[2-5].*", imp) ||
-	  wc_match("OpenSSH_6.[0-6]*", imp)))) {
+	  wc_match("OpenSSH_6.[0-6]*", imp) ||
+	  wc_match("dropbear_0.[2-4][0-9]*", imp) ||
+	  wc_match("dropbear_0.5[01]*", imp)))) {
 	/*
-	 * These versions have the SSH-2 channel request bug. 6.7 and
-	 * above do not:
+	 * These versions have the SSH-2 channel request bug.
+	 * OpenSSH 6.7 and above do not:
 	 * https://bugzilla.mindrot.org/show_bug.cgi?id=1818
+	 * dropbear_0.52 and above do not:
+	 * https://secure.ucc.asn.au/hg/dropbear/rev/cd02449b709c
 	 */
 	ssh->remote_bugs |= BUG_SENDS_LATE_REQUEST_REPLY;
 	logevent("We believe remote version has SSH-2 channel request bug");
@@ -6595,8 +6615,19 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
              * much data.
              */
             s->pbits = 512 << ((s->nbits - 1) / 64);
-            s->pktout = ssh2_pkt_init(SSH2_MSG_KEX_DH_GEX_REQUEST);
-            ssh2_pkt_adduint32(s->pktout, s->pbits);
+            if (s->pbits < DH_MIN_SIZE)
+                s->pbits = DH_MIN_SIZE;
+            if (s->pbits > DH_MAX_SIZE)
+                s->pbits = DH_MAX_SIZE;
+            if ((ssh->remote_bugs & BUG_SSH2_OLDGEX)) {
+                s->pktout = ssh2_pkt_init(SSH2_MSG_KEX_DH_GEX_REQUEST_OLD);
+                ssh2_pkt_adduint32(s->pktout, s->pbits);
+            } else {
+                s->pktout = ssh2_pkt_init(SSH2_MSG_KEX_DH_GEX_REQUEST);
+                ssh2_pkt_adduint32(s->pktout, DH_MIN_SIZE);
+                ssh2_pkt_adduint32(s->pktout, s->pbits);
+                ssh2_pkt_adduint32(s->pktout, DH_MAX_SIZE);
+            }
             ssh2_pkt_send_noqueue(ssh, s->pktout);
 
             crWaitUntilV(pktin);
@@ -6641,6 +6672,10 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
         }
         set_busy_status(ssh->frontend, BUSY_CPU); /* cogitate */
         ssh_pkt_getstring(pktin, &s->hostkeydata, &s->hostkeylen);
+        if (!s->hostkeydata) {
+            bombout(("unable to parse key exchange reply packet"));
+            crStopV;
+        }
         s->hkey = ssh->hostkey->newkey(s->hostkeydata, s->hostkeylen);
         s->f = ssh2_pkt_getmp(pktin);
         if (!s->f) {
@@ -6648,6 +6683,10 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
             crStopV;
         }
         ssh_pkt_getstring(pktin, &s->sigdata, &s->siglen);
+        if (!s->sigdata) {
+            bombout(("unable to parse key exchange reply packet"));
+            crStopV;
+        }
 
         {
             const char *err = dh_validate_f(ssh->kex_ctx, s->f);
@@ -6664,7 +6703,11 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
 
         hash_string(ssh->kex->hash, ssh->exhash, s->hostkeydata, s->hostkeylen);
         if (!ssh->kex->pdata) {
+            if (!(ssh->remote_bugs & BUG_SSH2_OLDGEX))
+                hash_uint32(ssh->kex->hash, ssh->exhash, DH_MIN_SIZE);
             hash_uint32(ssh->kex->hash, ssh->exhash, s->pbits);
+            if (!(ssh->remote_bugs & BUG_SSH2_OLDGEX))
+                hash_uint32(ssh->kex->hash, ssh->exhash, DH_MAX_SIZE);
             hash_mpint(ssh->kex->hash, ssh->exhash, s->p);
             hash_mpint(ssh->kex->hash, ssh->exhash, s->g);
         }
@@ -6769,6 +6812,10 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
         }
 
         ssh_pkt_getstring(pktin, &s->hostkeydata, &s->hostkeylen);
+        if (!s->hostkeydata) {
+            bombout(("unable to parse RSA public key packet"));
+            crStopV;
+        }
         hash_string(ssh->kex->hash, ssh->exhash,
 		    s->hostkeydata, s->hostkeylen);
 	s->hkey = ssh->hostkey->newkey(s->hostkeydata, s->hostkeylen);
@@ -6776,6 +6823,10 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
         {
             char *keydata;
             ssh_pkt_getstring(pktin, &keydata, &s->rsakeylen);
+            if (!keydata) {
+                bombout(("unable to parse RSA public key packet"));
+                crStopV;
+            }
             s->rsakeydata = snewn(s->rsakeylen, char);
             memcpy(s->rsakeydata, keydata, s->rsakeylen);
         }
@@ -6852,6 +6903,10 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
         }
 
         ssh_pkt_getstring(pktin, &s->sigdata, &s->siglen);
+        if (!s->sigdata) {
+            bombout(("unable to parse signature packet"));
+            crStopV;
+        }
 
         sfree(s->rsakeydata);
     }
@@ -7639,7 +7694,7 @@ static void ssh_check_termination(Ssh ssh)
 {
     if (ssh->version == 2 &&
         !conf_get_int(ssh->conf, CONF_ssh_no_shell) &&
-        count234(ssh->channels) == 0 &&
+        (ssh->channels && count234(ssh->channels) == 0) &&
         !(ssh->connshare && share_ndownstreams(ssh->connshare) > 0)) {
         /*
          * We used to send SSH_MSG_DISCONNECT here, because I'd
@@ -7654,9 +7709,14 @@ static void ssh_check_termination(Ssh ssh)
     }
 }
 
-void ssh_sharing_downstream_connected(Ssh ssh, unsigned id)
+void ssh_sharing_downstream_connected(Ssh ssh, unsigned id,
+                                      const char *peerinfo)
 {
-    logeventf(ssh, "Connection sharing downstream #%u connected", id);
+    if (peerinfo)
+        logeventf(ssh, "Connection sharing downstream #%u connected from %s",
+                  id, peerinfo);
+    else
+        logeventf(ssh, "Connection sharing downstream #%u connected", id);
 }
 
 void ssh_sharing_downstream_disconnected(Ssh ssh, unsigned id)
@@ -9505,6 +9565,8 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
                     logevent("Sent public key signature");
 		    s->type = AUTH_TYPE_PUBLICKEY;
 		    key->alg->freekey(key->data);
+                    sfree(key->comment);
+                    sfree(key);
 		}
 
 #ifndef NO_GSSAPI
@@ -10365,7 +10427,8 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 	     * Try to send data on all channels if we can.
 	     */
 	    for (i = 0; NULL != (c = index234(ssh->channels, i)); i++)
-		ssh2_try_send_and_unthrottle(ssh, c);
+                if (c->type != CHAN_SHARING)
+                    ssh2_try_send_and_unthrottle(ssh, c);
 	}
     }
 

@@ -615,6 +615,7 @@ static void sshbug_handler(union control *ctrl, void *dlg,
 static void sessionsaver_data_free(void *ssdv)
 {
     struct sessionsaver_data *ssd = (struct sessionsaver_data *)ssdv;
+    get_sesslist(&ssd->sesslist, FALSE);
     sfree(ssd->savedsession);
     sfree(ssd);
 }
@@ -2633,7 +2634,7 @@ void setup_config_box(struct controlbox *b, int midsession,
 
 	if (!midsession) {
 	    /*
-	     * The Connection/SSH/Bugs panel.
+	     * The Connection/SSH/Bugs panels.
 	     */
 	    ctrl_settitle(b, "Connection/SSH/Bugs",
 			  "Workarounds for SSH server bugs");
@@ -2661,6 +2662,12 @@ void setup_config_box(struct controlbox *b, int midsession,
 	    ctrl_droplist(s, "Miscomputes SSH-2 encryption keys", 'e', 20,
 			  HELPCTX(ssh_bugs_derivekey2),
 			  sshbug_handler, I(CONF_sshbug_derivekey2));
+
+	    ctrl_settitle(b, "Connection/SSH/More bugs",
+			  "Further workarounds for SSH server bugs");
+
+	    s = ctrl_getset(b, "Connection/SSH/More bugs", "main",
+			    "Detection of known bugs in SSH servers");
 	    ctrl_droplist(s, "Requires padding on SSH-2 RSA signatures", 'p', 20,
 			  HELPCTX(ssh_bugs_rsapad2),
 			  sshbug_handler, I(CONF_sshbug_rsapad2));
@@ -2673,6 +2680,9 @@ void setup_config_box(struct controlbox *b, int midsession,
 	    ctrl_droplist(s, "Ignores SSH-2 maximum packet size", 'x', 20,
 			  HELPCTX(ssh_bugs_maxpkt2),
 			  sshbug_handler, I(CONF_sshbug_maxpkt2));
+	    ctrl_droplist(s, "Only supports pre-RFC4419 SSH-2 DH GEX", 'd', 20,
+			  HELPCTX(ssh_bugs_oldgex2),
+			  sshbug_handler, I(CONF_sshbug_oldgex2));
 	    ctrl_droplist(s, "Replies to requests on closed channels", 'q', 20,
 			  HELPCTX(ssh_bugs_chanreq),
 			  sshbug_handler, I(CONF_sshbug_chanreq));
