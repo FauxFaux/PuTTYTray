@@ -267,7 +267,7 @@ U_BE_NOSSH = be_nos_u uxser nocproxy
 
 putty    : [G] GUITERM NONSSH WINSSH W_BE_ALL WINMISC winx11 putty.res urlhack regexp LIBS
          + fatty
-         + winpgen sshrsag sshdssg sshecdsag sshprime import
+         + winpgen sshrsag sshdssg sshprime import
          + winpgnt
 plink    : [C] winplink wincons NONSSH WINSSH W_BE_ALL logging WINMISC
          + winx11 plink.res winnojmp noterm LIBS
