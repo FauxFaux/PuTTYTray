@@ -205,15 +205,10 @@ typedef struct {
     int blkused;
     uint32 len[4];
 } SHA512_State;
-#define SHA384_State SHA512_State
 void SHA512_Init(SHA512_State * s);
 void SHA512_Bytes(SHA512_State * s, const void *p, int len);
 void SHA512_Final(SHA512_State * s, unsigned char *output);
 void SHA512_Simple(const void *p, int len, unsigned char *output);
-void SHA384_Init(SHA384_State * s);
-#define SHA384_Bytes(s, p, len) SHA512_Bytes(s, p, len)
-void SHA384_Final(SHA384_State * s, unsigned char *output);
-void SHA384_Simple(const void *p, int len, unsigned char *output);
 
 struct ssh_cipher {
     void *(*make_context)(void);
@@ -340,8 +335,6 @@ extern const struct ssh2_ciphers ssh2_blowfish;
 extern const struct ssh2_ciphers ssh2_arcfour;
 extern const struct ssh_hash ssh_sha1;
 extern const struct ssh_hash ssh_sha256;
-extern const struct ssh_hash ssh_sha384;
-extern const struct ssh_hash ssh_sha512;
 extern const struct ssh_kexes ssh_diffiehellman_group1;
 extern const struct ssh_kexes ssh_diffiehellman_group14;
 extern const struct ssh_kexes ssh_diffiehellman_gex;
