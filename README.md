@@ -1,6 +1,6 @@
 # PuTTYTray
 
-This is [PuTTYTray][1], a fork of [Simon Tatham's PuTTY][2].  
+This is [PuTTYTray][1], a fork of [Simon Tatham's PuTTY][2].
 
 ## Documentation
 
