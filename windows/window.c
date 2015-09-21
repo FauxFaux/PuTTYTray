@@ -657,6 +657,39 @@ int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 			    conf_set_int(conf, CONF_port, -1);
 			conf_set_str(conf, CONF_host, q);
 			got_host = 1;
+                    } else if (!strncmp(q, "ssh:", 4)) {
+                        /*
+                        * If the hostname starts with "ssh:",
+                        * set the protocol to SSH and process
+                        * the string as a SSH URL (copy-paste of the telnet: code)
+                        */
+                        char c;
+
+                        q += 4;
+                        if (q[0] == '/' && q[1] == '/')
+                            q += 2;
+                        conf_set_int(conf, CONF_protocol, PROT_SSH);
+                        p = q;
+                        while (*p && *p != ':' && *p != '/')
+                            p++;
+                        c = *p;
+                        if (*p)
+                            *p++ = '\0';
+                        if (c == ':')
+                            conf_set_int(conf, CONF_port, atoi(p));
+                        else
+                            conf_set_int(conf, CONF_port, -1);
+                        conf_set_str(conf, CONF_host, q);
+                        got_host = 1;
+                    } else if (!strncmp(q, "putty:", 6)) {
+                        q += 6;
+                        if (q[0] == '/' && q[1] == '/')
+                            q += 2;
+                        if (q[strlen(q) - 1] == '/')
+                            q[strlen(q) - 1] = '\0';
+                        p = q;
+                        int ret = cmdline_process_param("-load", p, 1, conf);
+                        assert(ret == 2);
                     } else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
                         /* Concatenate all the remaining arguments separating
                          * them with spaces to get the command line to execute.
