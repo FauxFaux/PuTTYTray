@@ -15,6 +15,6 @@ echo #define BINARY_VERSION %upstreammajor%,%upstreamminor%,0,%trayversion% >> .
 
 nmake /F Makefile.vc putty.exe
 
-signtool sign /a /t http://timestamp.verisign.com/scripts/timstamp.dll ^
+signtool sign /fd SHA256 /a /t http://timestamp.verisign.com/scripts/timstamp.dll ^
   putty.exe
 :end
