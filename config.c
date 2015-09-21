@@ -154,6 +154,14 @@ void conf_fontsel_handler(union control *ctrl, void *dlg,
     }
 }
 
+struct sessionsaver_data {
+    union control *editbox, *listbox, *loadbutton, *savebutton, *delbutton;
+    union control *okbutton, *cancelbutton;
+    struct sesslist sesslist;
+    int midsession;
+    char *savedsession;     /* the current contents of ssd->editbox */
+};
+
 static void config_host_handler(union control *ctrl, void *dlg,
 				void *data, int event)
 {
@@ -602,14 +610,6 @@ static void sshbug_handler(union control *ctrl, void *dlg,
 	conf_set_int(conf, ctrl->listbox.context.i, i);
     }
 }
-
-struct sessionsaver_data {
-	union control *editbox, *listbox, *loadbutton, *savebutton, *delbutton;
-	union control *okbutton, *cancelbutton;
-	struct sesslist sesslist;
-	int midsession;
-	char *savedsession;     /* the current contents of ssd->editbox */
-};
 
 static void sessionsaver_data_free(void *ssdv)
 {
