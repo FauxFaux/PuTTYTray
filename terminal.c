@@ -6203,9 +6203,9 @@ void term_mouse(Terminal *term, Mouse_Button braw, Mouse_Button bcooked,
             text_region region = urlhack_get_link_bounds(x, y);
             pos top, bottom;
             top.x = region.x0;
-            top.y = region.y0;
+            top.y = region.y0 + term->disptop;
             bottom.x = region.x1;
-            bottom.y = region.y1;
+            bottom.y = region.y1 + term->disptop;
             clipme(term, top, bottom, 0, 0, urlhack_launch_url_helper);
 	    sfree(linkbuf);
 	}
