@@ -5954,8 +5954,7 @@ static void ssh1_protocol(Ssh ssh, void *vin, int inlen,
 /*
  * Utility routine for decoding comma-separated strings in KEXINIT.
  */
-static int in_commasep_string(char const *needle, char const *haystack,
-			      int haylen)
+static int in_commasep_string(char *needle, char *haystack, int haylen)
 {
     int needlen;
     if (!needle || !haystack)	       /* protect against null pointers */
@@ -5986,8 +5985,7 @@ static int in_commasep_string(char const *needle, char const *haystack,
 /*
  * Similar routine for checking whether we have the first string in a list.
  */
-static int first_in_commasep_string(char const *needle, char const *haystack,
-				    int haylen)
+static int first_in_commasep_string(char *needle, char *haystack, int haylen)
 {
     int needlen;
     if (!needle || !haystack)	       /* protect against null pointers */
@@ -6003,19 +6001,6 @@ static int first_in_commasep_string(char const *needle, char const *haystack,
 	)
 	return 1;
     return 0;
-}
-
-/*
- * Add a value to the comma-separated string at the end of the packet.
- * If the value is already in the string, don't bother adding it again.
- */
-static void ssh2_pkt_addstring_commasep(struct Packet *pkt, const char *data)
-{
-    if (in_commasep_string(data, (char *)pkt->data + pkt->savedpos,
-			   pkt->length - pkt->savedpos)) return;
-    if (pkt->length - pkt->savedpos > 0)
-	ssh_pkt_addstring_str(pkt, ",");
-    ssh_pkt_addstring_str(pkt, data);
 }
 
 
@@ -6112,7 +6097,7 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
   begin_key_exchange:
     ssh->pkt_kctx = SSH2_PKTCTX_NOKEX;
     {
-	int i, j, k;
+	int i, j, k, commalist_started;
 
 	/*
 	 * Set up the preferred key exchange. (NULL => warn below here)
@@ -6206,11 +6191,16 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
 	    ssh2_pkt_addbyte(s->pktout, (unsigned char) random_byte());
 	/* List key exchange algorithms. */
 	ssh2_pkt_addstring_start(s->pktout);
+	commalist_started = 0;
 	for (i = 0; i < s->n_preferred_kex; i++) {
 	    const struct ssh_kexes *k = s->preferred_kex[i];
 	    if (!k) continue;	       /* warning flag */
-	    for (j = 0; j < k->nkexes; j++)
-		ssh2_pkt_addstring_commasep(s->pktout, k->list[j]->name);
+	    for (j = 0; j < k->nkexes; j++) {
+		if (commalist_started)
+		    ssh2_pkt_addstring_str(s->pktout, ",");
+		ssh2_pkt_addstring_str(s->pktout, k->list[j]->name);
+		commalist_started = 1;
+	    }
 	}
 	/* List server host key algorithms. */
         if (!s->got_session_id) {
@@ -6219,8 +6209,11 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
              * we're prepared to cope with.
              */
             ssh2_pkt_addstring_start(s->pktout);
-            for (i = 0; i < lenof(hostkey_algs); i++)
-                ssh2_pkt_addstring_commasep(s->pktout, hostkey_algs[i]->name);
+            for (i = 0; i < lenof(hostkey_algs); i++) {
+                ssh2_pkt_addstring_str(s->pktout, hostkey_algs[i]->name);
+                if (i < lenof(hostkey_algs) - 1)
+                    ssh2_pkt_addstring_str(s->pktout, ",");
+            }
         } else {
             /*
              * In subsequent key exchanges, we list only the kex
@@ -6235,18 +6228,26 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
 	/* List encryption algorithms (client->server then server->client). */
 	for (k = 0; k < 2; k++) {
 	    ssh2_pkt_addstring_start(s->pktout);
+	    commalist_started = 0;
 	    for (i = 0; i < s->n_preferred_ciphers; i++) {
 		const struct ssh2_ciphers *c = s->preferred_ciphers[i];
 		if (!c) continue;	       /* warning flag */
-		for (j = 0; j < c->nciphers; j++)
-		    ssh2_pkt_addstring_commasep(s->pktout, c->list[j]->name);
+		for (j = 0; j < c->nciphers; j++) {
+		    if (commalist_started)
+			ssh2_pkt_addstring_str(s->pktout, ",");
+		    ssh2_pkt_addstring_str(s->pktout, c->list[j]->name);
+		    commalist_started = 1;
+		}
 	    }
 	}
 	/* List MAC algorithms (client->server then server->client). */
 	for (j = 0; j < 2; j++) {
 	    ssh2_pkt_addstring_start(s->pktout);
-	    for (i = 0; i < s->nmacs; i++)
-		ssh2_pkt_addstring_commasep(s->pktout, s->maclist[i]->name);
+	    for (i = 0; i < s->nmacs; i++) {
+		ssh2_pkt_addstring_str(s->pktout, s->maclist[i]->name);
+		if (i < s->nmacs - 1)
+		    ssh2_pkt_addstring_str(s->pktout, ",");
+	    }
 	}
 	/* List client->server compression algorithms,
 	 * then server->client compression algorithms. (We use the
@@ -6255,18 +6256,25 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
 	    ssh2_pkt_addstring_start(s->pktout);
 	    assert(lenof(compressions) > 1);
 	    /* Prefer non-delayed versions */
-	    ssh2_pkt_addstring_commasep(s->pktout, s->preferred_comp->name);
+	    ssh2_pkt_addstring_str(s->pktout, s->preferred_comp->name);
 	    /* We don't even list delayed versions of algorithms until
 	     * they're allowed to be used, to avoid a race. See the end of
 	     * this function. */
-	    if (s->userauth_succeeded && s->preferred_comp->delayed_name)
-		ssh2_pkt_addstring_commasep(s->pktout,
-					    s->preferred_comp->delayed_name);
+	    if (s->userauth_succeeded && s->preferred_comp->delayed_name) {
+		ssh2_pkt_addstring_str(s->pktout, ",");
+		ssh2_pkt_addstring_str(s->pktout,
+				       s->preferred_comp->delayed_name);
+	    }
 	    for (i = 0; i < lenof(compressions); i++) {
 		const struct ssh_compress *c = compressions[i];
-		ssh2_pkt_addstring_commasep(s->pktout, c->name);
-		if (s->userauth_succeeded && c->delayed_name)
-		    ssh2_pkt_addstring_commasep(s->pktout, c->delayed_name);
+		if (c != s->preferred_comp) {
+		    ssh2_pkt_addstring_str(s->pktout, ",");
+		    ssh2_pkt_addstring_str(s->pktout, c->name);
+		    if (s->userauth_succeeded && c->delayed_name) {
+			ssh2_pkt_addstring_str(s->pktout, ",");
+			ssh2_pkt_addstring_str(s->pktout, c->delayed_name);
+		    }
+		}
 	    }
 	}
 	/* List client->server languages. Empty list. */
