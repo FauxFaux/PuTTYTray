@@ -7,6 +7,7 @@
  * is done in Buildscr, and then written into version.h. All we have
  * to do here is to drop it into variables of the right names.
  */
+
 #include "version.h"
 
 char ver[] = TEXTVER;
