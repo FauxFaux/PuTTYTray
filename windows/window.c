@@ -657,31 +657,31 @@ int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 			    conf_set_int(conf, CONF_port, -1);
 			conf_set_str(conf, CONF_host, q);
 			got_host = 1;
-        } else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
-            /* Concatenate all the remaining arguments separating
-             * them with spaces to get the command line to execute.
-             */
-            char *p = conf_get_str(conf, CONF_cygcmd);
-            char *const end = conf_get_str(conf, CONF_cygcmd) + strlen(conf_get_str(conf, CONF_cygcmd));
-            for (; i < argc && p < end; i++) {
-                p = stpcpy_max(p, argv[i], end - p - 1);
-                *p++ = ' ';
-            }
-            assert(p > conf_get_str(conf, CONF_cygcmd) && p <= end);
-            *--p = '\0';
-            got_host = 1;
-	    } else {
-			/*
-			 * Otherwise, treat this argument as a host
-			 * name.
-			 */
-			while (*p && !isspace(*p))
-			    p++;
-			if (*p)
-			    *p++ = '\0';
-			conf_set_str(conf, CONF_host, q);
-			got_host = 1;
-		    }
+                    } else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
+                        /* Concatenate all the remaining arguments separating
+                         * them with spaces to get the command line to execute.
+                         */
+                        char *p = conf_get_str(conf, CONF_cygcmd);
+                        char *const end = conf_get_str(conf, CONF_cygcmd) + strlen(conf_get_str(conf, CONF_cygcmd));
+                        for (; i < argc && p < end; i++) {
+                            p = stpcpy_max(p, argv[i], end - p - 1);
+                            *p++ = ' ';
+                        }
+                        assert(p > conf_get_str(conf, CONF_cygcmd) && p <= end);
+                        *--p = '\0';
+                        got_host = 1;
+                    } else {
+                        /*
+                         * Otherwise, treat this argument as a host
+                         * name.
+                         */
+                        while (*p && !isspace(*p))
+                            p++;
+                        if (*p)
+                            *p++ = '\0';
+                        conf_set_str(conf, CONF_host, q);
+                        got_host = 1;
+                    }
 		} else {
 		    cmdline_error("unknown option \"%s\"", p);
 		}
