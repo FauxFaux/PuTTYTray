@@ -1583,7 +1583,7 @@ void setup_config_box(struct controlbox *b,
                I(CONF_logfilename));
   ctrl_text(s,
             "(Log file name can contain &Y, &M, &D for date,"
-            " &T for time, and &H for host name)",
+            " &T for time, &H for host name, and &P for port number)",
             HELPCTX(logging_filename));
   ctrl_radiobuttons(s,
                     "What to do if the log file already exists:",
