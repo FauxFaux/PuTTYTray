@@ -35,22 +35,20 @@ char *dupstr(const char *s);
  * right kind of pointer. Protects against allocation bugs
  * involving allocating the wrong size of thing.
  */
-#define snew(type) \
-    ( (type *) smalloc (sizeof (type)) )
+#define snew(type) ((type *)smalloc(sizeof(type)))
 
 /*
  * snewn allocates n instances of a given type, for arrays.
  */
-#define snewn(number, type) \
-    ( (type *) smalloc ((number) * sizeof (type)) )
+#define snewn(number, type) ((type *)smalloc((number) * sizeof(type)))
 
 /*
  * sresize wraps realloc so that you specify the new number of
  * elements and the type of the element, with the same type-
  * checking advantages. Also type-checks the input pointer.
  */
-#define sresize(array, number, type) \
-    ( (void)sizeof((array)-(type *)0), \
-      (type *) srealloc ((array), (number) * sizeof (type)) )
+#define sresize(array, number, type)                                           \
+  ((void)sizeof((array) - (type *)0),                                          \
+   (type *)srealloc((array), (number) * sizeof(type)))
 
 #endif /* UMLWRAP_MALLOC_H */

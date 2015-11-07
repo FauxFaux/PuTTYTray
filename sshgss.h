@@ -8,20 +8,22 @@
 #define SSH2_GSS_OIDTYPE 0x06
 typedef void *Ssh_gss_ctx;
 
-typedef enum Ssh_gss_stat {
-    SSH_GSS_OK = 0,
-    SSH_GSS_S_CONTINUE_NEEDED,
-    SSH_GSS_NO_MEM,
-    SSH_GSS_BAD_HOST_NAME,
-    SSH_GSS_FAILURE
+typedef enum Ssh_gss_stat
+{
+  SSH_GSS_OK = 0,
+  SSH_GSS_S_CONTINUE_NEEDED,
+  SSH_GSS_NO_MEM,
+  SSH_GSS_BAD_HOST_NAME,
+  SSH_GSS_FAILURE
 } Ssh_gss_stat;
 
 #define SSH_GSS_S_COMPLETE SSH_GSS_OK
 
-#define SSH_GSS_CLEAR_BUF(buf) do {		\
-    (*buf).length = 0;				\
-    (*buf).value = NULL;				\
-} while (0)
+#define SSH_GSS_CLEAR_BUF(buf)                                                 \
+  do {                                                                         \
+    (*buf).length = 0;                                                         \
+    (*buf).value = NULL;                                                       \
+  } while (0)
 
 typedef gss_buffer_desc Ssh_gss_buf;
 typedef gss_name_t Ssh_gss_name;
@@ -44,8 +46,8 @@ struct ssh_gss_library;
  * libraries (if any).
  */
 struct ssh_gss_liblist {
-    struct ssh_gss_library *libraries;
-    int nlibraries;
+  struct ssh_gss_library *libraries;
+  int nlibraries;
 };
 struct ssh_gss_liblist *ssh_gss_setup(Conf *conf);
 void ssh_gss_cleanup(struct ssh_gss_liblist *list);
@@ -55,7 +57,7 @@ void ssh_gss_cleanup(struct ssh_gss_liblist *list);
  * use. buf->data is not dynamically allocated.
  */
 typedef Ssh_gss_stat (*t_ssh_gss_indicate_mech)(struct ssh_gss_library *lib,
-						Ssh_gss_buf *buf);
+                                                Ssh_gss_buf *buf);
 
 /*
  * Converts a name such as a hostname into a GSSAPI internal form,
@@ -63,23 +65,26 @@ typedef Ssh_gss_stat (*t_ssh_gss_indicate_mech)(struct ssh_gss_library *lib,
  * ssh_gss_release_name().
  */
 typedef Ssh_gss_stat (*t_ssh_gss_import_name)(struct ssh_gss_library *lib,
-					      char *in, Ssh_gss_name *out);
+                                              char *in,
+                                              Ssh_gss_name *out);
 
 /*
  * Frees the contents of an Ssh_gss_name structure filled in by
  * ssh_gss_import_name().
  */
 typedef Ssh_gss_stat (*t_ssh_gss_release_name)(struct ssh_gss_library *lib,
-					       Ssh_gss_name *name);
+                                               Ssh_gss_name *name);
 
 /*
  * The main GSSAPI security context setup function. The "out"
  * parameter will need to be freed by ssh_gss_free_tok.
  */
-typedef Ssh_gss_stat (*t_ssh_gss_init_sec_context)
-    (struct ssh_gss_library *lib,
-     Ssh_gss_ctx *ctx, Ssh_gss_name name, int delegate,
-     Ssh_gss_buf *in, Ssh_gss_buf *out);
+typedef Ssh_gss_stat (*t_ssh_gss_init_sec_context)(struct ssh_gss_library *lib,
+                                                   Ssh_gss_ctx *ctx,
+                                                   Ssh_gss_name name,
+                                                   int delegate,
+                                                   Ssh_gss_buf *in,
+                                                   Ssh_gss_buf *out);
 
 /*
  * Frees the contents of an Ssh_gss_buf filled in by
@@ -89,29 +94,30 @@ typedef Ssh_gss_stat (*t_ssh_gss_init_sec_context)
  * way.
  */
 typedef Ssh_gss_stat (*t_ssh_gss_free_tok)(struct ssh_gss_library *lib,
-					   Ssh_gss_buf *);
+                                           Ssh_gss_buf *);
 
 /*
  * Acquires the credentials to perform authentication in the first
  * place. Needs to be freed by ssh_gss_release_cred().
  */
 typedef Ssh_gss_stat (*t_ssh_gss_acquire_cred)(struct ssh_gss_library *lib,
-					       Ssh_gss_ctx *);
+                                               Ssh_gss_ctx *);
 
 /*
  * Frees the contents of an Ssh_gss_ctx filled in by
  * ssh_gss_acquire_cred().
  */
 typedef Ssh_gss_stat (*t_ssh_gss_release_cred)(struct ssh_gss_library *lib,
-					       Ssh_gss_ctx *);
+                                               Ssh_gss_ctx *);
 
 /*
  * Gets a MIC for some input data. "out" needs to be freed by
  * ssh_gss_free_mic().
  */
 typedef Ssh_gss_stat (*t_ssh_gss_get_mic)(struct ssh_gss_library *lib,
-					  Ssh_gss_ctx ctx, Ssh_gss_buf *in,
-                 Ssh_gss_buf *out);
+                                          Ssh_gss_ctx ctx,
+                                          Ssh_gss_buf *in,
+                                          Ssh_gss_buf *out);
 
 /*
  * Frees the contents of an Ssh_gss_buf filled in by
@@ -121,66 +127,67 @@ typedef Ssh_gss_stat (*t_ssh_gss_get_mic)(struct ssh_gss_library *lib,
  * way.
  */
 typedef Ssh_gss_stat (*t_ssh_gss_free_mic)(struct ssh_gss_library *lib,
-					   Ssh_gss_buf *);
+                                           Ssh_gss_buf *);
 
 /*
  * Return an error message after authentication failed. The
  * message string is returned in "buf", with buf->len giving the
  * number of characters of printable message text and buf->data
  * containing one more character which is a trailing NUL.
- * buf->data should be manually freed by the caller. 
+ * buf->data should be manually freed by the caller.
  */
 typedef Ssh_gss_stat (*t_ssh_gss_display_status)(struct ssh_gss_library *lib,
-						 Ssh_gss_ctx, Ssh_gss_buf *buf);
+                                                 Ssh_gss_ctx,
+                                                 Ssh_gss_buf *buf);
 
 struct ssh_gss_library {
-    /*
-     * Identifying number in the enumeration used by the
-     * configuration code to specify a preference order.
-     */
-    int id;
+  /*
+   * Identifying number in the enumeration used by the
+   * configuration code to specify a preference order.
+   */
+  int id;
 
-    /*
-     * Filled in at initialisation time, if there's anything
-     * interesting to say about how GSSAPI was initialised (e.g.
-     * which of a number of alternative libraries was used).
-     */
-    const char *gsslogmsg;
+  /*
+   * Filled in at initialisation time, if there's anything
+   * interesting to say about how GSSAPI was initialised (e.g.
+   * which of a number of alternative libraries was used).
+   */
+  const char *gsslogmsg;
 
-    /*
-     * Function pointers implementing the SSH wrapper layer on top
-     * of GSSAPI. (Defined in sshgssc, typically, though Windows
-     * provides an alternative layer to sit on top of the annoyingly
-     * different SSPI.)
-     */
-    t_ssh_gss_indicate_mech indicate_mech;
-    t_ssh_gss_import_name import_name;
-    t_ssh_gss_release_name release_name;
-    t_ssh_gss_init_sec_context init_sec_context;
-    t_ssh_gss_free_tok free_tok;
-    t_ssh_gss_acquire_cred acquire_cred;
-    t_ssh_gss_release_cred release_cred;
-    t_ssh_gss_get_mic get_mic;
-    t_ssh_gss_free_mic free_mic;
-    t_ssh_gss_display_status display_status;
+  /*
+   * Function pointers implementing the SSH wrapper layer on top
+   * of GSSAPI. (Defined in sshgssc, typically, though Windows
+   * provides an alternative layer to sit on top of the annoyingly
+   * different SSPI.)
+   */
+  t_ssh_gss_indicate_mech indicate_mech;
+  t_ssh_gss_import_name import_name;
+  t_ssh_gss_release_name release_name;
+  t_ssh_gss_init_sec_context init_sec_context;
+  t_ssh_gss_free_tok free_tok;
+  t_ssh_gss_acquire_cred acquire_cred;
+  t_ssh_gss_release_cred release_cred;
+  t_ssh_gss_get_mic get_mic;
+  t_ssh_gss_free_mic free_mic;
+  t_ssh_gss_display_status display_status;
 
+  /*
+   * Additional data for the wrapper layers.
+   */
+  union {
+    struct gssapi_functions gssapi;
     /*
-     * Additional data for the wrapper layers.
+     * The SSPI wrappers don't need to store their Windows API
+     * function pointers in this structure, because there can't
+     * be more than one set of them available.
      */
-    union {
-	struct gssapi_functions gssapi;
-	/*
-	 * The SSPI wrappers don't need to store their Windows API
-	 * function pointers in this structure, because there can't
-	 * be more than one set of them available.
-	 */
-    } u;
+  } u;
 
-    /*
-     * Wrapper layers will often also need to store a library handle
-     * of some sort for cleanup time.
-     */
-    void *handle;
+  /*
+   * Wrapper layers will often also need to store a library handle
+   * of some sort for cleanup time.
+   */
+  void *handle;
 };
 
 #endif /* NO_GSSAPI */
