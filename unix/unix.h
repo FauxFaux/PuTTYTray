@@ -2,27 +2,27 @@
 #define PUTTY_UNIX_H
 
 #ifdef HAVE_CONFIG_H
-# include "uxconfig.h" /* Space to hide it from mkfiles.pl */
+#include "uxconfig.h" /* Space to hide it from mkfiles.pl */
 #endif
 
-#include <stdio.h>		       /* for FILENAME_MAX */
-#include <stdint.h>		       /* C99 int types */
+#include <stdio.h>  /* for FILENAME_MAX */
+#include <stdint.h> /* C99 int types */
 #ifndef NO_LIBDL
-#include <dlfcn.h>		       /* Dynamic library loading */
-#endif /*  NO_LIBDL */
+#include <dlfcn.h> /* Dynamic library loading */
+#endif             /*  NO_LIBDL */
 #include "charset.h"
 
 struct Filename {
-    char *path;
+  char *path;
 };
 FILE *f_open(const struct Filename *, char const *, int);
 
 struct FontSpec {
-    char *name;    /* may be "" to indicate no selected font at all */
+  char *name; /* may be "" to indicate no selected font at all */
 };
 struct FontSpec *fontspec_new(const char *name);
 
-typedef void *Context;                 /* FIXME: probably needs changing */
+typedef void *Context; /* FIXME: probably needs changing */
 
 extern Backend pty_backend;
 
@@ -39,8 +39,8 @@ typedef uint32_t uint32; /* C99: uint32_t defined in stdint.h */
  * Under GTK, there is no context help available.
  */
 #define HELPCTX(x) P(NULL)
-#define FILTER_KEY_FILES NULL          /* FIXME */
-#define FILTER_DYNLIB_FILES NULL       /* FIXME */
+#define FILTER_KEY_FILES NULL    /* FIXME */
+#define FILTER_DYNLIB_FILES NULL /* FIXME */
 
 /*
  * Under X, selection data must not be NUL-terminated.
@@ -50,13 +50,16 @@ typedef uint32_t uint32; /* C99: uint32_t defined in stdint.h */
 /*
  * Under X, copying to the clipboard terminates lines with just LF.
  */
-#define SEL_NL { 10 }
+#define SEL_NL                                                                 \
+  {                                                                            \
+    10                                                                         \
+  }
 
 /* Simple wraparound timer function */
-unsigned long getticks(void);	       /* based on gettimeofday(2) */
+unsigned long getticks(void); /* based on gettimeofday(2) */
 #define GETTICKCOUNT getticks
-#define TICKSPERSEC    1000	       /* we choose to use milliseconds */
-#define CURSORBLINK     450	       /* no standard way to set this */
+#define TICKSPERSEC 1000 /* we choose to use milliseconds */
+#define CURSORBLINK 450  /* no standard way to set this */
 
 #define WCHAR wchar_t
 #define BYTE unsigned char
@@ -75,16 +78,18 @@ unsigned long getticks(void);	       /* based on gettimeofday(2) */
 
 /* Things pty.c needs from pterm.c */
 char *get_x_display(void *frontend);
-int font_dimension(void *frontend, int which);/* 0 for width, 1 for height */
+int font_dimension(void *frontend, int which); /* 0 for width, 1 for height */
 long get_windowid(void *frontend);
 int frontend_is_utf8(void *frontend);
 
 /* Things gtkdlg.c needs from pterm.c */
-void *get_window(void *frontend);      /* void * to avoid depending on gtk.h */
+void *get_window(void *frontend); /* void * to avoid depending on gtk.h */
 
 /* Things pterm.c needs from gtkdlg.c */
-int do_config_box(const char *title, Conf *conf,
-		  int midsession, int protcfginfo);
+int do_config_box(const char *title,
+                  Conf *conf,
+                  int midsession,
+                  int protcfginfo);
 void fatal_message_box(void *window, char *msg);
 void nonfatal_message_box(void *window, char *msg);
 void about_box(void *window);
@@ -125,7 +130,7 @@ int select_result(int fd, int event);
 int first_fd(int *state, int *rwx);
 int next_fd(int *state, int *rwx);
 /* The following are expected to be provided _to_ uxsel.c by the frontend */
-int uxsel_input_add(int fd, int rwx);  /* returns an id */
+int uxsel_input_add(int fd, int rwx); /* returns an id */
 void uxsel_input_remove(int id);
 
 /* uxcfg.c */
@@ -144,7 +149,7 @@ void gtk_setup_config_box(struct controlbox *b, int midsession, void *window);
  * from the command line or config files is assumed to be encoded).
  */
 #define DEFAULT_CODEPAGE 0xFFFF
-#define CP_UTF8 CS_UTF8		       /* from libcharset */
+#define CP_UTF8 CS_UTF8 /* from libcharset */
 
 #define strnicmp strncasecmp
 #define stricmp strcasecmp
@@ -163,8 +168,11 @@ int no_nonblock(int);
  * Exports from unicode.c.
  */
 struct unicode_data;
-int init_ucs(struct unicode_data *ucsdata, char *line_codepage,
-	     int utf8_override, int font_charset, int vtmode);
+int init_ucs(struct unicode_data *ucsdata,
+             char *line_codepage,
+             int utf8_override,
+             int font_charset,
+             int vtmode);
 
 /*
  * Spare function exported directly from uxnet.c.
@@ -175,10 +183,12 @@ void *sk_getxdmdata(void *sock, int *lenp);
  * General helpful Unix stuff: more helpful version of the FD_SET
  * macro, which also handles maxfd.
  */
-#define FD_SET_MAX(fd, max, set) do { \
-    FD_SET(fd, &set); \
-    if (max < fd + 1) max = fd + 1; \
-} while (0)
+#define FD_SET_MAX(fd, max, set)                                               \
+  do {                                                                         \
+    FD_SET(fd, &set);                                                          \
+    if (max < fd + 1)                                                          \
+      max = fd + 1;                                                            \
+  } while (0)
 
 /*
  * Exports from winser.c.
