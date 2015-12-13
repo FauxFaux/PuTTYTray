@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <limits.h>
 
 #include <time.h>
 #include <assert.h>
@@ -2356,7 +2357,7 @@ static void check_boundary(Terminal *term, int x, int y)
     termline *ldata;
 
     /* Validate input coordinates, just in case. */
-    if (x == 0 || x > term->cols)
+    if (x <= 0 || x > term->cols)
 	return;
 
     ldata = scrlineptr(y);
@@ -3509,8 +3510,15 @@ static void term_out(Terminal *term)
 		    if (term->esc_nargs <= ARGS_MAX) {
 			if (term->esc_args[term->esc_nargs - 1] == ARG_DEFAULT)
 			    term->esc_args[term->esc_nargs - 1] = 0;
-			term->esc_args[term->esc_nargs - 1] =
-			    10 * term->esc_args[term->esc_nargs - 1] + c - '0';
+			if (term->esc_args[term->esc_nargs - 1] <=
+			    UINT_MAX / 10 &&
+			    term->esc_args[term->esc_nargs - 1] * 10 <=
+			    UINT_MAX - c - '0')
+			    term->esc_args[term->esc_nargs - 1] =
+			        10 * term->esc_args[term->esc_nargs - 1] +
+			        c - '0';
+			else
+			    term->esc_args[term->esc_nargs - 1] = UINT_MAX;
 		    }
 		    term->termstate = SEEN_CSI;
 		} else if (c == ';') {
@@ -3526,8 +3534,10 @@ static void term_out(Terminal *term)
 			term->esc_query = c;
 		    term->termstate = SEEN_CSI;
 		} else
+#define CLAMP(arg, lim) ((arg) = ((arg) > (lim)) ? (lim) : (arg))
 		    switch (ANSI(c, term->esc_query)) {
 		      case 'A':       /* CUU: move up N lines */
+			CLAMP(term->esc_args[0], term->rows);
 			move(term, term->curs.x,
 			     term->curs.y - def(term->esc_args[0], 1), 1);
 			seen_disp_event(term);
@@ -3536,6 +3546,7 @@ static void term_out(Terminal *term)
 			compatibility(ANSI);
 			/* FALLTHROUGH */
 		      case 'B':		/* CUD: Cursor down */
+			CLAMP(term->esc_args[0], term->rows);
 			move(term, term->curs.x,
 			     term->curs.y + def(term->esc_args[0], 1), 1);
 			seen_disp_event(term);
@@ -3551,23 +3562,27 @@ static void term_out(Terminal *term)
 			compatibility(ANSI);
 			/* FALLTHROUGH */
 		      case 'C':		/* CUF: Cursor right */ 
+			CLAMP(term->esc_args[0], term->cols);
 			move(term, term->curs.x + def(term->esc_args[0], 1),
 			     term->curs.y, 1);
 			seen_disp_event(term);
 			break;
 		      case 'D':       /* CUB: move left N cols */
+			CLAMP(term->esc_args[0], term->cols);
 			move(term, term->curs.x - def(term->esc_args[0], 1),
 			     term->curs.y, 1);
 			seen_disp_event(term);
 			break;
 		      case 'E':       /* CNL: move down N lines and CR */
 			compatibility(ANSI);
+			CLAMP(term->esc_args[0], term->rows);
 			move(term, 0,
 			     term->curs.y + def(term->esc_args[0], 1), 1);
 			seen_disp_event(term);
 			break;
 		      case 'F':       /* CPL: move up N lines and CR */
 			compatibility(ANSI);
+			CLAMP(term->esc_args[0], term->rows);
 			move(term, 0,
 			     term->curs.y - def(term->esc_args[0], 1), 1);
 			seen_disp_event(term);
@@ -3575,12 +3590,14 @@ static void term_out(Terminal *term)
 		      case 'G':	      /* CHA */
 		      case '`':       /* HPA: set horizontal posn */
 			compatibility(ANSI);
+			CLAMP(term->esc_args[0], term->cols);
 			move(term, def(term->esc_args[0], 1) - 1,
 			     term->curs.y, 0);
 			seen_disp_event(term);
 			break;
 		      case 'd':       /* VPA: set vertical posn */
 			compatibility(ANSI);
+			CLAMP(term->esc_args[0], term->rows);
 			move(term, term->curs.x,
 			     ((term->dec_om ? term->marg_t : 0) +
 			      def(term->esc_args[0], 1) - 1),
@@ -3591,6 +3608,8 @@ static void term_out(Terminal *term)
 		      case 'f':      /* HVP: set horz and vert posns at once */
 			if (term->esc_nargs < 2)
 			    term->esc_args[1] = ARG_DEFAULT;
+			CLAMP(term->esc_args[0], term->rows);
+			CLAMP(term->esc_args[1], term->cols);
 			move(term, def(term->esc_args[1], 1) - 1,
 			     ((term->dec_om ? term->marg_t : 0) +
 			      def(term->esc_args[0], 1) - 1),
@@ -3626,6 +3645,7 @@ static void term_out(Terminal *term)
 			break;
 		      case 'L':       /* IL: insert lines */
 			compatibility(VT102);
+			CLAMP(term->esc_args[0], term->rows);
 			if (term->curs.y <= term->marg_b)
 			    scroll(term, term->curs.y, term->marg_b,
 				   -def(term->esc_args[0], 1), FALSE);
@@ -3633,6 +3653,7 @@ static void term_out(Terminal *term)
 			break;
 		      case 'M':       /* DL: delete lines */
 			compatibility(VT102);
+			CLAMP(term->esc_args[0], term->rows);
 			if (term->curs.y <= term->marg_b)
 			    scroll(term, term->curs.y, term->marg_b,
 				   def(term->esc_args[0], 1),
@@ -3642,11 +3663,13 @@ static void term_out(Terminal *term)
 		      case '@':       /* ICH: insert chars */
 			/* XXX VTTEST says this is vt220, vt510 manual says vt102 */
 			compatibility(VT102);
+			CLAMP(term->esc_args[0], term->cols);
 			insch(term, def(term->esc_args[0], 1));
 			seen_disp_event(term);
 			break;
 		      case 'P':       /* DCH: delete chars */
 			compatibility(VT102);
+			CLAMP(term->esc_args[0], term->cols);
 			insch(term, -def(term->esc_args[0], 1));
 			seen_disp_event(term);
 			break;
@@ -3724,6 +3747,8 @@ static void term_out(Terminal *term)
 			compatibility(VT100);
 			if (term->esc_nargs <= 2) {
 			    int top, bot;
+			    CLAMP(term->esc_args[0], term->rows);
+			    CLAMP(term->esc_args[1], term->rows);
 			    top = def(term->esc_args[0], 1) - 1;
 			    bot = (term->esc_nargs <= 1
 				   || term->esc_args[1] == 0 ?
@@ -4078,6 +4103,7 @@ static void term_out(Terminal *term)
 			}
 			break;
 		      case 'S':		/* SU: Scroll up */
+			CLAMP(term->esc_args[0], term->rows);
 			compatibility(SCOANSI);
 			scroll(term, term->marg_t, term->marg_b,
 			       def(term->esc_args[0], 1), TRUE);
@@ -4085,6 +4111,7 @@ static void term_out(Terminal *term)
 			seen_disp_event(term);
 			break;
 		      case 'T':		/* SD: Scroll down */
+			CLAMP(term->esc_args[0], term->rows);
 			compatibility(SCOANSI);
 			scroll(term, term->marg_t, term->marg_b,
 			       -def(term->esc_args[0], 1), TRUE);
@@ -4127,6 +4154,7 @@ static void term_out(Terminal *term)
 			/* XXX VTTEST says this is vt220, vt510 manual
 			 * says vt100 */
 			compatibility(ANSIMIN);
+			CLAMP(term->esc_args[0], term->cols);
 			{
 			    int n = def(term->esc_args[0], 1);
 			    pos cursplus;
@@ -4160,6 +4188,7 @@ static void term_out(Terminal *term)
 			break;
 		      case 'Z':		/* CBT */
 			compatibility(OTHER);
+			CLAMP(term->esc_args[0], term->cols);
 			{
 			    int i = def(term->esc_args[0], 1);
 			    pos old_curs = term->curs;
@@ -4220,7 +4249,7 @@ static void term_out(Terminal *term)
 			break;
 		      case ANSI('F', '='):      /* set normal foreground */
 			compatibility(SCOANSI);
-			if (term->esc_args[0] >= 0 && term->esc_args[0] < 16) {
+			if (term->esc_args[0] < 16) {
 			    long colour =
  				(sco2ansicolour[term->esc_args[0] & 0x7] |
 				 (term->esc_args[0] & 0x8)) <<
@@ -4234,7 +4263,7 @@ static void term_out(Terminal *term)
 			break;
 		      case ANSI('G', '='):      /* set normal background */
 			compatibility(SCOANSI);
-			if (term->esc_args[0] >= 0 && term->esc_args[0] < 16) {
+			if (term->esc_args[0] < 16) {
 			    long colour =
  				(sco2ansicolour[term->esc_args[0] & 0x7] |
 				 (term->esc_args[0] & 0x8)) <<
@@ -4358,7 +4387,11 @@ static void term_out(Terminal *term)
 		  case '7':
 		  case '8':
 		  case '9':
-		    term->esc_args[0] = 10 * term->esc_args[0] + c - '0';
+		    if (term->esc_args[0] <= UINT_MAX / 10 &&
+			term->esc_args[0] * 10 <= UINT_MAX - c - '0')
+			term->esc_args[0] = 10 * term->esc_args[0] + c - '0';
+		    else
+			term->esc_args[0] = UINT_MAX;
 		    break;
 		  case 'L':
 		    /*
@@ -4440,7 +4473,11 @@ static void term_out(Terminal *term)
 		  case '7':
 		  case '8':
 		  case '9':
-		    term->esc_args[0] = 10 * term->esc_args[0] + c - '0';
+		    if (term->esc_args[0] <= UINT_MAX / 10 &&
+			term->esc_args[0] * 10 <= UINT_MAX - c - '0')
+			term->esc_args[0] = 10 * term->esc_args[0] + c - '0';
+		    else
+			term->esc_args[0] = UINT_MAX;
 		    break;
 		  default:
 		    term->termstate = OSC_STRING;

@@ -204,13 +204,13 @@ TERMINAL = terminal wcwidth ldiscucs logging tree234 minibidi
 
 # GUI front end and terminal emulator (putty, puttytel).
 GUITERM  = TERMINAL window windlg winctrls sizetip winucs winprint
-         + winutils wincfg sercfg winhelp winjump
+         + winutils wincfg sercfg winhelp winjump miscucs
          + pickicondialog
          + urlhack urlhack_win regexp
          + cygcfg
 
 # Same thing on Unix.
-UXTERM   = TERMINAL uxcfg sercfg uxucs uxprint timing urlhack urlhack_unix regexp
+UXTERM   = TERMINAL uxcfg sercfg uxucs uxprint timing callback miscucs urlhack urlhack_unix regexp
 GTKTERM  = UXTERM gtkwin gtkcfg gtkdlg gtkfont gtkcols xkeysym urlhack urlhack_unix regexp
 OSXTERM  = UXTERM osxwin osxdlg osxctrls
 
