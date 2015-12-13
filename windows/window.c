@@ -434,7 +434,7 @@ stpcpy_max(char *dst, const char *src, size_t n)
 
 int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
-    WNDCLASSEX wndclass;
+    WNDCLASSEXW wndclass;
     MSG msg;
     HRESULT hr;
     int guess_width, guess_height;
@@ -797,7 +797,6 @@ int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     }
 
     if (!prev) {
-        WNDCLASSEXW wndclass;
 	wndclass.cbSize = sizeof(WNDCLASSEX);
 	wndclass.style = 0;
 	wndclass.lpfnWndProc = WndProc;
