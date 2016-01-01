@@ -2,6 +2,10 @@
 
 This is [PuTTYTray][1], a fork of [Simon Tatham's PuTTY][2].
 
+## Usage
+
+See [usage instructions][6] in our wiki.
+
 ## Documentation
 
 * For a list of current features, see the [PuTTYTray website][1].
@@ -41,3 +45,4 @@ See `LICENSE.MIT` for the full text.
   [3]: https://github.com/FauxFaux/PuTTYTray/wiki
   [4]: https://github.com/FauxFaux/PuTTYTray/wiki/Building-with-VS2010-Express
   [5]: https://github.com/FauxFaux/PuTTYTray/issues
+  [6]: https://github.com/FauxFaux/PuTTYTray/wiki/Usage-instructions
