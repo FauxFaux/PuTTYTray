@@ -633,12 +633,14 @@ if (defined $makefiles{'vc'}) {
       "\n".
       "# C compilation flags\n".
       "CFLAGS = /nologo /W3 /GS /Zi " .
+      "/arch:SSE /D_USING_V110_SDK71_=1 ". # support for really olde computers
       "/D_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=1 ".
       "/D_CRT_SECURE_NO_WARNINGS=1 ".
       "/d2guard4 ".
        (join " ", map {"-I$dirpfx$_"} @srcdirs) .
        " /D_WINDOWS /D_WIN32_WINDOWS=0x500 /DWINVER=0x500\n".
       "LFLAGS = /dynamicbase /nxcompat /debug /guard:cf\n".
+      "LFLAGS = \$(LFLAGS) /SUBSYSTEM:WINDOWS,5.01\n". # support for really olde computers
       "!if \"\$(DEBUG)\" == \"1\"\n".
       "CFLAGS=\$(CFLAGS) /Od /DDEBUG /RTC1\n".
       "!else\n".
