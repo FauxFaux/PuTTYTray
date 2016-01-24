@@ -16,8 +16,9 @@ echo #define TEXTVER "PuTTYTray %1" > ../version.h
 echo #define SSHVER "PuTTYTray-%1" >> ../version.h
 echo #define BINARY_VERSION %upstreammajor%,%upstreamminor%,0,%trayversion% >> ../version.h
 
-nmake /F Makefile.vc putty.exe
+nmake /F Makefile.vc putty.exe plink.exe
 
 signtool sign /fd SHA256 /a /t http://timestamp.verisign.com/scripts/timstamp.dll ^
-  putty.exe
+  putty.exe ^
+  plink.exe
 :end
