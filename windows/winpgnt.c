@@ -62,7 +62,8 @@ static HMENU systray_menu, session_menu;
 static int already_running;
 
 static char our_path[MAX_PATH];
-static char relaunch_path[MAX_PATH + 32];
+static char relaunch_path_base[MAX_PATH + 48];
+static char relaunch_path[MAX_PATH + 48];
 
 /* CWD for "add key" file requester. */
 static filereq *keypath = NULL;
@@ -240,19 +241,35 @@ BOOL saves_keys() {
     return res;
 }
 
+void write_startup_information() {
+    HKEY run = run_key();
+    RegSetValueEx(run, APPNAME, 0, REG_SZ, (BYTE*)relaunch_path, strlen(relaunch_path) + 1);
+    RegCloseKey(run);
+}
+
 void toggle_startup() {
     if (starts_at_startup()) {
         HKEY run = run_key();
         RegDeleteValue(run, APPNAME);
         RegCloseKey(run);
     } else {
-        LONG ret;
-        HKEY run = run_key();
-        ret = RegSetValueEx(run, APPNAME, 0, REG_SZ, (BYTE*)relaunch_path, strlen(relaunch_path) + 1);
-        RegCloseKey(run);
+        write_startup_information();
     }
 }
 
+void update_confirm_mode(BOOL new_value) {
+    BOOL started_at_startup_before = starts_at_startup();
+
+    confirm_mode = new_value;
+    strcpy(relaunch_path, relaunch_path_base);
+    if (new_value) {
+        strcat(relaunch_path, " --confirm");
+    }
+
+    if (started_at_startup_before) {
+        write_startup_information();
+    }
+}
 
 static HWND passphrase_box;
 
@@ -2010,7 +2027,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	    prompt_add_keyfile();
 	    break;
           case IDM_CONFIRM_KEY_USAGE:
-            confirm_mode = !confirm_mode;
+            update_confirm_mode(!confirm_mode);
             CheckMenuItem(systray_menu, IDM_CONFIRM_KEY_USAGE,
                 confirm_mode ? MF_CHECKED : MF_UNCHECKED);
             break;
@@ -2265,9 +2282,10 @@ int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     if (!GetModuleFileName(NULL, our_path, MAX_PATH))
         modalfatalbox("GetModuleFileName failed?!");
 
-    strcpy(relaunch_path, "\"");
-    strcat(relaunch_path, our_path);
-    strcat(relaunch_path, "\" --as-agent --startup");
+    strcpy(relaunch_path_base, "\"");
+    strcat(relaunch_path_base, our_path);
+    strcat(relaunch_path_base, "\" --as-agent --startup");
+    strcpy(relaunch_path, relaunch_path_base);
 
     /*
      * Find out if Pageant is already running.
@@ -2307,7 +2325,7 @@ int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 		command = "";
 	    break;
         } else if (!strcmp(argv[i], "--confirm")) {
-            confirm_mode = TRUE;
+            update_confirm_mode(TRUE);
         } else if (!strcmp(argv[i], "--startup")) {
             startup = TRUE;
 	} else {
