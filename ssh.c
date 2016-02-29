@@ -5589,7 +5589,7 @@ static void ssh1_msg_port_open(Ssh ssh, struct Packet *pktin)
   ssh_pkt_getstring(pktin, &host, &hostsize);
   port = ssh_pkt_getuint32(pktin);
 
-  pf.dhost = dupprintf("%.*s", hostsize, host);
+  pf.dhost = dupprintf("%.*s", hostsize, NULLTOEMPTY(host));
   pf.dport = port;
   pfp = find234(ssh->rportfwds, &pf, NULL);
 
@@ -6093,7 +6093,7 @@ static void ssh1_msg_debug(Ssh ssh, struct Packet *pktin)
   int msglen;
 
   ssh_pkt_getstring(pktin, &msg, &msglen);
-  logeventf(ssh, "Remote debug message: %.*s", msglen, msg);
+  logeventf(ssh, "Remote debug message: %.*s", msglen, NULLTOEMPTY(msg));
 }
 
 static void ssh1_msg_disconnect(Ssh ssh, struct Packet *pktin)
@@ -6103,7 +6103,8 @@ static void ssh1_msg_disconnect(Ssh ssh, struct Packet *pktin)
   int msglen;
 
   ssh_pkt_getstring(pktin, &msg, &msglen);
-  bombout(("Server sent disconnect message:\n\"%.*s\"", msglen, msg));
+  bombout(
+      ("Server sent disconnect message:\n\"%.*s\"", msglen, NULLTOEMPTY(msg)));
 }
 
 static void ssh_msg_ignore(Ssh ssh, struct Packet *pktin)
@@ -8167,7 +8168,7 @@ static void ssh2_msg_channel_open_failure(Ssh ssh, struct Packet *pktin)
               "Forwarded connection refused by server: %s [%.*s]",
               reasons[reason_code],
               reason_length,
-              reason_string);
+              NULLTOEMPTY(reason_string));
 
     pfd_close(c->u.pfd.pf);
   } else if (c->type == CHAN_ZOMBIE) {
@@ -8458,9 +8459,7 @@ static void ssh2_msg_channel_open(Ssh ssh, struct Packet *pktin)
     char *addrstr;
 
     ssh_pkt_getstring(pktin, &peeraddr, &peeraddrlen);
-    addrstr = snewn(peeraddrlen + 1, char);
-    memcpy(addrstr, peeraddr, peeraddrlen);
-    addrstr[peeraddrlen] = '\0';
+    addrstr = dupprintf("%.*s", peeraddrlen, NULLTOEMPTY(peeraddr));
     peerport = ssh_pkt_getuint32(pktin);
 
     logeventf(
@@ -8493,17 +8492,18 @@ static void ssh2_msg_channel_open(Ssh ssh, struct Packet *pktin)
     char *shost;
     int shostlen;
     ssh_pkt_getstring(pktin, &shost, &shostlen); /* skip address */
-    pf.shost = dupprintf("%.*s", shostlen, shost);
+    pf.shost = dupprintf("%.*s", shostlen, NULLTOEMPTY(shost));
     pf.sport = ssh_pkt_getuint32(pktin);
     ssh_pkt_getstring(pktin, &peeraddr, &peeraddrlen);
     peerport = ssh_pkt_getuint32(pktin);
     realpf = find234(ssh->rportfwds, &pf, NULL);
     logeventf(ssh,
               "Received remote port %s:%d open request "
-              "from %s:%d",
+              "from %.*s:%d",
               pf.shost,
               pf.sport,
-              peeraddr,
+              peeraddrlen,
+              NULLTOEMPTY(peeraddr),
               peerport);
     sfree(pf.shost);
 
@@ -10198,7 +10198,8 @@ static void do_ssh2_authconn(Ssh ssh,
           s->cur_prompt = new_prompts(ssh->frontend);
           s->cur_prompt->to_server = TRUE;
           s->cur_prompt->name = dupstr("New SSH password");
-          s->cur_prompt->instruction = dupprintf("%.*s", prompt_len, prompt);
+          s->cur_prompt->instruction =
+              dupprintf("%.*s", prompt_len, NULLTOEMPTY(prompt));
           s->cur_prompt->instr_reqd = TRUE;
           /*
            * There's no explicit requirement in the protocol
@@ -10627,7 +10628,7 @@ static void ssh2_msg_disconnect(Ssh ssh, struct Packet *pktin)
   }
   logevent(buf);
   sfree(buf);
-  buf = dupprintf("Disconnection message text: %.*s", msglen, msg);
+  buf = dupprintf("Disconnection message text: %.*s", msglen, NULLTOEMPTY(msg));
   logevent(buf);
   bombout(("Server sent disconnect message\ntype %d (%s):\n\"%.*s\"",
            reason,
@@ -10635,7 +10636,7 @@ static void ssh2_msg_disconnect(Ssh ssh, struct Packet *pktin)
                ? ssh2_disconnect_reasons[reason]
                : "unknown",
            msglen,
-           msg));
+           NULLTOEMPTY(msg)));
   sfree(buf);
 }
 
@@ -10649,7 +10650,7 @@ static void ssh2_msg_debug(Ssh ssh, struct Packet *pktin)
   ssh2_pkt_getbool(pktin);
   ssh_pkt_getstring(pktin, &msg, &msglen);
 
-  logeventf(ssh, "Remote debug message: %.*s", msglen, msg);
+  logeventf(ssh, "Remote debug message: %.*s", msglen, NULLTOEMPTY(msg));
 }
 
 static void ssh2_msg_transport(Ssh ssh, struct Packet *pktin)

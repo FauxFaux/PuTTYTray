@@ -2957,7 +2957,7 @@ static void help(FILE *fp)
           "login shell\n"
           "  -sb, +sb                  Do(default) or do not display a "
           "scrollbar\n"
-          "  -log PATH                 Log all output to a file\n"
+          "  -log PATH, -sessionlog PATH  Log all output to a file\n"
           "  -nethack                  Map numeric keypad to hjklyubn "
           "direction keys\n"
           "  -xrm RESOURCE-STRING      Set an X resource\n"
@@ -3516,6 +3516,7 @@ void change_settings_menuitem(GtkMenuItem *item, gpointer data)
                    "Font setup error",
                    msgboxtext,
                    string_width("Could not change fonts in terminal window:"),
+                   FALSE,
                    "OK",
                    'o',
                    +1,
