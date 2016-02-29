@@ -184,6 +184,5 @@ int agent_query(void *in,
   sfree(mapname);
   if (psd)
     LocalFree(psd);
-  sfree(usersid);
   return 1;
 }

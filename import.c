@@ -187,14 +187,16 @@ static int ber_read_id_len(
     return -1;
 
   if (*p & 0x80) {
+    unsigned len;
     int n = *p & 0x7F;
     p++, sourcelen--;
     if (sourcelen < n)
       return -1;
-    *length = 0;
+    len = 0;
     while (n--)
-      *length = (*length << 8) | (*p++);
+      len = (len << 8) | (*p++);
     sourcelen -= n;
+    *length = toint(len);
   } else {
     *length = *p;
     p++, sourcelen--;
@@ -373,8 +375,8 @@ static struct openssh_key *load_openssh_key(const Filename *filename,
     goto error;
   }
   strip_crlf(line);
-  if (0 != strncmp(line, "-----BEGIN ", 11) ||
-      0 != strcmp(line + strlen(line) - 16, "PRIVATE KEY-----")) {
+  if (!strstartswith(line, "-----BEGIN ") ||
+      !strendswith(line, "PRIVATE KEY-----")) {
     errmsg = "file does not begin with OpenSSH key header";
     goto error;
   }
@@ -397,8 +399,8 @@ static struct openssh_key *load_openssh_key(const Filename *filename,
       goto error;
     }
     strip_crlf(line);
-    if (0 == strncmp(line, "-----END ", 9) &&
-        0 == strcmp(line + strlen(line) - 16, "PRIVATE KEY-----")) {
+    if (strstartswith(line, "-----END ") &&
+        strendswith(line, "PRIVATE KEY-----")) {
       sfree(line);
       line = NULL;
       break; /* done */
@@ -632,7 +634,8 @@ struct ssh2_userkey *openssh_read(const Filename *filename,
    * decrypt, if the key was encrypted. */
   ret = ber_read_id_len(p, key->keyblob_len, &id, &len, &flags);
   p += ret;
-  if (ret < 0 || id != 16) {
+  if (ret < 0 || id != 16 || len < 0 ||
+      key->keyblob + key->keyblob_len - p < len) {
     errmsg = "ASN.1 decoding failure";
     retval = key->encrypted ? SSH2_WRONG_PASSPHRASE : NULL;
     goto error;
@@ -663,7 +666,8 @@ struct ssh2_userkey *openssh_read(const Filename *filename,
     ret = ber_read_id_len(
         p, key->keyblob + key->keyblob_len - p, &id, &len, &flags);
     p += ret;
-    if (ret < 0 || id != 2 || key->keyblob + key->keyblob_len - p < len) {
+    if (ret < 0 || id != 2 || len < 0 ||
+        key->keyblob + key->keyblob_len - p < len) {
       errmsg = "ASN.1 decoding failure";
       retval = key->encrypted ? SSH2_WRONG_PASSPHRASE : NULL;
       goto error;

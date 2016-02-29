@@ -11,6 +11,7 @@
 
 #include "putty.h"
 #include "ssh.h"
+#include "licence.h"
 
 #include <commctrl.h>
 
@@ -261,6 +262,7 @@ static int CALLBACK LicenceProc(HWND hwnd,
                    TRUE);
     }
 
+    SetDlgItemText(hwnd, 1000, LICENCE_TEXT("\r\n\r\n"));
     return 1;
   case WM_COMMAND:
     switch (LOWORD(wParam)) {
@@ -301,7 +303,14 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                    TRUE);
     }
 
-    SetDlgItemText(hwnd, 100, ver);
+    {
+      char *text =
+          dupprintf("Pageant\r\n\r\n%s\r\n\r\n%s",
+                    ver,
+                    "\251 " SHORT_COPYRIGHT_DETAILS ". All rights reserved.");
+      SetDlgItemText(hwnd, 1000, text);
+      sfree(text);
+    }
     return 1;
   case WM_COMMAND:
     switch (LOWORD(wParam)) {

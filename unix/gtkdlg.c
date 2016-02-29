@@ -23,6 +23,7 @@
 #include "storage.h"
 #include "dialog.h"
 #include "tree234.h"
+#include "licence.h"
 
 struct Shortcut {
   GtkWidget *widget;
@@ -3220,12 +3221,17 @@ static void messagebox_handler(union control *ctrl,
   if (event == EVENT_ACTION)
     dlg_end(dlg, ctrl->generic.context.i);
 }
-int messagebox(GtkWidget *parentwin, char *title, char *msg, int minwid, ...)
+int messagebox(GtkWidget *parentwin,
+               char *title,
+               char *msg,
+               int minwid,
+               int selectable,
+               ...)
 {
   GtkWidget *window, *w0, *w1;
   struct controlbox *ctrlbox;
   struct controlset *s0, *s1;
-  union control *c;
+  union control *c, *textctrl;
   struct dlgparam dp;
   struct Shortcuts scs;
   int index, ncols;
@@ -3240,7 +3246,7 @@ int messagebox(GtkWidget *parentwin, char *title, char *msg, int minwid, ...)
   ctrlbox = ctrl_new_box();
 
   ncols = 0;
-  va_start(ap, minwid);
+  va_start(ap, selectable);
   while (va_arg(ap, char *) != NULL) {
     ncols++;
     (void)va_arg(ap, int); /* shortcut */
@@ -3256,7 +3262,7 @@ int messagebox(GtkWidget *parentwin, char *title, char *msg, int minwid, ...)
   for (index = 0; index < ncols; index++)
     c->columns.percentages[index] =
         (index + 1) * 100 / ncols - index * 100 / ncols;
-  va_start(ap, minwid);
+  va_start(ap, selectable);
   index = 0;
   while (1) {
     char *title = va_arg(ap, char *);
@@ -3277,7 +3283,7 @@ int messagebox(GtkWidget *parentwin, char *title, char *msg, int minwid, ...)
   va_end(ap);
 
   s1 = ctrl_getset(ctrlbox, "x", "", "");
-  ctrl_text(s1, msg, HELPCTX(no_help));
+  textctrl = ctrl_text(s1, msg, HELPCTX(no_help));
 
   window = gtk_dialog_new();
   gtk_window_set_title(GTK_WINDOW(window), title);
@@ -3295,13 +3301,35 @@ int messagebox(GtkWidget *parentwin, char *title, char *msg, int minwid, ...)
   dp.retval = 0;
   dp.window = window;
 
+  if (selectable) {
+#if GTK_CHECK_VERSION(2, 0, 0)
+    struct uctrl *uc = dlg_find_byctrl(&dp, textctrl);
+    gtk_label_set_selectable(GTK_LABEL(uc->text), TRUE);
+
+    /*
+     * GTK selectable labels have a habit of selecting their
+     * entire contents when they gain focus. It's ugly to have
+     * text in a message box start up all selected, so we suppress
+     * this by manually selecting none of it - but we must do this
+     * when the widget _already has_ focus, otherwise our work
+     * will be undone when it gains it shortly.
+     */
+    gtk_widget_grab_focus(uc->text);
+    gtk_label_select_region(GTK_LABEL(uc->text), 0, 0);
+#else
+    (void)textctrl; /* placate warning */
+#endif
+  }
+
   gtk_window_set_modal(GTK_WINDOW(window), TRUE);
   if (parentwin) {
     set_transient_window_pos(parentwin, window);
     gtk_window_set_transient_for(GTK_WINDOW(window), GTK_WINDOW(parentwin));
   } else
     gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
+  gtk_container_set_focus_child(GTK_CONTAINER(window), NULL);
   gtk_widget_show(window);
+  gtk_window_set_focus(GTK_WINDOW(window), NULL);
 
   gtk_signal_connect(
       GTK_OBJECT(window), "destroy", GTK_SIGNAL_FUNC(window_destroy), NULL);
@@ -3334,6 +3362,7 @@ int reallyclose(void *frontend)
                        title,
                        "Are you sure you want to close this session?",
                        string_width("Most of the width of the above text"),
+                       FALSE,
                        "Yes",
                        'y',
                        +1,
@@ -3399,6 +3428,7 @@ int verify_ssh_host_key(void *frontend,
                    "PuTTY Security Alert",
                    text,
                    string_width(fingerprint),
+                   TRUE,
                    "Accept",
                    'a',
                    0,
@@ -3445,6 +3475,7 @@ int askalg(void *frontend,
                    "PuTTY Security Alert",
                    text,
                    string_width("Continue with connection?"),
+                   FALSE,
                    "Yes",
                    'y',
                    0,
@@ -3476,6 +3507,7 @@ void fatal_message_box(void *window, char *msg)
              "PuTTY Fatal Error",
              msg,
              string_width("REASONABLY LONG LINE OF TEXT FOR BASIC SANITY"),
+             FALSE,
              "OK",
              'o',
              1,
@@ -3489,6 +3521,7 @@ void nonfatal_message_box(void *window, char *msg)
              "PuTTY Error",
              msg,
              string_width("REASONABLY LONG LINE OF TEXT FOR BASIC SANITY"),
+             FALSE,
              "OK",
              'o',
              1,
@@ -3531,47 +3564,14 @@ static void licence_clicked(GtkButton *button, gpointer data)
 {
   char *title;
 
-  char *licence =
-      "Copyright 1997-2015 Simon Tatham.\n\n"
-
-      "Portions copyright Robert de Bath, Joris van Rantwijk, Delian "
-      "Delchev, Andreas Schultz, Jeroen Massar, Wez Furlong, Nicolas "
-      "Barry, Justin Bradford, Ben Harris, Malcolm Smith, Ahmad Khalifa, "
-      "Markus Kuhn, Colin Watson, and CORE SDI S.A.\n\n"
-
-      "Permission is hereby granted, free of charge, to any person "
-      "obtaining a copy of this software and associated documentation "
-      "files (the "
-      "Software"
-      "), to deal in the Software without restriction, "
-      "including without limitation the rights to use, copy, modify, merge, "
-      "publish, distribute, sublicense, and/or sell copies of the Software, "
-      "and to permit persons to whom the Software is furnished to do so, "
-      "subject to the following conditions:\n\n"
-
-      "The above copyright notice and this permission notice shall be "
-      "included in all copies or substantial portions of the Software.\n\n"
-
-      "THE SOFTWARE IS PROVIDED "
-      "AS IS"
-      ", WITHOUT "
-      "WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, "
-      "INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF "
-      "MERCHANTABILITY, FITNESS FOR A PARTICULAR "
-      "PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE "
-      "COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES "
-      "OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, "
-      "TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN "
-      "CONNECTION WITH THE SOFTWARE OR THE USE OR "
-      "OTHER DEALINGS IN THE SOFTWARE.";
-
   title = dupcat(appname, " Licence", NULL);
   assert(aboutbox != NULL);
   messagebox(aboutbox,
              title,
-             licence,
+             LICENCE_TEXT("\n\n"),
              string_width("LONGISH LINE OF TEXT SO THE LICENCE"
                           " BOX ISN'T EXCESSIVELY TALL AND THIN"),
+             TRUE,
              "OK",
              'o',
              1,
@@ -3613,21 +3613,34 @@ void about_box(void *window)
       GTK_OBJECT(w), "clicked", GTK_SIGNAL_FUNC(licence_clicked), NULL);
   gtk_widget_show(w);
 
-  w = gtk_label_new(appname);
+  {
+    char *label_text =
+        dupprintf("%s\n\n%s\n\n%s",
+                  appname,
+                  ver,
+                  "Copyright " SHORT_COPYRIGHT_DETAILS ". All rights reserved");
+    w = gtk_label_new(label_text);
+    gtk_label_set_justify(GTK_LABEL(w), GTK_JUSTIFY_CENTER);
+#if GTK_CHECK_VERSION(2, 0, 0)
+    gtk_label_set_selectable(GTK_LABEL(w), TRUE);
+#endif
+    sfree(label_text);
+  }
   gtk_box_pack_start(GTK_BOX(GTK_DIALOG(aboutbox)->vbox), w, FALSE, FALSE, 0);
-  gtk_widget_show(w);
-
-  w = gtk_label_new(ver);
-  gtk_box_pack_start(GTK_BOX(GTK_DIALOG(aboutbox)->vbox), w, FALSE, FALSE, 5);
-  gtk_widget_show(w);
-
-  w = gtk_label_new("Copyright 1997-2015 Simon Tatham. All rights reserved");
-  gtk_box_pack_start(GTK_BOX(GTK_DIALOG(aboutbox)->vbox), w, FALSE, FALSE, 5);
+#if GTK_CHECK_VERSION(2, 0, 0)
+  /*
+   * Same precautions against initial select-all as in messagebox().
+   */
+  gtk_widget_grab_focus(w);
+  gtk_label_select_region(GTK_LABEL(w), 0, 0);
+#endif
   gtk_widget_show(w);
 
   set_transient_window_pos(GTK_WIDGET(window), aboutbox);
   gtk_window_set_transient_for(GTK_WINDOW(aboutbox), GTK_WINDOW(window));
+  gtk_container_set_focus_child(GTK_CONTAINER(aboutbox), NULL);
   gtk_widget_show(aboutbox);
+  gtk_window_set_focus(GTK_WINDOW(aboutbox), NULL);
 }
 
 struct eventlog_stuff {
@@ -3907,6 +3920,7 @@ int askappend(void *frontend,
                      message,
                      string_width("LINE OF TEXT SUITABLE FOR THE"
                                   " ASKAPPEND WIDTH"),
+                     FALSE,
                      "Overwrite",
                      'o',
                      1,
