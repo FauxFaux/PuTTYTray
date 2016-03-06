@@ -186,6 +186,5 @@ int agent_query(void *in, int inlen, void **out, int *outlen,
     sfree(mapname);
     if (psd)
         LocalFree(psd);
-    sfree(usersid);
     return 1;
 }
