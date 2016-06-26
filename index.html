@@ -5,7 +5,7 @@
     <title>PuTTYTray</title>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <meta name="description" content="PuTTY Tray - Minimizing to the system tray, URL hyperlinking, window transparency, portable sessions and more." />
-    <meta name="keywords" content="putty, tray, ssh, url, hyperlink, hyperlinking, icon, portable, portability, reconnect, file, save, transparency" />
+    <meta name="keywords" content="putty, tray, ssh, url, hyperlink, hyperlinking, icon, portable, portability, file, save, transparency" />
     <script src="./x/script/main.js" type="text/javascript"></script>
     <link rel="stylesheet" type="text/css" media="screen, projection" href="./x/style/main.css" />
     <link rel="shortcut icon" href="./favicon.ico" />
@@ -64,6 +64,16 @@
                     <li>Portability: optionally stores session configuration in files (for example: on a USB drive) like <a href="http://code.google.com/p/portaputty/">portaPuTTY</a></li>
                     <li>Easy access to the 'always on top' setting (in the system menu)</li>
                     <li>Android <a href="http://developer.android.com/guide/developing/tools/adb.html">adb</a> support</li>
+                </ul>
+                <br />
+                <br />
+                <h2>BETA: 0.67-t029 (2016-06-26)</h2>
+                <ul>
+                    <li class="update">Fixed: Code signing certificate, and timestamping, valid again; no more certificate errors</li>
+                    <li class="update">Upgraded to PuTTY 0.67 (2016-03-05), which contains some security hardening, but no relevant security fixes.</li>
+                    <li class="update">Fixed: <a href="https://github.com/FauxFaux/PuTTYTray/issues/247">#247</a>: Crash if file configuration had been munged by git</li>
+                    <li class="update">Fixed: <a href="https://github.com/FauxFaux/PuTTYTray/issues/249">#249</a>: Command line length issues with cygcommand and cygterm</li>
+                    <li><strong>Note:</strong> Automatic reconnection is deprecated. It doesn't work. Please disable it.</li>
                 </ul>
                 <br />
                 <br />
@@ -311,19 +321,13 @@
                     <li class="update">Fixed: With 'show tray icon: always' enabled: clicking the tray icon will minimize the PuTTY window if it is open.</li>
                 </ul>
 
-                <br />
-                <h2>Note</h2>
-
-                <ul>
-                    <li>The 'reconnect on connection failure' option is experimental!</li>
-                </ul>
             </div>
 
             <div id="content_download" class="content_pane">
                 <h2><a id="download">Download</a></h2>
 
-                <p>The current version is 0.66-t027 BETA.<br/>
-                Last update: 13th December, 2015.
+                <p>The current version is 0.67-t029.<br/>
+                Last update: 26th June, 2016.
                 </p>
 
                 <p>If you have any problems at all, please raise a ticket in the <a href="https://github.com/FauxFaux/PuTTYTray/issues">github bug tracker</a>, preferably after trying it in stock PuTTY, and maybe the previous release, thanks!</p>
@@ -332,7 +336,7 @@
                     <li>
                         <a href="https://puttytray.goeswhere.com/download/putty.exe">putty.exe</a><br />
                         <span style="font-size: 80%; color: #AAAAAA;">SHA256 / GPG (putty.exe) =
-                            <a href="https://git.goeswhere.com/putty.git/tag/refs/tags/p0.66-t028">218aadbb0664a25cffdedbd48f8404152ee287a87d53994c979bbf5c11601197 </a></span>
+                            <a href="https://git.goeswhere.com/putty.git/tag/refs/tags/p0.67-t029">31ba5b51450e1b1fd2cc6038ceb107058068519e9535907ab06850ed23c989b3</a></span>
                    </li>
                 </ul>
 
