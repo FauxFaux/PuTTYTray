@@ -1060,6 +1060,12 @@ void *file_open_settings_r(const char *sessionname)
             if (!p) break;
             *p = '\0';
             ++p;
+
+            // allow for someone having dos2unix'd our file
+            if (*p == '\r')
+                ++p;
+
+            assert('\n' == *p);
             ++p; /* for "\\\n" - human readable files */
 
             st2 = snew( struct setItem );
