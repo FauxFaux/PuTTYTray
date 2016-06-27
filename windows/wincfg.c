@@ -444,7 +444,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		  conf_checkbox_handler,
 		  I(CONF_fullscreenonaltenter));
 
-    s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options");
+    s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options (UNSUPPORTED)");
     ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'f', HELPCTX(no_help), conf_checkbox_handler, I(CONF_failure_reconnect));
     ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), conf_checkbox_handler, I(CONF_wakeup_reconnect));
 
