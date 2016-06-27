@@ -717,14 +717,18 @@ int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
                         /* Concatenate all the remaining arguments separating
                          * them with spaces to get the command line to execute.
                          */
-                        char *p = conf_get_str(conf, CONF_cygcmd);
-                        char *const end = conf_get_str(conf, CONF_cygcmd) + strlen(conf_get_str(conf, CONF_cygcmd));
-                        for (; i < argc && p < end; i++) {
-                            p = stpcpy_max(p, argv[i], end - p - 1);
+                        const size_t max_len = 0x10000;
+                        char *buf = malloc(max_len);
+                        char *p = buf;
+                        char *end = p + max_len;
+                        p = stpcpy_max(p, conf_get_str(conf, CONF_cygcmd), max_len - 1);
+                        for (; i < argc && (p - buf) < max_len; i++) {
+                            p = stpcpy_max(p, argv[i], max_len - 1);
                             *p++ = ' ';
                         }
-                        assert(p > conf_get_str(conf, CONF_cygcmd) && p <= end);
                         *--p = '\0';
+                        conf_set_str(conf, CONF_cygcmd, buf);
+                        free(buf);
                         got_host = 1;
                     } else {
                         /*
