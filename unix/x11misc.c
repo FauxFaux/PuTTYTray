@@ -27,9 +27,9 @@
 static int (*orig_x11_error_handler)(Display *thisdisp, XErrorEvent *err);
 
 struct x11_err_to_ignore {
-    Display *display;
-    unsigned char error_code;
-    unsigned long serial;
+  Display *display;
+  unsigned char error_code;
+  unsigned long serial;
 };
 
 struct x11_err_to_ignore *errs;
@@ -38,51 +38,49 @@ int nerrs, errsize;
 
 static int x11_error_handler(Display *thisdisp, XErrorEvent *err)
 {
-    int i;
-    for (i = 0; i < nerrs; i++) {
-        if (thisdisp == errs[i].display &&
-            err->serial == errs[i].serial &&
-            err->error_code == errs[i].error_code) {
-            /* Ok, this is an error we're happy to ignore */
-            return 0;
-        }
+  int i;
+  for (i = 0; i < nerrs; i++) {
+    if (thisdisp == errs[i].display && err->serial == errs[i].serial &&
+        err->error_code == errs[i].error_code) {
+      /* Ok, this is an error we're happy to ignore */
+      return 0;
     }
+  }
 
-    return (*orig_x11_error_handler)(thisdisp, err);
+  return (*orig_x11_error_handler)(thisdisp, err);
 }
 
 void x11_ignore_error(Display *disp, unsigned char errcode)
 {
-    /*
-     * Install our error handler, if we haven't already.
-     */
-    if (!orig_x11_error_handler)
-        orig_x11_error_handler = XSetErrorHandler(x11_error_handler);
+  /*
+   * Install our error handler, if we haven't already.
+   */
+  if (!orig_x11_error_handler)
+    orig_x11_error_handler = XSetErrorHandler(x11_error_handler);
 
-    /*
-     * This is as good a moment as any to winnow the ignore list based
-     * on requests we know to have been processed.
-     */
-    {
-        unsigned long last = LastKnownRequestProcessed(disp);
-        int i, j;
-        for (i = j = 0; i < nerrs; i++) {
-            if (errs[i].display == disp && errs[i].serial <= last)
-                continue;
-            errs[j++] = errs[i];
-        }
-        nerrs = j;
+  /*
+   * This is as good a moment as any to winnow the ignore list based
+   * on requests we know to have been processed.
+   */
+  {
+    unsigned long last = LastKnownRequestProcessed(disp);
+    int i, j;
+    for (i = j = 0; i < nerrs; i++) {
+      if (errs[i].display == disp && errs[i].serial <= last)
+        continue;
+      errs[j++] = errs[i];
     }
+    nerrs = j;
+  }
 
-    if (nerrs >= errsize) {
-        errsize = nerrs * 5 / 4 + 16;
-        errs = sresize(errs, errsize, struct x11_err_to_ignore);
-    }
-    errs[nerrs].display = disp;
-    errs[nerrs].error_code = errcode;
-    errs[nerrs].serial = NextRequest(disp);
-    nerrs++;
+  if (nerrs >= errsize) {
+    errsize = nerrs * 5 / 4 + 16;
+    errs = sresize(errs, errsize, struct x11_err_to_ignore);
+  }
+  errs[nerrs].display = disp;
+  errs[nerrs].error_code = errcode;
+  errs[nerrs].serial = NextRequest(disp);
+  nerrs++;
 }
 
 #endif
-

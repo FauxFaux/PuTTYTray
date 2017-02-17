@@ -7,9 +7,9 @@
 
 #include "puttymem.h"
 
-#include <stdio.h>		       /* for FILE * */
-#include <stdarg.h>		       /* for va_list */
-#include <time.h>                      /* for struct tm */
+#include <stdio.h>  /* for FILE * */
+#include <stdarg.h> /* for va_list */
+#include <time.h>   /* for struct tm */
 
 #ifndef FALSE
 #define FALSE 0
@@ -33,7 +33,7 @@ char *dupstr(const char *s);
 char *dupcat(const char *s1, ...);
 char *dupprintf(const char *fmt, ...)
 #ifdef __GNUC__
-    __attribute__ ((format (printf, 1, 2)))
+    __attribute__((format(printf, 1, 2)))
 #endif
     ;
 char *dupvprintf(const char *fmt, va_list ap);
@@ -41,7 +41,7 @@ void burnstr(char *string);
 typedef struct strbuf strbuf;
 strbuf *strbuf_new(void);
 void strbuf_free(strbuf *buf);
-char *strbuf_str(strbuf *buf);         /* does not free buf */
+char *strbuf_str(strbuf *buf);    /* does not free buf */
 char *strbuf_to_str(strbuf *buf); /* does free buf, but you must free result */
 void strbuf_catf(strbuf *buf, const char *fmt, ...);
 void strbuf_catfv(strbuf *buf, const char *fmt, va_list ap);
@@ -67,11 +67,11 @@ int base64_decode_atom(const char *atom, unsigned char *out);
 
 struct bufchain_granule;
 struct bufchain_tag {
-    struct bufchain_granule *head, *tail;
-    int buffersize;		       /* current amount of buffered data */
+  struct bufchain_granule *head, *tail;
+  int buffersize; /* current amount of buffered data */
 };
 #ifndef BUFCHAIN_TYPEDEF
-typedef struct bufchain_tag bufchain;  /* rest of declaration in misc.c */
+typedef struct bufchain_tag bufchain; /* rest of declaration in misc.c */
 #define BUFCHAIN_TYPEDEF
 #endif
 
@@ -137,72 +137,70 @@ char *buildinfo(const char *newline);
 void debug_printf(const char *fmt, ...);
 void debug_memdump(const void *buf, int len, int L);
 #define debug(x) (debug_printf x)
-#define dmemdump(buf,len) debug_memdump (buf, len, 0);
-#define dmemdumpl(buf,len) debug_memdump (buf, len, 1);
+#define dmemdump(buf, len) debug_memdump(buf, len, 0);
+#define dmemdumpl(buf, len) debug_memdump(buf, len, 1);
 #else
 #define debug(x)
-#define dmemdump(buf,len)
-#define dmemdumpl(buf,len)
+#define dmemdump(buf, len)
+#define dmemdumpl(buf, len)
 #endif
 
 #ifndef lenof
-#define lenof(x) ( (sizeof((x))) / (sizeof(*(x))))
+#define lenof(x) ((sizeof((x))) / (sizeof(*(x))))
 #endif
 
 #ifndef min
-#define min(x,y) ( (x) < (y) ? (x) : (y) )
+#define min(x, y) ((x) < (y) ? (x) : (y))
 #endif
 #ifndef max
-#define max(x,y) ( (x) > (y) ? (x) : (y) )
+#define max(x, y) ((x) > (y) ? (x) : (y))
 #endif
 
-#define GET_32BIT_LSB_FIRST(cp) \
-  (((unsigned long)(unsigned char)(cp)[0]) | \
-  ((unsigned long)(unsigned char)(cp)[1] << 8) | \
-  ((unsigned long)(unsigned char)(cp)[2] << 16) | \
-  ((unsigned long)(unsigned char)(cp)[3] << 24))
+#define GET_32BIT_LSB_FIRST(cp)                                                \
+  (((unsigned long)(unsigned char)(cp)[0]) |                                   \
+   ((unsigned long)(unsigned char)(cp)[1] << 8) |                              \
+   ((unsigned long)(unsigned char)(cp)[2] << 16) |                             \
+   ((unsigned long)(unsigned char)(cp)[3] << 24))
 
-#define PUT_32BIT_LSB_FIRST(cp, value) ( \
-  (cp)[0] = (unsigned char)(value), \
-  (cp)[1] = (unsigned char)((value) >> 8), \
-  (cp)[2] = (unsigned char)((value) >> 16), \
-  (cp)[3] = (unsigned char)((value) >> 24) )
+#define PUT_32BIT_LSB_FIRST(cp, value)                                         \
+  ((cp)[0] = (unsigned char)(value),                                           \
+   (cp)[1] = (unsigned char)((value) >> 8),                                    \
+   (cp)[2] = (unsigned char)((value) >> 16),                                   \
+   (cp)[3] = (unsigned char)((value) >> 24))
 
-#define GET_16BIT_LSB_FIRST(cp) \
-  (((unsigned long)(unsigned char)(cp)[0]) | \
-  ((unsigned long)(unsigned char)(cp)[1] << 8))
+#define GET_16BIT_LSB_FIRST(cp)                                                \
+  (((unsigned long)(unsigned char)(cp)[0]) |                                   \
+   ((unsigned long)(unsigned char)(cp)[1] << 8))
 
-#define PUT_16BIT_LSB_FIRST(cp, value) ( \
-  (cp)[0] = (unsigned char)(value), \
-  (cp)[1] = (unsigned char)((value) >> 8) )
+#define PUT_16BIT_LSB_FIRST(cp, value)                                         \
+  ((cp)[0] = (unsigned char)(value), (cp)[1] = (unsigned char)((value) >> 8))
 
-#define GET_32BIT_MSB_FIRST(cp) \
-  (((unsigned long)(unsigned char)(cp)[0] << 24) | \
-  ((unsigned long)(unsigned char)(cp)[1] << 16) | \
-  ((unsigned long)(unsigned char)(cp)[2] << 8) | \
-  ((unsigned long)(unsigned char)(cp)[3]))
+#define GET_32BIT_MSB_FIRST(cp)                                                \
+  (((unsigned long)(unsigned char)(cp)[0] << 24) |                             \
+   ((unsigned long)(unsigned char)(cp)[1] << 16) |                             \
+   ((unsigned long)(unsigned char)(cp)[2] << 8) |                              \
+   ((unsigned long)(unsigned char)(cp)[3]))
 
 #define GET_32BIT(cp) GET_32BIT_MSB_FIRST(cp)
 
-#define PUT_32BIT_MSB_FIRST(cp, value) ( \
-  (cp)[0] = (unsigned char)((value) >> 24), \
-  (cp)[1] = (unsigned char)((value) >> 16), \
-  (cp)[2] = (unsigned char)((value) >> 8), \
-  (cp)[3] = (unsigned char)(value) )
+#define PUT_32BIT_MSB_FIRST(cp, value)                                         \
+  ((cp)[0] = (unsigned char)((value) >> 24),                                   \
+   (cp)[1] = (unsigned char)((value) >> 16),                                   \
+   (cp)[2] = (unsigned char)((value) >> 8),                                    \
+   (cp)[3] = (unsigned char)(value))
 
 #define PUT_32BIT(cp, value) PUT_32BIT_MSB_FIRST(cp, value)
 
-#define GET_16BIT_MSB_FIRST(cp) \
-  (((unsigned long)(unsigned char)(cp)[0] << 8) | \
-  ((unsigned long)(unsigned char)(cp)[1]))
+#define GET_16BIT_MSB_FIRST(cp)                                                \
+  (((unsigned long)(unsigned char)(cp)[0] << 8) |                              \
+   ((unsigned long)(unsigned char)(cp)[1]))
 
-#define PUT_16BIT_MSB_FIRST(cp, value) ( \
-  (cp)[0] = (unsigned char)((value) >> 8), \
-  (cp)[1] = (unsigned char)(value) )
+#define PUT_16BIT_MSB_FIRST(cp, value)                                         \
+  ((cp)[0] = (unsigned char)((value) >> 8), (cp)[1] = (unsigned char)(value))
 
 /* Replace NULL with the empty string, permitting an idiom in which we
  * get a string (pointer,length) pair that might be NULL,0 and can
  * then safely say things like printf("%.*s", length, NULLTOEMPTY(ptr)) */
-#define NULLTOEMPTY(s) ((s)?(s):"")
+#define NULLTOEMPTY(s) ((s) ? (s) : "")
 
 #endif
