@@ -910,11 +910,15 @@ static const struct ssh2_cipher ssh_3des_ssh2 = {des3_make_context,
                                                  des3_key,
                                                  des3_ssh2_encrypt_blk,
                                                  des3_ssh2_decrypt_blk,
+                                                 NULL,
+                                                 NULL,
                                                  "3des-cbc",
                                                  8,
                                                  168,
+                                                 24,
                                                  SSH_CIPHER_IS_CBC,
-                                                 "triple-DES CBC"};
+                                                 "triple-DES CBC",
+                                                 NULL};
 
 static const struct ssh2_cipher ssh_3des_ssh2_ctr = {des3_make_context,
                                                      des3_free_context,
@@ -922,11 +926,15 @@ static const struct ssh2_cipher ssh_3des_ssh2_ctr = {des3_make_context,
                                                      des3_key,
                                                      des3_ssh2_sdctr,
                                                      des3_ssh2_sdctr,
+                                                     NULL,
+                                                     NULL,
                                                      "3des-ctr",
                                                      8,
                                                      168,
+                                                     24,
                                                      0,
-                                                     "triple-DES SDCTR"};
+                                                     "triple-DES SDCTR",
+                                                     NULL};
 
 /*
  * Single DES in SSH-2. "des-cbc" is marked as HISTORIC in
@@ -942,11 +950,15 @@ static const struct ssh2_cipher ssh_des_ssh2 = {des_make_context,
                                                 des_key,
                                                 des_ssh2_encrypt_blk,
                                                 des_ssh2_decrypt_blk,
+                                                NULL,
+                                                NULL,
                                                 "des-cbc",
                                                 8,
                                                 56,
+                                                8,
                                                 SSH_CIPHER_IS_CBC,
-                                                "single-DES CBC"};
+                                                "single-DES CBC",
+                                                NULL};
 
 static const struct ssh2_cipher ssh_des_sshcom_ssh2 = {des_make_context,
                                                        des3_free_context,
@@ -954,11 +966,15 @@ static const struct ssh2_cipher ssh_des_sshcom_ssh2 = {des_make_context,
                                                        des_key,
                                                        des_ssh2_encrypt_blk,
                                                        des_ssh2_decrypt_blk,
+                                                       NULL,
+                                                       NULL,
                                                        "des-cbc@ssh.com",
                                                        8,
                                                        56,
+                                                       8,
                                                        SSH_CIPHER_IS_CBC,
-                                                       "single-DES CBC"};
+                                                       "single-DES CBC",
+                                                       NULL};
 
 static const struct ssh2_cipher *const des3_list[] = {&ssh_3des_ssh2_ctr,
                                                       &ssh_3des_ssh2};

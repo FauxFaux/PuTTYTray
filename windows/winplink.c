@@ -11,6 +11,7 @@
 #include "putty.h"
 #include "storage.h"
 #include "tree234.h"
+#include "winsecur.h"
 
 #define WM_AGENT_CALLBACK (WM_APP + 4)
 
@@ -21,7 +22,7 @@ struct agent_callback {
   int len;
 };
 
-void fatalbox(char *p, ...)
+void fatalbox(const char *p, ...)
 {
   va_list ap;
   fprintf(stderr, "FATAL ERROR: ");
@@ -35,7 +36,7 @@ void fatalbox(char *p, ...)
   }
   cleanup_exit(1);
 }
-void modalfatalbox(char *p, ...)
+void modalfatalbox(const char *p, ...)
 {
   va_list ap;
   fprintf(stderr, "FATAL ERROR: ");
@@ -49,7 +50,7 @@ void modalfatalbox(char *p, ...)
   }
   cleanup_exit(1);
 }
-void nonfatal(char *p, ...)
+void nonfatal(const char *p, ...)
 {
   va_list ap;
   fprintf(stderr, "ERROR: ");
@@ -58,7 +59,7 @@ void nonfatal(char *p, ...)
   va_end(ap);
   fputc('\n', stderr);
 }
-void connection_fatal(void *frontend, char *p, ...)
+void connection_fatal(void *frontend, const char *p, ...)
 {
   va_list ap;
   fprintf(stderr, "FATAL ERROR: ");
@@ -72,7 +73,7 @@ void connection_fatal(void *frontend, char *p, ...)
   }
   cleanup_exit(1);
 }
-void cmdline_error(char *p, ...)
+void cmdline_error(const char *p, ...)
 {
   va_list ap;
   fprintf(stderr, "plink: ");
@@ -98,7 +99,7 @@ int term_ldisc(Terminal *term, int mode)
 {
   return FALSE;
 }
-void ldisc_update(void *frontend, int echo, int edit)
+void frontend_echoedit_update(void *frontend, int echo, int edit)
 {
   /* Update stdin read mode to reflect changes in line discipline. */
   DWORD mode;
@@ -150,7 +151,7 @@ int from_backend_eof(void *frontend_handle)
   return FALSE; /* do not respond to incoming EOF with outgoing */
 }
 
-int get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
+int get_userpass_input(prompts_t *p, const unsigned char *in, int inlen)
 {
   int ret;
   ret = cmdline_get_passwd_input(p, in, inlen);
@@ -193,6 +194,8 @@ static void usage(void)
   printf("  -P port   connect to specified port\n");
   printf("  -l user   connect with specified username\n");
   printf("  -batch    disable all interactive prompts\n");
+  printf("  -proxycmd command\n");
+  printf("            use 'command' as local proxy\n");
   printf("  -sercfg configuration-string (e.g. 19200,8,n,1,X)\n");
   printf("            Specify the serial configuration (serial only)\n");
   printf("The following options only apply to SSH connections:\n");
@@ -222,13 +225,17 @@ static void usage(void)
   printf("  -sshlog file\n");
   printf("  -sshrawlog file\n");
   printf("            log protocol details to a file\n");
+  printf("  -shareexists\n");
+  printf("            test whether a connection-sharing upstream exists\n");
   exit(1);
 }
 
 static void version(void)
 {
-  printf("plink: %s\n", ver);
-  exit(1);
+  char *buildinfo_text = buildinfo("\n");
+  printf("plink: %s\n%s\n", ver, buildinfo_text);
+  sfree(buildinfo_text);
+  exit(0);
 }
 
 char *do_select(SOCKET skt, int startup)
@@ -320,7 +327,10 @@ int main(int argc, char **argv)
   int errors;
   int got_host = FALSE;
   int use_subsystem = 0;
+  int just_test_share_exists = FALSE;
   unsigned long now, next, then;
+
+  dll_hijacking_protection();
 
   sklist = NULL;
   skcount = sksize = 0;
@@ -379,6 +389,8 @@ int main(int argc, char **argv)
       } else if (!strcmp(p, "-pgpfp")) {
         pgp_fingerprints();
         exit(1);
+      } else if (!strcmp(p, "-shareexists")) {
+        just_test_share_exists = TRUE;
       } else {
         fprintf(stderr, "plink: unknown option \"%s\"\n", p);
         errors = 1;
@@ -607,8 +619,38 @@ int main(int argc, char **argv)
     return 1;
   }
 
+  /*
+   * Plink doesn't provide any way to add forwardings after the
+   * connection is set up, so if there are none now, we can safely set
+   * the "simple" flag.
+   */
+  if (conf_get_int(conf, CONF_protocol) == PROT_SSH &&
+      !conf_get_int(conf, CONF_x11_forward) &&
+      !conf_get_int(conf, CONF_agentfwd) &&
+      !conf_get_str_nthstrkey(conf, CONF_portfwd, 0))
+    conf_set_int(conf, CONF_ssh_simple, TRUE);
+
   logctx = log_init(NULL, conf);
   console_provide_logctx(logctx);
+
+  if (just_test_share_exists) {
+    if (!back->test_for_upstream) {
+      fprintf(stderr,
+              "Connection sharing not supported for connection "
+              "type '%s'\n",
+              back->name);
+      return 1;
+    }
+    if (back->test_for_upstream(
+            conf_get_str(conf, CONF_host), conf_get_int(conf, CONF_port), conf))
+      return 0;
+    else
+      return 1;
+  }
+
+  if (restricted_acl) {
+    logevent(NULL, "Running with restricted process ACL");
+  }
 
   /*
    * Start up the connection.

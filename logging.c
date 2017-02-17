@@ -272,7 +272,7 @@ void log_eventlog(void *handle, const char *event)
 void log_packet(void *handle,
                 int direction,
                 int type,
-                char *texttype,
+                const char *texttype,
                 const void *data,
                 int len,
                 int n_blanks,

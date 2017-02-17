@@ -67,7 +67,10 @@ void force_normal(HWND hwnd)
   recurse = 0;
 }
 
-static int CALLBACK LogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+static INT_PTR CALLBACK LogProc(HWND hwnd,
+                                UINT msg,
+                                WPARAM wParam,
+                                LPARAM lParam)
 {
   int i;
 
@@ -152,10 +155,10 @@ static int CALLBACK LogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
   return 0;
 }
 
-static int CALLBACK LicenceProc(HWND hwnd,
-                                UINT msg,
-                                WPARAM wParam,
-                                LPARAM lParam)
+static INT_PTR CALLBACK LicenceProc(HWND hwnd,
+                                    UINT msg,
+                                    WPARAM wParam,
+                                    LPARAM lParam)
 {
   switch (msg) {
   case WM_INITDIALOG: {
@@ -180,7 +183,10 @@ static int CALLBACK LicenceProc(HWND hwnd,
   return 0;
 }
 
-static int CALLBACK AboutProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+static INT_PTR CALLBACK AboutProc(HWND hwnd,
+                                  UINT msg,
+                                  WPARAM wParam,
+                                  LPARAM lParam)
 {
   char *str;
 
@@ -190,11 +196,14 @@ static int CALLBACK AboutProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     SetWindowText(hwnd, str);
     sfree(str);
     {
+      char *buildinfo_text = buildinfo("\r\n");
       char *text =
-          dupprintf("%s\r\n\r\n%s\r\n\r\n%s",
+          dupprintf("%s\r\n\r\n%s\r\n\r\n%s\r\n\r\n%s",
                     appname,
                     ver,
+                    buildinfo_text,
                     "\251 " SHORT_COPYRIGHT_DETAILS ". All rights reserved.");
+      sfree(buildinfo_text);
       SetDlgItemText(hwnd, IDA_TEXT, text);
       sfree(text);
     }
@@ -284,10 +293,10 @@ static void SaneEndDialog(HWND hwnd, int ret)
 /*
  * Null dialog procedure.
  */
-static int CALLBACK NullDlgProc(HWND hwnd,
-                                UINT msg,
-                                WPARAM wParam,
-                                LPARAM lParam)
+static INT_PTR CALLBACK NullDlgProc(HWND hwnd,
+                                    UINT msg,
+                                    WPARAM wParam,
+                                    LPARAM lParam)
 {
   return 0;
 }
@@ -374,10 +383,10 @@ static void create_controls(HWND hwnd, char *path)
  * (Being a dialog procedure, in general it returns 0 if the default
  * dialog processing should be performed, and 1 if it should not.)
  */
-static int CALLBACK GenericMainDlgProc(HWND hwnd,
-                                       UINT msg,
-                                       WPARAM wParam,
-                                       LPARAM lParam)
+static INT_PTR CALLBACK GenericMainDlgProc(HWND hwnd,
+                                           UINT msg,
+                                           WPARAM wParam,
+                                           LPARAM lParam)
 {
   HWND hw, treeview;
   struct treeview_faff tvfaff;
@@ -530,6 +539,7 @@ static int CALLBACK GenericMainDlgProc(HWND hwnd,
        * And create the actual control set for that panel, to
        * match the initial treeview selection.
        */
+      assert(firstpath); /* config.c must have given us _something_ */
       create_controls(hwnd, firstpath);
       dlg_refresh(NULL, &dp); /* and set up control values */
     }
@@ -800,7 +810,7 @@ void showabout(HWND hwnd)
 int verify_ssh_host_key(void *frontend,
                         char *host,
                         int port,
-                        char *keytype,
+                        const char *keytype,
                         char *keystr,
                         char *fingerprint,
                         void (*callback)(void *ctx, int result),
@@ -903,6 +913,36 @@ int askalg(void *frontend,
   int mbret;
 
   message = dupprintf(msg, algtype, algname);
+  title = dupprintf(mbtitle, appname);
+  mbret = MessageBox(
+      NULL, message, title, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
+  socket_reselect_all();
+  sfree(message);
+  sfree(title);
+  if (mbret == IDYES)
+    return 1;
+  else
+    return 0;
+}
+
+int askhk(void *frontend,
+          const char *algname,
+          const char *betteralgs,
+          void (*callback)(void *ctx, int result),
+          void *ctx)
+{
+  static const char mbtitle[] = "%s Security Alert";
+  static const char msg[] =
+      "The first host key type we have stored for this server\n"
+      "is %s, which is below the configured warning threshold.\n"
+      "The server also provides the following types of host key\n"
+      "above the threshold, which we do not have stored:\n"
+      "%s\n"
+      "Do you want to continue with this connection?\n";
+  char *message, *title;
+  int mbret;
+
+  message = dupprintf(msg, algname, betteralgs);
   title = dupprintf(mbtitle, appname);
   mbret = MessageBox(
       NULL, message, title, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);

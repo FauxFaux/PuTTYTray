@@ -1114,7 +1114,7 @@ int wc_to_mb(int codepage,
              int wclen,
              char *mbstr,
              int mblen,
-             char *defchr,
+             const char *defchr,
              int *defused,
              struct unicode_data *ucsdata)
 {

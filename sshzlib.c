@@ -207,7 +207,7 @@ static void lz77_compress(struct LZ77Context *ctx,
                           int compress)
 {
   struct LZ77InternalContext *st = ctx->ictx;
-  int i, hash, distance, off, nmatch, matchlen, advance;
+  int i, distance, off, nmatch, matchlen, advance;
   struct Match defermatch, matches[MAXMATCH];
   int deferchr;
 
@@ -248,7 +248,7 @@ static void lz77_compress(struct LZ77Context *ctx,
       /*
        * Hash the next few characters.
        */
-      hash = lz77_hash(data);
+      int hash = lz77_hash(data);
 
       /*
        * Look the hash up in the corresponding hash chain and see
@@ -272,7 +272,6 @@ static void lz77_compress(struct LZ77Context *ctx,
       }
     } else {
       nmatch = 0;
-      hash = INVALID;
     }
 
     if (nmatch > 0) {
@@ -1327,6 +1326,7 @@ int main(int argc, char **argv)
       sfree(outbuf);
     } else {
       fprintf(stderr, "decoding error\n");
+      fclose(fp);
       return 1;
     }
   }

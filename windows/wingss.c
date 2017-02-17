@@ -109,7 +109,8 @@ struct ssh_gss_liblist *ssh_gss_setup(Conf *conf)
 
     if (ret == ERROR_SUCCESS && type == REG_SZ) {
       buffer = snewn(size + 20, char);
-      ret = RegQueryValueEx(regkey, "InstallDir", NULL, &type, buffer, &size);
+      ret = RegQueryValueEx(
+          regkey, "InstallDir", NULL, &type, (LPBYTE)buffer, &size);
       if (ret == ERROR_SUCCESS && type == REG_SZ) {
         strcat(buffer, "\\bin\\gssapi32.dll");
         module = LoadLibrary(buffer);
@@ -377,7 +378,7 @@ static Ssh_gss_stat ssh_sspi_display_status(struct ssh_gss_library *lib,
                                             Ssh_gss_buf *buf)
 {
   winSsh_gss_ctx *winctx = (winSsh_gss_ctx *)ctx;
-  char *msg;
+  const char *msg;
 
   if (winctx == NULL)
     return SSH_GSS_FAILURE;

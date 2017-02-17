@@ -13,7 +13,7 @@
 #include "putty.h"
 #include "dialog.h"
 
-int ctrl_path_elements(char *path)
+int ctrl_path_elements(const char *path)
 {
   int i = 1;
   while (*path) {
@@ -26,7 +26,7 @@ int ctrl_path_elements(char *path)
 
 /* Return the number of matching path elements at the starts of p1 and p2,
  * or INT_MAX if the paths are identical. */
-int ctrl_path_compare(char *p1, char *p2)
+int ctrl_path_compare(const char *p1, const char *p2)
 {
   int i = 0;
   while (*p1 || *p2) {
@@ -86,7 +86,7 @@ void ctrl_free_set(struct controlset *s)
  * path. If that path doesn't exist, return the index where it
  * should be inserted.
  */
-static int ctrl_find_set(struct controlbox *b, char *path, int start)
+static int ctrl_find_set(struct controlbox *b, const char *path, int start)
 {
   int i, last, thisone;
 
@@ -112,7 +112,7 @@ static int ctrl_find_set(struct controlbox *b, char *path, int start)
  * path, or -1 if no such controlset exists. If -1 is passed as
  * input, finds the first.
  */
-int ctrl_find_path(struct controlbox *b, char *path, int index)
+int ctrl_find_path(struct controlbox *b, const char *path, int index)
 {
   if (index < 0)
     index = ctrl_find_set(b, path, 1);
@@ -126,7 +126,9 @@ int ctrl_find_path(struct controlbox *b, char *path, int index)
 }
 
 /* Set up a panel title. */
-struct controlset *ctrl_settitle(struct controlbox *b, char *path, char *title)
+struct controlset *ctrl_settitle(struct controlbox *b,
+                                 const char *path,
+                                 const char *title)
 {
 
   struct controlset *s = snew(struct controlset);
@@ -152,9 +154,9 @@ struct controlset *ctrl_settitle(struct controlbox *b, char *path, char *title)
 
 /* Retrieve a pointer to a controlset, creating it if absent. */
 struct controlset *ctrl_getset(struct controlbox *b,
-                               char *path,
-                               char *name,
-                               char *boxtitle)
+                               const char *path,
+                               const char *name,
+                               const char *boxtitle)
 {
   struct controlset *s;
   int index = ctrl_find_set(b, path, 1);
@@ -263,7 +265,7 @@ union control *ctrl_columns(struct controlset *s, int ncolumns, ...)
 }
 
 union control *ctrl_editbox(struct controlset *s,
-                            char *label,
+                            const char *label,
                             char shortcut,
                             int percentage,
                             intorptr helpctx,
@@ -282,7 +284,7 @@ union control *ctrl_editbox(struct controlset *s,
 }
 
 union control *ctrl_combobox(struct controlset *s,
-                             char *label,
+                             const char *label,
                              char shortcut,
                              int percentage,
                              intorptr helpctx,
@@ -307,7 +309,7 @@ union control *ctrl_combobox(struct controlset *s,
  * is NO_SHORTCUT.
  */
 union control *ctrl_radiobuttons(struct controlset *s,
-                                 char *label,
+                                 const char *label,
                                  char shortcut,
                                  int ncolumns,
                                  intorptr helpctx,
@@ -358,7 +360,7 @@ union control *ctrl_radiobuttons(struct controlset *s,
 }
 
 union control *ctrl_pushbutton(struct controlset *s,
-                               char *label,
+                               const char *label,
                                char shortcut,
                                intorptr helpctx,
                                handler_fn handler,
@@ -373,7 +375,7 @@ union control *ctrl_pushbutton(struct controlset *s,
 }
 
 union control *ctrl_listbox(struct controlset *s,
-                            char *label,
+                            const char *label,
                             char shortcut,
                             intorptr helpctx,
                             handler_fn handler,
@@ -393,7 +395,7 @@ union control *ctrl_listbox(struct controlset *s,
 }
 
 union control *ctrl_droplist(struct controlset *s,
-                             char *label,
+                             const char *label,
                              char shortcut,
                              int percentage,
                              intorptr helpctx,
@@ -414,7 +416,7 @@ union control *ctrl_droplist(struct controlset *s,
 }
 
 union control *ctrl_draglist(struct controlset *s,
-                             char *label,
+                             const char *label,
                              char shortcut,
                              intorptr helpctx,
                              handler_fn handler,
@@ -434,11 +436,11 @@ union control *ctrl_draglist(struct controlset *s,
 }
 
 union control *ctrl_filesel(struct controlset *s,
-                            char *label,
+                            const char *label,
                             char shortcut,
-                            char const *filter,
+                            const char *filter,
                             int write,
-                            char *title,
+                            const char *title,
                             intorptr helpctx,
                             handler_fn handler,
                             intorptr context)
@@ -453,7 +455,7 @@ union control *ctrl_filesel(struct controlset *s,
 }
 
 union control *ctrl_fontsel(struct controlset *s,
-                            char *label,
+                            const char *label,
                             char shortcut,
                             intorptr helpctx,
                             handler_fn handler,
@@ -472,7 +474,9 @@ union control *ctrl_tabdelay(struct controlset *s, union control *ctrl)
   return c;
 }
 
-union control *ctrl_text(struct controlset *s, char *text, intorptr helpctx)
+union control *ctrl_text(struct controlset *s,
+                         const char *text,
+                         intorptr helpctx)
 {
   union control *c = ctrl_new(s, CTRL_TEXT, helpctx, NULL, P(NULL));
   c->text.label = dupstr(text);
@@ -480,7 +484,7 @@ union control *ctrl_text(struct controlset *s, char *text, intorptr helpctx)
 }
 
 union control *ctrl_checkbox(struct controlset *s,
-                             char *label,
+                             const char *label,
                              char shortcut,
                              intorptr helpctx,
                              handler_fn handler,
