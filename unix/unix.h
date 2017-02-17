@@ -2,16 +2,16 @@
 #define PUTTY_UNIX_H
 
 #ifdef HAVE_CONFIG_H
-# include "uxconfig.h" /* Space to hide it from mkfiles.pl */
+#include "uxconfig.h" /* Space to hide it from mkfiles.pl */
 #endif
 
-#include <stdio.h>		       /* for FILENAME_MAX */
-#include <stdint.h>		       /* C99 int types */
+#include <stdio.h>  /* for FILENAME_MAX */
+#include <stdint.h> /* C99 int types */
 #ifndef NO_LIBDL
-#include <dlfcn.h>		       /* Dynamic library loading */
-#endif /*  NO_LIBDL */
+#include <dlfcn.h> /* Dynamic library loading */
+#endif             /*  NO_LIBDL */
 #include "charset.h"
-#include <sys/types.h>         /* for mode_t */
+#include <sys/types.h> /* for mode_t */
 
 #ifdef OSX_GTK
 /*
@@ -22,10 +22,10 @@
  * one has its own name and we enable them all centrally here if
  * OSX_GTK is defined at configure time.
  */
-#define NOT_X_WINDOWS /* of course, all the X11 stuff should be disabled */
+#define NOT_X_WINDOWS   /* of course, all the X11 stuff should be disabled */
 #define NO_PTY_PRE_INIT /* OS X gets very huffy if we try to set[ug]id */
 #define SET_NONBLOCK_VIA_OPENPT /* work around missing fcntl functionality */
-#define OSX_META_KEY_CONFIG /* two possible Meta keys to choose from */
+#define OSX_META_KEY_CONFIG     /* two possible Meta keys to choose from */
 /* this potential one of the Meta keys needs manual handling */
 #define META_MANUAL_MASK (GDK_MOD1_MASK)
 #define JUST_USE_GTK_CLIPBOARD_UTF8 /* low-level gdk_selection_* fails */
@@ -49,20 +49,20 @@
 char *buildinfo_gtk_version(void);
 
 struct Filename {
-    char *path;
+  char *path;
 };
 FILE *f_open(const struct Filename *, char const *, int);
 
 struct FontSpec {
-    char *name;    /* may be "" to indicate no selected font at all */
+  char *name; /* may be "" to indicate no selected font at all */
 };
 struct FontSpec *fontspec_new(const char *name);
 
-typedef void *Context;                 /* FIXME: probably needs changing */
+typedef void *Context; /* FIXME: probably needs changing */
 
 extern Backend pty_backend;
 
-#define BROKEN_PIPE_ERROR_CODE EPIPE   /* used in sshshare.c */
+#define BROKEN_PIPE_ERROR_CODE EPIPE /* used in sshshare.c */
 
 typedef uint32_t uint32; /* C99: uint32_t defined in stdint.h */
 #define PUTTY_UINT32_DEFINED
@@ -77,8 +77,8 @@ typedef uint32_t uint32; /* C99: uint32_t defined in stdint.h */
  * Under GTK, there is no context help available.
  */
 #define HELPCTX(x) P(NULL)
-#define FILTER_KEY_FILES NULL          /* FIXME */
-#define FILTER_DYNLIB_FILES NULL       /* FIXME */
+#define FILTER_KEY_FILES NULL    /* FIXME */
+#define FILTER_DYNLIB_FILES NULL /* FIXME */
 
 /*
  * Under X, selection data must not be NUL-terminated.
@@ -88,13 +88,16 @@ typedef uint32_t uint32; /* C99: uint32_t defined in stdint.h */
 /*
  * Under X, copying to the clipboard terminates lines with just LF.
  */
-#define SEL_NL { 10 }
+#define SEL_NL                                                                 \
+  {                                                                            \
+    10                                                                         \
+  }
 
 /* Simple wraparound timer function */
 unsigned long getticks(void);
 #define GETTICKCOUNT getticks
-#define TICKSPERSEC    1000	       /* we choose to use milliseconds */
-#define CURSORBLINK     450	       /* no standard way to set this */
+#define TICKSPERSEC 1000 /* we choose to use milliseconds */
+#define CURSORBLINK 450  /* no standard way to set this */
 
 #define WCHAR wchar_t
 #define BYTE unsigned char
@@ -128,16 +131,18 @@ void gtkcomm_setup(void);
 
 /* Things pty.c needs from pterm.c */
 const char *get_x_display(void *frontend);
-int font_dimension(void *frontend, int which);/* 0 for width, 1 for height */
+int font_dimension(void *frontend, int which); /* 0 for width, 1 for height */
 long get_windowid(void *frontend);
 
 /* Things gtkdlg.c needs from pterm.c */
-void *get_window(void *frontend);      /* void * to avoid depending on gtk.h */
-void post_main(void);     /* called after any subsidiary gtk_main() */
+void *get_window(void *frontend); /* void * to avoid depending on gtk.h */
+void post_main(void);             /* called after any subsidiary gtk_main() */
 
 /* Things pterm.c needs from gtkdlg.c */
-int do_config_box(const char *title, Conf *conf,
-		  int midsession, int protcfginfo);
+int do_config_box(const char *title,
+                  Conf *conf,
+                  int midsession,
+                  int protcfginfo);
 void fatal_message_box(void *window, const char *msg);
 void nonfatal_message_box(void *window, const char *msg);
 void about_box(void *window);
@@ -146,8 +151,12 @@ void showeventlog(void *estuff, void *parentwin);
 void logevent_dlg(void *estuff, const char *string);
 int reallyclose(void *frontend);
 #ifdef MAY_REFER_TO_GTK_IN_HEADERS
-int messagebox(GtkWidget *parentwin, const char *title,
-               const char *msg, int minwid, int selectable, ...);
+int messagebox(GtkWidget *parentwin,
+               const char *title,
+               const char *msg,
+               int minwid,
+               int selectable,
+               ...);
 #endif
 
 /* Things pterm.c needs from {ptermm,uxputty}.c */
@@ -179,7 +188,7 @@ int select_result(int fd, int event);
 int first_fd(int *state, int *rwx);
 int next_fd(int *state, int *rwx);
 /* The following are expected to be provided _to_ uxsel.c by the frontend */
-uxsel_id *uxsel_input_add(int fd, int rwx);  /* returns an id */
+uxsel_id *uxsel_input_add(int fd, int rwx); /* returns an id */
 void uxsel_input_remove(uxsel_id *id);
 
 /* uxcfg.c */
@@ -198,7 +207,7 @@ void gtk_setup_config_box(struct controlbox *b, int midsession, void *window);
  * from the command line or config files is assumed to be encoded).
  */
 #define DEFAULT_CODEPAGE 0xFFFF
-#define CP_UTF8 CS_UTF8		       /* from libcharset */
+#define CP_UTF8 CS_UTF8 /* from libcharset */
 
 #define strnicmp strncasecmp
 #define stricmp strcasecmp
@@ -219,8 +228,11 @@ char *make_dir_path(const char *path, mode_t mode);
  * Exports from unicode.c.
  */
 struct unicode_data;
-int init_ucs(struct unicode_data *ucsdata, char *line_codepage,
-	     int utf8_override, int font_charset, int vtmode);
+int init_ucs(struct unicode_data *ucsdata,
+             char *line_codepage,
+             int utf8_override,
+             int font_charset,
+             int vtmode);
 
 /*
  * Spare function exported directly from uxnet.c.
@@ -231,10 +243,12 @@ void *sk_getxdmdata(void *sock, int *lenp);
  * General helpful Unix stuff: more helpful version of the FD_SET
  * macro, which also handles maxfd.
  */
-#define FD_SET_MAX(fd, max, set) do { \
-    FD_SET(fd, &set); \
-    if (max < fd + 1) max = fd + 1; \
-} while (0)
+#define FD_SET_MAX(fd, max, set)                                               \
+  do {                                                                         \
+    FD_SET(fd, &set);                                                          \
+    if (max < fd + 1)                                                          \
+      max = fd + 1;                                                            \
+  } while (0)
 
 /*
  * Exports from winser.c.

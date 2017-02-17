@@ -5,7 +5,7 @@
 #ifndef FIXME_PTY_H
 #define FIXME_PTY_H
 
-#include "telnet.h"		       /* for struct shdata */
+#include "telnet.h" /* for struct shdata */
 
 /*
  * Called at program startup to actually allocate a pty, so that
@@ -23,6 +23,7 @@ void pty_resize(int w, int h);
  * Returns the fd of the pty master.
  */
 int run_program_in_pty(const struct shell_data *shdata,
-                       char *directory, char **program_args);
+                       char *directory,
+                       char **program_args);
 
 #endif /* FIXME_PTY_H */
