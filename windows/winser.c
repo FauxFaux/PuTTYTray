@@ -122,12 +122,12 @@ static const char *serial_configure(Serial serial, HANDLE serport, Conf *conf)
      * Configurable parameters.
      */
     dcb.BaudRate = conf_get_int(conf, CONF_serspeed);
-    msg = dupprintf("Configuring baud rate %d", dcb.BaudRate);
+    msg = dupprintf("Configuring baud rate %lu", dcb.BaudRate);
     logevent(serial->frontend, msg);
     sfree(msg);
 
     dcb.ByteSize = conf_get_int(conf, CONF_serdatabits);
-    msg = dupprintf("Configuring %d data bits", dcb.ByteSize);
+    msg = dupprintf("Configuring %u data bits", dcb.ByteSize);
     logevent(serial->frontend, msg);
     sfree(msg);
 
@@ -226,7 +226,7 @@ static const char *serial_configure(Serial serial, HANDLE serport, Conf *conf)
 static const char *serial_init(void *frontend_handle,
                                void **backend_handle,
                                Conf *conf,
-                               char *host,
+                               const char *host,
                                int port,
                                char **realhost,
                                int nodelay,
@@ -250,6 +250,7 @@ static const char *serial_init(void *frontend_handle,
   {
     char *msg = dupprintf("Opening serial device %s", serline);
     logevent(serial->frontend, msg);
+    sfree(msg);
   }
 
   {
@@ -338,7 +339,7 @@ static void serial_reconfig(void *handle, Conf *conf)
 /*
  * Called to send data down the serial connection.
  */
-static int serial_send(void *handle, char *buf, int len)
+static int serial_send(void *handle, const char *buf, int len)
 {
   Serial serial = (Serial)handle;
 
@@ -486,6 +487,7 @@ Backend serial_backend = {serial_init,
                           serial_provide_logctx,
                           serial_unthrottle,
                           serial_cfg_info,
+                          NULL /* test_for_upstream */,
                           "serial",
                           PROT_SERIAL,
                           0};

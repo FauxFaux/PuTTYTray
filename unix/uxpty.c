@@ -180,6 +180,8 @@ static struct utmpx utmp_entry;
  */
 char **pty_argv;
 
+char *pty_osx_envrestore_prefix;
+
 static void pty_close(Pty pty);
 static void pty_try_write(Pty pty);
 
@@ -258,11 +260,13 @@ static void cleanup_utmp(void)
 }
 #endif
 
+#ifndef NO_PTY_PRE_INIT
 static void sigchld_handler(int signum)
 {
   if (write(pty_signal_pipe[1], "x", 1) <= 0)
     /* not much we can do about it */;
 }
+#endif
 
 #ifndef OMIT_UTMP
 static void fatal_sig_handler(int signum)
@@ -339,7 +343,18 @@ got_one:
       ;
 
 #ifdef HAVE_POSIX_OPENPT
+#ifdef SET_NONBLOCK_VIA_OPENPT
+  /*
+   * OS X, as of 10.10 at least, doesn't permit me to set O_NONBLOCK
+   * on pty master fds via the usual fcntl mechanism. Fortunately,
+   * it does let me work around this by adding O_NONBLOCK to the
+   * posix_openpt flags parameter, which isn't a documented use of
+   * the API but seems to work. So we'll do that for now.
+   */
+  pty->master_fd = posix_openpt(flags | O_NONBLOCK);
+#else
   pty->master_fd = posix_openpt(flags);
+#endif
 
   if (pty->master_fd < 0) {
     perror("posix_openpt");
@@ -370,11 +385,21 @@ got_one:
   strncpy(pty->name, ptsname(pty->master_fd), FILENAME_MAX - 1);
 #endif
 
+#ifndef SET_NONBLOCK_VIA_OPENPT
   nonblock(pty->master_fd);
+#endif
 
   if (!ptys_by_fd)
     ptys_by_fd = newtree234(pty_compare_by_fd);
   add234(ptys_by_fd, pty);
+}
+
+static Pty new_pty_struct(void)
+{
+  Pty pty = snew(struct pty_tag);
+  pty->conf = NULL;
+  bufchain_init(&pty->output_data);
+  return pty;
 }
 
 /*
@@ -392,6 +417,8 @@ got_one:
  */
 void pty_pre_init(void)
 {
+#ifndef NO_PTY_PRE_INIT
+
   Pty pty;
 
 #ifndef OMIT_UTMP
@@ -399,9 +426,7 @@ void pty_pre_init(void)
   int pipefd[2];
 #endif
 
-  pty = single_pty = snew(struct pty_tag);
-  pty->conf = NULL;
-  bufchain_init(&pty->output_data);
+  pty = single_pty = new_pty_struct();
 
   /* set the child signal handler straight away; it needs to be set
    * before we ever fork. */
@@ -538,6 +563,8 @@ void pty_pre_init(void)
     }
 #endif
   }
+
+#endif /* NO_PTY_PRE_INIT */
 }
 
 int pty_real_select_result(Pty pty, int event, int status)
@@ -710,7 +737,7 @@ static void pty_uxsel_setup(Pty pty)
 static const char *pty_init(void *frontend,
                             void **backend_handle,
                             Conf *conf,
-                            char *host,
+                            const char *host,
                             int port,
                             char **realhost,
                             int nodelay,
@@ -727,7 +754,7 @@ static const char *pty_init(void *frontend,
     pty = single_pty;
     assert(pty->conf == NULL);
   } else {
-    pty = snew(struct pty_tag);
+    pty = new_pty_struct();
     pty->master_fd = pty->slave_fd = -1;
 #ifndef OMIT_UTMP
     pty_stamped_utmp = FALSE;
@@ -744,33 +771,6 @@ static const char *pty_init(void *frontend,
   if (pty->master_fd < 0)
     pty_open_master(pty);
 
-  /*
-   * Set up configuration-dependent termios settings on the new pty.
-   */
-  {
-    struct termios attrs;
-    tcgetattr(pty->master_fd, &attrs);
-
-    /*
-     * Set the backspace character to be whichever of ^H and ^? is
-     * specified by bksp_is_delete.
-     */
-    attrs.c_cc[VERASE] =
-        conf_get_int(conf, CONF_bksp_is_delete) ? '\177' : '\010';
-
-    /*
-     * Set the IUTF8 bit iff the character set is UTF-8.
-     */
-#ifdef IUTF8
-    if (frontend_is_utf8(frontend))
-      attrs.c_iflag |= IUTF8;
-    else
-      attrs.c_iflag &= ~IUTF8;
-#endif
-
-    tcsetattr(pty->master_fd, TCSANOW, &attrs);
-  }
-
 #ifndef OMIT_UTMP
   /*
    * Stamp utmp (that is, tell the utmp helper process to do so),
@@ -781,7 +781,7 @@ static const char *pty_init(void *frontend,
       close(pty_utmp_helper_pipe); /* just let the child process die */
       pty_utmp_helper_pipe = -1;
     } else {
-      char *location = get_x_display(pty->frontend);
+      const char *location = get_x_display(pty->frontend);
       int len = strlen(location) + 1, pos = 0; /* +1 to include NUL */
       while (pos < len) {
         int ret = write(pty_utmp_helper_pipe, location + pos, len - pos);
@@ -811,9 +811,40 @@ static const char *pty_init(void *frontend,
   }
 
   if (pid == 0) {
+    struct termios attrs;
+
     /*
      * We are the child.
      */
+
+    if (pty_osx_envrestore_prefix) {
+      int plen = strlen(pty_osx_envrestore_prefix);
+      extern char **environ;
+      char **ep;
+
+    restart_osx_env_restore:
+      for (ep = environ; *ep; ep++) {
+        char *e = *ep;
+
+        if (!strncmp(e, pty_osx_envrestore_prefix, plen)) {
+          int unset = (e[plen] == 'u');
+          char *pname = dupprintf("%.*s", (int)strcspn(e, "="), e);
+          char *name = pname + plen + 1;
+          char *value = e + strcspn(e, "=");
+          if (*value)
+            value++;
+          value = dupstr(value);
+          if (unset)
+            unsetenv(name);
+          else
+            setenv(name, value, 1);
+          unsetenv(pname);
+          sfree(pname);
+          sfree(value);
+          goto restart_osx_env_restore;
+        }
+      }
+    }
 
     slavefd = pty_open_slave(pty);
     if (slavefd < 0) {
@@ -833,6 +864,34 @@ static const char *pty_init(void *frontend,
 #endif
     pgrp = getpid();
     tcsetpgrp(0, pgrp);
+
+    /*
+     * Set up configuration-dependent termios settings on the new
+     * pty. Linux would have let us do this on the pty master
+     * before we forked, but that fails on OS X, so we do it here
+     * instead.
+     */
+    if (tcgetattr(0, &attrs) == 0) {
+      /*
+       * Set the backspace character to be whichever of ^H and
+       * ^? is specified by bksp_is_delete.
+       */
+      attrs.c_cc[VERASE] =
+          conf_get_int(conf, CONF_bksp_is_delete) ? '\177' : '\010';
+
+      /*
+       * Set the IUTF8 bit iff the character set is UTF-8.
+       */
+#ifdef IUTF8
+      if (frontend_is_utf8(frontend))
+        attrs.c_iflag |= IUTF8;
+      else
+        attrs.c_iflag &= ~IUTF8;
+#endif
+
+      tcsetattr(0, TCSANOW, &attrs);
+    }
+
     setpgid(pgrp, pgrp);
     {
       int ptyfd = open(pty->name, O_WRONLY, 0);
@@ -890,14 +949,14 @@ static const char *pty_init(void *frontend,
     /*
      * SIGINT, SIGQUIT and SIGPIPE may have been set to ignored by
      * our parent, particularly by things like sh -c 'pterm &' and
-     * some window or session managers. SIGCHLD, meanwhile, was
-     * blocked during pt_main() startup. Reverse all this for our
-     * child process.
+     * some window or session managers. SIGPIPE was also
+     * (potentially) blocked by us during startup. Reverse all
+     * this for our child process.
      */
     putty_signal(SIGINT, SIG_DFL);
     putty_signal(SIGQUIT, SIG_DFL);
     putty_signal(SIGPIPE, SIG_DFL);
-    block_signal(SIGCHLD, 0);
+    block_signal(SIGPIPE, 0);
     if (pty_argv) {
       /*
        * Exec the exact argument list we were given.
@@ -1000,6 +1059,8 @@ static void pty_free(void *handle)
   del234(ptys_by_pid, pty);
   del234(ptys_by_fd, pty);
 
+  bufchain_clear(&pty->output_data);
+
   conf_free(pty->conf);
   pty->conf = NULL;
 
@@ -1043,7 +1104,7 @@ static void pty_try_write(Pty pty)
 /*
  * Called to send data down the pty.
  */
-static int pty_send(void *handle, char *buf, int len)
+static int pty_send(void *handle, const char *buf, int len)
 {
   Pty pty = (Pty)handle;
 
@@ -1193,6 +1254,7 @@ Backend pty_backend = {pty_init,
                        pty_provide_logctx,
                        pty_unthrottle,
                        pty_cfg_info,
+                       NULL /* test_for_upstream */,
                        "pty",
                        -1,
                        0};

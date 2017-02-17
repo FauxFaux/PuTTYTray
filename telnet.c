@@ -115,7 +115,7 @@ enum
 #define iswritable(x)                                                          \
   ((x) != IAC && (telnet->opt_states[o_we_bin.index] == ACTIVE || (x) != CR))
 
-static char *telopt(int opt)
+static const char *telopt(int opt)
 {
 #define telnet_str(x, y)                                                       \
   case TELOPT_##x:                                                             \
@@ -213,6 +213,7 @@ typedef struct telnet_tag {
   int sb_opt, sb_len;
   unsigned char *sb_buf;
   int sb_size;
+  int session_started;
 
   enum
   {
@@ -237,14 +238,14 @@ typedef struct telnet_tag {
 
 #define SB_DELTA 1024
 
-static void c_write(Telnet telnet, char *buf, int len)
+static void c_write(Telnet telnet, const char *buf, int len)
 {
   int backlog;
   backlog = from_backend(telnet->frontend, 0, buf, len);
   sk_set_frozen(telnet->s, backlog > TELNET_MAX_BACKLOG);
 }
 
-static void log_option(Telnet telnet, char *sender, int cmd, int option)
+static void log_option(Telnet telnet, const char *sender, int cmd, int option)
 {
   char *buf;
   /*
@@ -294,7 +295,7 @@ static void option_side_effects(Telnet telnet, const struct Opt *o, int enabled)
   else if (o->option == TELOPT_SGA && o->send == DO)
     telnet->editing = !enabled;
   if (telnet->ldisc) /* cause ldisc to notice the change */
-    ldisc_send(telnet->ldisc, NULL, 0, 0);
+    ldisc_echoedit_update(telnet->ldisc);
 
   /* Ensure we get the minimum options */
   if (!telnet->activated) {
@@ -682,17 +683,14 @@ static void telnet_log(Plug plug,
                        int error_code)
 {
   Telnet telnet = (Telnet)plug;
-  char addrbuf[256], *msg;
-
-  sk_getaddr(addr, addrbuf, lenof(addrbuf));
-
-  if (type == 0)
-    msg = dupprintf("Connecting to %s port %d", addrbuf, port);
-  else
-    msg = dupprintf("Failed to connect to %s: %s", addrbuf, error_msg);
-
-  logevent(telnet->frontend, msg);
-  sfree(msg);
+  backend_socket_log(telnet->frontend,
+                     type,
+                     addr,
+                     port,
+                     error_msg,
+                     error_code,
+                     telnet->conf,
+                     telnet->session_started);
 }
 
 static int telnet_closing(Plug plug,
@@ -728,6 +726,7 @@ static int telnet_receive(Plug plug, int urgent, char *data, int len)
   Telnet telnet = (Telnet)plug;
   if (urgent)
     telnet->in_synch = TRUE;
+  telnet->session_started = TRUE;
   do_telnet_read(telnet, data, len);
   return 1;
 }
@@ -749,7 +748,7 @@ static void telnet_sent(Plug plug, int bufsize)
 static const char *telnet_init(void *frontend_handle,
                                void **backend_handle,
                                Conf *conf,
-                               char *host,
+                               const char *host,
                                int port,
                                char **realhost,
                                int nodelay,
@@ -779,23 +778,20 @@ static const char *telnet_init(void *frontend_handle,
   telnet->state = TOP_LEVEL;
   telnet->ldisc = NULL;
   telnet->pinger = NULL;
+  telnet->session_started = TRUE;
   *backend_handle = telnet;
 
   /*
    * Try to find host.
    */
-  {
-    char *buf;
-    addressfamily = conf_get_int(telnet->conf, CONF_addressfamily);
-    buf = dupprintf("Looking up host \"%s\"%s",
-                    host,
-                    (addressfamily == ADDRTYPE_IPV4
-                         ? " (IPv4)"
-                         : (addressfamily == ADDRTYPE_IPV6 ? " (IPv6)" : "")));
-    logevent(telnet->frontend, buf);
-    sfree(buf);
-  }
-  addr = name_lookup(host, port, realhost, telnet->conf, addressfamily);
+  addressfamily = conf_get_int(telnet->conf, CONF_addressfamily);
+  addr = name_lookup(host,
+                     port,
+                     realhost,
+                     telnet->conf,
+                     addressfamily,
+                     telnet->frontend,
+                     "Telnet connection");
   if ((err = sk_addr_error(addr)) != NULL) {
     sk_addr_free(addr);
     return err;
@@ -896,7 +892,7 @@ static void telnet_reconfig(void *handle, Conf *conf)
 /*
  * Called to send data down the Telnet connection.
  */
-static int telnet_send(void *handle, char *buf, int len)
+static int telnet_send(void *handle, const char *buf, int len)
 {
   Telnet telnet = (Telnet)handle;
   unsigned char *p, *end;
@@ -1170,6 +1166,7 @@ Backend telnet_backend = {telnet_init,
                           telnet_provide_logctx,
                           telnet_unthrottle,
                           telnet_cfg_info,
+                          NULL /* test_for_upstream */,
                           "telnet",
                           PROT_TELNET,
                           23};

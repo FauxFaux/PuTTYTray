@@ -91,7 +91,7 @@ HWND doctl(struct ctlpos *cp,
                          r.right,
                          r.bottom,
                          cp->hwnd,
-                         (HMENU)wid,
+                         (HMENU)(ULONG_PTR)wid,
                          hinst,
                          NULL);
     SendMessage(ctl, WM_SETFONT, cp->font, MAKELPARAM(TRUE, 0));
@@ -313,10 +313,9 @@ void radioline(struct ctlpos *cp, char *text, int id, int nacross, ...)
   nbuttons = 0;
   while (1) {
     char *btext = va_arg(ap, char *);
-    int bid;
     if (!btext)
       break;
-    bid = va_arg(ap, int);
+    (void)va_arg(ap, int); /* id */
     nbuttons++;
   }
   va_end(ap);
@@ -345,10 +344,10 @@ void bareradioline(struct ctlpos *cp, int nacross, ...)
   nbuttons = 0;
   while (1) {
     char *btext = va_arg(ap, char *);
-    int bid;
     if (!btext)
       break;
-    bid = va_arg(ap, int);
+    (void)va_arg(ap, int); /* id */
+    nbuttons++;
   }
   va_end(ap);
   buttons = snewn(nbuttons, struct radio);
@@ -376,10 +375,10 @@ void radiobig(struct ctlpos *cp, char *text, int id, ...)
   nbuttons = 0;
   while (1) {
     char *btext = va_arg(ap, char *);
-    int bid;
     if (!btext)
       break;
-    bid = va_arg(ap, int);
+    (void)va_arg(ap, int); /* id */
+    nbuttons++;
   }
   va_end(ap);
   buttons = snewn(nbuttons, struct radio);
@@ -422,7 +421,6 @@ void checkbox(struct ctlpos *cp, char *text, int id)
 char *staticwrap(struct ctlpos *cp, HWND hwnd, char *text, int *lines)
 {
   HDC hdc = GetDC(hwnd);
-  int lpx = GetDeviceCaps(hdc, LOGPIXELSX);
   int width, nlines, j;
   INT *pwidths, nfit;
   SIZE size;
@@ -2547,7 +2545,7 @@ void dlg_beep(void *dlg)
   MessageBeep(0);
 }
 
-void dlg_error_msg(void *dlg, char *msg)
+void dlg_error_msg(void *dlg, const char *msg)
 {
   struct dlgparam *dp = (struct dlgparam *)dlg;
   MessageBox(

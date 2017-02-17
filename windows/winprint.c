@@ -30,8 +30,13 @@ static int printer_add_enum(
    * we'll need for the output. Discard the return value since it
    * will almost certainly be a failure due to lack of space.
    */
-  EnumPrinters(
-      param, NULL, level, (*buffer) + offset, 512, &needed, &nprinters);
+  EnumPrinters(param,
+               NULL,
+               level,
+               (LPBYTE)((*buffer) + offset),
+               512,
+               &needed,
+               &nprinters);
 
   if (needed < 512)
     needed = 512;
@@ -41,7 +46,7 @@ static int printer_add_enum(
   if (EnumPrinters(param,
                    NULL,
                    level,
-                   (*buffer) + offset,
+                   (LPBYTE)((*buffer) + offset),
                    needed,
                    &needed,
                    &nprinters) == 0)
@@ -147,7 +152,7 @@ printer_job *printer_start_job(char *printer)
   docinfo.pOutputFile = NULL;
   docinfo.pDatatype = "RAW";
 
-  if (!StartDocPrinter(ret->hprinter, 1, (LPSTR)&docinfo))
+  if (!StartDocPrinter(ret->hprinter, 1, (LPBYTE)&docinfo))
     goto error;
   jobstarted = 1;
 

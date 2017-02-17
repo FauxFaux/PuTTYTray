@@ -114,7 +114,8 @@ void *open_settings_w(const char *sessionname, char **errmsg)
 void write_setting_s(void *handle, const char *key, const char *value)
 {
   if (handle)
-    RegSetValueEx((HKEY)handle, key, 0, REG_SZ, value, 1 + strlen(value));
+    RegSetValueEx(
+        (HKEY)handle, key, 0, REG_SZ, (CONST BYTE *)value, 1 + strlen(value));
 }
 
 void write_setting_i(void *handle, const char *key, int value)
@@ -170,7 +171,7 @@ char *read_setting_s(void *handle, const char *key)
 
   allocsize = size + 1; /* allow for an extra NUL if needed */
   ret = snewn(allocsize, char);
-  if (RegQueryValueEx((HKEY)handle, key, 0, &type, ret, &size) !=
+  if (RegQueryValueEx((HKEY)handle, key, 0, &type, (BYTE *)ret, &size) !=
           ERROR_SUCCESS ||
       type != REG_SZ) {
     sfree(ret);
@@ -379,7 +380,7 @@ int verify_host_key(const char *hostname,
 
   readlen = len;
   otherstr = snewn(len, char);
-  ret = RegQueryValueEx(rkey, regname, NULL, &type, otherstr, &readlen);
+  ret = RegQueryValueEx(rkey, regname, NULL, &type, (BYTE *)otherstr, &readlen);
 
   if (ret != ERROR_SUCCESS && ret != ERROR_MORE_DATA &&
       !strcmp(keytype, "rsa")) {
@@ -391,7 +392,8 @@ int verify_host_key(const char *hostname,
     char *justhost = regname + 1 + strcspn(regname, ":");
     char *oldstyle = snewn(len + 10, char); /* safety margin */
     readlen = len;
-    ret = RegQueryValueEx(rkey, justhost, NULL, &type, oldstyle, &readlen);
+    ret = RegQueryValueEx(
+        rkey, justhost, NULL, &type, (BYTE *)oldstyle, &readlen);
 
     if (ret == ERROR_SUCCESS && type == REG_SZ) {
       /*
@@ -437,7 +439,8 @@ int verify_host_key(const char *hostname,
        * wrong, and hyper-cautiously do nothing.
        */
       if (!strcmp(otherstr, key))
-        RegSetValueEx(rkey, regname, 0, REG_SZ, otherstr, strlen(otherstr) + 1);
+        RegSetValueEx(
+            rkey, regname, 0, REG_SZ, (BYTE *)otherstr, strlen(otherstr) + 1);
     }
 
     sfree(oldstyle);
@@ -459,6 +462,15 @@ int verify_host_key(const char *hostname,
     return 0; /* key matched OK in registry */
 }
 
+int have_ssh_host_key(const char *hostname, int port, const char *keytype)
+{
+  /*
+   * If we have a host key, verify_host_key will return 0 or 2.
+   * If we don't have one, it'll return 1.
+   */
+  return verify_host_key(hostname, port, keytype, "") != 1;
+}
+
 void store_host_key(const char *hostname,
                     int port,
                     const char *keytype,
@@ -473,7 +485,7 @@ void store_host_key(const char *hostname,
 
   if (RegCreateKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys", &rkey) ==
       ERROR_SUCCESS) {
-    RegSetValueEx(rkey, regname, 0, REG_SZ, key, strlen(key) + 1);
+    RegSetValueEx(rkey, regname, 0, REG_SZ, (BYTE *)key, strlen(key) + 1);
     RegCloseKey(rkey);
   } /* else key does not exist in registry */
 
@@ -534,7 +546,8 @@ static HANDLE access_random_seed(int action)
    */
   size = sizeof(seedpath);
   if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS, &rkey) == ERROR_SUCCESS) {
-    int ret = RegQueryValueEx(rkey, "RandSeedFile", 0, &type, seedpath, &size);
+    int ret = RegQueryValueEx(
+        rkey, "RandSeedFile", 0, &type, (BYTE *)seedpath, &size);
     if (ret != ERROR_SUCCESS || type != REG_SZ)
       seedpath[0] = '\0';
     RegCloseKey(rkey);
@@ -653,7 +666,7 @@ static int transform_jumplist_registry(const char *add,
   int ret;
   HKEY pjumplist_key, psettings_tmp;
   DWORD type;
-  int value_length;
+  DWORD value_length;
   char *old_value, *new_value;
   char *piterator_old, *piterator_new, *piterator_tmp;
 
@@ -673,8 +686,12 @@ static int transform_jumplist_registry(const char *add,
   /* Get current list of saved sessions in the registry. */
   value_length = 200;
   old_value = snewn(value_length, char);
-  ret = RegQueryValueEx(
-      pjumplist_key, reg_jumplist_value, NULL, &type, old_value, &value_length);
+  ret = RegQueryValueEx(pjumplist_key,
+                        reg_jumplist_value,
+                        NULL,
+                        &type,
+                        (BYTE *)old_value,
+                        &value_length);
   /* When the passed buffer is too small, ERROR_MORE_DATA is
    * returned and the required size is returned in the length
    * argument. */
@@ -685,7 +702,7 @@ static int transform_jumplist_registry(const char *add,
                           reg_jumplist_value,
                           NULL,
                           &type,
-                          old_value,
+                          (BYTE *)old_value,
                           &value_length);
   }
 
@@ -763,7 +780,7 @@ static int transform_jumplist_registry(const char *add,
                         reg_jumplist_value,
                         0,
                         REG_MULTI_SZ,
-                        new_value,
+                        (BYTE *)new_value,
                         piterator_new - new_value);
 
     sfree(old_value);

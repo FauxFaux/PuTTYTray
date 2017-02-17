@@ -9,7 +9,7 @@
 #include "proxy.h"
 
 Socket platform_new_connection(SockAddr addr,
-                               char *hostname,
+                               const char *hostname,
                                int port,
                                int privport,
                                int oobinline,
