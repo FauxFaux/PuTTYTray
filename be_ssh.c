@@ -10,7 +10,4 @@
 
 const int be_default_protocol = PROT_SSH;
 
-Backend *backends[] = {
-    &ssh_backend,
-    NULL
-};
+Backend *backends[] = {&ssh_backend, NULL};

@@ -7,5 +7,5 @@
 
 char *buildinfo_gtk_version(void)
 {
-    return NULL;
+  return NULL;
 }
