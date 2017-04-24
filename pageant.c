@@ -1492,7 +1492,7 @@ int pageant_add_keyfile(Filename *filename,
   }
 
   /*
-   * If we get here, we've succesfully loaded the key into
+   * If we get here, we've successfully loaded the key into
    * rkey/skey, but not yet added it to the agent.
    */
 

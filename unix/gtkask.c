@@ -479,6 +479,8 @@ static int setup_gtk(const char *display)
   return ret;
 }
 
+const int buildinfo_gtk_relevant = TRUE;
+
 char *gtk_askpass_main(const char *display,
                        const char *wintitle,
                        const char *prompt,
