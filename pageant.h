@@ -10,7 +10,7 @@
  * upper bound known to the client, but it's also reused as a basic
  * sanity check on incoming messages' length fields.
  */
-#define AGENT_MAX_MSGLEN  8192
+#define AGENT_MAX_MSGLEN 8192
 
 typedef void (*pageant_logfn_t)(void *logctx, const char *fmt, va_list ap);
 
@@ -28,8 +28,11 @@ void pageant_init(void);
  * Returns a fully formatted message as output, *with* its initial
  * length field, and sets *outlen to the full size of that message.
  */
-void *pageant_handle_msg(const void *msg, int msglen, int *outlen,
-                         void *logctx, pageant_logfn_t logfn);
+void *pageant_handle_msg(const void *msg,
+                         int msglen,
+                         int *outlen,
+                         void *logctx,
+                         pageant_logfn_t logfn);
 
 /*
  * Construct a failure response. Useful for agent front ends which
@@ -83,7 +86,8 @@ struct pageant_listen_state;
 struct pageant_listen_state *pageant_listener_new(void);
 void pageant_listener_got_socket(struct pageant_listen_state *pl, Socket sock);
 void pageant_listener_set_logfn(struct pageant_listen_state *pl,
-                                void *logctx, pageant_logfn_t logfn);
+                                void *logctx,
+                                pageant_logfn_t logfn);
 void pageant_listener_free(struct pageant_listen_state *pl);
 
 /*
@@ -112,23 +116,25 @@ void pageant_listener_free(struct pageant_listen_state *pl);
  */
 void *pageant_get_keylist1(int *length);
 void *pageant_get_keylist2(int *length);
-enum {
-    PAGEANT_ACTION_OK,       /* success; no further action needed */
-    PAGEANT_ACTION_FAILURE,  /* failure; *retstr is error message */
-    PAGEANT_ACTION_NEED_PP   /* need passphrase: *retstr is key comment */
+enum
+{
+  PAGEANT_ACTION_OK,      /* success; no further action needed */
+  PAGEANT_ACTION_FAILURE, /* failure; *retstr is error message */
+  PAGEANT_ACTION_NEED_PP  /* need passphrase: *retstr is key comment */
 };
-int pageant_add_keyfile(Filename *filename, const char *passphrase,
+int pageant_add_keyfile(Filename *filename,
+                        const char *passphrase,
                         char **retstr);
 void pageant_forget_passphrases(void);
 
 struct pageant_pubkey {
-    /* Everything needed to identify a public key found by
-     * pageant_enum_keys and pass it back to the agent or other code
-     * later */
-    void *blob;
-    int bloblen;
-    char *comment;
-    int ssh_version;
+  /* Everything needed to identify a public key found by
+   * pageant_enum_keys and pass it back to the agent or other code
+   * later */
+  void *blob;
+  int bloblen;
+  char *comment;
+  int ssh_version;
 };
 struct pageant_pubkey *pageant_pubkey_copy(struct pageant_pubkey *key);
 void pageant_pubkey_free(struct pageant_pubkey *key);
@@ -137,7 +143,8 @@ typedef void (*pageant_key_enum_fn_t)(void *ctx,
                                       const char *fingerprint,
                                       const char *comment,
                                       struct pageant_pubkey *key);
-int pageant_enum_keys(pageant_key_enum_fn_t callback, void *callback_ctx,
+int pageant_enum_keys(pageant_key_enum_fn_t callback,
+                      void *callback_ctx,
                       char **retstr);
 int pageant_delete_key(struct pageant_pubkey *key, char **retstr);
 int pageant_delete_all_keys(char **retstr);
