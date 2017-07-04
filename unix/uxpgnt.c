@@ -241,20 +241,18 @@ static void x11_log(Plug p,
                     int error_code)
 {
 }
-static int x11_receive(Plug plug, int urgent, char *data, int len)
+static void x11_receive(Plug plug, int urgent, char *data, int len)
 {
-  return 0;
 }
 static void x11_sent(Plug plug, int bufsize)
 {
 }
-static int x11_closing(Plug plug,
-                       const char *error_msg,
-                       int error_code,
-                       int calling_back)
+static void x11_closing(Plug plug,
+                        const char *error_msg,
+                        int error_code,
+                        int calling_back)
 {
   time_to_die = TRUE;
-  return 1;
 }
 struct X11Connection {
   const struct plug_function_table *fn;

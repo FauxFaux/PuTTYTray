@@ -71,10 +71,10 @@ static void raw_check_close(Raw raw)
   }
 }
 
-static int raw_closing(Plug plug,
-                       const char *error_msg,
-                       int error_code,
-                       int calling_back)
+static void raw_closing(Plug plug,
+                        const char *error_msg,
+                        int error_code,
+                        int calling_back)
 {
   Raw raw = (Raw)plug;
 
@@ -104,17 +104,15 @@ static int raw_closing(Plug plug,
     raw->sent_console_eof = TRUE;
     raw_check_close(raw);
   }
-  return 0;
 }
 
-static int raw_receive(Plug plug, int urgent, char *data, int len)
+static void raw_receive(Plug plug, int urgent, char *data, int len)
 {
   Raw raw = (Raw)plug;
   c_write(raw, data, len);
   /* We count 'session start', for proxy logging purposes, as being
    * when data is received from the network and printed. */
   raw->session_started = TRUE;
-  return 1;
 }
 
 static void raw_sent(Plug plug, int bufsize)

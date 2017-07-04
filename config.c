@@ -1049,7 +1049,7 @@ static void ttymodes_handler(union control *ctrl,
       char type;
 
       {
-        const char *types = "ANV";
+        const char types[] = {'A', 'N', 'V'};
         int button = dlg_radiobutton_get(td->valradio, dlg);
         assert(button >= 0 && button < lenof(types));
         type = types[button];
