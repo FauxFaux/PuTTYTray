@@ -693,10 +693,10 @@ static void telnet_log(Plug plug,
                      telnet->session_started);
 }
 
-static int telnet_closing(Plug plug,
-                          const char *error_msg,
-                          int error_code,
-                          int calling_back)
+static void telnet_closing(Plug plug,
+                           const char *error_msg,
+                           int error_code,
+                           int calling_back)
 {
   Telnet telnet = (Telnet)plug;
 
@@ -718,17 +718,15 @@ static int telnet_closing(Plug plug,
     connection_fatal(telnet->frontend, "%s", error_msg);
   }
   /* Otherwise, the remote side closed the connection normally. */
-  return 0;
 }
 
-static int telnet_receive(Plug plug, int urgent, char *data, int len)
+static void telnet_receive(Plug plug, int urgent, char *data, int len)
 {
   Telnet telnet = (Telnet)plug;
   if (urgent)
     telnet->in_synch = TRUE;
   telnet->session_started = TRUE;
   do_telnet_read(telnet, data, len);
-  return 1;
 }
 
 static void telnet_sent(Plug plug, int bufsize)

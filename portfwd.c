@@ -125,10 +125,10 @@ static void pfl_log(Plug plug,
   /* we have to dump these since we have no interface to logging.c */
 }
 
-static int pfd_closing(Plug plug,
-                       const char *error_msg,
-                       int error_code,
-                       int calling_back)
+static void pfd_closing(Plug plug,
+                        const char *error_msg,
+                        int error_code,
+                        int calling_back)
 {
   struct PortForwarding *pf = (struct PortForwarding *)plug;
 
@@ -155,18 +155,15 @@ static int pfd_closing(Plug plug,
     if (pf->c)
       sshfwd_write_eof(pf->c);
   }
-
-  return 1;
 }
 
-static int pfl_closing(Plug plug,
-                       const char *error_msg,
-                       int error_code,
-                       int calling_back)
+static void pfl_closing(Plug plug,
+                        const char *error_msg,
+                        int error_code,
+                        int calling_back)
 {
   struct PortListener *pl = (struct PortListener *)plug;
   pfl_terminate(pl);
-  return 1;
 }
 
 static void wrap_send_port_open(void *channel,
@@ -186,7 +183,7 @@ static void wrap_send_port_open(void *channel,
   sfree(description);
 }
 
-static int pfd_receive(Plug plug, int urgent, char *data, int len)
+static void pfd_receive(Plug plug, int urgent, char *data, int len)
 {
   struct PortForwarding *pf = (struct PortForwarding *)plug;
   if (pf->dynamic) {
@@ -218,7 +215,7 @@ static int pfd_receive(Plug plug, int urgent, char *data, int len)
           data[1] = 91; /* generic `request rejected' */
           sk_write(pf->s, data, 8);
           pfd_close(pf);
-          return 1;
+          return;
         }
         if (pf->sockslen <= 8)
           continue; /* haven't started user/hostname */
@@ -336,7 +333,7 @@ static int pfd_receive(Plug plug, int urgent, char *data, int len)
             reply[1] = 1; /* generic failure */
             sk_write(pf->s, (char *)reply, lenof(reply));
             pfd_close(pf);
-            return 1;
+            return;
           }
           /*
            * Now we have a viable connect request. Switch
@@ -366,7 +363,7 @@ static int pfd_receive(Plug plug, int urgent, char *data, int len)
             reply[1] = 8; /* atype not supported */
             sk_write(pf->s, (char *)reply, lenof(reply));
             pfd_close(pf);
-            return 1;
+            return;
           }
         }
       }
@@ -378,9 +375,9 @@ static int pfd_receive(Plug plug, int urgent, char *data, int len)
        * close the connection rudely.
        */
       pfd_close(pf);
-      return 1;
+      break;
     }
-    return 1;
+    return;
 
   /*
    * We come here when we're ready to make an actual
@@ -399,7 +396,7 @@ static int pfd_receive(Plug plug, int urgent, char *data, int len)
     pf->c = new_sock_channel(pf->backhandle, pf);
     if (pf->c == NULL) {
       pfd_close(pf);
-      return 1;
+      return;
     } else {
       /* asks to forward to the specified host/port for this */
       wrap_send_port_open(pf->c, pf->hostname, pf->port, pf->s);
@@ -422,7 +419,6 @@ static int pfd_receive(Plug plug, int urgent, char *data, int len)
       sk_set_frozen(pf->s, 1);
     }
   }
-  return 1;
 }
 
 static void pfd_sent(Plug plug, int bufsize)

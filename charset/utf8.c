@@ -276,8 +276,11 @@ void utf8_read_test(int line, char *input, int inlen, ...)
       break;
     }
     if (l != str[i]) {
-      printf(
-          "%d: char %d came out as %08x, should be %08x\n", line, i, str[i], l);
+      printf("%d: char %d came out as %08x, should be %08x\n",
+             line,
+             i,
+             str[i],
+             (unsigned)l);
       total_errs++;
     }
   }
@@ -315,8 +318,11 @@ void utf8_write_test(int line, const long *input, int inlen, ...)
       break;
     }
     if (l != str[i]) {
-      printf(
-          "%d: char %d came out as %08x, should be %08x\n", line, i, str[i], l);
+      printf("%d: char %d came out as %08x, should be %08x\n",
+             line,
+             i,
+             str[i],
+             (unsigned)l);
       total_errs++;
     }
   }

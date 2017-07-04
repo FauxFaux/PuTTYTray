@@ -940,10 +940,10 @@ static void share_disconnect(struct ssh_sharing_connstate *cs,
   share_begin_cleanup(cs);
 }
 
-static int share_closing(Plug plug,
-                         const char *error_msg,
-                         int error_code,
-                         int calling_back)
+static void share_closing(Plug plug,
+                          const char *error_msg,
+                          int error_code,
+                          int calling_back)
 {
   struct ssh_sharing_connstate *cs = (struct ssh_sharing_connstate *)plug;
 
@@ -965,7 +965,6 @@ static int share_closing(Plug plug,
       ssh_sharing_logf(cs->parent->ssh, cs->id, "Socket error: %s", error_msg);
   }
   share_begin_cleanup(cs);
-  return 1;
 }
 
 static int getstring_inner(const void *vdata,
@@ -1839,23 +1838,23 @@ static void share_got_pkt_from_downstream(struct ssh_sharing_connstate *cs,
     int *crLine = &v;                                                          \
     switch (v) {                                                               \
     case 0:;
-#define crFinish(z)                                                            \
+#define crFinishV                                                              \
   }                                                                            \
   *crLine = 0;                                                                 \
-  return (z);                                                                  \
+  return;                                                                      \
   }
 #define crGetChar(c)                                                           \
   do {                                                                         \
     while (len == 0) {                                                         \
       *crLine = __LINE__;                                                      \
-      return 1;                                                                \
+      return;                                                                  \
     case __LINE__:;                                                            \
     }                                                                          \
     len--;                                                                     \
     (c) = (unsigned char)*data++;                                              \
   } while (0)
 
-static int share_receive(Plug plug, int urgent, char *data, int len)
+static void share_receive(Plug plug, int urgent, char *data, int len)
 {
   struct ssh_sharing_connstate *cs = (struct ssh_sharing_connstate *)plug;
   static const char expected_verstring_prefix[] =
@@ -1930,7 +1929,7 @@ static int share_receive(Plug plug, int urgent, char *data, int len)
   }
 
 dead:;
-  crFinish(1);
+  crFinishV;
 }
 
 static void share_sent(Plug plug, int bufsize)
@@ -1947,17 +1946,16 @@ static void share_sent(Plug plug, int bufsize)
    */
 }
 
-static int share_listen_closing(Plug plug,
-                                const char *error_msg,
-                                int error_code,
-                                int calling_back)
+static void share_listen_closing(Plug plug,
+                                 const char *error_msg,
+                                 int error_code,
+                                 int calling_back)
 {
   struct ssh_sharing_state *sharestate = (struct ssh_sharing_state *)plug;
   if (error_msg)
     ssh_sharing_logf(sharestate->ssh, 0, "listening socket: %s", error_msg);
   sk_close(sharestate->listensock);
   sharestate->listensock = NULL;
-  return 1;
 }
 
 static void share_send_verstring(struct ssh_sharing_connstate *cs)
@@ -2130,16 +2128,14 @@ static void nullplug_socket_log(Plug plug,
                                 int error_code)
 {
 }
-static int nullplug_closing(Plug plug,
-                            const char *error_msg,
-                            int error_code,
-                            int calling_back)
+static void nullplug_closing(Plug plug,
+                             const char *error_msg,
+                             int error_code,
+                             int calling_back)
 {
-  return 0;
 }
-static int nullplug_receive(Plug plug, int urgent, char *data, int len)
+static void nullplug_receive(Plug plug, int urgent, char *data, int len)
 {
-  return 0;
 }
 static void nullplug_sent(Plug plug, int bufsize)
 {
