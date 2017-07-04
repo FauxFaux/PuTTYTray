@@ -54,8 +54,8 @@
  * is to remove it in the makefile edifice. */
 int main(int argc, char **argv)
 {
-    fprintf(stderr, "launcher does nothing on non-OSX platforms\n");
-    return 1;
+  fprintf(stderr, "launcher does nothing on non-OSX platforms\n");
+  return 1;
 }
 #else /* __APPLE__ */
 
@@ -87,110 +87,110 @@ int main(int argc, char **argv)
 #define FANOUT 26
 int char_index(int ch)
 {
-    if (ch >= 'A' && ch <= 'Z')
-        return ch - 'A';
-    else if (ch >= 'a' && ch <= 'z')
-        return ch - 'a';
-    else
-        return -1;
+  if (ch >= 'A' && ch <= 'Z')
+    return ch - 'A';
+  else if (ch >= 'a' && ch <= 'z')
+    return ch - 'a';
+  else
+    return -1;
 }
 
 struct bucket {
-    int prefixlen;
-    struct bucket *next_bucket;
-    struct node *first_node;
+  int prefixlen;
+  struct bucket *next_bucket;
+  struct node *first_node;
 };
 
 struct node {
-    const char *string;
-    int len, prefixlen;
-    struct node *next;
+  const char *string;
+  int len, prefixlen;
+  struct node *next;
 };
 
 struct node *new_node(struct node *prev_head, const char *string, int len)
 {
-    struct node *ret = (struct node *)malloc(sizeof(struct node));
+  struct node *ret = (struct node *)malloc(sizeof(struct node));
 
-    if (!ret) {
-        fprintf(stderr, "out of memory\n");
-        exit(1);
-    }
+  if (!ret) {
+    fprintf(stderr, "out of memory\n");
+    exit(1);
+  }
 
-    ret->next = prev_head;
-    ret->string = string;
-    ret->len = len;
+  ret->next = prev_head;
+  ret->string = string;
+  ret->len = len;
 
-    return ret;
+  return ret;
 }
 
 char *get_unused_env_prefix(void)
 {
-    struct bucket *qhead, *qtail;
-    extern char **environ;
-    char **e;
+  struct bucket *qhead, *qtail;
+  extern char **environ;
+  char **e;
 
-    qhead = (struct bucket *)malloc(sizeof(struct bucket));
-    if (!qhead) {
+  qhead = (struct bucket *)malloc(sizeof(struct bucket));
+  if (!qhead) {
+    fprintf(stderr, "out of memory\n");
+    exit(1);
+  }
+  qhead->prefixlen = 0;
+  for (e = environ; *e; e++)
+    qhead->first_node = new_node(qhead->first_node, *e, strcspn(*e, "="));
+
+  qtail = qhead;
+  while (1) {
+    struct bucket *buckets[FANOUT];
+    struct node *bucketnode;
+    int i, index;
+
+    for (i = 0; i < FANOUT; i++) {
+      buckets[i] = (struct bucket *)malloc(sizeof(struct bucket));
+      if (!buckets[i]) {
         fprintf(stderr, "out of memory\n");
         exit(1);
+      }
+      buckets[i]->prefixlen = qhead->prefixlen + 1;
+      qtail->next_bucket = buckets[i];
+      qtail = buckets[i];
     }
-    qhead->prefixlen = 0;
-    for (e = environ; *e; e++)
-        qhead->first_node = new_node(qhead->first_node, *e, strcspn(*e, "="));
+    qtail->next_bucket = NULL;
 
-    qtail = qhead;
-    while (1) {
-        struct bucket *buckets[FANOUT];
-        struct node *bucketnode;
-        int i, index;
+    bucketnode = qhead->first_node;
+    while (bucketnode) {
+      struct node *node = bucketnode;
+      bucketnode = bucketnode->next;
 
-        for (i = 0; i < FANOUT; i++) {
-            buckets[i] = (struct bucket *)malloc(sizeof(struct bucket));
-            if (!buckets[i]) {
-                fprintf(stderr, "out of memory\n");
-                exit(1);
-            }
-            buckets[i]->prefixlen = qhead->prefixlen + 1;
-            qtail->next_bucket = buckets[i];
-            qtail = buckets[i];
-        }
-        qtail->next_bucket = NULL;
-
-        bucketnode = qhead->first_node;
-        while (bucketnode) {
-            struct node *node = bucketnode;
-            bucketnode = bucketnode->next;
-
-            if (node->len <= qhead->prefixlen)
-                continue;
-            index = char_index(node->string[qhead->prefixlen]);
-            if (!(index >= 0 && index < FANOUT))
-                continue;
-            node->prefixlen++;
-            node->next = buckets[index]->first_node;
-            buckets[index]->first_node = node;
-        }
-
-        for (i = 0; i < FANOUT; i++) {
-            if (!buckets[i]->first_node) {
-                char *ret = malloc(qhead->prefixlen + 2);
-                if (!ret) {
-                    fprintf(stderr, "out of memory\n");
-                    exit(1);
-                }
-                memcpy(ret, qhead->first_node->string, qhead->prefixlen);
-                ret[qhead->prefixlen] = i + 'A';
-                ret[qhead->prefixlen + 1] = '\0';
-
-                /* This would be where we freed everything, if we
-                 * didn't know it didn't matter because we were
-                 * imminently going to exec another program */
-                return ret;
-            }
-        }
-
-        qhead = qhead->next_bucket;
+      if (node->len <= qhead->prefixlen)
+        continue;
+      index = char_index(node->string[qhead->prefixlen]);
+      if (!(index >= 0 && index < FANOUT))
+        continue;
+      node->prefixlen++;
+      node->next = buckets[index]->first_node;
+      buckets[index]->first_node = node;
     }
+
+    for (i = 0; i < FANOUT; i++) {
+      if (!buckets[i]->first_node) {
+        char *ret = malloc(qhead->prefixlen + 2);
+        if (!ret) {
+          fprintf(stderr, "out of memory\n");
+          exit(1);
+        }
+        memcpy(ret, qhead->first_node->string, qhead->prefixlen);
+        ret[qhead->prefixlen] = i + 'A';
+        ret[qhead->prefixlen + 1] = '\0';
+
+        /* This would be where we freed everything, if we
+         * didn't know it didn't matter because we were
+         * imminently going to exec another program */
+        return ret;
+      }
+    }
+
+    qhead = qhead->next_bucket;
+  }
 }
 
 /* ----------------------------------------------------------------------
@@ -266,28 +266,28 @@ char *get_unused_env_prefix(void)
 
 char *get_program_path(void)
 {
-    char *our_path;
-    uint32_t pathlen = 0;
-    _NSGetExecutablePath(NULL, &pathlen);
-    our_path = malloc(pathlen);
-    if (!our_path) {
-        fprintf(stderr, "out of memory\n");
-        exit(1);
-    }
-    if (_NSGetExecutablePath(our_path, &pathlen)) {
-        fprintf(stderr, "unable to get launcher executable path\n");
-        exit(1);
-    }
+  char *our_path;
+  uint32_t pathlen = 0;
+  _NSGetExecutablePath(NULL, &pathlen);
+  our_path = malloc(pathlen);
+  if (!our_path) {
+    fprintf(stderr, "out of memory\n");
+    exit(1);
+  }
+  if (_NSGetExecutablePath(our_path, &pathlen)) {
+    fprintf(stderr, "unable to get launcher executable path\n");
+    exit(1);
+  }
 
-    /* OS X guarantees to malloc the return value if we pass NULL */
-    char *our_real_path = realpath(our_path, NULL);
-    if (!our_real_path) {
-        fprintf(stderr, "realpath failed\n");
-        exit(1);
-    }
+  /* OS X guarantees to malloc the return value if we pass NULL */
+  char *our_real_path = realpath(our_path, NULL);
+  if (!our_real_path) {
+    fprintf(stderr, "realpath failed\n");
+    exit(1);
+  }
 
-    free(our_path);
-    return our_real_path;
+  free(our_path);
+  return our_real_path;
 }
 
 /* ----------------------------------------------------------------------
@@ -297,21 +297,21 @@ char *get_program_path(void)
 
 char *dirname_wrapper(const char *path)
 {
-    char *path_copy = malloc(strlen(path) + 1);
-    if (!path_copy) {
-        fprintf(stderr, "out of memory\n");
-        exit(1);
-    }
-    strcpy(path_copy, path);
-    char *ret_orig = dirname(path_copy);
-    char *ret = malloc(strlen(ret_orig) + 1);
-    if (!ret) {
-        fprintf(stderr, "out of memory\n");
-        exit(1);
-    }
-    strcpy(ret, ret_orig);
-    free(path_copy);
-    return ret;
+  char *path_copy = malloc(strlen(path) + 1);
+  if (!path_copy) {
+    fprintf(stderr, "out of memory\n");
+    exit(1);
+  }
+  strcpy(path_copy, path);
+  char *ret_orig = dirname(path_copy);
+  char *ret = malloc(strlen(ret_orig) + 1);
+  if (!ret) {
+    fprintf(stderr, "out of memory\n");
+    exit(1);
+  }
+  strcpy(ret, ret_orig);
+  free(path_copy);
+  return ret;
 }
 
 /* ----------------------------------------------------------------------
@@ -320,15 +320,15 @@ char *dirname_wrapper(const char *path)
 
 char *alloc_cat(const char *str1, const char *str2)
 {
-    int len1 = strlen(str1), len2 = strlen(str2);
-    char *ret = malloc(len1 + len2 + 1);
-    if (!ret) {
-        fprintf(stderr, "out of memory\n");
-        exit(1);
-    }
-    strcpy(ret, str1);
-    strcpy(ret + len1, str2);
-    return ret;
+  int len1 = strlen(str1), len2 = strlen(str2);
+  char *ret = malloc(len1 + len2 + 1);
+  if (!ret) {
+    fprintf(stderr, "out of memory\n");
+    exit(1);
+  }
+  strcpy(ret, str1);
+  strcpy(ret + len1, str2);
+  return ret;
 }
 
 /* ----------------------------------------------------------------------
@@ -338,16 +338,16 @@ char *alloc_cat(const char *str1, const char *str2)
 char *prefix, *prefixset, *prefixunset;
 void overwrite_env(const char *name, const char *value)
 {
-    const char *oldvalue = getenv(name);
-    if (oldvalue) {
-        setenv(alloc_cat(prefixset, name), oldvalue, 1);
-    } else {
-        setenv(alloc_cat(prefixunset, name), "", 1);
-    }
-    if (value)
-        setenv(name, value, 1);
-    else
-        unsetenv(name);
+  const char *oldvalue = getenv(name);
+  if (oldvalue) {
+    setenv(alloc_cat(prefixset, name), oldvalue, 1);
+  } else {
+    setenv(alloc_cat(prefixunset, name), "", 1);
+  }
+  if (value)
+    setenv(name, value, 1);
+  else
+    unsetenv(name);
 }
 
 /* ----------------------------------------------------------------------
@@ -356,62 +356,62 @@ void overwrite_env(const char *name, const char *value)
 
 int main(int argc, char **argv)
 {
-    prefix = get_unused_env_prefix();
-    prefixset = alloc_cat(prefix, "s");
-    prefixunset = alloc_cat(prefix, "u");
+  prefix = get_unused_env_prefix();
+  prefixset = alloc_cat(prefix, "s");
+  prefixunset = alloc_cat(prefix, "u");
 
-    char *prog_path = get_program_path(); // <bundle>/Contents/MacOS/<filename>
-    char *macos = dirname_wrapper(prog_path); // <bundle>/Contents/MacOS
-    char *contents = dirname_wrapper(macos);  // <bundle>/Contents
-//    char *bundle = dirname_wrapper(contents); // <bundle>
-    char *resources = alloc_cat(contents, "/Resources");
-//    char *bin = alloc_cat(resources, "/bin");
-    char *etc = alloc_cat(resources, "/etc");
-    char *lib = alloc_cat(resources, "/lib");
-    char *share = alloc_cat(resources, "/share");
-    char *xdg = alloc_cat(etc, "/xdg");
-//    char *gtkrc = alloc_cat(etc, "/gtk-2.0/gtkrc");
-    char *locale = alloc_cat(share, "/locale");
-    char *realbin = alloc_cat(prog_path, "-bin");
+  char *prog_path = get_program_path(); // <bundle>/Contents/MacOS/<filename>
+  char *macos = dirname_wrapper(prog_path); // <bundle>/Contents/MacOS
+  char *contents = dirname_wrapper(macos);  // <bundle>/Contents
+  //    char *bundle = dirname_wrapper(contents); // <bundle>
+  char *resources = alloc_cat(contents, "/Resources");
+  //    char *bin = alloc_cat(resources, "/bin");
+  char *etc = alloc_cat(resources, "/etc");
+  char *lib = alloc_cat(resources, "/lib");
+  char *share = alloc_cat(resources, "/share");
+  char *xdg = alloc_cat(etc, "/xdg");
+  //    char *gtkrc = alloc_cat(etc, "/gtk-2.0/gtkrc");
+  char *locale = alloc_cat(share, "/locale");
+  char *realbin = alloc_cat(prog_path, "-bin");
 
-    overwrite_env("DYLD_LIBRARY_PATH", lib);
-    overwrite_env("XDG_CONFIG_DIRS", xdg);
-    overwrite_env("XDG_DATA_DIRS", share);
-    overwrite_env("GTK_DATA_PREFIX", resources);
-    overwrite_env("GTK_EXE_PREFIX", resources);
-    overwrite_env("GTK_PATH", resources);
-    overwrite_env("PANGO_LIBDIR", lib);
-    overwrite_env("PANGO_SYSCONFDIR", etc);
-    overwrite_env("I18NDIR", locale);
-    overwrite_env("LANG", NULL);
-    overwrite_env("LC_MESSAGES", NULL);
-    overwrite_env("LC_MONETARY", NULL);
-    overwrite_env("LC_COLLATE", NULL);
+  overwrite_env("DYLD_LIBRARY_PATH", lib);
+  overwrite_env("XDG_CONFIG_DIRS", xdg);
+  overwrite_env("XDG_DATA_DIRS", share);
+  overwrite_env("GTK_DATA_PREFIX", resources);
+  overwrite_env("GTK_EXE_PREFIX", resources);
+  overwrite_env("GTK_PATH", resources);
+  overwrite_env("PANGO_LIBDIR", lib);
+  overwrite_env("PANGO_SYSCONFDIR", etc);
+  overwrite_env("I18NDIR", locale);
+  overwrite_env("LANG", NULL);
+  overwrite_env("LC_MESSAGES", NULL);
+  overwrite_env("LC_MONETARY", NULL);
+  overwrite_env("LC_COLLATE", NULL);
 
-    char **new_argv = malloc((argc + 16) * sizeof(const char *));
-    if (!new_argv) {
-        fprintf(stderr, "out of memory\n");
-        exit(1);
-    }
-    int j = 0;
-    new_argv[j++] = realbin;
-    {
-        int i = 1;
-        if (i < argc && !strncmp(argv[i], "-psn_", 5))
-            i++;
+  char **new_argv = malloc((argc + 16) * sizeof(const char *));
+  if (!new_argv) {
+    fprintf(stderr, "out of memory\n");
+    exit(1);
+  }
+  int j = 0;
+  new_argv[j++] = realbin;
+  {
+    int i = 1;
+    if (i < argc && !strncmp(argv[i], "-psn_", 5))
+      i++;
 
-        for (; i < argc; i++)
-            new_argv[j++] = argv[i];
-    }
-    new_argv[j++] = prefix;
-    new_argv[j++] = NULL;
+    for (; i < argc; i++)
+      new_argv[j++] = argv[i];
+  }
+  new_argv[j++] = prefix;
+  new_argv[j++] = NULL;
 
-    execv(realbin, new_argv);
-    perror("execv");
-    free(new_argv);
-    free(contents);
-    free(macos);
-    return 127;
+  execv(realbin, new_argv);
+  perror("execv");
+  free(new_argv);
+  free(contents);
+  free(macos);
+  return 127;
 }
 
 #endif /* __APPLE__ */

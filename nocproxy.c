@@ -13,24 +13,28 @@
 #include "network.h"
 #include "proxy.h"
 
-void proxy_socks5_offerencryptedauth(char * command, int * len)
+void proxy_socks5_offerencryptedauth(char *command, int *len)
 {
-    /* For telnet, don't add any new encrypted authentication routines */
+  /* For telnet, don't add any new encrypted authentication routines */
 }
 
-int proxy_socks5_handlechap (Proxy_Socket p)
+int proxy_socks5_handlechap(Proxy_Socket p)
 {
 
-    plug_closing(p->plug, "Proxy error: Trying to handle a SOCKS5 CHAP request"
-		 " in telnet-only build",
-		 PROXY_ERROR_GENERAL, 0);
-    return 1;
+  plug_closing(p->plug,
+               "Proxy error: Trying to handle a SOCKS5 CHAP request"
+               " in telnet-only build",
+               PROXY_ERROR_GENERAL,
+               0);
+  return 1;
 }
 
 int proxy_socks5_selectchap(Proxy_Socket p)
 {
-    plug_closing(p->plug, "Proxy error: Trying to handle a SOCKS5 CHAP request"
-		 " in telnet-only build",
-		 PROXY_ERROR_GENERAL, 0);
-    return 1;
+  plug_closing(p->plug,
+               "Proxy error: Trying to handle a SOCKS5 CHAP request"
+               " in telnet-only build",
+               PROXY_ERROR_GENERAL,
+               0);
+  return 1;
 }

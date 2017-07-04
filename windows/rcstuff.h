@@ -32,19 +32,19 @@
 
 /* LCC is the offender here. */
 #ifndef VS_FF_DEBUG
-#define VS_FF_DEBUG        1
+#define VS_FF_DEBUG 1
 #endif
 #ifndef VS_FF_PRERELEASE
-#define VS_FF_PRERELEASE   2
+#define VS_FF_PRERELEASE 2
 #endif
 #ifndef VS_FF_PRIVATEBUILD
 #define VS_FF_PRIVATEBUILD 8
 #endif
 #ifndef VOS__WINDOWS32
-#define VOS__WINDOWS32     4
+#define VOS__WINDOWS32 4
 #endif
 #ifndef VFT_APP
-#define VFT_APP            1
+#define VFT_APP 1
 #endif
 
 #endif /* PUTTY_RCSTUFF_H */
