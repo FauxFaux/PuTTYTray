@@ -109,6 +109,9 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     ctrl_checkbox(s, "Control-Alt is different from AltGr", 'd',
 		  HELPCTX(keyboard_ctrlalt),
 		  conf_checkbox_handler, I(CONF_ctrlaltkeys));
+    ctrl_checkbox(s, "Set meta bit on alt (instead of escape)", 'm',
+		  HELPCTX(no_help),
+		  conf_checkbox_handler, I(CONF_alt_metabit));
 
     /*
      * Windows allows an arbitrary .WAV to be played as a bell, and
@@ -388,6 +391,12 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
      */
     if (!midsession || (protocol == PROT_SERIAL))
         ser_setup_config_box(b, midsession, 0x1F, 0x0F);
+
+    /*
+     * cygterm back end is available on Windows.
+     */
+    if (!midsession || (protocol == PROT_CYGTERM))
+        cygterm_setup_config_box(b, midsession);
 
     /*
      * $XAUTHORITY is not reliable on Windows, so we provide a

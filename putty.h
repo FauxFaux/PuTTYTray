@@ -310,7 +310,8 @@ enum {
     PROT_RAW, PROT_TELNET, PROT_RLOGIN, PROT_SSH,
     /* PROT_SERIAL is supported on a subset of platforms, but it doesn't
      * hurt to define it globally. */
-    PROT_SERIAL
+    PROT_SERIAL,
+    PROT_CYGTERM
 };
 
 enum {
@@ -721,6 +722,10 @@ void cleanup_exit(int);
     X(INT, NONE, serstopbits) \
     X(INT, NONE, serparity) \
     X(INT, NONE, serflow) \
+    /* Cygterm options */ \
+    X(INT, NONE, cygautopath) \
+    X(INT, NONE, cygterm64) \
+    X(STR, NONE, cygcmd) \
     /* Keyboard options */ \
     X(INT, NONE, bksp_is_delete) \
     X(INT, NONE, rxvt_homeend) \
@@ -742,6 +747,7 @@ void cleanup_exit(int);
     X(INT, NONE, alt_f4) /* is it special? */ \
     X(INT, NONE, alt_space) /* is it special? */ \
     X(INT, NONE, alt_only) /* is it special? */ \
+    X(INT, NONE, alt_metabit) /* set meta instead of escape */ \
     X(INT, NONE, localecho) \
     X(INT, NONE, localedit) \
     X(INT, NONE, alwaysontop) \
@@ -1061,6 +1067,12 @@ extern Backend telnet_backend;
  * Exports from ssh.c.
  */
 extern Backend ssh_backend;
+
+/*
+ * Exports from cygterm.c.
+ */
+extern Backend cygterm_backend;
+void cygterm_setup_config_box(struct controlbox *b, int midsession);
 
 /*
  * Exports from ldisc.c.

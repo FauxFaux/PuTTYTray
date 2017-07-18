@@ -525,6 +525,7 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "AltF4", conf_get_int(conf, CONF_alt_f4));
     write_setting_i(sesskey, "AltSpace", conf_get_int(conf, CONF_alt_space));
     write_setting_i(sesskey, "AltOnly", conf_get_int(conf, CONF_alt_only));
+    write_setting_i(sesskey, "AltMetabit", conf_get_int(conf, CONF_alt_metabit));
     write_setting_i(sesskey, "ComposeKey", conf_get_int(conf, CONF_compose_key));
     write_setting_i(sesskey, "CtrlAltKeys", conf_get_int(conf, CONF_ctrlaltkeys));
     write_setting_i(sesskey, "TelnetKey", conf_get_int(conf, CONF_telnet_keyboard));
@@ -648,6 +649,9 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "SerialParity", conf_get_int(conf, CONF_serparity));
     write_setting_i(sesskey, "SerialFlowControl", conf_get_int(conf, CONF_serflow));
     write_setting_s(sesskey, "WindowClass", conf_get_str(conf, CONF_winclass));
+    write_setting_i(sesskey, "CygtermAutoPath", conf_get_int(conf, CONF_cygautopath));
+    write_setting_i(sesskey, "Cygterm64", conf_get_int(conf, CONF_cygterm64));
+    write_setting_s(sesskey, "CygtermCommand", conf_get_str(conf, CONF_cygcmd));
     write_setting_i(sesskey, "ConnectionSharing", conf_get_int(conf, CONF_ssh_connection_sharing));
     write_setting_i(sesskey, "ConnectionSharingUpstream", conf_get_int(conf, CONF_ssh_connection_sharing_upstream));
     write_setting_i(sesskey, "ConnectionSharingDownstream", conf_get_int(conf, CONF_ssh_connection_sharing_downstream));
@@ -825,6 +829,7 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "AltF4", 1, conf, CONF_alt_f4);
     gppi(sesskey, "AltSpace", 0, conf, CONF_alt_space);
     gppi(sesskey, "AltOnly", 0, conf, CONF_alt_only);
+    gppi(sesskey, "AltMetabit", 0, conf, CONF_alt_metabit);
     gppi(sesskey, "ComposeKey", 0, conf, CONF_compose_key);
     gppi(sesskey, "CtrlAltKeys", 1, conf, CONF_ctrlaltkeys);
     gppi(sesskey, "TelnetKey", 0, conf, CONF_telnet_keyboard);
@@ -996,6 +1001,9 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "SerialStopHalfbits", 2, conf, CONF_serstopbits);
     gppi(sesskey, "SerialParity", SER_PAR_NONE, conf, CONF_serparity);
     gppi(sesskey, "SerialFlowControl", SER_FLOW_XONXOFF, conf, CONF_serflow);
+    gppi(sesskey, "CygtermAutoPath", 1, conf, CONF_cygautopath);
+    gppi(sesskey, "Cygterm64", 0, conf, CONF_cygterm64);
+    gpps(sesskey, "CygtermCommand", "-", conf, CONF_cygcmd);
     gpps(sesskey, "WindowClass", "", conf, CONF_winclass);
     gppi(sesskey, "ConnectionSharing", 0, conf, CONF_ssh_connection_sharing);
     gppi(sesskey, "ConnectionSharingUpstream", 1, conf, CONF_ssh_connection_sharing_upstream);

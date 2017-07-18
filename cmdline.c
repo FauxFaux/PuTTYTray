@@ -220,6 +220,13 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
 	 * so copy it across */
 	conf_set_str(conf, CONF_serline, conf_get_str(conf, CONF_host));
     }
+    if (!strcmp(p, "-cygterm")) {
+        RETURN(1);
+        UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+        default_protocol = PROT_CYGTERM;
+        conf_set_int(conf, CONF_protocol, default_protocol);
+        return 1;
+    }
     if (!strcmp(p, "-v")) {
 	RETURN(1);
 	flags |= FLAG_VERBOSE;

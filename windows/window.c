@@ -4408,6 +4408,11 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 	    *p++ = 0x1E;	       /* Ctrl-~ == Ctrl-^ in xterm at least */
 	    return p - output;
 	}
+	if (wParam == VK_RETURN && shift_state != 0) {	/* Shift-Return, Ctrl-Return */
+	    /* send LINEFEED */
+	    *p++ = 012;
+ 	    return p - output;
+ 	}
 	if (shift_state == 0 && wParam == VK_RETURN && term->cr_lf_return) {
 	    *p++ = '\r';
 	    *p++ = '\n';
