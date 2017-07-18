@@ -1,0 +1,38 @@
+--- /dev/null
++++ b/windows/cthelper/BUILDING
+@@ -0,0 +1,32 @@
++BUILDING
++
++The build process has been tested only under Cygwin, of course.  The patch
++file is executable and runs the following script:
++
++PUTTY_VERSION=0.60
++set -e -u -x
++PUTTY=putty-$PUTTY_VERSION
++
++## Extract PuTTY
++if [ ! -d $PUTTY ]; then
++  ## Download the source for PuTTY
++  if [ ! -f $PUTTY.tar.gz ]; then
++    wget http://the.earth.li/~sgtatham/putty/$PUTTY_VERSION/$PUTTY.tar.gz
++  fi
++  tar xzf $PUTTY.tar.gz
++fi
++
++## Apply the PuTTYcyg patch
++cd $PUTTY
++patch -p1
++
++## Create Makefile.cyg
++perl mkfiles.pl
++
++## Build putty.exe
++make -C windows -f Makefile.cyg putty.exe
++
++## Build cthelper.exe
++make -C windows/cthelper
++
++size windows/putty.exe windows/cthelper/cthelper.exe
+diff --git a/windows/cthelper/Makefile b/windows/cthelper/Makefile
+new file mode 100644
+index 00000000..c83ed8cf

@@ -1,0 +1,15 @@
+diff --git a/windows/winhandl.c b/windows/winhandl.c
+index b4d508b0..156fc68f 100644
+--- a/windows/winhandl.c
++++ b/windows/winhandl.c
+@@ -177,8 +177,8 @@ static DWORD WINAPI handle_input_threadfunc(void *param)
+ 
+ 	SetEvent(ctx->ev_to_main);
+ 
+-	if (finished)
+-	    break;
++        if (finished)
++            break;
+ 
+ 	WaitForSingleObject(ctx->ev_from_main, INFINITE);
+ 	if (ctx->done) {

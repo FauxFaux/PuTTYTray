@@ -1,0 +1,14 @@
+diff --git a/telnet.c b/telnet.c
+index 098db292..68dd555c 100644
+--- a/telnet.c
++++ b/telnet.c
+@@ -722,7 +722,8 @@ static const char *telnet_init(void *frontend_handle, void **backend_handle,
+ 	telnet_log,
+ 	telnet_closing,
+ 	telnet_receive,
+-	telnet_sent
++	telnet_sent,
++        NULL
+     };
+     SockAddr addr;
+     const char *err;

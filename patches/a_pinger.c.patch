@@ -1,0 +1,13 @@
+diff --git a/pinger.c b/pinger.c
+index 3f533ae6..81923a0e 100644
+--- a/pinger.c
++++ b/pinger.c
+@@ -28,7 +28,7 @@ static void pinger_timer(void *ctx, unsigned long now)
+ 
+ static void pinger_schedule(Pinger pinger)
+ {
+-    int next;
++    unsigned long next;
+ 
+     if (!pinger->interval) {
+ 	pinger->pending = FALSE;       /* cancel any pending ping */

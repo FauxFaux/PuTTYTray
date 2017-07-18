@@ -1,0 +1,41 @@
+diff --git a/dialog.h b/dialog.h
+index 67751670..2bb3992d 100644
+--- a/dialog.h
++++ b/dialog.h
+@@ -35,7 +35,8 @@ enum {
+     CTRL_COLUMNS,		       /* divide window into columns */
+     CTRL_FILESELECT,		       /* label plus filename selector */
+     CTRL_FONTSELECT,		       /* label plus font selector */
+-    CTRL_TABDELAY		       /* see `tabdelay' below */
++    CTRL_TABDELAY,		       /* see `tabdelay' below */
++    CTRL_ICON                          /* static icon without label */
+ };
+ 
+ /*
+@@ -410,6 +411,11 @@ union control {
+ 	STANDARD_PREFIX;
+ 	char shortcut;
+     } fontselect;
++
++    struct {
++        STANDARD_PREFIX;
++        intorptr handle;
++    } icon;
+ };
+ 
+ #undef STANDARD_PREFIX
+@@ -536,6 +542,11 @@ union control *ctrl_checkbox(struct controlset *, char *label, char shortcut,
+ 			     handler_fn handler, intorptr context);
+ union control *ctrl_tabdelay(struct controlset *, union control *);
+ 
++union control *ctrl_icon(struct controlset *, intorptr helpctx, intorptr context);
++
++// Should be somewhere below, but this is easier
++void dlg_icon_set(union control *ctrl, void *dlg, char const *icon);
++
+ /*
+  * Routines the platform-independent dialog code can call to read
+  * and write the values of controls.
+diff --git a/doc/.gitignore b/doc/.gitignore
+new file mode 100644
+index 00000000..6d6fbe9c

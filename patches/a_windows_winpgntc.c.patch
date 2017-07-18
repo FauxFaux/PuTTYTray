@@ -1,0 +1,29 @@
+diff --git a/windows/winpgntc.c b/windows/winpgntc.c
+index 06649abc..5c1cecb3 100644
+--- a/windows/winpgntc.c
++++ b/windows/winpgntc.c
+@@ -14,10 +14,14 @@
+ #define AGENT_COPYDATA_ID 0x804e50ba   /* random goop */
+ #define AGENT_MAX_MSGLEN  8192
+ 
++HWND find_agent(void) {
++    return FindWindow("Pageant", "Pageant");
++}
++
+ int agent_exists(void)
+ {
+     HWND hwnd;
+-    hwnd = FindWindow("Pageant", "Pageant");
++    hwnd = find_agent();
+     if (!hwnd)
+ 	return FALSE;
+     else
+@@ -86,7 +90,7 @@ int agent_query(void *in, int inlen, void **out, int *outlen,
+     *out = NULL;
+     *outlen = 0;
+ 
+-    hwnd = FindWindow("Pageant", "Pageant");
++    hwnd = find_agent();
+     if (!hwnd)
+ 	return 1;		       /* *out == NULL, so failure */
+     mapname = dupprintf("PageantRequest%08x", (unsigned)GetCurrentThreadId());

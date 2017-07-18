@@ -1,0 +1,11 @@
+--- /dev/null
++++ b/windows/re_lib/regmagic.h
+@@ -0,0 +1,5 @@
++/*
++ * The first byte of the regexp internal "program" is actually this magic
++ * number; the start node begins in the second byte.
++ */
++#define	MAGIC	0234
+diff --git a/windows/urlhack.h b/windows/urlhack.h
+new file mode 100644
+index 00000000..ff50ad6e

@@ -1,0 +1,14 @@
+diff --git a/configure.ac b/configure.ac
+index 5818e032..5529797a 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -17,6 +17,9 @@ AC_PROG_RANLIB
+ ifdef([AM_PROG_AR],[AM_PROG_AR])
+ AM_PROG_CC_C_O
+ 
++AM_PROG_CC_C_O
++AM_PROG_AR
++
+ # Mild abuse of the '--enable' option format to allow manual
+ # specification of setuid or setgid setup in pterm.
+ setidtype=none

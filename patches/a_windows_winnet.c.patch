@@ -1,0 +1,78 @@
+diff --git a/windows/winnet.c b/windows/winnet.c
+index fdb83c80..ec230e2e 100644
+--- a/windows/winnet.c
++++ b/windows/winnet.c
+@@ -183,6 +183,8 @@ DECL_WINDOWS_FUNCTION(static, int, WSAIoctl,
+ 		      (SOCKET, DWORD, LPVOID, DWORD, LPVOID, DWORD,
+ 		       LPDWORD, LPWSAOVERLAPPED,
+ 		       LPWSAOVERLAPPED_COMPLETION_ROUTINE));
++DECL_WINDOWS_FUNCTION(static, int, getsockname,
++		      (SOCKET, const struct sockaddr FAR *, int FAR *));
+ #ifndef NO_IPV6
+ DECL_WINDOWS_FUNCTION(static, int, getaddrinfo,
+ 		      (const char *nodename, const char *servname,
+@@ -305,6 +307,7 @@ void sk_init(void)
+     GET_WINDOWS_FUNCTION(winsock_module, getpeername);
+     GET_WINDOWS_FUNCTION(winsock_module, recv);
+     GET_WINDOWS_FUNCTION(winsock_module, WSAIoctl);
++    GET_WINDOWS_FUNCTION(winsock_module, getsockname);
+ 
+     /* Try to get the best WinSock version we can get */
+     if (!sk_startup(2,2) &&
+@@ -478,7 +481,7 @@ char *winsock_error_string(int error)
+                            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                            es->text + bufused, bufsize - bufused, NULL)) {
+             sprintf(es->text + bufused,
+-                    "Windows error code %d (and FormatMessage returned %d)", 
++                    "Windows error code %d (and FormatMessage returned %lu)",
+                     error, GetLastError());
+         } else {
+             int len = strlen(es->text);
+@@ -941,6 +944,9 @@ static DWORD try_connect(Actual_Socket sock)
+     char *errstr;
+     short localport;
+     int family;
++#if defined(IPTOS) && defined(WINSOCK_TWO)
++	int tos;
++#endif
+ 
+     if (sock->s != INVALID_SOCKET) {
+ 	do_select(sock->s, 0);
+@@ -976,6 +982,12 @@ static DWORD try_connect(Actual_Socket sock)
+ 	p_setsockopt(s, SOL_SOCKET, SO_OOBINLINE, (void *) &b, sizeof(b));
+     }
+ 
++#if defined(IPTOS) && defined(WINSOCK_TWO)
++	// FireEgl - Set IP_TOS to whatever IPTOS is defined to:
++	tos = IPTOS;	/* see <netinet/ip.h> */
++	p_setsockopt(s, IPPROTO_IP, IP_TOS, (char *)&tos, sizeof(tos));
++#endif
++
+     if (sock->nodelay) {
+ 	BOOL b = TRUE;
+ 	p_setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (void *) &b, sizeof(b));
+@@ -1376,6 +1388,24 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only,
+     return (Socket) ret;
+ }
+ 
++int sk_getport(Socket sock)
++{
++    /* I won't even try to get IPv6 working here since it is apparently borken
++     * in this release of PuTTY */
++    SOCKADDR_IN a;
++    socklen_t salen;
++    int retcode;
++    Actual_Socket s = (Actual_Socket)sock;
++
++    salen = sizeof(a);
++    retcode = p_getsockname(s->s, (struct sockaddr *) &a, &salen);
++
++    if (retcode != 0)
++	return -1;
++
++    return p_ntohs(a.sin_port);
++}
++
+ static void sk_tcp_close(Socket sock)
+ {
+     extern char *do_select(SOCKET skt, int startup);

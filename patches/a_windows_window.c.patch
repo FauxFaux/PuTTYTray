@@ -1,0 +1,1602 @@
+diff --git a/windows/window.c b/windows/window.c
+index 03325054..178b1a84 100644
+--- a/windows/window.c
++++ b/windows/window.c
+@@ -10,6 +10,8 @@
+ #include <limits.h>
+ #include <assert.h>
+ 
++#include "urlhack.h"
++
+ #ifndef NO_MULTIMON
+ #define COMPILE_MULTIMON_STUBS
+ #endif
+@@ -50,12 +52,22 @@
+ #define IDM_PASTE     0x0190
+ #define IDM_SPECIALSEP 0x0200
+ 
++#define IDM_VISIBLE 0x0240
++
++#define IDM_TRAYSEP 0x0210
++#define IDM_TRAYCLOSE 0x0220
++#define IDM_TRAYRESTORE 0x0230
++
+ #define IDM_SPECIAL_MIN 0x0400
+ #define IDM_SPECIAL_MAX 0x0800
+ 
+ #define IDM_SAVED_MIN 0x1000
+ #define IDM_SAVED_MAX 0x5000
+ #define MENU_SAVED_STEP 16
++
++#define IDM_URL_MIN 0x5001
++#define IDM_URL_MAX 0x5100
++
+ /* Maximum number of sessions on saved-session submenu */
+ #define MENU_SAVED_MAX ((IDM_SAVED_MAX-IDM_SAVED_MIN) / MENU_SAVED_STEP)
+ 
+@@ -77,6 +89,22 @@
+ #define WHEEL_DELTA 120
+ #endif
+ 
++#ifndef GCL_HCURSOR
++#define GCL_HCURSOR -12
++#endif
++
++#ifndef GCL_HICON
++#define GCL_HICON -14
++#endif
++
++#ifndef GCL_HICONSM
++#define GCL_HICONSM -34
++#endif
++
++#ifndef GWL_HINSTANCE
++#define GWL_HINSTANCE -6
++#endif
++
+ /* VK_PACKET, used to send Unicode characters in WM_KEYDOWNs */
+ #ifndef VK_PACKET
+ #define VK_PACKET 0xE7
+@@ -120,7 +148,7 @@ static int kbd_codepage;
+ 
+ static void *ldisc;
+ static Backend *back;
+-static void *backhandle;
++static void *backhandle = NULL;
+ 
+ static struct unicode_data ucsdata;
+ static int session_closed;
+@@ -133,7 +161,11 @@ static int n_specials = 0;
+ static wchar_t *clipboard_contents;
+ static size_t clipboard_length;
+ 
+-#define TIMING_TIMER_ID 1234
++enum {
++    TIMING_TIMER_ID = 1234,
++    TIMING_RECONNECT_ID
++};
++
+ static long timing_next_time;
+ 
+ static struct {
+@@ -141,6 +173,7 @@ static struct {
+ } popup_menus[2];
+ enum { SYSMENU, CTXMENU };
+ static HMENU savedsess_menu;
++static HMENU url_menu;
+ 
+ struct wm_netevent_params {
+     /* Used to pass data to wm_netevent_callback */
+@@ -154,6 +187,11 @@ static void conf_cache_data(void);
+ int cursor_type;
+ int vtmode;
+ 
++static unsigned int update_url_id;
++static unsigned int search_url_id;
++static unsigned int url_target_id;
++static BOOL url_character_used[UCHAR_MAX];
++
+ static struct sesslist sesslist;       /* for saved-session menu */
+ 
+ struct agent_callback {
+@@ -221,6 +259,52 @@ static UINT wm_mousewheel = WM_MOUSEWHEEL;
+     (((wch) >= 0x180B && (wch) <= 0x180D) || /* MONGOLIAN FREE VARIATION SELECTOR */ \
+      ((wch) >= 0xFE00 && (wch) <= 0xFE0F)) /* VARIATION SELECTOR 1-16 */
+ 
++/*
++ * HACK: PuttyTray / Reconnect
++ */
++static DWORD last_reconnect = 0;
++
++/*
++ * HACK: PuttyTray / Always on top
++ */ 
++void MakeWindowOnTop(HWND hwnd);
++
++/*
++ * HACK: PuttyTray / Transparency
++ */ 
++BOOL MakeWindowTransparent(HWND hWnd, int factor);
++
++typedef DWORD (WINAPI *PSLWA)(HWND, DWORD, BYTE, DWORD);
++static PSLWA pSetLayeredWindowAttributes = NULL;
++static BOOL initialized = FALSE;
++#if !defined(WS_EX_LAYERED)
++	#define WS_EX_LAYERED	0x00080000
++#endif
++#if !defined(LWA_COLORKEY)
++	#define LWA_COLORKEY	0x00000001
++#endif
++#if !defined(LWA_ALPHA)
++	#define LWA_ALPHA	0x00000002
++#endif
++
++/*
++ * HACK: PuttyTray
++ * Trayicon struct, Message ID and functions
++ */
++static NOTIFYICONDATA puttyTray;
++static BOOL puttyTrayVisible;
++static BOOL puttyTrayFlash;
++static HICON puttyTrayFlashIcon;
++static BOOL windowMinimized = FALSE;
++BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon);
++void tray_updatemenu(BOOL disableMenuItems);
++enum {
++    WM_NOTIFY_PUTTYTRAY = WM_USER + 1983,
++    WM_NOTIFY_RECONNECT
++};
++
++static int urlhack_cursor_is_hand = 0;
++
+ const int share_can_be_downstream = TRUE;
+ const int share_can_be_upstream = TRUE;
+ 
+@@ -237,8 +321,8 @@ char *get_ttymode(void *frontend, const char *mode)
+ static void start_backend(void)
+ {
+     const char *error;
+-    char msg[1024], *title;
+-    char *realhost;
++    char msg[1024] = {0}, *title = NULL;
++    char *realhost = NULL;
+     int i;
+ 
+     /*
+@@ -298,6 +382,8 @@ static void start_backend(void)
+      */
+     for (i = 0; i < lenof(popup_menus); i++) {
+ 	DeleteMenu(popup_menus[i].menu, IDM_RESTART, MF_BYCOMMAND);
++        InsertMenu(popup_menus[i].menu, IDM_DUPSESS, MF_BYCOMMAND | MF_ENABLED,
++            IDM_RESTART, "&Restart Session");
+     }
+ 
+     session_closed = FALSE;
+@@ -336,8 +422,20 @@ static void close_session(void *ignored_context)
+     }
+ }
+ 
+-int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
++/* Copy at most n characters from src to dst or until copying a '\0'
++ * character.  A pointer to the terminal '\0' in dst is returned, or if no
++ * '\0' was written, dst+n is returned.  */
++static char *
++stpcpy_max(char *dst, const char *src, size_t n)
++{
++    while (n-- && (*dst = *src++))
++	dst++;
++    return dst;
++}
++
++int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+ {
++    WNDCLASSEXW wndclass;
+     MSG msg;
+     HRESULT hr;
+     int guess_width, guess_height;
+@@ -379,6 +477,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+ 
+     conf = conf_new();
+ 
++    urlhack_init();
++
+     /*
+      * Initialize COM.
+      */
+@@ -427,7 +527,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+ 	}
+ 	conf_set_int(conf, CONF_logtype, LGTYP_NONE);
+ 
+-	do_defaults(NULL, conf);
++        do_defaults_after_detection(NULL, conf);
+ 
+ 	p = cmdline;
+ 
+@@ -452,7 +552,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+ 	    while (i > 1 && isspace(p[i - 1]))
+ 		i--;
+ 	    p[i] = '\0';
+-	    do_defaults(p + 1, conf);
++	    do_defaults_then_file(p + 1, conf);
++
+ 	    if (!conf_launchable(conf) && !do_config()) {
+ 		cleanup_exit(0);
+ 	    }
+@@ -543,7 +644,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+ 		} else if (!strcmp(p, "-pgpfp")) {
+ 		    pgp_fingerprints();
+ 		    exit(1);
+-		} else if (*p != '-') {
++		/* A single "-" argument is interpreted as a "host name" */
++		} else if (p[0] != '-' || p[1] == '\0') {
+ 		    char *q = p;
+ 		    if (got_host) {
+ 			/*
+@@ -578,18 +680,68 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+ 			    conf_set_int(conf, CONF_port, -1);
+ 			conf_set_str(conf, CONF_host, q);
+ 			got_host = 1;
+-		    } else {
+-			/*
+-			 * Otherwise, treat this argument as a host
+-			 * name.
+-			 */
+-			while (*p && !isspace(*p))
+-			    p++;
+-			if (*p)
+-			    *p++ = '\0';
+-			conf_set_str(conf, CONF_host, q);
+-			got_host = 1;
+-		    }
++                    } else if (!strncmp(q, "ssh:", 4)) {
++                        /*
++                        * If the hostname starts with "ssh:",
++                        * set the protocol to SSH and process
++                        * the string as a SSH URL (copy-paste of the telnet: code)
++                        */
++                        char c;
++
++                        q += 4;
++                        if (q[0] == '/' && q[1] == '/')
++                            q += 2;
++                        conf_set_int(conf, CONF_protocol, PROT_SSH);
++                        p = q;
++                        while (*p && *p != ':' && *p != '/')
++                            p++;
++                        c = *p;
++                        if (*p)
++                            *p++ = '\0';
++                        if (c == ':')
++                            conf_set_int(conf, CONF_port, atoi(p));
++                        else
++                            conf_set_int(conf, CONF_port, -1);
++                        conf_set_str(conf, CONF_host, q);
++                        got_host = 1;
++                    } else if (!strncmp(q, "putty:", 6)) {
++                        q += 6;
++                        if (q[0] == '/' && q[1] == '/')
++                            q += 2;
++                        if (q[strlen(q) - 1] == '/')
++                            q[strlen(q) - 1] = '\0';
++                        p = q;
++                        int ret = cmdline_process_param("-load", p, 1, conf);
++                        assert(ret == 2);
++                    } else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
++                        /* Concatenate all the remaining arguments separating
++                         * them with spaces to get the command line to execute.
++                         */
++                        const size_t max_len = 0x10000;
++                        char *buf = malloc(max_len);
++                        char *p = buf;
++                        char *end = p + max_len;
++                        p = stpcpy_max(p, conf_get_str(conf, CONF_cygcmd), max_len - 1);
++                        for (; i < argc && (p - buf) < max_len; i++) {
++                            p = stpcpy_max(p, argv[i], max_len - 1);
++                            *p++ = ' ';
++                        }
++                        *--p = '\0';
++                        conf_set_str(conf, CONF_cygcmd, buf);
++                        free(buf);
++                        got_host = 1;
++                    } else {
++                        /*
++                         * Otherwise, treat this argument as a host
++                         * name.
++                         */
++                        while (*p && !isspace(*p))
++                            p++;
++                        if (*p)
++                            *p++ = '\0';
++                        conf_set_str(conf, CONF_host, q);
++                        got_host = 1;
++                    }
+ 		} else {
+ 		    cmdline_error("unknown option \"%s\"", p);
+ 		}
+@@ -665,20 +817,28 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+     }
+ 
+     if (!prev) {
+-        WNDCLASSW wndclass;
+-
++	wndclass.cbSize = sizeof(WNDCLASSEX);
+ 	wndclass.style = 0;
+ 	wndclass.lpfnWndProc = WndProc;
+ 	wndclass.cbClsExtra = 0;
+ 	wndclass.cbWndExtra = 0;
+ 	wndclass.hInstance = inst;
+-	wndclass.hIcon = LoadIcon(inst, MAKEINTRESOURCE(IDI_MAINICON));
++
++        Filename *win_icon = conf_get_filename(conf, CONF_win_icon);
++	if (win_icon && filename_to_str(win_icon)[0]) {
++            wndclass.hIcon = extract_icon(filename_to_str(win_icon), FALSE);
++            wndclass.hIconSm = extract_icon(filename_to_str(win_icon), TRUE);
++	} else {
++            wndclass.hIcon = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED);
++            wndclass.hIconSm = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
++	}
++
+ 	wndclass.hCursor = LoadCursor(NULL, IDC_IBEAM);
+ 	wndclass.hbrBackground = NULL;
+ 	wndclass.lpszMenuName = NULL;
+ 	wndclass.lpszClassName = dup_mb_to_wc(DEFAULT_CODEPAGE, 0, appname);
+ 
+-	RegisterClassW(&wndclass);
++	RegisterClassExW(&wndclass);
+     }
+ 
+     memset(&ucsdata, 0, sizeof(ucsdata));
+@@ -715,6 +875,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+         wchar_t *uappname = dup_mb_to_wc(DEFAULT_CODEPAGE, 0, appname);
+ 	if (!conf_get_int(conf, CONF_scrollbar))
+ 	    winmode &= ~(WS_VSCROLL);
++	if (conf_get_int(conf, CONF_resize_action) == RESIZE_MAXTERM)
++	    winmode &= ~WS_THICKFRAME;
+ 	if (conf_get_int(conf, CONF_resize_action) == RESIZE_DISABLED)
+ 	    winmode &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
+ 	if (conf_get_int(conf, CONF_alwaysontop))
+@@ -816,6 +978,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+ 	AppendMenu(popup_menus[CTXMENU].menu, MF_ENABLED, IDM_PASTE, "&Paste");
+ 
+ 	savedsess_menu = CreateMenu();
++        url_menu = CreateMenu();
++
+ 	get_sesslist(&sesslist, TRUE);
+ 	update_savedsess_menu();
+ 
+@@ -838,6 +1002,15 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+ 	    AppendMenu(m, (conf_get_int(conf, CONF_resize_action)
+ 			   == RESIZE_DISABLED) ? MF_GRAYED : MF_ENABLED,
+ 		       IDM_FULLSCREEN, "&Full Screen");
++
++            AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT) url_menu, "&Urls");
++
++            if (conf_get_int(conf, CONF_alwaysontop)) {
++                AppendMenu(m, MF_ENABLED | MF_CHECKED, IDM_VISIBLE, "Alwa&ys on top");
++            } else {
++                AppendMenu(m, MF_ENABLED | MF_UNCHECKED, IDM_VISIBLE, "Alwa&ys on top");
++            }
++
+ 	    AppendMenu(m, MF_SEPARATOR, 0, 0);
+ 	    if (has_help())
+ 		AppendMenu(m, MF_ENABLED, IDM_HELP, "&Help");
+@@ -849,6 +1022,31 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+ 
+     start_backend();
+ 
++    puttyTray.cbSize = sizeof(NOTIFYICONDATA); 
++    puttyTray.hWnd = hwnd; 
++    puttyTray.uID = 1983; 
++    puttyTray.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP; 
++    puttyTray.uCallbackMessage = WM_NOTIFY_PUTTYTRAY;
++
++    if (conf_get_filename(conf, CONF_win_icon) && conf_get_filename(conf, CONF_win_icon)->path[0]) {
++        puttyTray.hIcon = wndclass.hIconSm;
++    } else {
++        puttyTray.hIcon = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON,
++             GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
++    }
++
++    {
++	MENUINFO mi;
++	memset(&mi, 0, sizeof(MENUINFO));
++	mi.cbSize = sizeof(MENUINFO);
++	mi.fMask = MIM_STYLE;
++	mi.dwStyle = MNS_AUTODISMISS;
++	SetMenuInfo(popup_menus[CTXMENU].menu, &mi);
++    }
++
++    urlhack_set_regular_expression(conf_get_int(term->conf, CONF_url_defregex),
++        conf_get_str(term->conf, CONF_url_regex));
++
+     /*
+      * Set up the initial input locale.
+      */
+@@ -867,8 +1065,28 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+     logpal = NULL;
+     init_palette();
+ 
+-    term_set_focus(term, GetForegroundWindow() == hwnd);
+-    UpdateWindow(hwnd);
++
++    /*
++     * Finally show the window (or the trayicon)!
++     */
++    puttyTrayVisible = FALSE;
++	
++    if (conf_get_int(conf, CONF_tray) == TRAY_START || conf_get_int(conf, CONF_tray) == TRAY_ALWAYS) {
++        taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
++    }
++    if (conf_get_int(conf, CONF_tray) == TRAY_START) {
++        ShowWindow(hwnd, SW_HIDE);
++        windowMinimized = TRUE;
++    } else {
++        ShowWindow(hwnd, show);
++        SetForegroundWindow(hwnd);
++        term_set_focus(term, GetForegroundWindow() == hwnd);
++        UpdateWindow(hwnd);
++    }
++
++    if (conf_get_int(conf, CONF_transparency) >= 50 && conf_get_int(conf, CONF_transparency) < 255) {
++        MakeWindowTransparent(hwnd, conf_get_int(conf, CONF_transparency));
++    }
+ 
+     while (1) {
+ 	HANDLE *handles;
+@@ -955,16 +1173,23 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+  */
+ void cleanup_exit(int code)
+ {
++    /* HACK: PuttyTray 
++     * Remove trayicon on close 
++     */
++    taskbar_addicon("", FALSE);
++    DestroyIcon(puttyTray.hIcon);
++
+     /*
+      * Clean up.
+      */
++    urlhack_cleanup();
+     deinit_fonts();
+     sfree(logpal);
+     if (pal)
+ 	DeleteObject(pal);
+     sk_cleanup();
+ 
+-    if (conf_get_int(conf, CONF_protocol) == PROT_SSH) {
++    if (conf && conf_get_int(conf, CONF_protocol) == PROT_SSH) {
+ 	random_save_seed();
+ #ifdef MSCRYPTOAPI
+ 	crypto_wrapup();
+@@ -1023,6 +1248,58 @@ static void update_savedsess_menu(void)
+ 	AppendMenu(savedsess_menu, MF_GRAYED, IDM_SAVED_MIN, "(No sessions)");
+ }
+ 
++void append_url_to_menu(Terminal *term, void *menu, wchar_t * data, int *attr, int len, int must_deselect) {
++    unsigned int i = 0;
++    BOOL found = FALSE;
++    wchar_t *fixed, *fixing, *search;
++    if (update_url_id > (IDM_URL_MAX-IDM_URL_MIN))
++        return;
++    fixing = fixed = snewn(wcslen(data) + MAX_PATH, wchar_t);
++    search = data;
++
++    if (search[strlen("http:/")] == '/')
++        for (i = 0; i < strlen("http:/"); ++i)
++            *fixing++ = *search++;
++
++    while (*search && i++ < MAX_PATH) {
++        if (!found && *search < 'z' && !url_character_used[*search]) {
++            url_character_used[*search] = TRUE;
++            found = TRUE;
++            *fixing++ = '&';
++        }
++        if (*search == '&')
++            *fixing++ = '&';
++        *fixing++ = *search++;
++    }
++
++    *fixing++ = 0;
++
++    AppendMenuW(url_menu, MF_ENABLED, IDM_URL_MIN + (update_url_id), *fixed ? fixed : data);
++    ++update_url_id;
++    sfree(fixed);
++}
++
++void urlhack_for_every_link(void (*output)(Terminal *, void *, wchar_t *, int *, int, int));
++
++static void update_url_menu() {
++    int i;
++    while (DeleteMenu(url_menu, 0, MF_BYPOSITION))
++        ;
++
++    update_url_id = 0;
++    for (i = 0; i < UCHAR_MAX; ++i)
++        url_character_used[i] = FALSE;
++    url_character_used['/'] = TRUE;
++    url_character_used['.'] = TRUE;
++
++    urlhack_for_every_link(&append_url_to_menu);
++}
++
++void url_menu_find_and_launch(Terminal *term, void *menu, wchar_t * data, int *attr, int len, int must_deselect) {
++    if (search_url_id++ == url_target_id)
++        urlhack_launch_url_helper(term, menu, data, attr, len, must_deselect);
++}
++
+ /*
+  * Update the Special Commands submenu.
+  */
+@@ -1114,7 +1391,8 @@ static void update_mouse_pointer(void)
+ 	force_visible = TRUE;
+ 	break;
+       default:
+-	assert(0);
++        modalfatalbox("impossible busy_status");
++        return;
+     }
+     {
+ 	HCURSOR cursor = LoadCursor(NULL, curstype);
+@@ -1147,6 +1425,28 @@ void set_raw_mouse_mode(void *frontend, int activate)
+     update_mouse_pointer();
+ }
+ 
++void reconnect() {
++    DWORD tnow = GetTickCount();
++    KillTimer(hwnd, TIMING_RECONNECT_ID);
++
++    if (back)
++        return;
++
++    if (last_reconnect > tnow)
++        last_reconnect = tnow;
++
++    if (last_reconnect && (tnow - last_reconnect) < 1000) {
++        SetTimer(hwnd, TIMING_RECONNECT_ID, 500, NULL);
++        return;
++    }
++
++    logevent(NULL, "Reconnecting...");
++    term_data(term, TRUE, ".  Reconnecting...", strlen(".  Reconnecting..."));
++    term_pwron(term, FALSE);
++    start_backend();
++    last_reconnect = GetTickCount();
++}
++
+ /*
+  * Print a message box and close the connection.
+  */
+@@ -1158,15 +1458,25 @@ void connection_fatal(void *frontend, char *fmt, ...)
+     va_start(ap, fmt);
+     stuff = dupvprintf(fmt, ap);
+     va_end(ap);
+-    sprintf(morestuff, "%.70s Fatal Error", appname);
+-    MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
+-    sfree(stuff);
+ 
+-    if (conf_get_int(conf, CONF_close_on_exit) == FORCE_ON)
+-	PostQuitMessage(1);
+-    else {
+-	queue_toplevel_callback(close_session, NULL);
+-    }
++    if (conf_get_int(conf, CONF_failure_reconnect)) {
++        close_session(NULL);
++        // write the error to the terminal itself
++        // someone's probably going to complain about this
++        term_data(term, TRUE, stuff, strlen(stuff));
++        PostMessage(hwnd, WM_NOTIFY_RECONNECT, 0, 0);
++    } else {
++        sprintf(morestuff, "%.70s Fatal Error", appname);
++        MessageBox(hwnd, stuff, morestuff, MB_ICONERROR | MB_OK);
++
++        if (conf_get_int(conf, CONF_close_on_exit) == FORCE_ON)
++            PostQuitMessage(1);
++        else {
++            queue_toplevel_callback(close_session, NULL);
++        }
++     }
++
++    sfree(stuff);
+ }
+ 
+ /*
+@@ -1500,6 +1810,10 @@ static void init_fonts(int pick_width, int pick_height)
+ 
+     f(FONT_NORMAL, font->charset, fw_dontcare, FALSE);
+ 
++    if (bold_font_mode == BOLD_FONT) {
++        f(FONT_BOLD, font->charset, fw_bold, FALSE);
++    }
++
+     SelectObject(hdc, fonts[FONT_NORMAL]);
+     GetTextMetrics(hdc, &tm);
+ 
+@@ -1591,9 +1905,6 @@ static void init_fonts(int pick_width, int pick_height)
+ 	}
+     }
+ 
+-    if (bold_font_mode == BOLD_FONT) {
+-	f(FONT_BOLD, font->charset, fw_bold, FALSE);
+-    }
+ #undef f
+ 
+     descent = tm.tmAscent + 1;
+@@ -1699,7 +2010,7 @@ void request_resize(void *frontend, int w, int h)
+ 
+     /* If the window is maximized supress resizing attempts */
+     if (IsZoomed(hwnd)) {
+-	if (conf_get_int(conf, CONF_resize_action) == RESIZE_TERM)
++	  if (conf_get_int(conf, CONF_resize_action) == RESIZE_MAXTERM || conf_get_int(conf, CONF_resize_action) == RESIZE_TERM)
+ 	    return;
+     }
+ 
+@@ -1811,7 +2122,7 @@ static void reset_window(int reinit) {
+ 	extra_width = wr.right - wr.left - cr.right + cr.left;
+ 	extra_height = wr.bottom - wr.top - cr.bottom + cr.top;
+ 
+-	if (resize_action != RESIZE_TERM) {
++	if (resize_action != RESIZE_MAXTERM && resize_action != RESIZE_TERM && resize_action != RESIZE_DISABLED) {
+ 	    if (font_width != win_width/term->cols || 
+ 		font_height != win_height/term->rows) {
+ 		deinit_fonts();
+@@ -1877,6 +2188,7 @@ static void reset_window(int reinit) {
+      * to change the terminal.
+      */
+     if ((resize_action == RESIZE_TERM && reinit<=0) ||
++        (resize_action == RESIZE_MAXTERM && reinit<=0) ||
+         (resize_action == RESIZE_EITHER && reinit<0) ||
+ 	    reinit>0) {
+ 	offset_width = offset_height = window_border;
+@@ -2004,11 +2316,11 @@ static Mouse_Button translate_button(Mouse_Button button)
+     if (button == MBT_LEFT)
+ 	return MBT_SELECT;
+     if (button == MBT_MIDDLE)
+-	return conf_get_int(conf, CONF_mouse_is_xterm) == 1 ?
+-	MBT_PASTE : MBT_EXTEND;
++        return conf_get_int(conf, CONF_mouse_is_xterm) == 1 || conf_get_int(conf, CONF_mouse_is_xterm) == 3 ?
++            MBT_PASTE : MBT_EXTEND;
+     if (button == MBT_RIGHT)
+-	return conf_get_int(conf, CONF_mouse_is_xterm) == 1 ?
+-	MBT_EXTEND : MBT_PASTE;
++        return conf_get_int(conf, CONF_mouse_is_xterm) == 1 || conf_get_int(conf, CONF_mouse_is_xterm) == 3 ?
++            MBT_EXTEND : MBT_PASTE;
+     return 0;			       /* shouldn't happen */
+ }
+ 
+@@ -2097,19 +2409,30 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+     static UINT last_mousemove = 0;
+     int resize_action;
+ 
++	/*
++	 * HACK: PuttyTray / Nutty
++	 */ 
++	POINT cursor_pt;
++    static UINT msgTaskbarCreated = 0;
++
+     switch (message) {
+       case WM_TIMER:
+-	if ((UINT_PTR)wParam == TIMING_TIMER_ID) {
++        switch ((UINT_PTR)wParam) {
++          case TIMING_TIMER_ID: {
+ 	    unsigned long next;
+ 
+ 	    KillTimer(hwnd, TIMING_TIMER_ID);
+ 	    if (run_timers(timing_next_time, &next)) {
+-		timer_change_notify(next);
+-	    } else {
++	        timer_change_notify(next);
+ 	    }
++          } break;
++          case TIMING_RECONNECT_ID: {
++              reconnect();
++          } break;
+ 	}
+ 	return 0;
+       case WM_CREATE:
++        msgTaskbarCreated = RegisterWindowMessage("TaskbarCreated");
+ 	break;
+       case WM_CLOSE:
+ 	{
+@@ -2137,7 +2460,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 	    get_sesslist(&sesslist, TRUE);
+ 	    update_savedsess_menu();
+ 	    return 0;
+-	}
++	} else if ((HMENU)wParam == url_menu) {
++            update_url_menu();
++            return 0;
++        }
+ 	break;
+       case WM_COMMAND:
+       case WM_SYSCOMMAND:
+@@ -2220,12 +2546,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 	    }
+ 	    break;
+ 	  case IDM_RESTART:
+-	    if (!back) {
+-		logevent(NULL, "----- Session restarted -----");
+-		term_pwron(term, FALSE);
+-		start_backend();
+-	    }
+-
++	    if (back) {
++                close_session(NULL);
++            }
++            logevent(NULL, "----- Session restarted -----");
++            term_pwron(term, FALSE);
++            start_backend();
+ 	    break;
+ 	  case IDM_RECONF:
+ 	    {
+@@ -2233,6 +2559,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 		int init_lvl = 1;
+ 		int reconfig_result;
+ 
++		/*
++		 * HACK: PuttyTray / Session Icon
++		 */ 
++		HINSTANCE inst;
++		HICON hIcon;
++
+ 		if (reconfiguring)
+ 		    break;
+ 		else
+@@ -2298,6 +2630,52 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 		if (back)
+ 		    back->reconfig(backhandle, conf);
+ 
++		if (conf_get_int(conf, CONF_transparency) >= 50) {
++		    if (conf_get_int(conf, CONF_transparency) > 255) {
++		        MakeWindowTransparent(hwnd, 255);
++		    } else {
++		        MakeWindowTransparent(hwnd, conf_get_int(conf, CONF_transparency));
++		    }
++		} else {
++		    MakeWindowTransparent(hwnd, 255);
++		}
++
++                urlhack_set_regular_expression(conf_get_int(conf, CONF_url_defregex),
++                    conf_get_str(conf, CONF_url_regex));
++
++                term->url_update = TRUE;
++                term_update(term);
++
++		if (conf_get_filename(conf, CONF_win_icon) && conf_get_filename(conf, CONF_win_icon)->path[0]) {
++                    hIcon = extract_icon(filename_to_str(conf_get_filename(conf, CONF_win_icon)), TRUE);
++		    DestroyIcon(puttyTray.hIcon);
++		    puttyTray.hIcon = hIcon;
++		    SetClassLongPtr(hwnd, GCLP_HICON, (LONG_PTR)extract_icon(filename_to_str(conf_get_filename(conf, CONF_win_icon)), FALSE));
++		    SetClassLongPtr(hwnd, GCLP_HICONSM, (LONG_PTR)hIcon);
++		} else {
++		    inst = (HINSTANCE) GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
++		    DestroyIcon(puttyTray.hIcon);
++		    puttyTray.hIcon = LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
++		    SetClassLongPtr(hwnd, GCLP_HICON, (LONG_PTR)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED));
++		    SetClassLongPtr(hwnd, GCLP_HICONSM, (LONG_PTR)LoadImage(inst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED));
++		}
++		if (puttyTrayVisible) {
++		    taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
++		}
++
++		if (conf_get_int(conf, CONF_tray) == TRAY_NORMAL || conf_get_int(conf, CONF_tray) == TRAY_START) {
++		    if (windowMinimized) {
++			ShowWindow(hwnd, SW_HIDE);
++			taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
++		    } else {
++			taskbar_addicon("", FALSE);
++		    }
++		} else if (conf_get_int(conf, CONF_tray) == TRAY_ALWAYS) {
++		    taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
++		} else {
++		    taskbar_addicon("", FALSE);
++		}
++
+ 		/* Screen size changed ? */
+ 		if (conf_get_int(conf, CONF_height) !=
+ 		    conf_get_int(prev_conf, CONF_height) ||
+@@ -2325,10 +2703,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 			    nexflag |= WS_EX_TOPMOST;
+ 			    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+ 					 SWP_NOMOVE | SWP_NOSIZE);
++			    //HACK: PuttyTray / Always on top:
++			    CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_VISIBLE, MF_CHECKED);
+ 			} else {
+ 			    nexflag &= ~(WS_EX_TOPMOST);
+ 			    SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+ 					 SWP_NOMOVE | SWP_NOSIZE);
++			    //HACK: PuttyTray / Always on top:
++			    CheckMenuItem(GetSystemMenu(hwnd, FALSE), IDM_VISIBLE, MF_UNCHECKED);
+ 			}
+ 		    }
+ 		    if (conf_get_int(conf, CONF_sunken_edge))
+@@ -2344,7 +2726,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 		    else
+ 			nflg &= ~WS_VSCROLL;
+ 
+-		    if (resize_action == RESIZE_DISABLED ||
++		    if (resize_action == RESIZE_DISABLED || resize_action == RESIZE_MAXTERM ||
+                         is_full_screen())
+ 			nflg &= ~WS_THICKFRAME;
+ 		    else
+@@ -2433,6 +2815,32 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 	  case IDM_HELP:
+ 	    launch_help(hwnd, NULL);
+ 	    break;
++
++	  /*
++	   * HACK: PuttyTray / Always on top
++	   */
++	  case IDM_VISIBLE: 
++	      MakeWindowOnTop(hwnd);
++	      break ;
++
++	  /*
++	   * HACK: PuttyTray
++	   * Trayicon Menu addon click handlers
++	   */
++	  case IDM_TRAYRESTORE:
++	    ShowWindow(hwnd, SW_RESTORE);
++	    SetForegroundWindow(hwnd);
++	    windowMinimized = FALSE;
++
++	    // Remove icon
++	    if (conf_get_int(conf, CONF_tray) != TRAY_ALWAYS) {
++	        taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, FALSE);
++	    }
++	    break;
++	  case IDM_TRAYCLOSE:
++	    SendMessage(hwnd, WM_CLOSE, (WPARAM)NULL, (LPARAM)NULL);
++	    break;
++
+ 	  case SC_MOUSEMENU:
+ 	    /*
+ 	     * We get this if the System menu has been activated
+@@ -2460,7 +2868,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 	    if (wParam >= IDM_SAVED_MIN && wParam < IDM_SAVED_MAX) {
+ 		SendMessage(hwnd, WM_SYSCOMMAND, IDM_SAVEDSESS, wParam);
+ 	    }
+-	    if (wParam >= IDM_SPECIAL_MIN && wParam <= IDM_SPECIAL_MAX) {
++            if (wParam >= IDM_SPECIAL_MIN && wParam <= IDM_SPECIAL_MAX) {
+ 		int i = (wParam - IDM_SPECIAL_MIN) / 0x10;
+ 		/*
+ 		 * Ensure we haven't been sent a bogus SYSCOMMAND
+@@ -2472,6 +2880,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 		if (back)
+ 		    back->special(backhandle, specials[i].code);
+ 	    }
++            if (wParam >= IDM_URL_MIN && wParam < (IDM_URL_MIN+update_url_id)) {
++                url_target_id = wParam - IDM_URL_MIN;
++                search_url_id = 0;
++                urlhack_for_every_link(&url_menu_find_and_launch);
++            }
+ 	}
+ 	break;
+ 
+@@ -2487,8 +2900,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+       case WM_MBUTTONUP:
+       case WM_RBUTTONUP:
+ 	if (message == WM_RBUTTONDOWN &&
+-	    ((wParam & MK_CONTROL) ||
+-	     (conf_get_int(conf, CONF_mouse_is_xterm) == 2))) {
++            ((wParam & MK_CONTROL) || (conf_get_int(conf, CONF_mouse_is_xterm) == 3) ||
++                (conf_get_int(conf, CONF_mouse_is_xterm) == 2))) {
+ 	    POINT cursorpos;
+ 
+ 	    show_mouseptr(1);	       /* make sure pointer is visible */
+@@ -2616,6 +3029,31 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 	 */
+ 	noise_ultralight(lParam);
+ 
++        if (urlhack_mouse_old_x != TO_CHR_X(X_POS(lParam)) || urlhack_mouse_old_y != TO_CHR_Y(Y_POS(lParam))) {
++	    urlhack_mouse_old_x = TO_CHR_X(X_POS(lParam));
++	    urlhack_mouse_old_y = TO_CHR_Y(Y_POS(lParam));
++
++	    if ((!conf_get_int(term->conf, CONF_url_ctrl_click) || urlhack_is_ctrl_pressed()) &&
++	        urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y)) {
++		    if (urlhack_cursor_is_hand == 0) {
++		        SetClassLongPtr(hwnd, GCLP_HCURSOR, (LONG_PTR)LoadCursor(NULL, MAKEINTRESOURCE(IDC_HAND)));
++		        urlhack_cursor_is_hand = 1;
++		        term_update(term); // Force the terminal to update, otherwise the underline will not show (bug somewhere, this is an ugly fix)
++		    }
++	    }
++	    else if (urlhack_cursor_is_hand == 1) {
++		SetClassLongPtr(hwnd, GCLP_HCURSOR, (LONG_PTR)LoadCursor(NULL, MAKEINTRESOURCE(IDC_IBEAM)));
++		urlhack_cursor_is_hand = 0;
++		term_update(term); // Force the terminal to update, see above
++	    }
++
++	    // If mouse jumps from one link directly into another, we need a forced terminal update too
++	    if (urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y) != urlhack_current_region) {
++		urlhack_current_region = urlhack_is_in_link_region(urlhack_mouse_old_x, urlhack_mouse_old_y);
++		term_update(term);
++	    }
++        }
++
+ 	if (wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON) &&
+ 	    GetCapture() == hwnd) {
+ 	    Mouse_Button b;
+@@ -2911,10 +3349,32 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 		"...",
+ 	    LOWORD(lParam), HIWORD(lParam)));
+ #endif
+-	if (wParam == SIZE_MINIMIZED)
++
++	/*
++	 * HACK: PuttyTray
++	 * Addon to SIZE_MINIMIZED for adding/removing the trayicon
++	 */
++	if (wParam == SIZE_MINIMIZED) {
++
++		BYTE keys[256];
++		int control_pressed;
++		if (GetKeyboardState(keys)!=0) {
++			control_pressed=keys[VK_CONTROL]&0x80;
++		}
++
+ 	    SetWindowText(hwnd,
+ 			  conf_get_int(conf, CONF_win_name_always) ?
+ 			  window_name : icon_name);
++
++		if (conf_get_int(conf, CONF_tray) == TRAY_NORMAL || conf_get_int(conf, CONF_tray) == TRAY_START || control_pressed > 0) {
++			taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
++			ShowWindow(hwnd, SW_HIDE);
++		}
++		windowMinimized = TRUE;
++	} else {
++		windowMinimized = FALSE;
++	}
++
+ 	if (wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED)
+ 	    SetWindowText(hwnd, window_name);
+         if (wParam == SIZE_RESTORED) {
+@@ -2962,7 +3422,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+                 was_zoomed = 1;
+                 prev_rows = term->rows;
+                 prev_cols = term->cols;
+-                if (resize_action == RESIZE_TERM) {
++                if (resize_action == RESIZE_TERM || resize_action == RESIZE_MAXTERM) {
+                     w = width / font_width;
+                     if (w < 1) w = 1;
+                     h = height / font_height;
+@@ -2987,7 +3447,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+                 reset_window(0);
+             } else if (wParam == SIZE_RESTORED && was_zoomed) {
+                 was_zoomed = 0;
+-                if (resize_action == RESIZE_TERM) {
++                if (resize_action == RESIZE_TERM || resize_action == RESIZE_MAXTERM) {
+                     w = (width-window_border*2) / font_width;
+                     if (w < 1) w = 1;
+                     h = (height-window_border*2) / font_height;
+@@ -3087,8 +3547,24 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 	}
+ 	return FALSE;
+       case WM_KEYDOWN:
+-      case WM_SYSKEYDOWN:
++        if (wParam == VK_CONTROL && conf_get_int(term->conf, CONF_url_ctrl_click)) {
++            GetCursorPos(&cursor_pt);
++            ScreenToClient(hwnd, &cursor_pt);
++
++            if (urlhack_is_in_link_region(TO_CHR_X(cursor_pt.x), TO_CHR_Y(cursor_pt.y))) {
++	        SetCursor(LoadCursor(NULL, IDC_HAND));
++	        term_update(term);
++            }
++            goto KEY_END;
++        } // fallthrough
+       case WM_KEYUP:
++	if (wParam == VK_CONTROL && conf_get_int(term->conf, CONF_url_ctrl_click)) {
++	    SetCursor(LoadCursor(NULL, IDC_IBEAM));
++	    term_update(term);
++	    goto KEY_END;
++	} // fallthrough
++	KEY_END:
++      case WM_SYSKEYDOWN:
+       case WM_SYSKEYUP:
+ 	/*
+ 	 * Add the scan code and keypress timing to the random
+@@ -3262,6 +3738,79 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 	if (process_clipdata((HGLOBAL)lParam, wParam))
+ 	    term_do_paste(term);
+ 	return 0;
++
++      case WM_POWERBROADCAST:
++	if(conf_get_int(conf, CONF_wakeup_reconnect)) {
++	    switch(wParam) {
++	      case PBT_APMRESUMESUSPEND:
++	      case PBT_APMRESUMEAUTOMATIC:
++	      case PBT_APMRESUMECRITICAL:
++	      case PBT_APMQUERYSUSPENDFAILED:
++	        if(session_closed && !back) {
++	            reconnect();
++	        }
++	        break;
++	      case PBT_APMSUSPEND:
++	        if(!session_closed && back) {
++	            logevent(NULL, "Suspend detected, disconnecting cleanly...");
++	            close_session(NULL);
++	        }
++	        break;
++	    }
++	}
++	break;
++
++	/*
++	 * HACK: PuttyTray
++	 * Trayicon click handler
++	 */
++      case WM_NOTIFY_PUTTYTRAY:
++        {
++            UINT uID; 
++            UINT uMouseMsg; 
++			
++            uID = (UINT)wParam; 
++            uMouseMsg = (UINT)lParam; 
++
++            if (uID == 1983) {
++	        if (uMouseMsg == WM_LBUTTONDBLCLK || (conf_get_int(conf, CONF_tray_restore) == TRUE && uMouseMsg == WM_LBUTTONUP)) {
++		    // Remove icon
++		    if (conf_get_int(conf, CONF_tray) != TRAY_ALWAYS) {
++			taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, FALSE);
++		    }
++
++		    // Sleep a little while, otherwise the click event is sent to, for example, the Outlook 2003 Tray Icon, and it will also pop its menu.
++		    Sleep(100); 
++
++		    // If trayicon is always visible, the icon should also be able to hide the window
++		    if (windowMinimized) {
++			ShowWindow(hwnd, SW_RESTORE);
++			SetForegroundWindow(hwnd);
++			windowMinimized = FALSE;
++		    } else {
++			ShowWindow(hwnd, SW_MINIMIZE);
++			windowMinimized = TRUE;
++		    }
++	        } else if (uMouseMsg == WM_RBUTTONUP) {
++		    POINT cursorpos;
++
++		    // Fix disappear bug
++		    SetForegroundWindow(hwnd);
++
++		    // Show popup
++		    show_mouseptr(1);	       /* make sure pointer is visible */
++		    GetCursorPos(&cursorpos);
++		    TrackPopupMenu(popup_menus[CTXMENU].menu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON,
++                        cursorpos.x, cursorpos.y, 0, hwnd, NULL);
++		    PostMessage(hwnd, WM_NULL, 0, 0);
++	        }
++            }
++        }
++	break;
++      case WM_NOTIFY_RECONNECT:
++          reconnect();
++          break;
++
+       default:
+ 	if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
+ 	    int shift_pressed=0, control_pressed=0;
+@@ -3309,14 +3858,38 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
+ 				   control_pressed, is_alt_pressed());
+ 		    } /* else: not sure when this can fail */
+ 		} else {
+-		    /* trigger a scroll */
+-		    term_scroll(term, 0,
+-				b == MBT_WHEEL_UP ?
+-				-term->rows / 2 : term->rows / 2);
++                    if (control_pressed) {
++                        conf_get_fontspec(conf, CONF_font)->height += MBT_WHEEL_UP == b ? 1 : -1;
++                        // short version of IDM_RECONF's reconfig:
++                        term_size(term, conf_get_int(conf, CONF_height), conf_get_int(conf, CONF_width), conf_get_int(conf, CONF_savelines));
++                        reset_window(2);
++                    } else {
++                        /* trigger a scroll */
++                        int scrolllines = conf_get_int(conf, CONF_scrolllines);
++                        int scrollLines = scrolllines == -1 ? term->rows/2
++                            : scrolllines == -2 ? term->rows
++                            : scrolllines <  -2 ? 3
++                            : scrolllines;
++                        term_scroll(term, 0,
++                            b == MBT_WHEEL_UP ?
++                            -scrollLines : scrollLines);
++                    }
+ 		}
+ 	    }
+ 	    return 0;
+ 	}
++        if (message==msgTaskbarCreated) {
++            /*
++	     * Explorer has been restarted, so the tray icon will
++	     * have been lost.
++	     */
++            if (puttyTrayVisible) {
++                puttyTrayVisible = FALSE;
++                taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
++            }
++            return 0;
++        }
++
+     }
+ 
+     /*
+@@ -4080,7 +4653,7 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
+ 	(HIWORD(lParam) & (KF_UP | KF_REPEAT)) == KF_REPEAT)
+ 	return 0;
+ 
+-    if ((HIWORD(lParam) & KF_ALTDOWN) && (keystate[VK_RMENU] & 0x80) == 0)
++    if ((HIWORD(lParam) & KF_ALTDOWN) && (conf_get_int(conf, CONF_rightaltkey) || (keystate[VK_RMENU] & 0x80) == 0))
+ 	left_alt = 1;
+ 
+     key_down = ((HIWORD(lParam) & KF_UP) == 0);
+@@ -4174,7 +4747,7 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
+     }
+ 
+     /* If a key is pressed and AltGr is not active */
+-    if (key_down && (keystate[VK_RMENU] & 0x80) == 0 && !compose_state) {
++    if (key_down && (conf_get_int(conf, CONF_rightaltkey) || (keystate[VK_RMENU] & 0x80) == 0) && !compose_state) {
+ 	/* Okay, prepare for most alts then ... */
+ 	if (left_alt)
+ 	    *p++ = '\033';
+@@ -4361,13 +4934,14 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
+ 	    *p++ = 0;
+ 	    return -2;
+ 	}
+-	if (wParam == VK_BACK && shift_state == 1) {	/* Shift Backspace */
++	if (wParam == VK_BACK && shift_state != 0) {	/* Shift-Backspace, Ctrl-Backspace */
+ 	    /* We do the opposite of what is configured */
+ 	    *p++ = (conf_get_int(conf, CONF_bksp_is_delete) ? 0x08 : 0x7F);
+ 	    *p++ = 0;
+ 	    return -2;
+ 	}
+ 	if (wParam == VK_TAB && shift_state == 1) {	/* Shift tab */
++	    p = output; /* don't also pass escape */
+ 	    *p++ = 0x1B;
+ 	    *p++ = '[';
+ 	    *p++ = 'Z';
+@@ -4378,7 +4952,12 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
+ 	    return p - output;
+ 	}
+ 	if (wParam == VK_SPACE && shift_state == 3) {	/* Ctrl-Shift-Space */
+-	    *p++ = 160;
++	    p = output; /* don't also pass escape */
++	    *p++ = 160; /* Latin1 NBSP */
++	    return p - output;
++	}
++	if (wParam == '/' && shift_state == 2) {	/* Ctrl-/ sends ^_ */
++	    *p++ = 037;
+ 	    return p - output;
+ 	}
+ 	if (wParam == VK_CANCEL && shift_state == 2) {	/* Ctrl-Break */
+@@ -4408,6 +4987,11 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
+ 	    *p++ = 0x1E;	       /* Ctrl-~ == Ctrl-^ in xterm at least */
+ 	    return p - output;
+ 	}
++	if (wParam == VK_RETURN && shift_state != 0) {	/* Shift-Return, Ctrl-Return */
++	    /* send LINEFEED */
++	    *p++ = 012;
++ 	    return p - output;
++ 	}
+ 	if (shift_state == 0 && wParam == VK_RETURN && term->cr_lf_return) {
+ 	    *p++ = '\r';
+ 	    *p++ = '\n';
+@@ -4514,6 +5098,46 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
+ 	    p += sprintf((char *) p, "\x1B%c", " HLMEIG"[code]);
+ 	    return p - output;
+ 	}
++	
++	/* 4690 function and special keys */ 
++	if (funky_type == FUNKY_4690) {
++		if (code >= 11 && code <= 34) {
++		    /* SCO function keys */
++		    char codes[] = "MNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@[\\]^_`{";
++		    int index = 0;
++		    switch (wParam) {
++		      case VK_F1: index = 3; break;
++		      case VK_F2: index = 4; break;
++		      case VK_F3: index = 5; break;
++		      case VK_F4: index = 6; break;
++		      case VK_F5: index = 7; break;
++		      case VK_F6: index = 5; break;
++		      case VK_F7: index = 6; break;
++		      case VK_F8: index = 7; break;
++		      case VK_F9: index = 8; break;
++		      case VK_F10: index = 9; break;
++		      case VK_F11: index = 10; break;
++		      case VK_F12: index = 11; break;
++		    }
++		    if (wParam >= VK_F1 && wParam <= VK_F5) {
++				p += sprintf((char *) p, "\x1BO%c", codes[index]);
++		    } else {
++				if (keystate[VK_SHIFT] & 0x80) index += 12;
++				if (keystate[VK_CONTROL] & 0x80) index += 24;
++				p += sprintf((char *) p, "\x1B[%c", codes[index]);
++		    }
++		    return p - output;
++		}
++		if (code >= 1 && code <= 6) {
++		    char codes[] = "wpnq56";
++		    if (code == 5 || code == 6) { /* LC: Page Up or Page Down */
++				p += sprintf((char *) p, "\x1B[%c~", codes[code-1]);
++		    } else {
++				p += sprintf((char *) p, "\x1BO%c", codes[code-1]);
++		    }
++		    return p - output;
++		}
++	}
+ 
+ 	if (funky_type == FUNKY_SCO && code >= 11 && code <= 34) {
+ 	    /* SCO function keys */
+@@ -4755,10 +5379,13 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
+ 		    } else {
+ 			WCHAR cbuf[2];
+ 			cbuf[0] = '\033';
+-			cbuf[1] = wch;
++			cbuf[1] = wch | ((left_alt & conf_get_int(conf, CONF_alt_metabit)) << 7);
+ 			term_seen_key_event(term);
+ 			if (ldisc)
+-			    luni_send(ldisc, cbuf +!left_alt, 1+!!left_alt, 1);
++			    luni_send(ldisc,
++				    cbuf + !(left_alt & !conf_get_int(conf, CONF_alt_metabit)), 
++				    1+!!(left_alt & !conf_get_int(conf, CONF_alt_metabit)), 
++				    1);
+ 		    }
+ 		}
+ 		show_mouseptr(0);
+@@ -4797,6 +5424,8 @@ void set_title(void *frontend, char *title)
+     strcpy(window_name, title);
+     if (conf_get_int(conf, CONF_win_name_always) || !IsIconic(hwnd))
+ 	SetWindowText(hwnd, title);
++
++    taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, puttyTrayVisible);
+ }
+ 
+ void set_icon(void *frontend, char *title)
+@@ -4939,14 +5568,65 @@ void write_aclip(void *frontend, char *data, int len, int must_deselect)
+ 	SendMessage(hwnd, WM_IGNORE_CLIP, FALSE, 0);
+ }
+ 
++/* url-cut */
++static void detect_and_launch_url(char *urldata) {
++	char *pc;
++	int len;
++	int urlbegin;
++	int hostend;
++	int i;
++	urlbegin = 0;
++	len = strlen(urldata);
++	pc = urldata;
++	// "ftp://" is shortest detected begining of URL
++	if (len<=6)
++		return;
++
++	// skip whitespaces at the begining
++	while (len > 6 && isspace(*pc)) {
++		len--;
++		pc++;
++	}
++
++	// detect urls
++	if (!strncmp(pc, "ftp://", 6))
++		urlbegin = 6;
++	else if (!strncmp(pc, "http://", 7))
++		urlbegin = 7;
++	else if (!strncmp(pc, "https://", 8))
++		urlbegin = 8;
++	else
++		return;
++
++	// skip whitespaces at the end
++	while (len > urlbegin && isspace(pc[len-1])) {
++		len--;
++		pc[len]=0;
++	}
++
++	if (len <= urlbegin)
++		return;
++
++	// find first '/' or end
++	for (hostend = urlbegin; pc[hostend] && pc[hostend] != '/'; hostend++);
++
++	// check for spaces in hostname
++	for (i = urlbegin; i < hostend; i++)
++		if (isspace(pc[i]))
++			return;
++
++	ShellExecute(hwnd, NULL, pc, NULL, NULL, SW_SHOWDEFAULT);
++}
++
+ /*
+  * Note: unlike write_aclip() this will not append a nul.
+  */
+-void write_clip(void *frontend, wchar_t * data, int *attr, int len, int must_deselect)
++void write_clip(Terminal *term, void *frontend, wchar_t * data, int *attr, int len, int must_deselect)
+ {
+     HGLOBAL clipdata, clipdata2, clipdata3;
+     int len2;
+     void *lock, *lock2, *lock3;
++    char *urldata;  /* url-cut */
+ 
+     len2 = WideCharToMultiByte(CP_ACP, 0, data, len, 0, 0, NULL, NULL);
+ 
+@@ -4976,6 +5656,12 @@ void write_clip(void *frontend, wchar_t * data, int *attr, int len, int must_des
+     memcpy(lock, data, len * sizeof(wchar_t));
+     WideCharToMultiByte(CP_ACP, 0, data, len, lock2, len2, NULL, NULL);
+ 
++    /* url-cut */
++    if (conf_get_int(conf, CONF_copy_clipbd_url_reg))
++        urldata = _strdup((char*)lock2);
++    else
++        urldata = 0;
++
+     if (conf_get_int(conf, CONF_rtf_paste)) {
+ 	wchar_t unitab[256];
+ 	char *rtf = NULL;
+@@ -5268,6 +5954,12 @@ void write_clip(void *frontend, wchar_t * data, int *attr, int len, int must_des
+ 	GlobalFree(clipdata2);
+     }
+ 
++	/* url-cut */
++	if (urldata && conf_get_int(conf, CONF_copy_clipbd_url_reg)) {
++		detect_and_launch_url(urldata);
++		free(urldata);
++	}
++
+     if (!must_deselect)
+ 	SendMessage(hwnd, WM_IGNORE_CLIP, FALSE, 0);
+ }
+@@ -5460,48 +6152,62 @@ static void flash_window_timer(void *ctx, unsigned long now)
+ }
+ 
+ /*
+- * Manage window caption / taskbar flashing, if enabled.
+- * 0 = stop, 1 = maintain, 2 = start
++* Manage window caption / taskbar flashing, if enabled.
++* 0 = stop, 1 = maintain, 2 = start
++*/
++/*
++ * HACK: PuttyTray
++ * REPLACED flash_window with flash_window from PuTTY 0.58. 
++ * The new version with FlashWindowEx is nice but where do I trigger the icon flash if I use it?
+  */
+ static void flash_window(int mode)
+ {
+     int beep_ind = conf_get_int(conf, CONF_beep_ind);
++
+     if ((mode == 0) || (beep_ind == B_IND_DISABLED)) {
+ 	/* stop */
+ 	if (flashing) {
++	    FlashWindow(hwnd, FALSE);
+ 	    flashing = 0;
+-	    if (p_FlashWindowEx)
+-		flash_window_ex(FLASHW_STOP, 0, 0);
+-	    else
+-		FlashWindow(hwnd, FALSE);
+-	}
+ 
++            puttyTray.hIcon = puttyTrayFlashIcon;
++	    if (puttyTrayVisible) {
++		puttyTrayFlash = FALSE;
++		puttyTray.hIcon = puttyTrayFlashIcon;
++		taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
++	    }
++
++	    return;
++	}
+     } else if (mode == 2) {
+ 	/* start */
+ 	if (!flashing) {
+ 	    flashing = 1;
+-	    if (p_FlashWindowEx) {
+-		/* For so-called "steady" mode, we use uCount=2, which
+-		 * seems to be the traditional number of flashes used
+-		 * by user notifications (e.g., by Explorer).
+-		 * uCount=0 appears to enable continuous flashing, per
+-		 * "flashing" mode, although I haven't seen this
+-		 * documented. */
+-		flash_window_ex(FLASHW_ALL | FLASHW_TIMER,
+-				(beep_ind == B_IND_FLASH ? 0 : 2),
+-				0 /* system cursor blink rate */);
+-		/* No need to schedule timer */
+-	    } else {
+-		FlashWindow(hwnd, TRUE);
+-		next_flash = schedule_timer(450, flash_window_timer, hwnd);
++            puttyTrayFlashIcon = puttyTray.hIcon;
++	    FlashWindow(hwnd, TRUE);
++	    next_flash = schedule_timer(450, flash_window_timer, hwnd);
++
++	    if (puttyTrayVisible) {
++		puttyTrayFlash = FALSE;
+ 	    }
+ 	}
+-
+     } else if ((mode == 1) && (beep_ind == B_IND_FLASH)) {
+ 	/* maintain */
+-	if (flashing && !p_FlashWindowEx) {
++	if (flashing) {
+ 	    FlashWindow(hwnd, TRUE);	/* toggle */
+ 	    next_flash = schedule_timer(450, flash_window_timer, hwnd);
++
++	    if (puttyTrayVisible) {
++		if (!puttyTrayFlash) {
++		    puttyTrayFlash = TRUE;
++		    puttyTray.hIcon = NULL;
++		    taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
++		} else {
++		    puttyTrayFlash = FALSE;
++		    puttyTray.hIcon = puttyTrayFlashIcon;
++		    taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name, TRUE);
++		}
++	    }
+ 	}
+     }
+ }
+@@ -5574,11 +6280,15 @@ void do_beep(void *frontend, int mode)
+ void set_iconic(void *frontend, int iconic)
+ {
+     if (IsIconic(hwnd)) {
+-	if (!iconic)
++	if (!iconic) {
+ 	    ShowWindow(hwnd, SW_RESTORE);
++	    windowMinimized = FALSE;
++	}
+     } else {
+-	if (iconic)
++	if (iconic) {
+ 	    ShowWindow(hwnd, SW_MINIMIZE);
++	    windowMinimized = TRUE;
++	}
+     }
+ }
+ 
+@@ -5759,8 +6469,8 @@ static void clear_full_screen()
+     /* Reinstate the window furniture. */
+     style = oldstyle = GetWindowLongPtr(hwnd, GWL_STYLE);
+     style |= WS_CAPTION | WS_BORDER;
+-    if (conf_get_int(conf, CONF_resize_action) == RESIZE_DISABLED)
+-        style &= ~WS_THICKFRAME;
++    if (conf_get_int(conf, CONF_resize_action) == RESIZE_MAXTERM || conf_get_int(conf, CONF_resize_action) == RESIZE_DISABLED)
++        style &= ~(WS_THICKFRAME);
+     else
+         style |= WS_THICKFRAME;
+     if (conf_get_int(conf, CONF_scrollbar))
+@@ -5842,3 +6552,143 @@ void agent_schedule_callback(void (*callback)(void *, void *, int),
+     c->len = len;
+     PostMessage(hwnd, WM_AGENT_CALLBACK, 0, (LPARAM)c);
+ }
++
++/*
++ * HACK: PuttyTray / Transparency
++ * Function to set the window transparency
++ */ 
++BOOL MakeWindowTransparent(HWND hWnd, int factor)
++{
++    // First, see if we can get the API call we need. If we've tried once, we don't need to try again.
++    if (!initialized) {
++        HMODULE hDLL = LoadLibrary("user32");
++        pSetLayeredWindowAttributes = (PSLWA) GetProcAddress(hDLL, "SetLayeredWindowAttributes");
++        initialized = TRUE;
++    }
++    if (pSetLayeredWindowAttributes == NULL) {
++        return FALSE;
++    }
++
++    // Sanity checks
++    if (factor < 0) { return FALSE; }
++    if (factor > 255) { factor = 255; }
++
++    // Make the window transparent
++    if (factor < 255) {
++        // Windows need to be layered to be made transparent. This is done by modifying the extended style bits to contain WS_EX_LAYARED.
++        SetLastError(0);
++        SetWindowLong(hWnd, GWL_EXSTYLE, GetWindowLong(hWnd, GWL_EXSTYLE) | WS_EX_LAYERED);
++        if (GetLastError()) {
++            return FALSE;
++        }
++
++        // Now, we need to set the 'layered window attributes'. This is where the alpha values get set. 
++        return pSetLayeredWindowAttributes (hWnd, RGB(255,255,255), factor, LWA_ALPHA);
++    
++    // Make the window opaque
++    } else {
++        SetWindowLong(hWnd, GWL_EXSTYLE, GetWindowLong(hWnd, GWL_EXSTYLE) & ~WS_EX_LAYERED);
++        return TRUE;
++    }
++}
++
++/*
++ * HACK: PuttyTray / Always on top
++ * Function to switch the window positioning to and from 'always on top'
++ */ 
++void MakeWindowOnTop(HWND hwnd) {
++    HMENU m;
++    if ((m = GetSystemMenu(hwnd, FALSE)) != NULL) {
++        DWORD fdwMenu = GetMenuState(m, (UINT)IDM_VISIBLE, MF_BYCOMMAND); 
++        if (!(fdwMenu & MF_CHECKED)) {
++            CheckMenuItem(m, (UINT)IDM_VISIBLE, MF_BYCOMMAND|MF_CHECKED);
++            SetWindowPos(hwnd, (HWND)-1, 0, 0, 0, 0, SWP_NOMOVE |SWP_NOSIZE);
++        }
++        else {
++            CheckMenuItem(m, (UINT)IDM_VISIBLE, MF_BYCOMMAND|MF_UNCHECKED);
++            SetWindowPos(hwnd, (HWND)-2, 0, 0, 0, 0, SWP_NOMOVE |SWP_NOSIZE);
++        }
++    }
++}
++
++/*
++ * HACK: PuttyTray
++ * Function to add icon to the taskbar's system tray
++ */
++BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon) 
++{ 
++    BOOL icon_result; 
++
++    if (showIcon) {
++	// Set Tooltip
++	if (lpszTip) {
++	    strncpy(puttyTray.szTip, lpszTip, sizeof(puttyTray.szTip));
++	} else {
++	    puttyTray.szTip[0] = (TCHAR)'\0'; 
++	}
++
++	// Set icon visibility
++	if (!puttyTrayVisible) {
++	    tray_updatemenu(TRUE);
++	    icon_result = Shell_NotifyIcon(NIM_ADD, &puttyTray);
++	    puttyTrayVisible = TRUE;
++	    return icon_result; 
++	} else {
++	    icon_result = Shell_NotifyIcon(NIM_MODIFY, &puttyTray);
++	    return icon_result; 
++	}
++    } else {
++	if (puttyTrayVisible) {
++	    tray_updatemenu(FALSE);
++	    icon_result = Shell_NotifyIcon(NIM_DELETE, &puttyTray);
++	    puttyTrayVisible = FALSE;
++	    return icon_result; 
++	}
++    }
++
++    return TRUE; 
++}
++
++void tray_updatemenu(BOOL disableMenuItems)
++{
++    MENUITEMINFO mii;
++    memset(&mii, 0, sizeof(MENUITEMINFO));
++    mii.cbSize = sizeof(MENUITEMINFO);
++
++    if (disableMenuItems) {
++	DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYSEP, MF_BYCOMMAND);
++	DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, MF_BYCOMMAND);
++	DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, MF_BYCOMMAND);
++	InsertMenu(popup_menus[CTXMENU].menu, -1, MF_BYPOSITION | MF_SEPARATOR, IDM_TRAYSEP, 0);
++	InsertMenu(popup_menus[CTXMENU].menu, -1, MF_BYPOSITION | MF_ENABLED, IDM_TRAYRESTORE, "&Restore Window");
++	InsertMenu(popup_menus[CTXMENU].menu, -1, MF_BYPOSITION | MF_ENABLED, IDM_TRAYCLOSE, "&Exit");
++
++	// Set X bitmap on close window menuitem
++	mii.fMask = MIIM_BITMAP;
++	mii.hbmpItem = HBMMENU_POPUP_CLOSE;
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, FALSE, &mii);
++		
++	// Set restore icon on restore menuitem
++	mii.hbmpItem = HBMMENU_POPUP_RESTORE;
++	SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, FALSE, &mii);
++
++	mii.fMask = MIIM_STATE;
++	mii.fState = MFS_GRAYED;
++    } else {
++	DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYSEP, MF_BYCOMMAND);
++	DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, MF_BYCOMMAND);
++	DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, MF_BYCOMMAND);
++		
++	mii.fMask = MIIM_STATE;
++	mii.fState = MFS_ENABLED;
++    }
++
++    // This UINT cast of the specials_menu works, but I don't understand why
++    SetMenuItemInfo(popup_menus[CTXMENU].menu, (UINT)specials_menu, FALSE, &mii);
++    SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_PASTE, FALSE, &mii);
++    SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_FULLSCREEN, FALSE, &mii);
++    SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_RESET, FALSE, &mii);
++    SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_CLRSB, FALSE, &mii);
++    SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_COPYALL, FALSE, &mii);
++}
++

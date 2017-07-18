@@ -1,0 +1,13 @@
+diff --git a/be_nossh.c b/be_nossh.c
+index 33d783a8..f47c6f14 100644
+--- a/be_nossh.c
++++ b/be_nossh.c
+@@ -14,6 +14,8 @@ Backend *backends[] = {
+     &telnet_backend,
+     &rlogin_backend,
+     &raw_backend,
++    &cygterm_backend,
++    &adb_backend,
+     NULL
+ };
+ 

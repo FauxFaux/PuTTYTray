@@ -1,0 +1,41 @@
+diff --git a/mkfiles.pl b/mkfiles.pl
+index 342db4d0..309a712d 100755
+--- a/mkfiles.pl
++++ b/mkfiles.pl
+@@ -633,10 +633,21 @@ if (defined $makefiles{'vc'}) {
+       "MAKEFILE = Makefile.vc\n".
+       "\n".
+       "# C compilation flags\n".
+-      "CFLAGS = /nologo /W3 /O1 " .
+-      (join " ", map {"-I$dirpfx$_"} @srcdirs) .
+-      " /D_WINDOWS /D_WIN32_WINDOWS=0x500 /DWINVER=0x500\n".
+-      "LFLAGS = /incremental:no /fixed\n".
++      "CFLAGS = /nologo /W3 /GS /Zi " .
++      "/arch:SSE /D_USING_V110_SDK71_=1 ". # support for really olde computers
++      "/D_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=1 ".
++      "/D_CRT_SECURE_NO_WARNINGS=1 ".
++      "/d2guard4 ".
++       (join " ", map {"-I$dirpfx$_"} @srcdirs) .
++       " /D_WINDOWS /D_WIN32_WINDOWS=0x500 /DWINVER=0x500\n".
++      "LFLAGS = /dynamicbase /nxcompat /debug /guard:cf\n".
++      "LFLAGS = \$(LFLAGS) /SUBSYSTEM:WINDOWS,5.01\n". # support for really olde computers
++      "!if \"\$(DEBUG)\" == \"1\"\n".
++      "CFLAGS=\$(CFLAGS) /Od /DDEBUG /RTC1\n".
++      "!else\n".
++      "CFLAGS=\$(CFLAGS) /O1 /GL /Gy\n".
++      "LFLAGS=\$(LFLAGS) /incremental:no /release /ltcg\n".
++      "!endif\n".
+       "RCFLAGS = ".(join " ", map {"-I$dirpfx$_"} @srcdirs).
+       " -DWIN32 -D_WIN32 -DWINVER=0x0400\n".
+       "\n".
+@@ -1259,8 +1270,8 @@ if (defined $makefiles{'vstudio10'} || defined $makefiles{'vstudio12'}) {
+             $resource_file =~ s/..\\windows\\//;
+             print
+                 "    <ResourceCompile Include=\"..\\..\\$resource_file\">\n" .
+-                "      <AdditionalIncludeDirectories Condition=\"'\$(Configuration)|\$(Platform)'=='Release|Win32'\">..\\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>\n" .
+-                "      <AdditionalIncludeDirectories Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|Win32'\">..\\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>\n" .
++                "      <AdditionalIncludeDirectories Condition=\"'\$(Configuration)|\$(Platform)'=='Release|Win32'\">..\\..;..\\..\\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>\n" .
++                "      <AdditionalIncludeDirectories Condition=\"'\$(Configuration)|\$(Platform)'=='Debug|Win32'\">..\\..;..\\..\\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>\n" .
+                 "    </ResourceCompile>\n";
+             print FILTERS
+                 "    <ResourceCompile Include=\"..\\..\\$resource_file\">\n" .

@@ -1,0 +1,15 @@
+--- /dev/null
++++ b/windows/build-debug.bat
+@@ -0,0 +1,8 @@
++for /f "usebackq delims=" %%i in (`git describe`) do set desc=%%i
++for /f "tokens=2,3 delims=tv-" %%i in ("%desc%") do set trayversion=%%i & set traypatch=%%j
++if "%traypatch%" == "" set traypatch=9001
++nmake /F Makefile.vc DEBUG=1 ^
++  "VER=/DSNAPSHOT= /DSVN_REV=%desc% /DSVN_REV1=%trayversion% /DSVN_REV2=%traypatch%" ^
++  putty.exe ^
++  %1 %2 %3 %4 %5 %6 %7 %8 %9 ^
++  2>&1
+\ No newline at end of file
+diff --git a/windows/build-release.bat b/windows/build-release.bat
+new file mode 100644
+index 00000000..fa863e58

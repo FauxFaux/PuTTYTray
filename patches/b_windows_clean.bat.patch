@@ -1,0 +1,8 @@
+--- /dev/null
++++ b/windows/clean.bat
+@@ -0,0 +1 @@
++nmake /F Makefile.vc clean
+\ No newline at end of file
+diff --git a/windows/cthelper/BUILDING b/windows/cthelper/BUILDING
+new file mode 100644
+index 00000000..c0cc070f

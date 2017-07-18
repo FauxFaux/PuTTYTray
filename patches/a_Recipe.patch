@@ -1,0 +1,80 @@
+diff --git a/Recipe b/Recipe
+index b3dbbcb2..0ee1b071 100644
+--- a/Recipe
++++ b/Recipe
+@@ -27,6 +27,7 @@
+ # Source directories.
+ !srcdir charset/
+ !srcdir windows/
++!srcdir windows/re_lib/
+ !srcdir unix/
+ !srcdir macosx/
+ 
+@@ -208,14 +209,17 @@ TERMINAL = terminal wcwidth ldiscucs logging tree234 minibidi
+ # GUI front end and terminal emulator (putty, puttytel).
+ GUITERM  = TERMINAL window windlg winctrls sizetip winucs winprint
+          + winutils wincfg sercfg winhelp winjump miscucs
++         + pickicondialog
++         + urlhack urlhack_win regexp
++         + cygcfg
+ 
+ # Same thing on Unix.
+-UXTERM   = TERMINAL uxcfg sercfg uxucs uxprint timing callback miscucs
+-GTKTERM  = UXTERM gtkwin gtkcfg gtkdlg gtkfont gtkcols xkeysym
++UXTERM   = TERMINAL uxcfg sercfg uxucs uxprint timing callback miscucs urlhack urlhack_unix regexp
++GTKTERM  = UXTERM gtkwin gtkcfg gtkdlg gtkfont gtkcols xkeysym urlhack urlhack_unix regexp
+ OSXTERM  = UXTERM osxwin osxdlg osxctrls
+ 
+ # Non-SSH back ends (putty, puttytel, plink).
+-NONSSH   = telnet raw rlogin ldisc pinger
++NONSSH   = telnet adb raw rlogin ldisc pinger
+ 
+ # SSH back end (putty, plink, pscp, psftp).
+ SSH      = ssh sshcrc sshdes sshmd5 sshrsa sshrand sshsha sshblowf
+@@ -252,10 +256,12 @@ BE_SSH   = be_ssh cproxy
+ BE_NONE  = be_none nocproxy
+ # More backend sets, with the additional Windows serial-port module.
+ W_BE_ALL = be_all_s winser cproxy
++         + cygterm
+ W_BE_NOSSH = be_nos_s winser nocproxy
++           + cygterm
+ # And with the Unix serial-port module.
+-U_BE_ALL = be_all_s uxser cproxy
+-U_BE_NOSSH = be_nos_s uxser nocproxy
++U_BE_ALL = be_all_u uxser cproxy
++U_BE_NOSSH = be_nos_u uxser nocproxy
+ 
+ # ------------------------------------------------------------
+ # Definitions of actual programs. The program name, followed by a
+@@ -263,24 +269,16 @@ U_BE_NOSSH = be_nos_s uxser nocproxy
+ # keywords [G] for Windows GUI app, [C] for Console app, [X] for
+ # X/GTK Unix app, [U] for command-line Unix app.
+ 
+-putty    : [G] GUITERM NONSSH WINSSH W_BE_ALL WINMISC winx11 putty.res LIBS
+-puttytel : [G] GUITERM NONSSH W_BE_NOSSH WINMISC puttytel.res nogss LIBS
++putty    : [G] GUITERM NONSSH WINSSH W_BE_ALL WINMISC winx11 putty.res urlhack regexp LIBS
++         + fatty
++         + winpgen sshrsag sshdssg sshprime import
++         + winpgnt
+ plink    : [C] winplink wincons NONSSH WINSSH W_BE_ALL logging WINMISC
+          + winx11 plink.res winnojmp noterm LIBS
+ pscp     : [C] pscp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
+          + pscp.res winnojmp LIBS
+ psftp    : [C] psftp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
+          + psftp.res winnojmp LIBS
+-
+-pageant  : [G] winpgnt sshrsa sshpubk sshdes sshbn sshmd5 version tree234
+-         + misc sshaes sshsha winsecur winpgntc sshdss sshsh256 sshsh512
+-	 + winutils winmisc winhelp conf pageant.res LIBS
+-
+-puttygen : [G] winpgen sshrsag sshdssg sshprime sshdes sshbn sshmd5 version
+-         + sshrand winnoise sshsha winstore misc winctrls sshrsa sshdss winmisc
+-         + sshpubk sshaes sshsh256 sshsh512 import winutils puttygen.res
+-	 + tree234 notiming winhelp winnojmp conf LIBS wintime
+-
+ pterm    : [X] GTKTERM uxmisc misc ldisc settings uxpty uxsel BE_NONE uxstore
+          + uxsignal CHARSET cmdline uxpterm version time xpmpterm xpmptcfg
+ 	 + nogss
+diff --git a/adb.c b/adb.c
+new file mode 100644
+index 00000000..8667dc1e

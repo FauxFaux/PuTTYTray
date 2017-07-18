@@ -1,0 +1,23 @@
+diff --git a/storage.h b/storage.h
+index 8e07ef0c..2c053481 100644
+--- a/storage.h
++++ b/storage.h
+@@ -15,6 +15,18 @@
+  */
+ 
+ /*
++ * HACK: PuttyTray / PuTTY File
++ * Function to force the storage loader to a certain type
++ */
++enum storage_t {
++    STORAGE_REG,
++    STORAGE_FILE
++};
++
++enum storage_t get_storagetype(void);
++void set_storagetype(enum storage_t new_storagetype);
++
++/*
+  * Write a saved session. The caller is expected to call
+  * open_setting_w() to get a `void *' handle, then pass that to a
+  * number of calls to write_setting_s() and write_setting_i(), and

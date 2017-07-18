@@ -1,0 +1,289 @@
+diff --git a/settings.c b/settings.c
+index 02d7506b..dade03e8 100644
+--- a/settings.c
++++ b/settings.c
+@@ -7,6 +7,12 @@
+ #include <stdlib.h>
+ #include "putty.h"
+ #include "storage.h"
++#include "urlhack.h"
++
++/*
++ * HACK: PuttyTray / Nutty
++ */ 
++#include "urlhack.h"
+ 
+ /* The cipher order given here is the default order. */
+ static const struct keyvalwhere ciphernames[] = {
+@@ -47,6 +53,62 @@ const char *const ttymodes[] = {
+     "CS8",	"PARENB",   "PARODD",	NULL
+ };
+ 
++const char* urlhack_default_regex =
++    "("
++        "(((https?|ftp):\\/\\/)|www\\.)"
++        "("
++            "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)" // 127.0.0.1
++            "|("
++                "([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\." // ab-c.de-f.qrs.tuv.
++                // popular tlds, and anything that could be a country
++                "("
++                    "academy|aero|agency|archi|arpa|asia|auction|audio|axa|bar|"
++                    "bargains|bayern|beer|berlin|best|bid|bike|bio|biz|blue|boo|"
++                    "boutique|brussels|build|builders|buzz|bzh|cab|camera|camp|"
++                    "capital|cards|career|careers|cash|cat|center|ceo|cheap|city|"
++                    "cleaning|clothing|club|codes|coffee|com|community|company|"
++                    "computer|construction|consulting|contractors|cool|coop|"
++                    "cruises|dance|dating|deals|dental|desi|diamonds|digital|"
++                    "direct|directory|discount|dnp|domains|edu|education|email|"
++                    "enterprises|equipment|estate|eus|events|exchange|expert|"
++                    "exposed|fail|farm|financial|fish|fitness|flights|florist|foo|"
++                    "foundation|fund|futbol|gal|gallery|gent|gift|glass|gle|"
++                    "global|gmail|google|gov|graphics|gratis|guide|guru|hamburg|"
++                    "haus|hiphop|hiv|holdings|holiday|host|house|immobilien|info|"
++                    "ink|institute|int|international|investments|jetzt|jobs|"
++                    "joburg|juegos|kaufen|kim|kitchen|kiwi|land|life|lighting|"
++                    "limited|link|london|luxury|management|marketing|media|"
++                    "melbourne|menu|mil|mobi|moda|moe|moscow|museum|nagoya|name|"
++                    "net|new|ninja|nyc|onl|org|ovh|paris|partners|photo|"
++                    "photography|photos|pics|pictures|pink|place|plumbing|post|"
++                    "press|pro|prod|productions|properties|pub|quebec|realtor|"
++                    "recipes|red|reise|reisen|ren|rentals|repair|report|rest|"
++                    "reviews|rocks|ruhr|saarland|scot|services|sexy|shiksha|shoes|"
++                    "singles|social|solar|solutions|soy|supplies|support|systems|"
++                    "tattoo|technology|tel|tips|today|tokyo|tools|top|town|toys|"
++                    "trade|training|travel|university|uno|uol|vegas|ventures|"
++                    "viajes|vision|vote|voyage|wales|wang|watch|webcam|website|"
++                    "wien|wiki|works|wtf|xxx|xyz|yandex|yokohama|youtube|zone"
++                    "|[a-zA-Z][a-zA-Z]"
++                ")"
++            ")"
++            "|([a-z]+[0-9]*)" // http://foo
++        ")"
++        "(:[0-9]+)?" // :8080
++        "((\\/|\\?)[^ \"]*[^ ,;\\.:\">)])?"
++    ")"
++    "|(spotify:[^ ]+:[^ ]+)"
++    ;
++
++const char* urlhack_liberal_regex =
++    "("
++        "([a-zA-Z]+://|[wW][wW][wW]\\.|spotify:|telnet:)"
++        "[^ '\")>]+"
++    ")"
++    ;
++
++void autodetect_storage_type(void);
++
+ /*
+  * Convenience functions to access the backends[] array
+  * (which is only present in tools that manage settings).
+@@ -522,11 +584,26 @@ void save_open_settings(void *sesskey, Conf *conf)
+     write_setting_i(sesskey, "ApplicationCursorKeys", conf_get_int(conf, CONF_app_cursor));
+     write_setting_i(sesskey, "ApplicationKeypad", conf_get_int(conf, CONF_app_keypad));
+     write_setting_i(sesskey, "NetHackKeypad", conf_get_int(conf, CONF_nethack_keypad));
++    write_setting_i(sesskey, "Transparency", conf_get_int(conf, CONF_transparency));
++    write_setting_i(sesskey, "WakeupReconnect", conf_get_int(conf, CONF_wakeup_reconnect));
++    write_setting_i(sesskey, "FailureReconnect", conf_get_int(conf, CONF_failure_reconnect));
++    write_setting_i(sesskey, "Tray", conf_get_int(conf, CONF_tray));
++    write_setting_i(sesskey, "StartTray", conf_get_int(conf, CONF_start_tray));
++    write_setting_i(sesskey, "TrayRestore", conf_get_int(conf, CONF_tray_restore));
++    write_setting_filename(sesskey, "WindowIcon", conf_get_filename(conf, CONF_win_icon));
++    write_setting_i(sesskey, "HyperlinkUnderline", conf_get_int(conf, CONF_url_underline));
++    write_setting_i(sesskey, "HyperlinkUseCtrlClick", conf_get_int(conf, CONF_url_ctrl_click));
++    write_setting_i(sesskey, "HyperlinkBrowserUseDefault", conf_get_int(conf, CONF_url_defbrowser));
++    write_setting_filename(sesskey, "HyperlinkBrowser", conf_get_filename(conf, CONF_url_browser));
++    write_setting_i(sesskey, "HyperlinkRegularExpressionUseDefault", conf_get_int(conf, CONF_url_defregex));
++    write_setting_s(sesskey, "HyperlinkRegularExpression", conf_get_str(conf, CONF_url_regex));
+     write_setting_i(sesskey, "AltF4", conf_get_int(conf, CONF_alt_f4));
+     write_setting_i(sesskey, "AltSpace", conf_get_int(conf, CONF_alt_space));
+     write_setting_i(sesskey, "AltOnly", conf_get_int(conf, CONF_alt_only));
++    write_setting_i(sesskey, "AltMetabit", conf_get_int(conf, CONF_alt_metabit));
+     write_setting_i(sesskey, "ComposeKey", conf_get_int(conf, CONF_compose_key));
+     write_setting_i(sesskey, "CtrlAltKeys", conf_get_int(conf, CONF_ctrlaltkeys));
++    write_setting_i(sesskey, "RightAltKey", conf_get_int(conf, CONF_rightaltkey));
+     write_setting_i(sesskey, "TelnetKey", conf_get_int(conf, CONF_telnet_keyboard));
+     write_setting_i(sesskey, "TelnetRet", conf_get_int(conf, CONF_telnet_newline));
+     write_setting_i(sesskey, "LocalEcho", conf_get_int(conf, CONF_localecho));
+@@ -555,6 +632,8 @@ void save_open_settings(void *sesskey, Conf *conf)
+ #endif
+ 		    );
+     write_setting_i(sesskey, "ScrollbackLines", conf_get_int(conf, CONF_savelines));
++    write_setting_i(sesskey, "PasteDelayms", conf_get_int(conf, CONF_pastedelay));
++    write_setting_i(sesskey, "LinesAtAScroll", conf_get_int(conf, CONF_scrolllines));
+     write_setting_i(sesskey, "DECOriginMode", conf_get_int(conf, CONF_dec_om));
+     write_setting_i(sesskey, "AutoWrapMode", conf_get_int(conf, CONF_wrap_mode));
+     write_setting_i(sesskey, "LFImpliesCR", conf_get_int(conf, CONF_lfhascr));
+@@ -588,6 +667,7 @@ void save_open_settings(void *sesskey, Conf *conf)
+     write_setting_i(sesskey, "MouseIsXterm", conf_get_int(conf, CONF_mouse_is_xterm));
+     write_setting_i(sesskey, "RectSelect", conf_get_int(conf, CONF_rect_select));
+     write_setting_i(sesskey, "MouseOverride", conf_get_int(conf, CONF_mouse_override));
++    write_setting_i(sesskey, "CopyURLDetection", conf_get_int(conf, CONF_copy_clipbd_url_reg)); /* url-cut */
+     for (i = 0; i < 256; i += 32) {
+ 	char buf[20], buf2[256];
+ 	int j;
+@@ -648,6 +728,9 @@ void save_open_settings(void *sesskey, Conf *conf)
+     write_setting_i(sesskey, "SerialParity", conf_get_int(conf, CONF_serparity));
+     write_setting_i(sesskey, "SerialFlowControl", conf_get_int(conf, CONF_serflow));
+     write_setting_s(sesskey, "WindowClass", conf_get_str(conf, CONF_winclass));
++    write_setting_i(sesskey, "CygtermAutoPath", conf_get_int(conf, CONF_cygautopath));
++    write_setting_i(sesskey, "Cygterm64", conf_get_int(conf, CONF_cygterm64));
++    write_setting_s(sesskey, "CygtermCommand", conf_get_str(conf, CONF_cygcmd));
+     write_setting_i(sesskey, "ConnectionSharing", conf_get_int(conf, CONF_ssh_connection_sharing));
+     write_setting_i(sesskey, "ConnectionSharingUpstream", conf_get_int(conf, CONF_ssh_connection_sharing_upstream));
+     write_setting_i(sesskey, "ConnectionSharingDownstream", conf_get_int(conf, CONF_ssh_connection_sharing_downstream));
+@@ -666,6 +749,19 @@ void load_settings(char *section, Conf *conf)
+         add_session_to_jumplist(section);
+ }
+ 
++/*
++ * HACK: PuttyTray / PuTTY File
++ * Quick hack to load defaults from file
++ */
++void load_settings_file(char *section, Conf * cfg)
++{
++    void *sesskey;
++    set_storagetype(STORAGE_FILE);
++    sesskey = open_settings_r(section);
++    load_open_settings(sesskey, cfg);
++    close_settings_r(sesskey);
++}
++
+ void load_open_settings(void *sesskey, Conf *conf)
+ {
+     int i;
+@@ -822,11 +918,26 @@ void load_open_settings(void *sesskey, Conf *conf)
+     gppi(sesskey, "ApplicationCursorKeys", 0, conf, CONF_app_cursor);
+     gppi(sesskey, "ApplicationKeypad", 0, conf, CONF_app_keypad);
+     gppi(sesskey, "NetHackKeypad", 0, conf, CONF_nethack_keypad);
++    gppi(sesskey, "Transparency", 255, conf, CONF_transparency);
++    gppi(sesskey, "WakeupReconnect", 0, conf, CONF_wakeup_reconnect);
++    gppi(sesskey, "FailureReconnect", 0, conf, CONF_failure_reconnect);
++    gppi(sesskey, "Tray", TRAY_NEVER, conf, CONF_tray);
++    gppi(sesskey, "StartTray", 0, conf, CONF_start_tray);
++    gppi(sesskey, "TrayRestore", 0, conf, CONF_tray_restore);
++    gppfile(sesskey, "WindowIcon", conf, CONF_win_icon);
++    gppi(sesskey, "HyperlinkUnderline", 1, conf, CONF_url_underline);
++    gppi(sesskey, "HyperlinkUseCtrlClick", 0, conf, CONF_url_ctrl_click);
++    gppi(sesskey, "HyperlinkBrowserUseDefault", 1, conf, CONF_url_defbrowser);
++    gppfile(sesskey, "HyperlinkBrowser", conf, CONF_url_browser);
++    gppi(sesskey, "HyperlinkRegularExpressionUseDefault", 1, conf, CONF_url_defregex);
++    gpps(sesskey, "HyperlinkRegularExpression", urlhack_default_regex, conf, CONF_url_regex);
+     gppi(sesskey, "AltF4", 1, conf, CONF_alt_f4);
+     gppi(sesskey, "AltSpace", 0, conf, CONF_alt_space);
+     gppi(sesskey, "AltOnly", 0, conf, CONF_alt_only);
++    gppi(sesskey, "AltMetabit", 0, conf, CONF_alt_metabit);
+     gppi(sesskey, "ComposeKey", 0, conf, CONF_compose_key);
+     gppi(sesskey, "CtrlAltKeys", 1, conf, CONF_ctrlaltkeys);
++    gppi(sesskey, "RightAltKey", 0, conf, CONF_rightaltkey);
+     gppi(sesskey, "TelnetKey", 0, conf, CONF_telnet_keyboard);
+     gppi(sesskey, "TelnetRet", 1, conf, CONF_telnet_newline);
+     gppi(sesskey, "LocalEcho", AUTO, conf, CONF_localecho);
+@@ -866,6 +977,8 @@ void load_open_settings(void *sesskey, Conf *conf)
+ #endif
+ 		 );
+     gppi(sesskey, "ScrollbackLines", 2000, conf, CONF_savelines);
++    gppi(sesskey, "PasteDelayms", 0, conf, CONF_pastedelay);
++    gppi(sesskey, "LinesAtAScroll", -1, conf, CONF_scrolllines);
+     gppi(sesskey, "DECOriginMode", 0, conf, CONF_dec_om);
+     gppi(sesskey, "AutoWrapMode", 1, conf, CONF_wrap_mode);
+     gppi(sesskey, "LFImpliesCR", 0, conf, CONF_lfhascr);
+@@ -909,6 +1022,7 @@ void load_open_settings(void *sesskey, Conf *conf)
+     gppi(sesskey, "MouseIsXterm", 0, conf, CONF_mouse_is_xterm);
+     gppi(sesskey, "RectSelect", 0, conf, CONF_rect_select);
+     gppi(sesskey, "MouseOverride", 1, conf, CONF_mouse_override);
++    gppi(sesskey, "CopyURLDetection", 0, conf, CONF_copy_clipbd_url_reg); /* url-cut */
+     for (i = 0; i < 256; i += 32) {
+ 	static const char *const defaults[] = {
+ 	    "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0",
+@@ -996,6 +1110,9 @@ void load_open_settings(void *sesskey, Conf *conf)
+     gppi(sesskey, "SerialStopHalfbits", 2, conf, CONF_serstopbits);
+     gppi(sesskey, "SerialParity", SER_PAR_NONE, conf, CONF_serparity);
+     gppi(sesskey, "SerialFlowControl", SER_FLOW_XONXOFF, conf, CONF_serflow);
++    gppi(sesskey, "CygtermAutoPath", 1, conf, CONF_cygautopath);
++    gppi(sesskey, "Cygterm64", 0, conf, CONF_cygterm64);
++    gpps(sesskey, "CygtermCommand", "-", conf, CONF_cygcmd);
+     gpps(sesskey, "WindowClass", "", conf, CONF_winclass);
+     gppi(sesskey, "ConnectionSharing", 0, conf, CONF_ssh_connection_sharing);
+     gppi(sesskey, "ConnectionSharingUpstream", 1, conf, CONF_ssh_connection_sharing_upstream);
+@@ -1005,7 +1122,30 @@ void load_open_settings(void *sesskey, Conf *conf)
+ 
+ void do_defaults(char *session, Conf *conf)
+ {
+-    load_settings(session, conf);
++    if (STORAGE_REG == get_storagetype()) {
++        load_settings(session, conf);
++    } else {
++        do_defaults_file(session, conf);
++    }
++}
++
++void do_defaults_file(char *session, Conf * cfg)
++{
++    load_settings_file(session, cfg);
++}
++
++/** Guess what storagetype we actually want, store it, and call the right do_defaults method */
++void do_defaults_after_detection(char *session, Conf *conf) {
++    autodetect_storage_type();
++    do_defaults(session, conf);
++}
++
++/** Load from registry, and, if that doesn't make it launchable, load from the file */
++void do_defaults_then_file(char *session, Conf *conf)
++{
++    do_defaults(session, conf);
++    if (conf && !conf_launchable(conf))
++        do_defaults_file(session, conf);
+ }
+ 
+ static int sessioncmp(const void *av, const void *bv)
+@@ -1028,15 +1168,38 @@ static int sessioncmp(const void *av, const void *bv)
+     return strcmp(a, b);	       /* otherwise, compare normally */
+ }
+ 
++enum {
++    OTHERBUF_SIZE = 2048
++};
++
++/** Assume we have files.  If we find anything, it's files.  Otherwise, assume registry. */
++void autodetect_storage_type(void) {
++    char otherbuf[OTHERBUF_SIZE];
++    void *handle;
++    char *result = NULL;
++
++    set_storagetype(STORAGE_FILE);
++    handle = enum_settings_start();
++    if (handle) {
++        result = enum_settings_next(handle, otherbuf, sizeof(otherbuf));
++        enum_settings_finish(handle);
++    }
++
++    if (result) {
++        set_storagetype(STORAGE_FILE);
++    } else {
++        set_storagetype(STORAGE_REG);
++    }
++}
++
+ void get_sesslist(struct sesslist *list, int allocate)
+ {
+-    char otherbuf[2048];
++    char otherbuf[OTHERBUF_SIZE];
+     int buflen, bufsize, i;
+     char *p, *ret;
+     void *handle;
+ 
+     if (allocate) {
+-
+ 	buflen = bufsize = 0;
+ 	list->buffer = NULL;
+ 	if ((handle = enum_settings_start()) != NULL) {
+@@ -1048,6 +1211,7 @@ void get_sesslist(struct sesslist *list, int allocate)
+ 			bufsize = buflen + len + 2048;
+ 			list->buffer = sresize(list->buffer, bufsize, char);
+ 		    }
++                    assert(list->buffer);
+ 		    strcpy(list->buffer + buflen, otherbuf);
+ 		    buflen += strlen(list->buffer + buflen) + 1;
+ 		}

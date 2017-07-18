@@ -1,0 +1,57 @@
+diff --git a/unix/gtkwin.c b/unix/gtkwin.c
+index 3d3789f8..1a0e0a57 100644
+--- a/unix/gtkwin.c
++++ b/unix/gtkwin.c
+@@ -36,6 +36,7 @@
+ #include "putty.h"
+ #include "terminal.h"
+ #include "gtkfont.h"
++#include "urlhack.h"
+ 
+ #define CAT2(x,y) x ## y
+ #define CAT(x,y) CAT2(x,y)
+@@ -1803,7 +1804,7 @@ char * retrieve_cutbuffer(int * nbytes)
+     return ptr;
+ }
+ 
+-void write_clip(void *frontend, wchar_t * data, int *attr, int len, int must_deselect)
++void write_clip(Terminal *terminal, void *frontend, wchar_t * data, int *attr, int len, int must_deselect)
+ {
+     struct gui_data *inst = (struct gui_data *)frontend;
+     if (inst->pasteout_data)
+@@ -2611,6 +2612,7 @@ void modalfatalbox(char *p, ...)
+     vfprintf(stderr, p, ap);
+     va_end(ap);
+     fputc('\n', stderr);
++    assert(!p);
+     exit(1);
+ }
+ 
+@@ -3475,7 +3477,7 @@ static void update_savedsess_menu(GtkMenuItem *menuitem, gpointer data)
+     gtk_container_foreach(GTK_CONTAINER(inst->sessionsmenu),
+ 			  (GtkCallback)gtk_widget_destroy, NULL);
+ 
+-    get_sesslist(&sesslist, TRUE);
++    get_sesslist(&sesslist, TRUE, -1);
+     /* skip sesslist.sessions[0] == Default Settings */
+     for (i = 1; i < sesslist.nsessions; i++) {
+ 	GtkWidget *menuitem =
+@@ -3498,7 +3500,7 @@ static void update_savedsess_menu(GtkMenuItem *menuitem, gpointer data)
+ 	gtk_container_add(GTK_CONTAINER(inst->sessionsmenu), menuitem);
+ 	gtk_widget_show(menuitem);
+     }
+-    get_sesslist(&sesslist, FALSE); /* free up */
++    get_sesslist(&sesslist, FALSE, -1); /* free up */
+ }
+ 
+ void set_window_icon(GtkWidget *window, const char *const *const *icon,
+@@ -3662,6 +3664,9 @@ int pt_main(int argc, char **argv)
+     inst->quit_fn_scheduled = FALSE;
+     inst->idle_fn_scheduled = FALSE;
+ 
++    // oh this is a nasty global, which shouldn't be here at all
++    urlhack_init();
++
+     /* defer any child exit handling until we're ready to deal with
+      * it */
+     block_signal(SIGCHLD, 1);

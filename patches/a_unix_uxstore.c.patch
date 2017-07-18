@@ -1,0 +1,19 @@
+diff --git a/unix/uxstore.c b/unix/uxstore.c
+index 567b08d6..7f175c6d 100644
+--- a/unix/uxstore.c
++++ b/unix/uxstore.c
+@@ -456,7 +456,10 @@ void del_settings(const char *sessionname)
+     sfree(filename);
+ }
+ 
+-void *enum_settings_start(void)
++void set_storagetype(int storagetype_IGNORED) {
++}
++
++void *enum_settings_start(int storagetype_IGNORED)
+ {
+     DIR *dp;
+     char *filename;
+diff --git a/urlhack.c b/urlhack.c
+new file mode 100644
+index 00000000..feb82974

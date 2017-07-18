@@ -1,0 +1,17 @@
+diff --git a/unix/unix.h b/unix/unix.h
+index 1968a423..9e41e8c6 100644
+--- a/unix/unix.h
++++ b/unix/unix.h
+@@ -148,7 +148,9 @@ void gtk_setup_config_box(struct controlbox *b, int midsession, void *window);
+ #define CP_UTF8 CS_UTF8		       /* from libcharset */
+ 
+ #define strnicmp strncasecmp
++#define _strnicmp strncasecmp
+ #define stricmp strcasecmp
++#define _stricmp strcasecmp
+ 
+ /* BSD-semantics version of signal(), and another helpful function */
+ void (*putty_signal(int sig, void (*func)(int)))(int);
+diff --git a/unix/urlhack_unix.c b/unix/urlhack_unix.c
+new file mode 100644
+index 00000000..e62c6956

@@ -1,0 +1,21 @@
+diff --git a/windows/putty.rc b/windows/putty.rc
+index 9cfd43d2..f521f2c4 100644
+--- a/windows/putty.rc
++++ b/windows/putty.rc
+@@ -4,7 +4,13 @@
+ #define APPDESC "SSH, Telnet and Rlogin client"
+ 
+ #include "win_res.rc2"
++#include "puttygen.rc"
++#include "pageant.rc"
+ 
+ #ifndef NO_MANIFESTS
++#ifndef _WIN64
+ 1 RT_MANIFEST "putty.mft"
++#else
++1 RT_MANIFEST "putty64.mft"
++#endif
+ #endif /* NO_MANIFESTS */
+diff --git a/windows/putty64.mft b/windows/putty64.mft
+new file mode 100644
+index 00000000..e598d5c5

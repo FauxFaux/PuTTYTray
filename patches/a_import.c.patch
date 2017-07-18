@@ -1,0 +1,69 @@
+diff --git a/import.c b/import.c
+index 4f3ed1fa..d7057376 100644
+--- a/import.c
++++ b/import.c
+@@ -510,6 +510,23 @@ int openssh_encrypted(const Filename *filename)
+     return ret;
+ }
+ 
++char *comment_for(const Filename *filename) {
++    const size_t target_len = 24;
++    const char *prefix = "openssh: ";
++    const char *path = filename_to_str(filename);
++    const size_t len = strlen(path);
++    const size_t avail = target_len - strlen(prefix) - strlen("...");
++    char *str = snewn(target_len + 1, char);
++    strcpy(str, prefix);
++    if (len < avail)
++        strcat(str, path);
++    else {
++        strcat(str, "...");
++        strcat(str, path + len - avail);
++    }
++    return str;
++}
++
+ struct ssh2_userkey *openssh_read(const Filename *filename, char *passphrase,
+ 				  const char **errmsg_p)
+ {
+@@ -703,7 +720,7 @@ struct ssh2_userkey *openssh_read(const Filename *filename, char *passphrase,
+ 	goto error;
+     }
+ 
+-    retkey->comment = dupstr("imported-openssh-key");
++    retkey->comment = comment_for(filename);
+     errmsg = NULL;                     /* no error */
+     retval = retkey;
+ 
+@@ -973,6 +990,31 @@ int openssh_write(const Filename *filename, struct ssh2_userkey *key,
+     return ret;
+ }
+ 
++char *openssh_to_pubkey(struct ssh2_userkey *key) {
++    unsigned char *pub_blob;
++    char *buffer, *p;
++    int pub_len;
++    int i;
++
++    pub_blob = key->alg->public_blob(key->data, &pub_len);
++    buffer = snewn(strlen(key->alg->name) + 4 * ((pub_len + 2) / 3) +
++                   strlen(key->comment) + 3, char);
++    strcpy(buffer, key->alg->name);
++    p = buffer + strlen(buffer);
++    *p++ = ' ';
++    i = 0;
++    while (i < pub_len) {
++        int n = (pub_len - i < 3 ? pub_len - i : 3);
++        base64_encode_atom(pub_blob + i, n, p);
++        i += n;
++        p += 4;
++    }
++    *p++ = ' ';
++    strcpy(p, key->comment);
++    sfree(pub_blob);
++    return buffer;
++}
++
+ /* ----------------------------------------------------------------------
+  * Code to read ssh.com private keys.
+  */

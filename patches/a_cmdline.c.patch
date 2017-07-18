@@ -1,0 +1,130 @@
+diff --git a/cmdline.c b/cmdline.c
+index 9f3360b2..798722d8 100644
+--- a/cmdline.c
++++ b/cmdline.c
+@@ -35,7 +35,7 @@ struct cmdline_saved_param {
+ };
+ struct cmdline_saved_param_set {
+     struct cmdline_saved_param *params;
+-    int nsaved, savesize;
++    size_t nsaved, savesize;
+ };
+ 
+ /*
+@@ -172,6 +172,14 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
+ 	cmdline_session_name = dupstr(value);
+ 	return 2;
+     }
++
++    if (!strcmp(p, "-loadfile") || !strcmp(p, "-file") || !strcmp(p, "-fileload")) {
++        RETURN(2);
++        do_defaults_file(value, conf);
++        loaded_session = TRUE;
++        return 2;
++    }
++
+     if (!strcmp(p, "-ssh")) {
+ 	RETURN(1);
+ 	UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
+@@ -209,6 +217,13 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
+ 	default_protocol = PROT_RAW;
+ 	conf_set_int(conf, CONF_protocol, default_protocol);
+     }
++    if (!strcmp(p, "-adb")) {
++        RETURN(1);
++        UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
++        SAVEABLE(0);
++        default_protocol = PROT_ADB;
++        conf_set_int(conf, CONF_protocol, default_protocol);
++    }    
+     if (!strcmp(p, "-serial")) {
+ 	RETURN(1);
+ 	/* Serial is not NONNETWORK in an odd sense of the word */
+@@ -220,6 +235,13 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
+ 	 * so copy it across */
+ 	conf_set_str(conf, CONF_serline, conf_get_str(conf, CONF_host));
+     }
++    if (!strcmp(p, "-cygterm")) {
++        RETURN(1);
++        UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
++        default_protocol = PROT_CYGTERM;
++        conf_set_int(conf, CONF_protocol, default_protocol);
++        return 1;
++    }
+     if (!strcmp(p, "-v")) {
+ 	RETURN(1);
+ 	flags |= FLAG_VERBOSE;
+@@ -329,7 +351,7 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
+     }
+     if (!strcmp(p, "-m")) {
+ 	char *filename, *command;
+-	int cmdlen, cmdsize;
++        size_t cmdlen, cmdsize;
+ 	FILE *fp;
+ 	int c, d;
+ 
+@@ -355,7 +377,7 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
+ 		cmdsize = cmdlen + 512;
+ 		command = sresize(command, cmdsize, char);
+ 	    }
+-	    command[cmdlen++] = d;
++            command[cmdlen++] = (char)d;
+ 	} while (c != EOF);
+ 	fclose(fp);
+ 	conf_set_str(conf, CONF_remote_cmd, command);
+@@ -488,6 +510,30 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
+ 	SAVEABLE(1);
+ 	conf_set_int(conf, CONF_addressfamily, ADDRTYPE_IPV6);
+     }
++
++    if (!strcmp(p, "-log")) {
++        RETURN(2);
++        SAVEABLE(1);
++        UNAVAILABLE_IN(TOOLTYPE_NONNETWORK);
++        conf_set_filename(conf, CONF_logfilename, filename_from_str(value));
++        if (conf_get_int(conf, CONF_logtype) == LGTYP_NONE) // Force out type only if set to none
++            conf_set_int(conf, CONF_logtype, LGTYP_ASCII);
++    }
++
++    if (!strcmp(p, "-notrans")) {
++        RETURN(1);
++        SAVEABLE(1);
++        UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
++        conf_set_int(conf, CONF_transparency, 255);
++    }
++
++    if (!strcmp(p, "-title")) {
++        RETURN(2);
++        SAVEABLE(1);
++        UNAVAILABLE_IN(TOOLTYPE_FILETRANSFER | TOOLTYPE_NONNETWORK);
++        conf_set_str( conf, CONF_wintitle, value);
++    }
++
+     if (!strcmp(p, "-sercfg")) {
+ 	char* nextitem;
+ 	RETURN(2);
+@@ -499,13 +545,13 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
+ 	/* Value[0] contains one or more , separated values, like 19200,8,n,1,X */
+ 	nextitem = value;
+ 	while (nextitem[0] != '\0') {
+-	    int length, skip;
++            size_t length, skip;
+ 	    char *end = strchr(nextitem, ',');
+ 	    if (!end) {
+ 		length = strlen(nextitem);
+ 		skip = 0;
+ 	    } else {
+-		length = end - nextitem;
++                length = (size_t)(end - nextitem);
+ 		nextitem[length] = '\0';
+ 		skip = 1;
+ 	    }
+@@ -604,7 +650,7 @@ int cmdline_process_param(char *p, char *value, int need_save, Conf *conf)
+ 
+ void cmdline_run_saved(Conf *conf)
+ {
+-    int pri, i;
++    size_t pri, i;
+     for (pri = 0; pri < NPRIORITIES; pri++)
+ 	for (i = 0; i < saves[pri].nsaved; i++)
+ 	    cmdline_process_param(saves[pri].params[i].p,

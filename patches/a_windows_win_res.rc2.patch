@@ -1,0 +1,22 @@
+diff --git a/windows/win_res.rc2 b/windows/win_res.rc2
+index 28e66320..d51b726f 100644
+--- a/windows/win_res.rc2
++++ b/windows/win_res.rc2
+@@ -18,7 +18,7 @@ IDI_CFGICON ICON "puttycfg.ico"
+ /* Accelerators used: clw */
+ IDD_ABOUTBOX DIALOG DISCARDABLE 140, 40, 214, 74
+ STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+-CAPTION "About PuTTY"
++CAPTION "About PuTTY Tray, a fork of PuTTY"
+ FONT 8, "MS Shell Dlg"
+ BEGIN
+     DEFPUSHBUTTON "&Close", IDOK, 160, 56, 48, 14
+@@ -28,7 +28,7 @@ BEGIN
+ END
+ 
+ /* Accelerators used: aco */
+-IDD_MAINBOX DIALOG DISCARDABLE 0, 0, 300, 252
++IDD_MAINBOX DIALOG DISCARDABLE 0, 0, 300, 262
+ STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+ CAPTION "PuTTY Configuration"
+ FONT 8, "MS Shell Dlg"

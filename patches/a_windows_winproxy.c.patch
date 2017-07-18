@@ -1,0 +1,123 @@
+diff --git a/windows/winproxy.c b/windows/winproxy.c
+index aa14b91a..40dc7603 100644
+--- a/windows/winproxy.c
++++ b/windows/winproxy.c
+@@ -13,6 +13,118 @@
+ #include "network.h"
+ #include "proxy.h"
+ 
++typedef struct Socket_localproxy_tag *Local_Proxy_Socket;
++
++struct Socket_localproxy_tag {
++    const struct socket_function_table *fn;
++    /* the above variable absolutely *must* be the first in this structure */
++
++    HANDLE to_cmd_H, from_cmd_H;
++    struct handle *to_cmd_h, *from_cmd_h;
++
++    char *error;
++
++    Plug plug;
++
++    void *privptr;
++};
++
++int localproxy_gotdata(struct handle *h, void *data, int len)
++{
++    Local_Proxy_Socket ps = (Local_Proxy_Socket) handle_get_privdata(h);
++
++    if (len < 0) {
++	return plug_closing(ps->plug, "Read error from local proxy command",
++			    0, 0);
++    } else if (len == 0) {
++	return plug_closing(ps->plug, NULL, 0, 0);
++    } else {
++	return plug_receive(ps->plug, 0, data, len);
++    }
++}
++
++void localproxy_sentdata(struct handle *h, int new_backlog)
++{
++    Local_Proxy_Socket ps = (Local_Proxy_Socket) handle_get_privdata(h);
++    
++    plug_sent(ps->plug, new_backlog);
++}
++
++static Plug sk_localproxy_plug (Socket s, Plug p)
++{
++    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
++    Plug ret = ps->plug;
++    if (p)
++	ps->plug = p;
++    return ret;
++}
++
++static void sk_localproxy_close (Socket s)
++{
++    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
++
++    handle_free(ps->to_cmd_h);
++    handle_free(ps->from_cmd_h);
++    CloseHandle(ps->to_cmd_H);
++    CloseHandle(ps->from_cmd_H);
++
++    sfree(ps);
++}
++
++static int sk_localproxy_write (Socket s, const char *data, int len)
++{
++    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
++
++    return handle_write(ps->to_cmd_h, data, len);
++}
++
++static int sk_localproxy_write_oob(Socket s, const char *data, int len)
++{
++    /*
++     * oob data is treated as inband; nasty, but nothing really
++     * better we can do
++     */
++    return sk_localproxy_write(s, data, len);
++}
++
++static void sk_localproxy_write_eof(Socket s)
++{
++    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
++
++    handle_write_eof(ps->to_cmd_h);
++}
++
++static void sk_localproxy_flush(Socket s)
++{
++    /* Local_Proxy_Socket ps = (Local_Proxy_Socket) s; */
++    /* do nothing */
++}
++
++static void sk_localproxy_set_private_ptr(Socket s, void *ptr)
++{
++    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
++    ps->privptr = ptr;
++}
++
++static void *sk_localproxy_get_private_ptr(Socket s)
++{
++    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
++    return ps->privptr;
++}
++
++static void sk_localproxy_set_frozen(Socket s, int is_frozen)
++{
++    /*
++     * FIXME
++     */
++}
++
++static const char *sk_localproxy_socket_error(Socket s)
++{
++    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
++    return ps->error;
++}
++
+ Socket make_handle_socket(HANDLE send_H, HANDLE recv_H, Plug plug,
+                           int overlapped);
+ 

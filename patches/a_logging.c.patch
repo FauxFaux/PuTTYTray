@@ -1,0 +1,13 @@
+diff --git a/logging.c b/logging.c
+index a40d32a6..f2c20a53 100644
+--- a/logging.c
++++ b/logging.c
+@@ -503,6 +503,8 @@ static Filename *xlatlognam(Filename *src, char *hostname, int port,
+     }
+     buffer[buflen] = '\0';
+ 
++    sanitise_path_leaving_slashes(src, buffer);
++
+     ret = filename_from_str(buffer);
+     sfree(buffer);
+     return ret;

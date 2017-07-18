@@ -1,0 +1,21 @@
+diff --git a/unix/uxplink.c b/unix/uxplink.c
+index 90ad8d52..a2bb71cf 100644
+--- a/unix/uxplink.c
++++ b/unix/uxplink.c
+@@ -613,7 +613,7 @@ int main(int argc, char **argv)
+     struct winsize size;
+ 
+     fdlist = NULL;
+-    fdcount = fdsize = 0;
++    fdsize = 0;
+     /*
+      * Initialise port and protocol to sensible defaults. (These
+      * will be overridden by more or less anything.)
+@@ -1039,6 +1039,7 @@ int main(int argc, char **argv)
+ 	if (i > fdsize) {
+ 	    fdsize = i + 16;
+ 	    fdlist = sresize(fdlist, fdsize, int);
++            assert(fdlist);
+ 	}
+ 
+ 	/*

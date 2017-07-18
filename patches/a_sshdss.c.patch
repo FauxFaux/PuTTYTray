@@ -1,0 +1,12 @@
+diff --git a/sshdss.c b/sshdss.c
+index 84fcdac7..06a8a90a 100644
+--- a/sshdss.c
++++ b/sshdss.c
+@@ -433,6 +433,7 @@ static void *dss_createkey(unsigned char *pub_blob, int pub_len,
+ 	sha_mpint(&s, dss->q);
+ 	sha_mpint(&s, dss->g);
+ 	SHA_Final(&s, digest);
++        assert(hash);
+ 	if (0 != memcmp(hash, digest, 20)) {
+ 	    dss_freekey(dss);
+ 	    return NULL;

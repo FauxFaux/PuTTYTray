@@ -1,0 +1,13 @@
+diff --git a/windows/winplink.c b/windows/winplink.c
+index 77a2dc54..e18c56a4 100644
+--- a/windows/winplink.c
++++ b/windows/winplink.c
+@@ -440,7 +440,7 @@ int main(int argc, char **argv)
+ 		     */
+ 		    {
+ 			Conf *conf2 = conf_new();
+-			do_defaults(host, conf2);
++			do_defaults_then_file(host, conf2);
+ 			if (loaded_session || !conf_launchable(conf2)) {
+ 			    /* No settings for this host; use defaults */
+ 			    /* (or session was already loaded with -load) */

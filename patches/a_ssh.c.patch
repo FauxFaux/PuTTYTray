@@ -1,0 +1,61 @@
+diff --git a/ssh.c b/ssh.c
+index e1e94d78..1784723a 100644
+--- a/ssh.c
++++ b/ssh.c
+@@ -171,15 +171,15 @@ static unsigned int ssh_tty_parse_specchar(char *s)
+ }
+ static unsigned int ssh_tty_parse_boolean(char *s)
+ {
+-    if (stricmp(s, "yes") == 0 ||
+-	stricmp(s, "on") == 0 ||
+-	stricmp(s, "true") == 0 ||
+-	stricmp(s, "+") == 0)
++    if (_stricmp(s, "yes") == 0 ||
++	_stricmp(s, "on") == 0 ||
++	_stricmp(s, "true") == 0 ||
++	_stricmp(s, "+") == 0)
+ 	return 1; /* true */
+-    else if (stricmp(s, "no") == 0 ||
+-	     stricmp(s, "off") == 0 ||
+-	     stricmp(s, "false") == 0 ||
+-	     stricmp(s, "-") == 0)
++    else if (_stricmp(s, "no") == 0 ||
++	     _stricmp(s, "off") == 0 ||
++	     _stricmp(s, "false") == 0 ||
++	     _stricmp(s, "-") == 0)
+ 	return 0; /* false */
+     else
+ 	return (atoi(s) != 0);
+@@ -5417,6 +5417,7 @@ static void ssh1_msg_port_open(Ssh ssh, struct Packet *pktin)
+ 
+     remoteid = ssh_pkt_getuint32(pktin);
+     ssh_pkt_getstring(pktin, &host, &hostsize);
++    assert(host);
+     port = ssh_pkt_getuint32(pktin);
+ 
+     pf.dhost = dupprintf("%.*s", hostsize, NULLTOEMPTY(host));
+@@ -8246,6 +8247,7 @@ static void ssh2_msg_channel_open(Ssh ssh, struct Packet *pktin)
+     struct Packet *pktout;
+ 
+     ssh_pkt_getstring(pktin, &type, &typelen);
++    assert(type);
+     c = snew(struct ssh_channel);
+     c->ssh = ssh;
+ 
+@@ -10719,6 +10721,7 @@ static const char *ssh_init(void *frontend_handle, void **backend_handle,
+     ssh->protocol_initial_phase_done = FALSE;
+ 
+     ssh->pinger = NULL;
++    ssh->fullhostname = NULL;
+ 
+     ssh->incoming_data_size = ssh->outgoing_data_size =
+ 	ssh->deferred_data_size = 0L;
+@@ -10879,7 +10882,7 @@ static void ssh_reconfig(void *handle, Conf *conf)
+ 	unsigned long new_next = ssh->last_rekey + rekey_time*60*TICKSPERSEC;
+ 	unsigned long now = GETTICKCOUNT();
+ 
+-	if (now - ssh->last_rekey > rekey_time*60*TICKSPERSEC) {
++	if (now - ssh->last_rekey > rekey_time*60ul*TICKSPERSEC) {
+ 	    rekeying = "timeout shortened";
+ 	} else {
+ 	    ssh->next_rekey = schedule_timer(new_next - now, ssh2_timer, ssh);

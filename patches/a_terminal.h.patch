@@ -1,0 +1,47 @@
+diff --git a/terminal.h b/terminal.h
+index 01d5f57a..ca587660 100644
+--- a/terminal.h
++++ b/terminal.h
+@@ -20,6 +20,12 @@ typedef struct {
+     int y, x;
+ } pos;
+ 
++void clipme(Terminal *term, pos top, pos bottom, int rect, int desel,
++    void (*output)(Terminal *, void *, wchar_t *, int *, int, int));
++
++void urlhack_launch_url_helper(Terminal *term, void *frontend, wchar_t * data,
++    int *attr, int len, int must_deselect);
++
+ #ifdef OPTIMISE_SCROLL
+ struct scrollregion {
+     struct scrollregion *next;
+@@ -151,6 +157,8 @@ struct terminal_tag {
+     int seen_disp_event;
+     int big_cursor;
+ 
++    int pastedelay;
++
+     int xterm_mouse;		       /* send mouse messages to host */
+     int xterm_extended_mouse;
+     int urxvt_extended_mouse;
+@@ -222,7 +230,8 @@ struct terminal_tag {
+     int attr_mask;
+ 
+     wchar_t *paste_buffer;
+-    int paste_len, paste_pos;
++    int paste_len, paste_pos, paste_hold;
++    long last_paste;
+ 
+     void (*resize_fn)(void *, int, int);
+     void *resize_ctx;
+@@ -322,6 +331,7 @@ struct terminal_tag {
+     int scroll_on_disp;
+     int scroll_on_key;
+     int xterm_256_colour;
++    int url_update;
+ };
+ 
+ #define in_utf(term) ((term)->utf || (term)->ucsdata->line_codepage==CP_UTF8)
+diff --git a/unix/.gitignore b/unix/.gitignore
+new file mode 100644
+index 00000000..41742399

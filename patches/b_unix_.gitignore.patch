@@ -1,0 +1,16 @@
+--- /dev/null
++++ b/unix/.gitignore
+@@ -0,0 +1,13 @@
++config.*
++configure
++install-sh
++uxconfig.*
++.deps
++*.cache
++empty.h
++missing
++stamp-h1
++depcomp
++aclocal.m4
++ar-lib
++compile

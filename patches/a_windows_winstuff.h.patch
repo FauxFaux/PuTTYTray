@@ -1,0 +1,39 @@
+diff --git a/windows/winstuff.h b/windows/winstuff.h
+index 8f5e0dff..ccc4a3a4 100644
+--- a/windows/winstuff.h
++++ b/windows/winstuff.h
+@@ -232,8 +232,13 @@ GLOBAL void *logctx;
+  * File-selector filter strings used in the config box. On Windows,
+  * these strings are of exactly the type needed to go in
+  * `lpstrFilter' in an OPENFILENAME structure.
++ *
++ * "*id_rsa" isn't ideal, but id_rsa* will get id_rsa.pub,
++ * which is absolutely not wanted.
+  */
+-#define FILTER_KEY_FILES ("PuTTY Private Key Files (*.ppk)\0*.ppk\0" \
++#define FILTER_KEY_FILES ("All Key Types (*.ppk;*id_rsa)\0*.ppk;*id_rsa\0" \
++                              "PuTTY Private Key Files (*.ppk)\0*.ppk\0" \
++                              "OpenSSH RSA private keys (*id_rsa)\0*id_rsa\0" \
+ 			      "All Files (*.*)\0*\0\0\0")
+ #define FILTER_WAVE_FILES ("Wave Files (*.wav)\0*.WAV\0" \
+ 			       "All Files (*.*)\0*\0\0\0")
+@@ -467,6 +472,9 @@ extern OSVERSIONINFO osVersion;
+ BOOL init_winver(void);
+ HMODULE load_system32_dll(const char *libname);
+ const char *win_strerror(int error);
++HICON extract_icon(const char *iconpath, int smallicon);
++struct Filename *get_id_rsa_path();
++
+ 
+ /*
+  * Exports from sizetip.c.
+@@ -552,4 +560,9 @@ int remove_from_jumplist_registry(const char *item);
+  * empty one. */
+ char *get_jumplist_registry_entries(void);
+ 
++
++int puttygen_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show);
++int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show);
++int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show);
++
+ #endif

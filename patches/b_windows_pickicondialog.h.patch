@@ -1,0 +1,22 @@
+--- /dev/null
++++ b/windows/pickicondialog.h
+@@ -0,0 +1,13 @@
++#ifndef _SELECTICON_H_
++#define _SELECTICON_H_
++
++BOOL SelectIconW(HWND hWndParent, LPWSTR lpszFilename, DWORD dwBufferSize, DWORD *pdwIndex);
++BOOL SelectIconA(HWND hWndParent, LPSTR lpszFilename, DWORD dwBufferSize, DWORD *pdwIndex);
++
++#ifdef _UNICODE
++#define SelectIcon SelectIconW
++#else
++#define SelectIcon SelectIconA
++#endif
++
++#endif
+diff --git a/windows/putty.ico b/windows/putty.ico
+index fcd641a0..02c6e7a0 100644
+Binary files a/windows/putty.ico and b/windows/putty.ico differ
+diff --git a/windows/putty.ico.svg b/windows/putty.ico.svg
+new file mode 100644
+index 00000000..31e76ced

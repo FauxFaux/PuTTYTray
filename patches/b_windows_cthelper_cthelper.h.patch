@@ -1,0 +1,14 @@
+--- /dev/null
++++ b/windows/cthelper/cthelper.h
+@@ -0,0 +1,8 @@
++enum cthelper_exitcode {
++  CthelperSuccess = 0,
++  CthelperInvalidUsage,
++  CthelperInvalidPort,
++  CthelperConnectFailed,
++  CthelperPtyforkFailure,
++  CthelperExecFailure,
++};
+diff --git a/windows/cthelper/dbug.h b/windows/cthelper/dbug.h
+new file mode 100644
+index 00000000..b5f725f6

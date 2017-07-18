@@ -1,0 +1,14 @@
+diff --git a/raw.c b/raw.c
+index 97355e8a..e7aab82e 100644
+--- a/raw.c
++++ b/raw.c
+@@ -132,7 +132,8 @@ static const char *raw_init(void *frontend_handle, void **backend_handle,
+ 	raw_log,
+ 	raw_closing,
+ 	raw_receive,
+-	raw_sent
++	raw_sent,
++	NULL
+     };
+     SockAddr addr;
+     const char *err;

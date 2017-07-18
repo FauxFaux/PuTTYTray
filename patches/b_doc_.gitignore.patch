@@ -1,0 +1,8 @@
+--- /dev/null
++++ b/doc/.gitignore
+@@ -0,0 +1,5 @@
++*.html
++*.1
++*.hlp
++*.cnt
++puttydoc.txt

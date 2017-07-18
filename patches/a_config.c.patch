@@ -1,0 +1,282 @@
+diff --git a/config.c b/config.c
+index 086956fc..e706b336 100644
+--- a/config.c
++++ b/config.c
+@@ -154,6 +154,14 @@ void conf_fontsel_handler(union control *ctrl, void *dlg,
+     }
+ }
+ 
++struct sessionsaver_data {
++    union control *editbox, *listbox, *loadbutton, *savebutton, *delbutton;
++    union control *okbutton, *cancelbutton;
++    struct sesslist sesslist;
++    int midsession;
++    char *savedsession;     /* the current contents of ssd->editbox */
++};
++
+ static void config_host_handler(union control *ctrl, void *dlg,
+ 				void *data, int event)
+ {
+@@ -172,6 +180,15 @@ static void config_host_handler(union control *ctrl, void *dlg,
+ 	     */
+ 	    dlg_label_change(ctrl, dlg, "Serial line");
+ 	    dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_serline));
++        } else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
++            dlg_label_change(ctrl, dlg, "Command (use - for login shell)");
++            dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_cygcmd));
++        } else if (conf_get_int(conf, CONF_protocol) == PROT_ADB) {
++            char *saved_host = conf_get_str(conf, CONF_host);
++            dlg_label_change(ctrl, dlg, "-a: any, -d: usb, -e: emulator, or :serial");
++            if (!saved_host || !*saved_host)
++                saved_host = "-a";
++            dlg_editbox_set(ctrl, dlg, saved_host);
+ 	} else {
+ 	    dlg_label_change(ctrl, dlg, HOST_BOX_TITLE);
+ 	    dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_host));
+@@ -180,6 +197,8 @@ static void config_host_handler(union control *ctrl, void *dlg,
+ 	char *s = dlg_editbox_get(ctrl, dlg);
+ 	if (conf_get_int(conf, CONF_protocol) == PROT_SERIAL)
+ 	    conf_set_str(conf, CONF_serline, s);
++        else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
++            conf_set_str(conf, CONF_cygcmd, s);
+ 	else
+ 	    conf_set_str(conf, CONF_host, s);
+ 	sfree(s);
+@@ -205,6 +224,9 @@ static void config_port_handler(union control *ctrl, void *dlg,
+ 	     */
+ 	    dlg_label_change(ctrl, dlg, "Speed");
+ 	    sprintf(buf, "%d", conf_get_int(conf, CONF_serspeed));
++        } else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
++            dlg_label_change(ctrl, dlg, "Port (ignored)");
++            strcpy(buf, "-");
+ 	} else {
+ 	    dlg_label_change(ctrl, dlg, PORT_BOX_TITLE);
+ 	    if (conf_get_int(conf, CONF_port) != 0)
+@@ -221,6 +243,8 @@ static void config_port_handler(union control *ctrl, void *dlg,
+ 
+ 	if (conf_get_int(conf, CONF_protocol) == PROT_SERIAL)
+ 	    conf_set_int(conf, CONF_serspeed, i);
++        else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
++            ;
+ 	else
+ 	    conf_set_int(conf, CONF_port, i);
+     }
+@@ -289,6 +313,36 @@ void config_protocolbuttons_handler(union control *ctrl, void *dlg,
+     }
+ }
+ 
++/*
++ * HACK: PuttyTray / PuTTY File
++ * Storagetype radio buttons event handler
++ */
++void storagetype_handler(union control *ctrl, void *dlg, void *data, int event)
++{
++    int button;
++    struct sessionsaver_data *ssd =(struct sessionsaver_data *)ctrl->generic.context.p;
++    Conf *conf = (Conf *)data;
++
++    /*
++     * For a standard radio button set, the context parameter gives
++     * offsetof(targetfield, Config), and the extra data per button
++     * gives the value the target field should take if that button
++     * is the one selected.
++     */
++    if (event == EVENT_REFRESH) {
++        // Button index = same as storagetype number. Set according to config
++        button = get_storagetype();
++        dlg_radiobutton_set(ctrl, dlg, button);
++    } else if (event == EVENT_VALCHANGE) {
++        button = dlg_radiobutton_get(ctrl, dlg);
++        set_storagetype(ctrl->radio.buttondata[button].i);
++        get_sesslist(&ssd->sesslist, FALSE);
++        get_sesslist(&ssd->sesslist, TRUE);
++        dlg_refresh(ssd->editbox, dlg);
++        dlg_refresh(ssd->listbox, dlg);
++    }
++}
++
+ static void loggingbuttons_handler(union control *ctrl, void *dlg,
+ 				   void *data, int event)
+ {
+@@ -557,14 +611,6 @@ static void sshbug_handler(union control *ctrl, void *dlg,
+     }
+ }
+ 
+-struct sessionsaver_data {
+-    union control *editbox, *listbox, *loadbutton, *savebutton, *delbutton;
+-    union control *okbutton, *cancelbutton;
+-    struct sesslist sesslist;
+-    int midsession;
+-    char *savedsession;     /* the current contents of ssd->editbox */
+-};
+-
+ static void sessionsaver_data_free(void *ssdv)
+ {
+     struct sessionsaver_data *ssd = (struct sessionsaver_data *)ssdv;
+@@ -675,8 +721,9 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
+                     sfree(errmsg);
+                 }
+             }
+-	    get_sesslist(&ssd->sesslist, FALSE);
+-	    get_sesslist(&ssd->sesslist, TRUE);
++            get_sesslist(&ssd->sesslist, FALSE);
++            get_sesslist(&ssd->sesslist, TRUE);
++
+ 	    dlg_refresh(ssd->editbox, dlg);
+ 	    dlg_refresh(ssd->listbox, dlg);
+ 	} else if (!ssd->midsession &&
+@@ -686,8 +733,14 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
+ 		dlg_beep(dlg);
+ 	    } else {
+ 		del_settings(ssd->sesslist.sessions[i]);
++
++		/*
++		 * HACK: PuttyTray / PuTTY File
++		 * Added storagetype to get_sesslist
++		 */
+ 		get_sesslist(&ssd->sesslist, FALSE);
+ 		get_sesslist(&ssd->sesslist, TRUE);
++
+ 		dlg_refresh(ssd->listbox, dlg);
+ 	    }
+ 	} else if (ctrl == ssd->okbutton) {
+@@ -802,7 +855,7 @@ static void colour_handler(union control *ctrl, void *dlg,
+     Conf *conf = (Conf *)data;
+     struct colour_data *cd =
+ 	(struct colour_data *)ctrl->generic.context.p;
+-    int update = FALSE, clear = FALSE, r, g, b;
++    int update = FALSE, clear = FALSE, r = 0, g = 0, b = 0;
+ 
+     if (event == EVENT_REFRESH) {
+ 	if (ctrl == cd->listbox) {
+@@ -1294,7 +1347,7 @@ static void manual_hostkey_handler(union control *ctrl, void *dlg,
+ }
+ 
+ void setup_config_box(struct controlbox *b, int midsession,
+-		      int protocol, int protcfginfo)
++                     int protocol, int protcfginfo)
+ {
+     struct controlset *s;
+     struct sessionsaver_data *ssd;
+@@ -1365,14 +1418,16 @@ void setup_config_box(struct controlbox *b, int midsession,
+ 			      HELPCTX(session_hostname),
+ 			      config_protocolbuttons_handler, P(hp),
+ 			      "Raw", 'w', I(PROT_RAW),
++                              "Adb", 'b', I(PROT_ADB),
+ 			      "Telnet", 't', I(PROT_TELNET),
+ 			      "Rlogin", 'i', I(PROT_RLOGIN),
+ 			      NULL);
+ 	} else {
+-	    ctrl_radiobuttons(s, "Connection type:", NO_SHORTCUT, 4,
++	    ctrl_radiobuttons(s, "Connection type:", NO_SHORTCUT, 3,
+ 			      HELPCTX(session_hostname),
+ 			      config_protocolbuttons_handler, P(hp),
+ 			      "Raw", 'w', I(PROT_RAW),
++                              "Adb", 'b', I(PROT_ADB),
+ 			      "Telnet", 't', I(PROT_TELNET),
+ 			      "Rlogin", 'i', I(PROT_RLOGIN),
+ 			      "SSH", 's', I(PROT_SSH),
+@@ -1387,10 +1442,13 @@ void setup_config_box(struct controlbox *b, int midsession,
+ 		    midsession ? "Save the current session settings" :
+ 		    "Load, save or delete a stored session");
+     ctrl_columns(s, 2, 75, 25);
++
++    // HACK: PuttyTray / PuTTY File - The +2 triggers storagetype autoswitching
+     get_sesslist(&ssd->sesslist, TRUE);
++
+     ssd->editbox = ctrl_editbox(s, "Saved Sessions", 'e', 100,
+-				HELPCTX(session_saved),
+-				sessionsaver_handler, P(ssd), P(NULL));
++                                HELPCTX(session_saved),
++                                sessionsaver_handler, P(ssd), P(NULL));
+     ssd->editbox->generic.column = 0;
+     /* Reset columns so that the buttons are alongside the list, rather
+      * than alongside that edit box. */
+@@ -1429,6 +1487,14 @@ void setup_config_box(struct controlbox *b, int midsession,
+     }
+     ctrl_columns(s, 1, 100);
+ 
++    c = ctrl_radiobuttons(s, NULL, 'f', 2,
++                        HELPCTX(no_help),
++                        storagetype_handler,
++                        P(ssd),
++                        "Sessions from registry", I(STORAGE_REG),
++                        "Sessions from file", I(STORAGE_FILE),
++                        NULL);
++
+     s = ctrl_getset(b, "Session", "otheropts", NULL);
+     ctrl_radiobuttons(s, "Close window on exit:", 'x', 4,
+                       HELPCTX(session_coe),
+@@ -1568,7 +1634,8 @@ void setup_config_box(struct controlbox *b, int midsession,
+ 		      conf_radiobutton_handler,
+ 		      I(CONF_funky_type),
+ 		      "ESC[n~", I(0), "Linux", I(1), "Xterm R6", I(2),
+-		      "VT400", I(3), "VT100+", I(4), "SCO", I(5), NULL);
++                      "VT400", I(3), "VT100+", I(4), "SCO", I(5), 
++                      "4690", I(6), NULL);
+ 
+     s = ctrl_getset(b, "Terminal/Keyboard", "appkeypad",
+ 		    "Application keypad settings:");
+@@ -1687,6 +1754,9 @@ void setup_config_box(struct controlbox *b, int midsession,
+     ctrl_editbox(s, "Lines of scrollback", 's', 50,
+ 		 HELPCTX(window_scrollback),
+ 		 conf_editbox_handler, I(CONF_savelines), I(-1));
++    ctrl_editbox(s, "Scrollback lines at a time (-1 half, -2 full screen)", 'l', 15,
++       HELPCTX(window_scrollback),
++       conf_editbox_handler, I(CONF_scrolllines), I(-1));
+     ctrl_checkbox(s, "Display scrollbar", 'd',
+ 		  HELPCTX(window_scrollback),
+ 		  conf_checkbox_handler, I(CONF_scrollbar));
+@@ -1803,6 +1873,12 @@ void setup_config_box(struct controlbox *b, int midsession,
+     ctrl_checkbox(s, "Shift overrides application's use of mouse", 'p',
+ 		  HELPCTX(selection_shiftdrag),
+ 		  conf_checkbox_handler, I(CONF_mouse_override));
++
++    /* url-cut */
++    ctrl_checkbox(s, "Detect URLs on selection and launch in browser", 'u',
++                  HELPCTX(selection_shiftdrag),
++                  conf_checkbox_handler, I(CONF_copy_clipbd_url_reg));
++
+     ctrl_radiobuttons(s,
+ 		      "Default selection mode (Alt+drag does the other one):",
+ 		      NO_SHORTCUT, 2,
+@@ -1905,7 +1981,7 @@ void setup_config_box(struct controlbox *b, int midsession,
+ 	    s = ctrl_getset(b, "Connection", "tcp",
+ 			    "Low-level TCP connection options");
+ 	    ctrl_checkbox(s, "Disable Nagle's algorithm (TCP_NODELAY option)",
+-			  'n', HELPCTX(connection_nodelay),
++			  'l', HELPCTX(connection_nodelay),
+ 			  conf_checkbox_handler,
+ 			  I(CONF_tcp_nodelay));
+ 	    ctrl_checkbox(s, "Enable TCP keepalives (SO_KEEPALIVE option)",
+@@ -1950,20 +2026,13 @@ void setup_config_box(struct controlbox *b, int midsession,
+ 			 HELPCTX(connection_username),
+ 			 conf_editbox_handler, I(CONF_username), I(1));
+ 	    {
+-		/* We assume the local username is sufficiently stable
+-		 * to include on the dialog box. */
+-		char *user = get_username();
+-		char *userlabel = dupprintf("Use system username (%s)",
+-					    user ? user : "");
+-		sfree(user);
+ 		ctrl_radiobuttons(s, "When username is not specified:", 'n', 4,
+ 				  HELPCTX(connection_username_from_env),
+ 				  conf_radiobutton_handler,
+ 				  I(CONF_username_from_env),
+ 				  "Prompt", I(FALSE),
+-				  userlabel, I(TRUE),
++                                  "Use system username", I(TRUE),
+ 				  NULL);
+-		sfree(userlabel);
+ 	    }
+ 
+ 	    s = ctrl_getset(b, "Connection/Data", "term",
+@@ -2393,7 +2462,7 @@ void setup_config_box(struct controlbox *b, int midsession,
+ 		 * displayed. 
+ 		 */
+ 
+-		ctrl_filesel(s, "User-supplied GSSAPI library path:", 's',
++		ctrl_filesel(s, "User-supplied GSSAPI library path:", NO_SHORTCUT,
+ 			     FILTER_DYNLIB_FILES, FALSE, "Select library file",
+ 			     HELPCTX(ssh_gssapi_libraries),
+ 			     conf_filesel_handler,
