@@ -24,8 +24,10 @@
 #define shrL(r, x, y)                                                          \
   (r.lo = ((uint32)x.lo >> (y)) | ((uint32)x.hi << (32 - (y))),                \
    r.hi = (uint32)x.hi >> (y))
-#define and (r, x, y)(r.lo = x.lo & y.lo, r.hi = x.hi & y.hi)
-#define xor (r, x, y)(r.lo = x.lo ^ y.lo, r.hi = x.hi ^ y.hi)
+// clang-format off
+#define and(r,x,y) ( r.lo = x.lo & y.lo, r.hi = x.hi & y.hi )
+#define xor(r,x,y) ( r.lo = x.lo ^ y.lo, r.hi = x.hi ^ y.hi )
+// clang-format on
 #define not(r, x)(r.lo = ~x.lo, r.hi = ~x.hi)
 #define INIT(h, l)                                                             \
   {                                                                            \
