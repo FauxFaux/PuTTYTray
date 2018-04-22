@@ -2,7 +2,9 @@
 #define PUTTY_UNIX_H
 
 #ifdef HAVE_CONFIG_H
-#include "uxconfig.h" /* Space to hide it from mkfiles.pl */
+// clang-format off
+# include "uxconfig.h" /* Space to hide it from mkfiles.pl */
+// clang-format on
 #endif
 
 #include <stdio.h>  /* for FILENAME_MAX */

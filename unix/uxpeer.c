@@ -4,7 +4,9 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "uxconfig.h" /* leading space prevents mkfiles.pl trying to follow */
+// clang-format off
+# include "uxconfig.h" /* leading space prevents mkfiles.pl trying to follow */
+// clang-format on
 #endif
 
 #ifdef HAVE_SO_PEERCRED
