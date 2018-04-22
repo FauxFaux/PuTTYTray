@@ -1,0 +1,17 @@
+BasedOnStyle: LLVM
+
+# mess with less stuff:
+SortIncludes: false
+ColumnLimit: 80
+
+# try and spread lines out as much as possible:
+BinPackArguments: false
+BinPackParameters: false
+BreakBeforeBraces: Custom
+BraceWrapping:
+    AfterEnum: true
+    AfterFunction: true
+AllowShortFunctionsOnASingleLine: false
+
+# trying to trigger parameters on their own line, instead of return type wrapping
+PenaltyReturnTypeOnItsOwnLine: 1000
