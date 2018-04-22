@@ -12,13 +12,13 @@
 
 /* allow GCC to check format strings against their arguments */
 extern void _dbug_doprnt_(const char *format, ...)
-  __attribute__((format(printf, 1, 2)));
+    __attribute__((format(printf, 1, 2)));
 
 extern void debug_memdump(const void *buf, int len, int L);
 
 #else
 
-#define debug_memdump(buf,len,L)
+#define debug_memdump(buf, len, L)
 
 #endif
 

@@ -1,4 +1,5 @@
-enum cthelper_exitcode {
+enum cthelper_exitcode
+{
   CthelperSuccess = 0,
   CthelperInvalidUsage,
   CthelperInvalidPort,

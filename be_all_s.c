@@ -22,13 +22,11 @@ const int be_default_protocol = PROT_TELNET;
 const int be_default_protocol = PROT_SSH;
 #endif
 
-Backend *backends[] = {
-    &ssh_backend,
-    &telnet_backend,
-    &rlogin_backend,
-    &raw_backend,
-    &adb_backend,
-    &serial_backend,
-    &cygterm_backend,
-    NULL
-};
+Backend *backends[] = {&ssh_backend,
+                       &telnet_backend,
+                       &rlogin_backend,
+                       &raw_backend,
+                       &adb_backend,
+                       &serial_backend,
+                       &cygterm_backend,
+                       NULL};

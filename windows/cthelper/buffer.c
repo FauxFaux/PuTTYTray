@@ -7,8 +7,7 @@
 #include "buffer.h"
 #include "debug.h"
 
-Buffer
-buffer_init(size_t size)
+Buffer buffer_init(size_t size)
 {
   Buffer b;
 
@@ -19,18 +18,17 @@ buffer_init(size_t size)
   DBUG_RETURN(b);
 }
 
-void
-buffer_free(Buffer *pb)
+void buffer_free(Buffer *pb)
 {
   DBUG_ENTER("buffer_free");
   assert(pb);
-  if (*pb) free(*pb);
+  if (*pb)
+    free(*pb);
   *pb = 0;
   DBUG_VOID_RETURN;
 }
 
-ssize_t
-buffer_read(Buffer b, int d)
+ssize_t buffer_read(Buffer b, int d)
 {
   ssize_t n, total;
   DBUG_ENTER("buffer_read");
@@ -47,8 +45,7 @@ buffer_read(Buffer b, int d)
   DBUG_RETURN(total ? total : n);
 }
 
-ssize_t
-buffer_write(Buffer b, int d)
+ssize_t buffer_write(Buffer b, int d)
 {
   ssize_t n, total;
   DBUG_ENTER("buffer_write");
@@ -64,8 +61,7 @@ buffer_write(Buffer b, int d)
   DBUG_RETURN(total ? total : n);
 }
 
-size_t
-buffer_consumed(Buffer b, size_t n)
+size_t buffer_consumed(Buffer b, size_t n)
 {
   DBUG_ENTER("buffer_consumed");
   assert(0 < n && n <= b->len);

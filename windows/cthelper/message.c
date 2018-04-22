@@ -3,8 +3,7 @@
 #include "message.h"
 #include "debug.h"
 
-int
-message_get(Message *m, const unsigned char *data, size_t len)
+int message_get(Message *m, const unsigned char *data, size_t len)
 {
   int size;
 

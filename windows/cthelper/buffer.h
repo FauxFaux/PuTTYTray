@@ -17,9 +17,12 @@ Buffer buffer_init(size_t size);
 void buffer_free(Buffer *pb);
 
 /* Initialize a Buffer with alloca() */
-#define BUFFER_ALLOCA(b,s) do{\
-    b = alloca(sizeof(b)+(s)); b->avail = s; b->len = 0;\
-  }while(0)
+#define BUFFER_ALLOCA(b, s)                                                    \
+  do {                                                                         \
+    b = alloca(sizeof(b) + (s));                                               \
+    b->avail = s;                                                              \
+    b->len = 0;                                                                \
+  } while (0)
 
 /* Returns true if buffer is full */
 #define buffer_isfull(b) ((b)->avail == 0)

@@ -16,191 +16,204 @@
 typedef struct Socket_localproxy_tag *Local_Proxy_Socket;
 
 struct Socket_localproxy_tag {
-    const struct socket_function_table *fn;
-    /* the above variable absolutely *must* be the first in this structure */
+  const struct socket_function_table *fn;
+  /* the above variable absolutely *must* be the first in this structure */
 
-    HANDLE to_cmd_H, from_cmd_H;
-    struct handle *to_cmd_h, *from_cmd_h;
+  HANDLE to_cmd_H, from_cmd_H;
+  struct handle *to_cmd_h, *from_cmd_h;
 
-    char *error;
+  char *error;
 
-    Plug plug;
+  Plug plug;
 
-    void *privptr;
+  void *privptr;
 };
 
 int localproxy_gotdata(struct handle *h, void *data, int len)
 {
-    Local_Proxy_Socket ps = (Local_Proxy_Socket) handle_get_privdata(h);
+  Local_Proxy_Socket ps = (Local_Proxy_Socket)handle_get_privdata(h);
 
-    if (len < 0) {
-	return plug_closing(ps->plug, "Read error from local proxy command",
-			    0, 0);
-    } else if (len == 0) {
-	return plug_closing(ps->plug, NULL, 0, 0);
-    } else {
-	return plug_receive(ps->plug, 0, data, len);
-    }
+  if (len < 0) {
+    return plug_closing(ps->plug, "Read error from local proxy command", 0, 0);
+  } else if (len == 0) {
+    return plug_closing(ps->plug, NULL, 0, 0);
+  } else {
+    return plug_receive(ps->plug, 0, data, len);
+  }
 }
 
 void localproxy_sentdata(struct handle *h, int new_backlog)
 {
-    Local_Proxy_Socket ps = (Local_Proxy_Socket) handle_get_privdata(h);
-    
-    plug_sent(ps->plug, new_backlog);
+  Local_Proxy_Socket ps = (Local_Proxy_Socket)handle_get_privdata(h);
+
+  plug_sent(ps->plug, new_backlog);
 }
 
-static Plug sk_localproxy_plug (Socket s, Plug p)
+static Plug sk_localproxy_plug(Socket s, Plug p)
 {
-    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
-    Plug ret = ps->plug;
-    if (p)
-	ps->plug = p;
-    return ret;
+  Local_Proxy_Socket ps = (Local_Proxy_Socket)s;
+  Plug ret = ps->plug;
+  if (p)
+    ps->plug = p;
+  return ret;
 }
 
-static void sk_localproxy_close (Socket s)
+static void sk_localproxy_close(Socket s)
 {
-    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
+  Local_Proxy_Socket ps = (Local_Proxy_Socket)s;
 
-    handle_free(ps->to_cmd_h);
-    handle_free(ps->from_cmd_h);
-    CloseHandle(ps->to_cmd_H);
-    CloseHandle(ps->from_cmd_H);
+  handle_free(ps->to_cmd_h);
+  handle_free(ps->from_cmd_h);
+  CloseHandle(ps->to_cmd_H);
+  CloseHandle(ps->from_cmd_H);
 
-    sfree(ps);
+  sfree(ps);
 }
 
-static int sk_localproxy_write (Socket s, const char *data, int len)
+static int sk_localproxy_write(Socket s, const char *data, int len)
 {
-    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
+  Local_Proxy_Socket ps = (Local_Proxy_Socket)s;
 
-    return handle_write(ps->to_cmd_h, data, len);
+  return handle_write(ps->to_cmd_h, data, len);
 }
 
 static int sk_localproxy_write_oob(Socket s, const char *data, int len)
 {
-    /*
-     * oob data is treated as inband; nasty, but nothing really
-     * better we can do
-     */
-    return sk_localproxy_write(s, data, len);
+  /*
+   * oob data is treated as inband; nasty, but nothing really
+   * better we can do
+   */
+  return sk_localproxy_write(s, data, len);
 }
 
 static void sk_localproxy_write_eof(Socket s)
 {
-    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
+  Local_Proxy_Socket ps = (Local_Proxy_Socket)s;
 
-    handle_write_eof(ps->to_cmd_h);
+  handle_write_eof(ps->to_cmd_h);
 }
 
 static void sk_localproxy_flush(Socket s)
 {
-    /* Local_Proxy_Socket ps = (Local_Proxy_Socket) s; */
-    /* do nothing */
+  /* Local_Proxy_Socket ps = (Local_Proxy_Socket) s; */
+  /* do nothing */
 }
 
 static void sk_localproxy_set_private_ptr(Socket s, void *ptr)
 {
-    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
-    ps->privptr = ptr;
+  Local_Proxy_Socket ps = (Local_Proxy_Socket)s;
+  ps->privptr = ptr;
 }
 
 static void *sk_localproxy_get_private_ptr(Socket s)
 {
-    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
-    return ps->privptr;
+  Local_Proxy_Socket ps = (Local_Proxy_Socket)s;
+  return ps->privptr;
 }
 
 static void sk_localproxy_set_frozen(Socket s, int is_frozen)
 {
-    /*
-     * FIXME
-     */
+  /*
+   * FIXME
+   */
 }
 
 static const char *sk_localproxy_socket_error(Socket s)
 {
-    Local_Proxy_Socket ps = (Local_Proxy_Socket) s;
-    return ps->error;
+  Local_Proxy_Socket ps = (Local_Proxy_Socket)s;
+  return ps->error;
 }
 
-Socket make_handle_socket(HANDLE send_H, HANDLE recv_H, Plug plug,
+Socket make_handle_socket(HANDLE send_H,
+                          HANDLE recv_H,
+                          Plug plug,
                           int overlapped);
 
-Socket platform_new_connection(SockAddr addr, char *hostname,
-			       int port, int privport,
-			       int oobinline, int nodelay, int keepalive,
-			       Plug plug, Conf *conf)
+Socket platform_new_connection(SockAddr addr,
+                               char *hostname,
+                               int port,
+                               int privport,
+                               int oobinline,
+                               int nodelay,
+                               int keepalive,
+                               Plug plug,
+                               Conf *conf)
 {
-    char *cmd;
-    HANDLE us_to_cmd, us_from_cmd, cmd_to_us, cmd_from_us;
-    SECURITY_ATTRIBUTES sa;
-    STARTUPINFO si;
-    PROCESS_INFORMATION pi;
+  char *cmd;
+  HANDLE us_to_cmd, us_from_cmd, cmd_to_us, cmd_from_us;
+  SECURITY_ATTRIBUTES sa;
+  STARTUPINFO si;
+  PROCESS_INFORMATION pi;
 
-    if (conf_get_int(conf, CONF_proxy_type) != PROXY_CMD)
-	return NULL;
+  if (conf_get_int(conf, CONF_proxy_type) != PROXY_CMD)
+    return NULL;
 
-    cmd = format_telnet_command(addr, port, conf);
+  cmd = format_telnet_command(addr, port, conf);
 
-    /* We are responsible for this and don't need it any more */
-    sk_addr_free(addr);
+  /* We are responsible for this and don't need it any more */
+  sk_addr_free(addr);
 
-    {
-	char *msg = dupprintf("Starting local proxy command: %s", cmd);
-	/* We're allowed to pass NULL here, because we're part of the Windows
-	 * front end so we know logevent doesn't expect any data. */
-	logevent(NULL, msg);
-	sfree(msg);
-    }
+  {
+    char *msg = dupprintf("Starting local proxy command: %s", cmd);
+    /* We're allowed to pass NULL here, because we're part of the Windows
+     * front end so we know logevent doesn't expect any data. */
+    logevent(NULL, msg);
+    sfree(msg);
+  }
 
-    /*
-     * Create the pipes to the proxy command, and spawn the proxy
-     * command process.
-     */
-    sa.nLength = sizeof(sa);
-    sa.lpSecurityDescriptor = NULL;    /* default */
-    sa.bInheritHandle = TRUE;
-    if (!CreatePipe(&us_from_cmd, &cmd_to_us, &sa, 0)) {
-	Socket ret =
-            new_error_socket("Unable to create pipes for proxy command", plug);
-        sfree(cmd);
-	return ret;
-    }
-
-    if (!CreatePipe(&cmd_from_us, &us_to_cmd, &sa, 0)) {
-	Socket ret =
-            new_error_socket("Unable to create pipes for proxy command", plug);
-        sfree(cmd);
-	CloseHandle(us_from_cmd);
-	CloseHandle(cmd_to_us);
-	return ret;
-    }
-
-    SetHandleInformation(us_to_cmd, HANDLE_FLAG_INHERIT, 0);
-    SetHandleInformation(us_from_cmd, HANDLE_FLAG_INHERIT, 0);
-
-    si.cb = sizeof(si);
-    si.lpReserved = NULL;
-    si.lpDesktop = NULL;
-    si.lpTitle = NULL;
-    si.dwFlags = STARTF_USESTDHANDLES;
-    si.cbReserved2 = 0;
-    si.lpReserved2 = NULL;
-    si.hStdInput = cmd_from_us;
-    si.hStdOutput = cmd_to_us;
-    si.hStdError = NULL;
-    CreateProcess(NULL, cmd, NULL, NULL, TRUE,
-		  CREATE_NO_WINDOW | NORMAL_PRIORITY_CLASS,
-		  NULL, NULL, &si, &pi);
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
-
+  /*
+   * Create the pipes to the proxy command, and spawn the proxy
+   * command process.
+   */
+  sa.nLength = sizeof(sa);
+  sa.lpSecurityDescriptor = NULL; /* default */
+  sa.bInheritHandle = TRUE;
+  if (!CreatePipe(&us_from_cmd, &cmd_to_us, &sa, 0)) {
+    Socket ret =
+        new_error_socket("Unable to create pipes for proxy command", plug);
     sfree(cmd);
+    return ret;
+  }
 
-    CloseHandle(cmd_from_us);
+  if (!CreatePipe(&cmd_from_us, &us_to_cmd, &sa, 0)) {
+    Socket ret =
+        new_error_socket("Unable to create pipes for proxy command", plug);
+    sfree(cmd);
+    CloseHandle(us_from_cmd);
     CloseHandle(cmd_to_us);
+    return ret;
+  }
 
-    return make_handle_socket(us_to_cmd, us_from_cmd, plug, FALSE);
+  SetHandleInformation(us_to_cmd, HANDLE_FLAG_INHERIT, 0);
+  SetHandleInformation(us_from_cmd, HANDLE_FLAG_INHERIT, 0);
+
+  si.cb = sizeof(si);
+  si.lpReserved = NULL;
+  si.lpDesktop = NULL;
+  si.lpTitle = NULL;
+  si.dwFlags = STARTF_USESTDHANDLES;
+  si.cbReserved2 = 0;
+  si.lpReserved2 = NULL;
+  si.hStdInput = cmd_from_us;
+  si.hStdOutput = cmd_to_us;
+  si.hStdError = NULL;
+  CreateProcess(NULL,
+                cmd,
+                NULL,
+                NULL,
+                TRUE,
+                CREATE_NO_WINDOW | NORMAL_PRIORITY_CLASS,
+                NULL,
+                NULL,
+                &si,
+                &pi);
+  CloseHandle(pi.hProcess);
+  CloseHandle(pi.hThread);
+
+  sfree(cmd);
+
+  CloseHandle(cmd_from_us);
+  CloseHandle(cmd_to_us);
+
+  return make_handle_socket(us_to_cmd, us_from_cmd, plug, FALSE);
 }
