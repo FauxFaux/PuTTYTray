@@ -65,6 +65,7 @@
 #define gtk_adjustment_set_page_increment(a, val) ((a)->page_increment = (val))
 #define gtk_adjustment_set_step_increment(a, val) ((a)->step_increment = (val))
 #define gtk_adjustment_get_value(a) ((a)->value)
+#define gdk_display_beep(disp) gdk_beep()
 
 #define gtk_widget_set_has_window(w, b)                                        \
   gtk1_widget_set_unset_flag(w, GTK_NO_WINDOW, !(b))
