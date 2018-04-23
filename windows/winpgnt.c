@@ -1,7 +1,15 @@
 /*
  * Pageant: the PuTTY Authentication Agent.
  */
-
+/*
+ * JK: disk config 0.11 from 20. 3. 2017
+ *
+ * rewritten for storing information primary to disk
+ * reasonable error handling and reporting except for
+ * memory allocation errors (not enough memory)
+ *
+ * http://jakub.kotrla.net/putty/
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -67,6 +75,56 @@ static filereq *keypath = NULL;
 #define PUTTY_REGKEY "Software\\SimonTatham\\PuTTY\\Sessions"
 #define PUTTY_DEFAULT "Default%20Settings"
 static int initial_menuitems_count;
+
+/* JK: buffers for path strings */
+static char oldpath[2 * MAX_PATH] = "\0";
+static char puttypath[2 * MAX_PATH] = "\0";
+
+/* JK: my generic function for simplyfing error reporting */
+DWORD errorShow(const char *pcErrText, const char *pcErrParam)
+{
+  HWND hwRParent;
+  DWORD errorCode;
+  char pcBuf[16];
+  char *pcMessage;
+
+  if (pcErrParam != NULL) {
+    pcMessage = snewn(strlen(pcErrParam) + strlen(pcErrText) + 31, char);
+  } else {
+    pcMessage = snewn(strlen(pcErrText) + 31, char);
+  }
+
+  errorCode = GetLastError();
+  ltoa(errorCode, pcBuf, 10);
+
+  strcpy(pcMessage, "Error: ");
+  strcat(pcMessage, pcErrText);
+  strcat(pcMessage, "\n");
+
+  if (pcErrParam) {
+    strcat(pcMessage, pcErrParam);
+    strcat(pcMessage, "\n");
+  }
+  strcat(pcMessage, "Error code: ");
+  strcat(pcMessage, pcBuf);
+
+  /* JK: get parent-window and show */
+  hwRParent = GetActiveWindow();
+  if (hwRParent != NULL) {
+    hwRParent = GetLastActivePopup(hwRParent);
+  }
+
+  if (MessageBox(hwRParent,
+                 pcMessage,
+                 "Error",
+                 MB_OK | MB_APPLMODAL | MB_ICONEXCLAMATION) == 0) {
+    /* JK: this is really bad -> just ignore */
+    return 0;
+  }
+
+  sfree(pcMessage);
+  return errorCode;
+};
 
 /*
  * Print a modal (Really Bad) message box and perform a fatal exit.
@@ -716,32 +774,258 @@ static BOOL AddTrayIcon(HWND hwnd)
   return res;
 }
 
-/* Update the saved-sessions menu. */
+/*
+ * JK: rewritten to be able to load configuration from disk
+ * as rewritten putty saves it there - http://jakub.kotrla.net/putty/
+ */
 static void update_sessions(void)
 {
   int num_entries;
   HKEY hkey;
-  TCHAR buf[MAX_PATH + 1];
+  TCHAR buf[MAX_PATH + 128];
   MENUITEMINFO mii;
 
+  HANDLE hFile;
+  char *fileCont = NULL;
+  DWORD fileSize;
+  DWORD bytesRead;
+  char *p = NULL;
+  char *p2 = NULL;
+  char *pcBuf = NULL;
+
+  char sesspath[2 * MAX_PATH] = "\0";
+  char curdir[2 * MAX_PATH] = "\0";
+  char sessionsuffix[16] = "\0";
+  WIN32_FIND_DATA FindFileData;
   int index_key, index_menu;
 
   if (!putty_path)
     return;
 
-  if (ERROR_SUCCESS != RegOpenKey(HKEY_CURRENT_USER, PUTTY_REGKEY, &hkey))
-    return;
-
+  /* clear old menu */
   for (num_entries = GetMenuItemCount(session_menu);
        num_entries > initial_menuitems_count;
        num_entries--)
     RemoveMenu(session_menu, 0, MF_BYPOSITION);
 
+  /* init for new menu */
   index_key = 0;
   index_menu = 0;
 
+  /* JK:  save path/curdir */
+  GetCurrentDirectory((MAX_PATH * 2), oldpath);
+
+  /* JK: try curdir for putty.conf first */
+  hFile = CreateFile("putty.conf",
+                     GENERIC_READ,
+                     FILE_SHARE_READ,
+                     NULL,
+                     OPEN_EXISTING,
+                     FILE_ATTRIBUTE_NORMAL,
+                     NULL);
+
+  if (hFile != INVALID_HANDLE_VALUE) {
+    /* JK: there is a putty.conf in curdir - use it and use curdir as puttypath
+     */
+    GetCurrentDirectory((MAX_PATH * 2), puttypath);
+    GetCurrentDirectory((MAX_PATH * 2), curdir);
+    CloseHandle(hFile);
+  } else {
+    /* JK: get where putty.exe is */
+    if (GetModuleFileName(NULL, puttypath, (MAX_PATH * 2)) != 0) {
+      p = strrchr(puttypath, '\\');
+      if (p) {
+        *p = '\0';
+      }
+      SetCurrentDirectory(puttypath);
+    } else
+      GetCurrentDirectory((MAX_PATH * 2), puttypath);
+  }
+
+  /* JK: set default values - if there is a config file, it will be overwitten
+   */
+  strcpy(sesspath, puttypath);
+  strcat(sesspath, "\\sessions");
+
+  hFile = CreateFile("putty.conf",
+                     GENERIC_READ,
+                     FILE_SHARE_READ,
+                     NULL,
+                     OPEN_EXISTING,
+                     FILE_ATTRIBUTE_NORMAL,
+                     NULL);
+
+  /* JK: now we can pre-clean-up */
+  SetCurrentDirectory(oldpath);
+
+  /* JK: read from putty.conf if is there */
+  if (hFile != INVALID_HANDLE_VALUE) {
+    fileSize = GetFileSize(hFile, NULL);
+    fileCont = snewn(fileSize + 16, char);
+
+    if (!ReadFile(hFile, fileCont, fileSize, &bytesRead, NULL)) {
+      errorShow("Unable to read configuration file, falling back to defaults",
+                NULL);
+
+      /* JK: default values are already there - just clean-up */
+    } else {
+      /* JK: parse conf file to path variables */
+      *(fileCont + fileSize + 1) = '\0';
+      *(fileCont + fileSize) = '\n';
+      p = fileCont;
+      while (p) {
+        if (*p == ';') { /* JK: comment -> skip line */
+          p = strchr(p, '\n');
+          ++p;
+          continue;
+        }
+        p2 = strchr(p, '=');
+        if (!p2)
+          break;
+        *p2 = '\0';
+        ++p2;
+
+        if (!strcmp(p, "sessions")) {
+          p = strchr(p2, '\n');
+          *p = '\0';
+
+          /* This is actually call to joinPath, done inline and optimized just
+           * for pageant */
+          pcBuf = snewn(MAX_PATH + 1, char);
+
+          /* at first ExpandEnvironmentStrings */
+          if (0 == ExpandEnvironmentStrings(p2, pcBuf, MAX_PATH)) {
+            /* JK: failure -> revert back - but it ussualy won't work, so report
+             * error to user! */
+            errorShow("Unable to ExpandEnvironmentStrings for session path",
+                      p2);
+            strncpy(pcBuf, p2, strlen(p2));
+          }
+
+          if ((*pcBuf == '/') || (*pcBuf == '\\')) {
+            /* JK: everything ok */
+            strcpy(sesspath, curdir);
+            strcat(sesspath, pcBuf);
+          } else {
+            if (*(pcBuf + 1) == ':') {
+              /* JK: absolute path */
+              strcpy(sesspath, pcBuf);
+            } else {
+              /* JK: some weird relative path - add '\' */
+              strcpy(sesspath, curdir);
+              strcat(sesspath, "\\");
+              strcat(sesspath, pcBuf);
+            }
+          }
+          sfree(pcBuf);
+
+          p2 = sesspath + strlen(sesspath) - 1;
+          while ((*p2 == ' ') || (*p2 == '\n') || (*p2 == '\r') ||
+                 (*p2 == '\t'))
+            --p2;
+          *(p2 + 1) = '\0';
+        } else if (!strcmp(p, "sessionsuffix")) {
+          p = strchr(p2, '\n');
+          *p = '\0';
+          strcpy(sessionsuffix, p2);
+          p2 = sessionsuffix + strlen(sessionsuffix) - 1;
+          while ((*p2 == ' ') || (*p2 == '\n') || (*p2 == '\r') ||
+                 (*p2 == '\t'))
+            --p2;
+          *(p2 + 1) = '\0';
+        } else {
+          p = strchr(p2, '\n');
+        }
+        /* JK: else if - pageant don't care about other stuff */
+        ++p;
+      }
+    }
+
+    CloseHandle(hFile);
+    sfree(fileCont);
+  }
+  /* else - INVALID_HANDLE {
+           * JK: unable to read conf file - probably doesn't exists
+           * we won't create one, user wants putty light, just fall back to
+  defaults
+           * and defaults are already there
+  }*/
+
+  /* JK: we have path to sessions */
+
+  if (SetCurrentDirectory(sesspath)) {
+
+    /* JK: we're able to load from files */
+    hFile = FindFirstFile("*", &FindFileData);
+
+    /* JK: skip directories ("." and ".." too) */
+    while ((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ==
+           FILE_ATTRIBUTE_DIRECTORY) {
+      if (!FindNextFile(hFile, &FindFileData)) {
+        break;
+      }
+    }
+
+    /* JK: add first file */
+    if (hFile != INVALID_HANDLE_VALUE) {
+      TCHAR session_name[MAX_PATH + 1 + 16];
+
+      unmungestr(FindFileData.cFileName, session_name, MAX_PATH);
+      /* JK: cut off session.suffix */
+      p = session_name + strlen(session_name) - strlen(sessionsuffix);
+      if (strncmp(p, sessionsuffix, strlen(sessionsuffix)) == 0) {
+        *p = '\0';
+
+        if (strcmp(buf, PUTTY_DEFAULT) != 0) {
+          memset(&mii, 0, sizeof(mii));
+          mii.cbSize = sizeof(mii);
+          mii.fMask = MIIM_TYPE | MIIM_STATE | MIIM_ID;
+          mii.fType = MFT_STRING;
+          mii.fState = MFS_ENABLED;
+          mii.wID = (index_menu * 16) + IDM_SESSIONS_BASE;
+          mii.dwTypeData = session_name;
+          InsertMenuItem(session_menu, index_menu, TRUE, &mii);
+          index_menu++;
+        }
+      }
+    }
+
+    /* JK: enum files */
+    while (FindNextFile(hFile, &FindFileData)) {
+      /* JK: add files as menu item one-by-one */
+
+      TCHAR session_name[MAX_PATH + 1];
+      unmungestr(FindFileData.cFileName, session_name, MAX_PATH);
+      /* JK: cut off sessionsuffix */
+      p = session_name + strlen(session_name) - strlen(sessionsuffix);
+      if (strncmp(p, sessionsuffix, strlen(sessionsuffix)) == 0) {
+        *p = '\0';
+
+        if (strcmp(buf, PUTTY_DEFAULT) != 0) {
+          memset(&mii, 0, sizeof(mii));
+          mii.cbSize = sizeof(mii);
+          mii.fMask = MIIM_TYPE | MIIM_STATE | MIIM_ID;
+          mii.fType = MFT_STRING;
+          mii.fState = MFS_ENABLED;
+          mii.wID = (index_menu * 16) + IDM_SESSIONS_BASE;
+          mii.dwTypeData = session_name;
+          InsertMenuItem(session_menu, index_menu, TRUE, &mii);
+          index_menu++;
+        }
+      }
+    }
+
+    FindClose(hFile);
+    SetCurrentDirectory(curdir);
+  }
+
+  /* JK: load keys from registry */
+  if (ERROR_SUCCESS != RegOpenKey(HKEY_CURRENT_USER, PUTTY_REGKEY, &hkey)) {
+    return;
+  }
+
   while (ERROR_SUCCESS == RegEnumKey(hkey, index_key, buf, MAX_PATH)) {
-    TCHAR session_name[MAX_PATH + 1];
+    TCHAR session_name[MAX_PATH + 1 + 12];
     unmungestr(buf, session_name, MAX_PATH);
     if (strcmp(buf, PUTTY_DEFAULT) != 0) {
       memset(&mii, 0, sizeof(mii));
@@ -750,6 +1034,8 @@ static void update_sessions(void)
       mii.fType = MFT_STRING;
       mii.fState = MFS_ENABLED;
       mii.wID = (index_menu * 16) + IDM_SESSIONS_BASE;
+      /* JK: add [registry] mark */
+      strcat(session_name, " [registry]");
       mii.dwTypeData = session_name;
       InsertMenuItem(session_menu, index_menu, TRUE, &mii);
       index_menu++;
@@ -875,8 +1161,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
   case WM_SYSCOMMAND:
     switch (wParam & ~0xF) { /* low 4 bits reserved to Windows */
     case IDM_PUTTY:
-      if ((INT_PTR)ShellExecute(
-              hwnd, NULL, putty_path, _T(""), _T(""), SW_SHOW) <= 32) {
+      /* JK: execute putty.exe with working directory same as is for pageant.exe
+       */
+      if ((int)ShellExecute(
+              hwnd, NULL, putty_path, _T(""), puttypath, SW_SHOW) <= 32) {
         MessageBox(
             NULL, "Unable to execute PuTTY!", "Error", MB_OK | MB_ICONERROR);
       }
@@ -949,8 +1237,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
         GetMenuItemInfo(session_menu, wParam, FALSE, &mii);
         strcpy(param, "@");
         strcat(param, mii.dwTypeData);
-        if ((INT_PTR)ShellExecute(
-                hwnd, NULL, putty_path, param, _T(""), SW_SHOW) <= 32) {
+        /* JK: execute putty.exe with working directory same as is for
+         * pageant.exe */
+        if ((int)ShellExecute(
+                hwnd, NULL, putty_path, param, puttypath, SW_SHOW) <= 32) {
           MessageBox(
               NULL, "Unable to execute PuTTY!", "Error", MB_OK | MB_ICONERROR);
         }
