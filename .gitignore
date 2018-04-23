@@ -151,3 +151,8 @@
 /windows/*.wixobj
 /windows/*.wixpdb
 .clang-format
+doc/
+build/
+CMakeLists.txt
+.idea/
+cmake-*/
