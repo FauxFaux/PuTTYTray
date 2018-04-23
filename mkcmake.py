@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
-from collections import defaultdict
 import os
 import re
 import sys
+from collections import defaultdict
+from os.path import normpath
 
 
 def main():
@@ -73,6 +74,10 @@ find_package (X11 REQUIRED)
 include_directories (${{GTK3_INCLUDE_DIRS}} ${{X11_INCLUDE_DIR}})
 link_directories (${{GTK3_LIBRARY_DIRS}})
 add_definitions (${{GTK3_CFLAGS_OTHER}})
+
+#configure_file (unix/uxconfig.h.in ${{CMAKE_CURRENT_BINARY_DIR}}/uxconfig.h)
+#include_directories (${{CMAKE_CURRENT_BINARY_DIR}})
+#add_definitions (-DHAVE_CONFIG_H)
 endif (UNIX)
 
 # generated from Recipe:
@@ -95,7 +100,28 @@ endif (UNIX)
             raise Exception('bad platform: ' + platform)
 
         files = sorted(to_path(srcdirs, expand(mapping, mapping[app])))
-        print('add_executable({} {})'.format(name, ' '.join(files)))
+
+        # add headers, to placate CLion. Not needed by cmake.
+        HEADER = re.compile(r'#\s*include\s+"([^"]+)"')
+        headers = set()
+        for file in files:
+            with open(file) as f:
+                for line in f.readlines():
+                    ma = HEADER.match(line.strip())
+                    if ma:
+                        headers.add(ma.group(1))
+
+        headers = sorted(find_literal_file(srcdirs, header)
+                         for header in headers
+                         # generated or build system nonsense
+                         if header not in ['uxconfig.h', 'empty.h']
+                         # evading #include "enum.c" (sigh)
+                         and header.endswith('.h'))
+
+        print('add_executable({}\n  {}\n  {})'.format(
+            name,
+            ' '.join(files),
+            ' '.join(sorted(headers))))
 
         if platform in ['G', 'C']:
             print('endif (WIN32)')
@@ -120,18 +146,34 @@ def to_path(dirs, items):
         if '.' in item:
             sys.stderr.write('ignoring path {}\n'.format(item))
         else:
-            yield find_file(dirs, item)
+            yield find_c_file(dirs, item)
 
 
-def find_file(dirs, item):
-    for dir in dirs:
-        for ext in ['c', 'cpp']:
-            cand = '{}/{}.{}'.format(dir, item, ext)
-            if os.path.isfile(cand):
-                return os.path.normpath(cand)
+def find_c_file(dirs, item):
+    for ext in ['c', 'cpp']:
+        cand = dir_expand(dirs, '{}.{}'.format(item, ext))
+        if cand:
+            return cand
 
     raise Exception('no file named {}.[c|cpp] found in {}'
                     .format(item, dirs))
+
+
+def find_literal_file(dirs, item):
+    cand = dir_expand(dirs, item)
+    if cand:
+        return cand
+
+    raise Exception('no file named {} found in {}'
+                    .format(item, dirs))
+
+
+def dir_expand(dirs, path):
+    for sub in dirs:
+        cand = '{}/{}'.format(sub, path)
+        if os.path.isfile(cand):
+            return normpath(cand)
+    return None
 
 
 if '__main__' == __name__:
