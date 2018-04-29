@@ -90,7 +90,7 @@ endif (UNIX)
     for app in sorted(apps):
         name, platform = app.split('[')
         platform = platform[:-1]
-        if 'T' in platform:
+        if 'T' in platform or 'M' in platform:
             continue
         if platform in ['G', 'C']:
             print('if (WIN32)')
