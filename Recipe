@@ -237,11 +237,13 @@ TERMINAL = terminal wcwidth ldiscucs logging tree234 minibidi
 # GUI front end and terminal emulator (putty, puttytel).
 GUITERM  = TERMINAL window windlg winctrls sizetip winprint winutils
 	 + wincfg sercfg winhelp winjump
+	 + urlhack regex_lib urlhack_win
 
 # Same thing on Unix.
 UXTERM   = TERMINAL uxcfg sercfg uxucs uxprint timing callback miscucs
 GTKTERM  = UXTERM gtkwin gtkcfg gtkdlg gtkfont gtkcols gtkmisc xkeysym
 	 + x11misc gtkcomm
+	 + urlhack regex_lib urlhack_unix
 
 # Non-SSH back ends (putty, puttytel, plink).
 NONSSH   = telnet raw rlogin ldisc pinger

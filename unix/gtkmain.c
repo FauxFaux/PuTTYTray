@@ -36,6 +36,11 @@
 #include "gtkfont.h"
 #include "gtkmisc.h"
 
+
+#include "urlhack.h"
+
+
+
 #ifndef NOT_X_WINDOWS
 #include <gdk/gdkx.h>
 #include <X11/Xlib.h>
@@ -591,6 +596,10 @@ int main(int argc, char **argv)
   conf = conf_new();
 
   gtkcomm_setup();
+
+
+  urlhack_init();
+
 
   /*
    * Block SIGPIPE: if we attempt Duplicate Session or similar and

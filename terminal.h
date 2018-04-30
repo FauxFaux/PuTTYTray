@@ -20,6 +20,22 @@ typedef struct {
   int y, x;
 } pos;
 
+
+void clipme(Terminal *term,
+            pos top,
+            pos bottom,
+            int rect,
+            int desel,
+            void (*output)(Terminal *, void *, wchar_t *, int *, int, int));
+
+void urlhack_launch_url_helper(Terminal *term,
+                               void *frontend,
+                               wchar_t *data,
+                               int *attr,
+                               int len,
+                               int must_deselect);
+
+
 #ifdef OPTIMISE_SCROLL
 struct scrollregion {
   struct scrollregion *next;
@@ -335,6 +351,7 @@ struct terminal_tag {
   int scroll_on_disp;
   int scroll_on_key;
   int xterm_256_colour;
+  int url_update;
 };
 
 #define in_utf(term) ((term)->utf || (term)->ucsdata->line_codepage == CP_UTF8)

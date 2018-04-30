@@ -138,6 +138,24 @@ typedef struct terminal_tag Terminal;
 #define ATTR_DEFBG (258 << ATTR_BGSHIFT)
 #define ATTR_DEFAULT (ATTR_DEFFG | ATTR_DEFBG)
 
+
+#define CHAR_MASK 0x000000FFUL
+
+enum
+{
+  URLHACK_UNDERLINE_ALWAYS,
+  URLHACK_UNDERLINE_HOVER,
+  URLHACK_UNDERLINE_NEVER
+};
+
+enum
+{
+  URLHACK_REGEX_CUSTOM = 0,
+  URLHACK_REGEX_CLASSIC = 1,
+  URLHACK_REGEX_LIBERAL,
+};
+
+
 struct sesslist {
   int nsessions;
   const char **sessions;
@@ -750,7 +768,11 @@ void free_ctx(Context);
 void palette_set(void *frontend, int, int, int, int);
 void palette_reset(void *frontend);
 void write_aclip(void *frontend, char *, int, int);
-void write_clip(void *frontend, wchar_t *, int *, int, int);
+
+
+void write_clip(Terminal *term, void *frontend, wchar_t *, int *, int, int);
+
+
 void get_clip(void *frontend, wchar_t **, int *);
 void optimised_move(void *frontend, int, int, int);
 void set_raw_mouse_mode(void *frontend, int);
@@ -1057,7 +1079,14 @@ void cleanup_exit(int);
   X(FONT, NONE, wideboldfont)                                                  \
   X(INT, NONE, shadowboldoffset)                                               \
   X(INT, NONE, crhaslf)                                                        \
-  X(STR, NONE, winclass)
+  X(STR, NONE, winclass)                                                       \
+  X(INT, NONE, url_ctrl_click)                                                 \
+  X(INT, NONE, url_underline)                                                  \
+  X(INT, NONE, url_defbrowser)                                                 \
+  X(INT, NONE, url_defregex)                                                   \
+  X(FILENAME, NONE, url_browser)                                               \
+  X(STR, NONE, url_regex)
+
 
 /* Now define the actual enum of option keywords using that macro. */
 #define CONF_ENUM_DEF(valtype, keytype, keyword) CONF_##keyword,

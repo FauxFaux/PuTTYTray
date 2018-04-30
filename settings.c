@@ -58,6 +58,60 @@ const char *const ttymodes[] = {
     "ECHOKE", "PENDIN",  "OPOST",  "OLCUC",   "ONLCR",   "OCRNL",  "ONOCR",
     "ONLRET", "CS7",     "CS8",    "PARENB",  "PARODD",  NULL};
 
+
+const char *urlhack_default_regex =
+    "("
+    "(((https?|ftp):\\/\\/)|www\\.)"
+    "("
+    "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)" // 127.0.0.1
+    "|("
+    "([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\." // ab-c.de-f.qrs.tuv.
+    // popular tlds, and anything that could be a country
+    "("
+    "academy|aero|agency|archi|arpa|asia|auction|audio|axa|bar|"
+    "bargains|bayern|beer|berlin|best|bid|bike|bio|biz|blue|boo|"
+    "boutique|brussels|build|builders|buzz|bzh|cab|camera|camp|"
+    "capital|cards|career|careers|cash|cat|center|ceo|cheap|city|"
+    "cleaning|clothing|club|codes|coffee|com|community|company|"
+    "computer|construction|consulting|contractors|cool|coop|"
+    "cruises|dance|dating|deals|dental|desi|diamonds|digital|"
+    "direct|directory|discount|dnp|domains|edu|education|email|"
+    "enterprises|equipment|estate|eus|events|exchange|expert|"
+    "exposed|fail|farm|financial|fish|fitness|flights|florist|foo|"
+    "foundation|fund|futbol|gal|gallery|gent|gift|glass|gle|"
+    "global|gmail|google|gov|graphics|gratis|guide|guru|hamburg|"
+    "haus|hiphop|hiv|holdings|holiday|host|house|immobilien|info|"
+    "ink|institute|int|international|investments|jetzt|jobs|"
+    "joburg|juegos|kaufen|kim|kitchen|kiwi|land|life|lighting|"
+    "limited|link|london|luxury|management|marketing|media|"
+    "melbourne|menu|mil|mobi|moda|moe|moscow|museum|nagoya|name|"
+    "net|new|ninja|nyc|onl|org|ovh|paris|partners|photo|"
+    "photography|photos|pics|pictures|pink|place|plumbing|post|"
+    "press|pro|prod|productions|properties|pub|quebec|realtor|"
+    "recipes|red|reise|reisen|ren|rentals|repair|report|rest|"
+    "reviews|rocks|ruhr|saarland|scot|services|sexy|shiksha|shoes|"
+    "singles|social|solar|solutions|soy|supplies|support|systems|"
+    "tattoo|technology|tel|tips|today|tokyo|tools|top|town|toys|"
+    "trade|training|travel|university|uno|uol|vegas|ventures|"
+    "viajes|vision|vote|voyage|wales|wang|watch|webcam|website|"
+    "wien|wiki|works|wtf|xxx|xyz|yandex|yokohama|youtube|zone"
+    "|[a-zA-Z][a-zA-Z]"
+    ")"
+    ")"
+    "|([a-z]+[0-9]*)" // http://foo
+    ")"
+    "(:[0-9]+)?" // :8080
+    "((\\/|\\?)[^ \"]*[^ ,;\\.:\">)])?"
+    ")"
+    "|(spotify:[^ ]+:[^ ]+)";
+
+const char *urlhack_liberal_regex =
+    "("
+    "([a-zA-Z]+://|[wW][wW][wW]\\.|spotify:|telnet:)"
+    "[^ '\")>]+"
+    ")";
+
+
 /*
  * Convenience functions to access the backends[] array
  * (which is only present in tools that manage settings).
@@ -612,6 +666,26 @@ void save_open_settings(void *sesskey, Conf *conf)
       sesskey, "ApplicationKeypad", conf_get_int(conf, CONF_app_keypad));
   write_setting_i(
       sesskey, "NetHackKeypad", conf_get_int(conf, CONF_nethack_keypad));
+
+
+  write_setting_i(
+      sesskey, "HyperlinkUnderline", conf_get_int(conf, CONF_url_underline));
+  write_setting_i(sesskey,
+                  "HyperlinkUseCtrlClick",
+                  conf_get_int(conf, CONF_url_ctrl_click));
+  write_setting_i(sesskey,
+                  "HyperlinkBrowserUseDefault",
+                  conf_get_int(conf, CONF_url_defbrowser));
+  write_setting_filename(
+      sesskey, "HyperlinkBrowser", conf_get_filename(conf, CONF_url_browser));
+  write_setting_i(sesskey,
+                  "HyperlinkRegularExpressionUseDefault",
+                  conf_get_int(conf, CONF_url_defregex));
+  write_setting_s(sesskey,
+                  "HyperlinkRegularExpression",
+                  conf_get_str(conf, CONF_url_regex));
+
+
   write_setting_i(sesskey, "AltF4", conf_get_int(conf, CONF_alt_f4));
   write_setting_i(sesskey, "AltSpace", conf_get_int(conf, CONF_alt_space));
   write_setting_i(sesskey, "AltOnly", conf_get_int(conf, CONF_alt_only));
@@ -1086,6 +1160,24 @@ void load_open_settings(void *sesskey, Conf *conf)
   gppi(sesskey, "ApplicationCursorKeys", 0, conf, CONF_app_cursor);
   gppi(sesskey, "ApplicationKeypad", 0, conf, CONF_app_keypad);
   gppi(sesskey, "NetHackKeypad", 0, conf, CONF_nethack_keypad);
+
+
+  gppi(sesskey, "HyperlinkUnderline", 1, conf, CONF_url_underline);
+  gppi(sesskey, "HyperlinkUseCtrlClick", 0, conf, CONF_url_ctrl_click);
+  gppi(sesskey, "HyperlinkBrowserUseDefault", 1, conf, CONF_url_defbrowser);
+  gppfile(sesskey, "HyperlinkBrowser", conf, CONF_url_browser);
+  gppi(sesskey,
+       "HyperlinkRegularExpressionUseDefault",
+       1,
+       conf,
+       CONF_url_defregex);
+  gpps(sesskey,
+       "HyperlinkRegularExpression",
+       urlhack_default_regex,
+       conf,
+       CONF_url_regex);
+
+
   gppi(sesskey, "AltF4", 1, conf, CONF_alt_f4);
   gppi(sesskey, "AltSpace", 0, conf, CONF_alt_space);
   gppi(sesskey, "AltOnly", 0, conf, CONF_alt_only);

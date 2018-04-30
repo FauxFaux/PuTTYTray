@@ -421,6 +421,86 @@ void win_setup_config_box(struct controlbox *b,
                 conf_checkbox_handler,
                 I(CONF_fullscreenonaltenter));
 
+
+  ctrl_settitle(
+      b, "Window/Hyperlinks", "Options controlling behaviour of hyperlinks");
+  s = ctrl_getset(
+      b, "Window/Hyperlinks", "general", "General options for hyperlinks");
+
+  ctrl_radiobuttons(s,
+                    "Underline hyperlinks:",
+                    NO_SHORTCUT,
+                    1,
+                    HELPCTX(no_help),
+                    conf_radiobutton_handler,
+                    I(CONF_url_underline),
+                    "Always",
+                    NO_SHORTCUT,
+                    I(URLHACK_UNDERLINE_ALWAYS),
+                    "When hovered upon",
+                    NO_SHORTCUT,
+                    I(URLHACK_UNDERLINE_HOVER),
+                    "Never",
+                    NO_SHORTCUT,
+                    I(URLHACK_UNDERLINE_NEVER),
+                    NULL);
+
+  ctrl_checkbox(s,
+                "Use ctrl+click to launch hyperlinks",
+                'l',
+                HELPCTX(no_help),
+                conf_checkbox_handler,
+                I(CONF_url_ctrl_click));
+
+  s = ctrl_getset(b, "Window/Hyperlinks", "browser", "Browser application");
+
+  ctrl_checkbox(s,
+                "Use the default browser",
+                'b',
+                HELPCTX(no_help),
+                conf_checkbox_handler,
+                I(CONF_url_defbrowser));
+
+  ctrl_filesel(s,
+               "or specify an application to open hyperlinks with:",
+               's',
+               "Application (*.exe)\0*.exe\0All files (*.*)\0*.*\0\0",
+               TRUE,
+               "Select executable to open hyperlinks with",
+               HELPCTX(no_help),
+               conf_filesel_handler,
+               I(CONF_url_browser));
+
+  s = ctrl_getset(b, "Window/Hyperlinks", "regexp", "Regular expression");
+
+  ctrl_radiobuttons(s,
+                    "URL selection:",
+                    NO_SHORTCUT,
+                    1,
+                    HELPCTX(no_help),
+                    conf_radiobutton_handler,
+                    I(CONF_url_defregex),
+                    "Select sensible URLs",
+                    NO_SHORTCUT,
+                    I(URLHACK_REGEX_CLASSIC),
+                    "Select nearly any URL",
+                    NO_SHORTCUT,
+                    I(URLHACK_REGEX_LIBERAL),
+                    "Custom",
+                    NO_SHORTCUT,
+                    I(URLHACK_REGEX_CUSTOM),
+                    NULL);
+
+  ctrl_editbox(s,
+               "Customise regex:",
+               NO_SHORTCUT,
+               100,
+               HELPCTX(no_help),
+               conf_editbox_handler,
+               I(CONF_url_regex),
+               I(1));
+
+
   /*
    * Windows supports a local-command proxy. This also means we
    * must adjust the text on the `Telnet command' control.

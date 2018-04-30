@@ -2655,8 +2655,12 @@ static char *retrieve_cutbuffer(int *nbytes)
 #endif
 }
 
-void write_clip(
-    void *frontend, wchar_t *data, int *attr, int len, int must_deselect)
+void write_clip(Terminal *term,
+                void *frontend,
+                wchar_t *data,
+                int *attr,
+                int len,
+                int must_deselect)
 {
   struct gui_data *inst = (struct gui_data *)frontend;
   if (inst->pasteout_data)
