@@ -5,7 +5,7 @@ This branch contains an attempt to re-ignite PuTTYTray on PuTTY 0.68 or higher.
 ### Project status
 
 The project has fallen behind PuTTY upstream, and shouldn't be used for now.
-Please use [upstream PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html).
+**Please use [upstream PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html)**.
 
 There is discussion of the [project status on github issues](https://github.com/FauxFaux/PuTTYTray/issues/278).
 
@@ -21,6 +21,9 @@ The previously released binaries are built from the [latest PuTTYTray tag](https
  * `t67-failed-patches`: a failed attempt to make patches from `p0.67-t029`
 
 I will rebase all branches. Please work from tags.
+
+**All branches are a mess**. Do not use them. Do not look at them.
+Do not raise issues or pull requests about them.
 
 ### cmake
 
