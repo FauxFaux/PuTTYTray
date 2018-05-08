@@ -84,7 +84,7 @@ endif (UNIX)
 """.format(name))
 
     print('include_directories ({})'.format(' '.join(
-        sorted('${PROJECT_SOURCE_DIR}/' + os.path.normpath(src)
+        sorted('${PROJECT_SOURCE_DIR}/' + normypath(src)
                for src in srcdirs))))
 
     for app in sorted(apps):
@@ -172,9 +172,12 @@ def dir_expand(dirs, path):
     for sub in dirs:
         cand = '{}/{}'.format(sub, path)
         if os.path.isfile(cand):
-            return normpath(cand)
+            return normypath(cand)
     return None
 
+
+def normypath(path):
+    return normpath(path).replace('\\', '/')
 
 if '__main__' == __name__:
     main()
