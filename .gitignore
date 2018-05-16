@@ -156,3 +156,4 @@ build/
 CMakeLists.txt
 .idea/
 cmake-*/
+crossbuild/
