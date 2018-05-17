@@ -80,6 +80,10 @@ add_definitions (${{GTK3_CFLAGS_OTHER}})
 #add_definitions (-DHAVE_CONFIG_H)
 endif (UNIX)
 
+if (WIN32)
+    add_definitions(-D_WINDOWS=1)
+endif (WIN32)
+
 # generated from Recipe:
 """.format(name))
 
@@ -90,14 +94,20 @@ endif (UNIX)
     for app in sorted(apps):
         name, platform = app.split('[')
         platform = platform[:-1]
+        win = None
         if 'T' in platform:
             continue
         if platform in ['G', 'C']:
-            print('if (WIN32)')
+            win = True
         elif platform in ['X', 'U']:
-            print('if (UNIX)')
+            win = False
         else:
             raise Exception('bad platform: ' + platform)
+
+        if win:
+            print('if (WIN32)')
+        else:
+            print('if (UNIX)')
 
         files = sorted(to_path(srcdirs, expand(mapping, mapping[app])))
 
@@ -118,14 +128,19 @@ endif (UNIX)
                          # evading #include "enum.c" (sigh)
                          and header.endswith('.h'))
 
+        if win:
+            headers.append('windows/winstuff.h')
+        else:
+            headers.append('unix/unix.h')
+
         print('add_executable({}\n  {}\n  {})'.format(
             name,
             ' '.join(files),
             ' '.join(sorted(headers))))
 
-        if platform in ['G', 'C']:
+        if win:
             print('endif (WIN32)')
-        elif platform in ['X', 'U']:
+        else:
             print('target_link_libraries ({} -ldl)'.format(name))
             if 'X' == platform:
                 print('target_link_libraries ({} '.format(name) +
@@ -178,6 +193,7 @@ def dir_expand(dirs, path):
 
 def normypath(path):
     return normpath(path).replace('\\', '/')
+
 
 if '__main__' == __name__:
     main()
