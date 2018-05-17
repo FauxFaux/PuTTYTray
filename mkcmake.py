@@ -84,6 +84,12 @@ if (WIN32)
     add_definitions(-D_WINDOWS=1)
 endif (WIN32)
 
+if (MINGW)
+    # undefined reference to `IN6_IS_ADDR_LOOPBACK'; probably a toolchain bug
+   add_definitions(-DNO_IPV6=1)
+   set(CMAKE_EXE_LINKER_FLAGS " -static")
+endif (MINGW)
+
 # generated from Recipe:
 """.format(name))
 
@@ -109,7 +115,8 @@ endif (WIN32)
         else:
             print('if (UNIX)')
 
-        files = sorted(to_path(srcdirs, expand(mapping, mapping[app])))
+        expanded = list(expand(mapping, mapping[app]))
+        files = sorted(to_path(srcdirs, expanded))
 
         # add headers, to placate CLion. Not needed by cmake.
         HEADER = re.compile(r'#\s*include\s+"([^"]+)"')
@@ -134,12 +141,20 @@ endif (WIN32)
         else:
             headers.append('unix/unix.h')
 
-        print('add_executable({}\n  {}\n  {})'.format(
+        print('add_executable({} {}\n  {}\n  {})'.format(
             name,
+            'WIN32' if 'G' == platform else '# console app',
             ' '.join(files),
-            ' '.join(sorted(headers))))
+            ' '.join(sorted(headers)),
+        ))
 
         if win:
+            print('target_link_libraries ({}\n   {})'.format(
+                name,
+                ' '.join(file.split('.')[0] for file in expanded if file.endswith('.lib'))))
+            print('if (MINGW)')
+            print('target_link_libraries ({} -static-libgcc -static-libstdc++)'.format(name))
+            print('endif (MINGW)')
             print('endif (WIN32)')
         else:
             print('target_link_libraries ({} -ldl)'.format(name))
