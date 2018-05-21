@@ -265,6 +265,9 @@ static int SaneDialogBox(HINSTANCE hinst,
 
   hwnd = CreateDialog(hinst, tmpl, hwndparent, lpDialogFunc);
 
+  // a failure here means linking has gone wrong; resources are missing
+  assert(hwnd);
+
   SetWindowLongPtr(hwnd, BOXFLAGS, 0);  /* flags */
   SetWindowLongPtr(hwnd, BOXRESULT, 0); /* result from SaneEndDialog */
 

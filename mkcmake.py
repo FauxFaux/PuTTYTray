@@ -130,6 +130,7 @@ endif (WIN32)
 
         if win:
             headers.append('windows/winstuff.h')
+            files.extend('windows/{}.rc'.format(x.split('.')[0]) for x in expanded if x.endswith('.res'))
         else:
             headers.append('unix/unix.h')
 
@@ -159,7 +160,8 @@ def expand(map, list):
 def to_path(dirs, items):
     for item in items:
         if '.' in item:
-            sys.stderr.write('ignoring path {}\n'.format(item))
+            if not item.endswith('.lib') and not item.endswith('.res'):
+                sys.stderr.write('ignoring path {}\n'.format(item))
         else:
             yield find_c_file(dirs, item)
 
