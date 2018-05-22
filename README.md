@@ -25,6 +25,15 @@ I will rebase all branches. Please work from tags.
 **All branches are a mess**. Do not use them. Do not look at them.
 Do not raise issues or pull requests about them.
 
+
+### Projects:
+
+ * `proj`: miscellaneous changes necessary to run a project (e.g. README)
+ * `cmake`: build system extensions to use cmake, could be merged
+ * `url`: support for clickable urls, url menu, etc.
+ * `backport`: pulling changes back from the next release
+
+
 ### cmake
 
 ```bash
