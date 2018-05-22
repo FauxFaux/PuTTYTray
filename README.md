@@ -22,3 +22,11 @@ The previously released binaries are built from the [latest PuTTYTray tag](https
 
 I will rebase all branches. Please work from tags.
 
+### cmake
+
+```bash
+mkdir -p doc && \
+perl licence.pl && \
+(cd charset && perl sbcsgen.pl) && \
+./mkcmake.py > CMakeLists.txt
+```
