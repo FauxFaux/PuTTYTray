@@ -32,6 +32,7 @@ Do not raise issues or pull requests about them.
  * `cmake`: build system extensions to use cmake, could be merged
  * `url`: support for clickable urls, url menu, etc.
  * `backport`: pulling changes back from the next release
+ * `zoom`: increase font size with the mousewheel
 
 
 ### cmake
