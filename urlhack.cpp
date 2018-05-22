@@ -1,13 +1,18 @@
-#include <string.h>
-#include <assert.h>
+#include <regex>
 
+extern "C" {
 #include "putty.h"
 #include "urlhack.h"
 #include "misc.h"
 #include "puttymem.h"
 #include "terminal.h"
 
-#include "regex_lib.h"
+// TODO: linking fails on mingw if putty.h is included in urlhack.h,
+// TODO: so forward-declare (inside extern "C") this here, after `Terminal` is defined.
+void urlhack_for_every_link(
+    Terminal *term,
+    void (*output)(Terminal *, void *, wchar_t *, int *, int, int));
+}
 
 int urlhack_mouse_old_x = -1, urlhack_mouse_old_y = -1,
     urlhack_current_region = -1;
@@ -15,9 +20,6 @@ int urlhack_mouse_old_x = -1, urlhack_mouse_old_y = -1,
 static text_region **link_regions;
 static unsigned int link_regions_len;
 static unsigned int link_regions_current_pos;
-
-int urlhack_is_ctrl_pressed();
-void rtfm(const char *error);
 
 int urlhack_is_in_link_region(int x, int y)
 {
@@ -132,7 +134,7 @@ void urlhack_link_regions_clear()
 
 static int urlhack_disabled = 0;
 static int is_regexp_compiled = 0;
-static struct regexp *urlhack_rx;
+static std::regex urlhack_rx;
 
 static char *window_text;
 static int window_text_len;
@@ -203,11 +205,13 @@ void urlhack_set_regular_expression(int mode, const char *expression)
   is_regexp_compiled = 0;
   urlhack_disabled = 0;
 
-  set_regerror_func(rtfm);
-  urlhack_rx = regcomp((char *)(to_use));
-
-  if (urlhack_rx == 0) {
-    urlhack_disabled = 1;
+  try {
+    urlhack_rx = std::regex(
+        to_use, std::regex_constants::ECMAScript | std::regex_constants::icase);
+    urlhack_disabled = false;
+  } catch (std::regex_error &error) {
+    rtfm(error.what());
+    urlhack_disabled = true;
   }
 
   is_regexp_compiled = 1;
@@ -229,17 +233,21 @@ void urlhack_go_find_me_some_hyperlinks(int screen_width)
 
   text_pos = window_text;
 
-  while (regexec(urlhack_rx, text_pos) == 1) {
-    char *start_pos;
-    char *end_pos;
-    reg_get_range(urlhack_rx, &start_pos, &end_pos);
+  // Comedy bad attempt at iterators from the C++ committee here?
+  auto begin = std::cregex_iterator(window_text, window_text + window_text_len, urlhack_rx);
+  auto end = std::cregex_iterator();
+
+  for (std::cregex_iterator it = begin; it != end; ++it) {
+    std::cmatch match = *it;
+
+    const char *start_pos = match[0].first;
+    const char *end_pos = match[0].second;
 
     if (' ' == *start_pos)
       ++start_pos;
 
     int max_brackets = 0, x0, y0, x1, y1;
-    char *c;
-    for (c = start_pos; c < end_pos; ++c) {
+    for (const char *c = start_pos; c < end_pos; ++c) {
       switch (*c) {
       case '(':
         ++max_brackets;
@@ -263,7 +271,5 @@ void urlhack_go_find_me_some_hyperlinks(int screen_width)
       x1 = screen_width - 1;
 
     urlhack_add_link_region(x0, y0, x1, y1);
-
-    text_pos = end_pos + 1;
   }
 }

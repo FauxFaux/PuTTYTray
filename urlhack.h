@@ -2,6 +2,9 @@
 #ifndef _URLHACK_H
 #define _URLHACK_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include <wchar.h>
 
 typedef struct {
@@ -28,5 +31,9 @@ void rtfm(const char *error);
 
 void urlhack_init();
 void urlhack_cleanup();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // _URLHACK_H
