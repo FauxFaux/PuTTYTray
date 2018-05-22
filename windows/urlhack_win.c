@@ -60,12 +60,12 @@ int urlhack_is_ctrl_pressed()
 void rtfm(const char *error)
 {
   char std_msg[] =
-      "The following error occured when compiling the regular expression\n"
+      "The following error occurred when compiling the regular expression\n"
       "for the hyperlink support. Hyperlink detection is disabled during\n"
       "this session (restart PuTTY Tray to try again).\n\n";
 
   char *full_msg = dupprintf("%s%s", std_msg, error);
 
-  MessageBox(0, full_msg, "PuTTY Tray Error", MB_OK);
+  MessageBox(0, full_msg, "PuTTYTray Error", MB_OK);
   free(full_msg);
 }
