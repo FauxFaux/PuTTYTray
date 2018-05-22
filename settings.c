@@ -58,7 +58,7 @@ const char *const ttymodes[] = {
     "ECHOKE", "PENDIN",  "OPOST",  "OLCUC",   "ONLCR",   "OCRNL",  "ONOCR",
     "ONLRET", "CS7",     "CS8",    "PARENB",  "PARODD",  NULL};
 
-
+// region tray-url
 const char *urlhack_default_regex =
     "("
     "(((https?|ftp):\\/\\/)|www\\.)"
@@ -110,7 +110,7 @@ const char *urlhack_liberal_regex =
     "([a-zA-Z]+://|[wW][wW][wW]\\.|spotify:|telnet:)"
     "[^ '\")>]+"
     ")";
-
+// endregion
 
 /*
  * Convenience functions to access the backends[] array
@@ -667,7 +667,7 @@ void save_open_settings(void *sesskey, Conf *conf)
   write_setting_i(
       sesskey, "NetHackKeypad", conf_get_int(conf, CONF_nethack_keypad));
 
-
+  // region tray-url
   write_setting_i(
       sesskey, "HyperlinkUnderline", conf_get_int(conf, CONF_url_underline));
   write_setting_i(sesskey,
@@ -684,7 +684,7 @@ void save_open_settings(void *sesskey, Conf *conf)
   write_setting_s(sesskey,
                   "HyperlinkRegularExpression",
                   conf_get_str(conf, CONF_url_regex));
-
+  // endregion
 
   write_setting_i(sesskey, "AltF4", conf_get_int(conf, CONF_alt_f4));
   write_setting_i(sesskey, "AltSpace", conf_get_int(conf, CONF_alt_space));
@@ -1161,7 +1161,7 @@ void load_open_settings(void *sesskey, Conf *conf)
   gppi(sesskey, "ApplicationKeypad", 0, conf, CONF_app_keypad);
   gppi(sesskey, "NetHackKeypad", 0, conf, CONF_nethack_keypad);
 
-
+  // region tray-url
   gppi(sesskey, "HyperlinkUnderline", 1, conf, CONF_url_underline);
   gppi(sesskey, "HyperlinkUseCtrlClick", 0, conf, CONF_url_ctrl_click);
   gppi(sesskey, "HyperlinkBrowserUseDefault", 1, conf, CONF_url_defbrowser);
@@ -1176,7 +1176,7 @@ void load_open_settings(void *sesskey, Conf *conf)
        urlhack_default_regex,
        conf,
        CONF_url_regex);
-
+  // endregion
 
   gppi(sesskey, "AltF4", 1, conf, CONF_alt_f4);
   gppi(sesskey, "AltSpace", 0, conf, CONF_alt_space);

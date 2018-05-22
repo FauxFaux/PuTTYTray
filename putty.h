@@ -138,7 +138,7 @@ typedef struct terminal_tag Terminal;
 #define ATTR_DEFBG (258 << ATTR_BGSHIFT)
 #define ATTR_DEFAULT (ATTR_DEFFG | ATTR_DEFBG)
 
-
+// region tray-url
 #define CHAR_MASK 0x000000FFUL
 
 enum
@@ -154,7 +154,7 @@ enum
   URLHACK_REGEX_CLASSIC = 1,
   URLHACK_REGEX_LIBERAL,
 };
-
+// endregion
 
 struct sesslist {
   int nsessions;
@@ -769,9 +769,9 @@ void palette_set(void *frontend, int, int, int, int);
 void palette_reset(void *frontend);
 void write_aclip(void *frontend, char *, int, int);
 
-
+// region tray-url
 void write_clip(Terminal *term, void *frontend, wchar_t *, int *, int, int);
-
+// endregion
 
 void get_clip(void *frontend, wchar_t **, int *);
 void optimised_move(void *frontend, int, int, int);
@@ -1080,13 +1080,14 @@ void cleanup_exit(int);
   X(INT, NONE, shadowboldoffset)                                               \
   X(INT, NONE, crhaslf)                                                        \
   X(STR, NONE, winclass)                                                       \
+  /* region tray-url */                                                        \
   X(INT, NONE, url_ctrl_click)                                                 \
   X(INT, NONE, url_underline)                                                  \
   X(INT, NONE, url_defbrowser)                                                 \
   X(INT, NONE, url_defregex)                                                   \
   X(FILENAME, NONE, url_browser)                                               \
   X(STR, NONE, url_regex)
-
+// endregion
 
 /* Now define the actual enum of option keywords using that macro. */
 #define CONF_ENUM_DEF(valtype, keytype, keyword) CONF_##keyword,

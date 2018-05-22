@@ -421,7 +421,7 @@ void win_setup_config_box(struct controlbox *b,
                 conf_checkbox_handler,
                 I(CONF_fullscreenonaltenter));
 
-
+  // region tray-url
   ctrl_settitle(
       b, "Window/Hyperlinks", "Options controlling behaviour of hyperlinks");
   s = ctrl_getset(
@@ -499,7 +499,7 @@ void win_setup_config_box(struct controlbox *b,
                conf_editbox_handler,
                I(CONF_url_regex),
                I(1));
-
+  // endregion
 
   /*
    * Windows supports a local-command proxy. This also means we

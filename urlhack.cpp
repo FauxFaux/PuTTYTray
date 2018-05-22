@@ -8,7 +8,8 @@ extern "C" {
 #include "terminal.h"
 
 // TODO: linking fails on mingw if putty.h is included in urlhack.h,
-// TODO: so forward-declare (inside extern "C") this here, after `Terminal` is defined.
+// TODO: so forward-declare (inside extern "C") this here, after `Terminal` is
+// defined.
 void urlhack_for_every_link(
     Terminal *term,
     void (*output)(Terminal *, void *, wchar_t *, int *, int, int));
@@ -234,7 +235,8 @@ void urlhack_go_find_me_some_hyperlinks(int screen_width)
   text_pos = window_text;
 
   // Comedy bad attempt at iterators from the C++ committee here?
-  auto begin = std::cregex_iterator(window_text, window_text + window_text_len, urlhack_rx);
+  auto begin = std::cregex_iterator(
+      window_text, window_text + window_text_len, urlhack_rx);
   auto end = std::cregex_iterator();
 
   for (std::cregex_iterator it = begin; it != end; ++it) {

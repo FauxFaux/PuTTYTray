@@ -36,10 +36,9 @@
 #include "gtkfont.h"
 #include "gtkmisc.h"
 
-
+// region tray-url
 #include "urlhack.h"
-
-
+// endregion
 
 #ifndef NOT_X_WINDOWS
 #include <gdk/gdkx.h>
@@ -597,9 +596,9 @@ int main(int argc, char **argv)
 
   gtkcomm_setup();
 
-
+  // region tray-url
   urlhack_init();
-
+  // endregion
 
   /*
    * Block SIGPIPE: if we attempt Duplicate Session or similar and

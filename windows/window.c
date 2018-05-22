@@ -10,9 +10,9 @@
 #include <limits.h>
 #include <assert.h>
 
-
+// region tray-url
 #include "urlhack.h"
-
+// endregion
 
 #ifdef __WINE__
 #define NO_MULTIMON /* winelib doesn't have this */
@@ -168,6 +168,7 @@ static void conf_cache_data(void);
 int cursor_type;
 int vtmode;
 
+// region tray-url
 
 static unsigned int update_url_id;
 static unsigned int search_url_id;
@@ -178,6 +179,9 @@ static HMENU url_menu;
 #define IDM_URL_MIN 0x5001
 #define IDM_URL_MAX 0x5100
 
+static int urlhack_cursor_is_hand = 0;
+
+// endregion
 
 static struct sesslist sesslist; /* for saved-session menu */
 
@@ -242,11 +246,6 @@ static UINT wm_mousewheel = WM_MOUSEWHEEL;
   (((wch) >= 0x180B &&                                                         \
     (wch) <= 0x180D) || /* MONGOLIAN FREE VARIATION SELECTOR */                \
    ((wch) >= 0xFE00 && (wch) <= 0xFE0F)) /* VARIATION SELECTOR 1-16 */
-
-
-
-static int urlhack_cursor_is_hand = 0;
-
 
 const int share_can_be_downstream = TRUE;
 const int share_can_be_upstream = TRUE;
@@ -430,10 +429,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
   conf = conf_new();
 
-
-
+  // region tray-url
   urlhack_init();
-
+  // endregion
 
   /*
    * Initialize COM.
@@ -867,7 +865,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     popup_menus[CTXMENU].menu = CreatePopupMenu();
     AppendMenu(popup_menus[CTXMENU].menu, MF_ENABLED, IDM_PASTE, "&Paste");
 
+    // region tray-url
     url_menu = CreateMenu();
+    // endregion
 
     savedsess_menu = CreateMenu();
     get_sesslist(&sesslist, TRUE);
@@ -898,9 +898,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
                  IDM_FULLSCREEN,
                  "&Full Screen");
 
-
+      // region tray-url
       AppendMenu(m, MF_POPUP | MF_ENABLED, (UINT_PTR)url_menu, "&Urls");
-
+      // endregion
 
       AppendMenu(m, MF_SEPARATOR, 0, 0);
       if (has_help())
@@ -917,12 +917,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
   start_backend();
 
-
-
-  urlhack_set_regular_expression(
-      conf_get_int(term->conf, CONF_url_defregex),
-      conf_get_str(term->conf, CONF_url_regex));
-
+  // region tray-url
+  urlhack_set_regular_expression(conf_get_int(term->conf, CONF_url_defregex),
+                                 conf_get_str(term->conf, CONF_url_regex));
+  // endregion
 
   /*
    * Set up the initial input locale.
@@ -1034,9 +1032,9 @@ void cleanup_exit(int code)
    * Clean up.
    */
 
-
+  // region tray-url
   urlhack_cleanup();
-
+  // endregion
 
   deinit_fonts();
   sfree(logpal);
@@ -1104,8 +1102,7 @@ static void update_savedsess_menu(void)
     AppendMenu(savedsess_menu, MF_GRAYED, IDM_SAVED_MIN, "(No sessions)");
 }
 
-
-
+// region tray-url
 void append_url_to_menu(Terminal *term,
                         void *menu,
                         wchar_t *data,
@@ -1175,7 +1172,7 @@ void url_menu_find_and_launch(Terminal *term,
   if (search_url_id++ == url_target_id)
     urlhack_launch_url_helper(term, menu, data, attr, len, must_deselect);
 }
-
+// endregion
 
 /*
  * Update the Special Commands submenu.
@@ -2322,9 +2319,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
   static UINT last_mousemove = 0;
   int resize_action;
 
-
+  // region tray-url
   POINT cursor_pt;
-
+  // endregion
 
   switch (message) {
   case WM_TIMER:
@@ -2365,9 +2362,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       get_sesslist(&sesslist, TRUE);
       update_savedsess_menu();
       return 0;
-    } else if ((HMENU)wParam == url_menu) {
+    }
+
+    // region tray-url
+    // TODO: other menu section returns, should we?
+    if ((HMENU)wParam == url_menu) {
       update_url_menu(term);
     }
+    // endregion
     break;
   case WM_COMMAND:
   case WM_SYSCOMMAND:
@@ -2533,13 +2535,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       if (back)
         back->reconfig(backhandle, conf);
 
-
-      urlhack_set_regular_expression(
-          conf_get_int(conf, CONF_url_defregex),
-          conf_get_str(conf, CONF_url_regex));
+      // region tray-url
+      urlhack_set_regular_expression(conf_get_int(conf, CONF_url_defregex),
+                                     conf_get_str(conf, CONF_url_regex));
 
       term->url_update = TRUE;
-
+      // endregion
 
       /* Screen size changed ? */
       if (conf_get_int(conf, CONF_height) !=
@@ -2716,14 +2717,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
           back->special(backhandle, specials[i].code);
       }
 
-
+      // region tray-url
       if (wParam >= IDM_URL_MIN && wParam < (IDM_URL_MIN + update_url_id)) {
         url_target_id = wParam - IDM_URL_MIN;
         search_url_id = 0;
         urlhack_for_every_link(term, &url_menu_find_and_launch);
       }
-
-
+      // endregion
     }
     break;
 
@@ -2878,6 +2878,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
      */
     noise_ultralight(lParam);
 
+    // region tray-url
 
     if (urlhack_mouse_old_x != TO_CHR_X(X_POS(lParam)) ||
         urlhack_mouse_old_y != TO_CHR_Y(Y_POS(lParam))) {
@@ -2915,6 +2916,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       }
     }
 
+    // endregion
 
     if (wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON) &&
         GetCapture() == hwnd) {
@@ -3400,8 +3402,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       }
     }
     return FALSE;
-
-
+    // region tray-url
   case WM_KEYDOWN:
     if (wParam == VK_CONTROL && conf_get_int(term->conf, CONF_url_ctrl_click)) {
       GetCursorPos(&cursor_pt);
@@ -3423,7 +3424,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
   KEY_END:
   case WM_SYSKEYDOWN:
   case WM_SYSKEYUP:
-
+    // endregion
 
     /*
      * Add the scan code and keypress timing to the random
@@ -5368,12 +5369,14 @@ void write_aclip(void *frontend, char *data, int len, int must_deselect)
 /*
  * Note: unlike write_aclip() this will not append a nul.
  */
+// region tray-url
 void write_clip(Terminal *term,
                 void *frontend,
                 wchar_t *data,
                 int *attr,
                 int len,
                 int must_deselect)
+// endregion
 {
   HGLOBAL clipdata, clipdata2, clipdata3;
   int len2;
