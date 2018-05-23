@@ -10,22 +10,9 @@
 #include "ssh.h"
 #include "pageant.h"
 
-/*
- * We need this to link with the RSA code, because rsaencrypt()
- * pads its data with random bytes. Since we only use rsadecrypt()
- * and the signing functions, which are deterministic, this should
- * never be called.
- *
- * If it _is_ called, there is a _serious_ problem, because it
- * won't generate true random numbers. So we must scream, panic,
- * and exit immediately if that should happen.
- */
-int random_byte(void)
-{
-  modalfatalbox("Internal error: attempt to use random numbers in Pageant");
-  exit(0);
-  return 0; /* unreachable, but placate optimiser */
-}
+// region tray-fatty
+// removing duplicated definitions
+// endregion
 
 static int pageant_local = FALSE;
 

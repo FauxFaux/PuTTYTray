@@ -378,7 +378,9 @@ static void close_session(void *ignored_context)
   }
 }
 
-int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+// region tray-fatty
+int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+// endregion
 {
   MSG msg;
   HRESULT hr;

@@ -33,6 +33,7 @@ Do not raise issues or pull requests about them.
  * `url`: support for clickable urls, url menu, etc.
  * `backport`: pulling changes back from the next release
  * `zoom`: increase font size with the mousewheel
+ * `fatty`: bundle `agent` and `gen` into `putty.exe`
 
 
 ### cmake

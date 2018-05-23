@@ -68,22 +68,9 @@ static filereq *keypath = NULL;
 #define PUTTY_DEFAULT "Default%20Settings"
 static int initial_menuitems_count;
 
-/*
- * Print a modal (Really Bad) message box and perform a fatal exit.
- */
-void modalfatalbox(const char *fmt, ...)
-{
-  va_list ap;
-  char *buf;
-
-  va_start(ap, fmt);
-  buf = dupvprintf(fmt, ap);
-  va_end(ap);
-  MessageBox(
-      hwnd, buf, "Pageant Fatal Error", MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
-  sfree(buf);
-  exit(1);
-}
+// region tray-fatty
+// removing duplicated definitions
+// endregion
 
 /* Un-munge session names out of the registry. */
 static void unmungestr(char *in, char *out, int outlen)
@@ -268,25 +255,9 @@ static INT_PTR CALLBACK PassphraseProc(HWND hwnd,
   return 0;
 }
 
-/*
- * Warn about the obsolescent key file format.
- */
-void old_keyfile_warning(void)
-{
-  static const char mbtitle[] = "PuTTY Key File Warning";
-  static const char message[] =
-      "You are loading an SSH-2 private key which has an\n"
-      "old version of the file format. This means your key\n"
-      "file is not fully tamperproof. Future versions of\n"
-      "PuTTY may stop supporting this private key format,\n"
-      "so we recommend you convert your key to the new\n"
-      "format.\n"
-      "\n"
-      "You can perform this conversion by loading the key\n"
-      "into PuTTYgen and then saving it again.";
-
-  MessageBox(NULL, message, mbtitle, MB_OK);
-}
+// region tray-fatty
+// removing duplicated definitions
+// endregion
 
 /*
  * Update the visible key list.
@@ -1094,23 +1065,15 @@ void spawn_cmd(const char *cmdline, const char *args, int show)
  * This is a can't-happen stub, since Pageant never makes
  * asynchronous agent requests.
  */
-void agent_schedule_callback(void (*callback)(void *, void *, int),
-                             void *callback_ctx,
-                             void *data,
-                             int len)
-{
-  assert(!"We shouldn't get here");
-}
-
-void cleanup_exit(int code)
-{
-  shutdown_help();
-  exit(code);
-}
+// region tray-fatty
+// removing duplicated definitions
+// endregion
 
 int flags = FLAG_SYNCAGENT;
 
-int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+// region tray-fatty
+int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+// endregion
 {
   WNDCLASS wndclass;
   MSG msg;

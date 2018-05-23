@@ -27,40 +27,9 @@
 
 static char *cmdline_keyfile = NULL;
 
-/*
- * Print a modal (Really Bad) message box and perform a fatal exit.
- */
-void modalfatalbox(const char *fmt, ...)
-{
-  va_list ap;
-  char *stuff;
-
-  va_start(ap, fmt);
-  stuff = dupvprintf(fmt, ap);
-  va_end(ap);
-  MessageBox(NULL,
-             stuff,
-             "PuTTYgen Fatal Error",
-             MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
-  sfree(stuff);
-  exit(1);
-}
-
-/*
- * Print a non-fatal message box and do not exit.
- */
-void nonfatal(const char *fmt, ...)
-{
-  va_list ap;
-  char *stuff;
-
-  va_start(ap, fmt);
-  stuff = dupvprintf(fmt, ap);
-  va_end(ap);
-  MessageBox(
-      NULL, stuff, "PuTTYgen Error", MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
-  sfree(stuff);
-}
+// region tray-fatty
+// removing duplicated definitions
+// endregion
 
 /* ----------------------------------------------------------------------
  * Progress report code. This is really horrible :-)
@@ -445,25 +414,9 @@ static void setupbigedit2(HWND hwnd,
   sfree(buffer);
 }
 
-/*
- * Warn about the obsolescent key file format.
- */
-void old_keyfile_warning(void)
-{
-  static const char mbtitle[] = "PuTTY Key File Warning";
-  static const char message[] =
-      "You are loading an SSH-2 private key which has an\n"
-      "old version of the file format. This means your key\n"
-      "file is not fully tamperproof. Future versions of\n"
-      "PuTTY may stop supporting this private key format,\n"
-      "so we recommend you convert your key to the new\n"
-      "format.\n"
-      "\n"
-      "Once the key is loaded into PuTTYgen, you can perform\n"
-      "this conversion simply by saving it again.";
-
-  MessageBox(NULL, message, mbtitle, MB_OK);
-}
+// region tray-fatty
+// removing duplicated definitions
+// endregion
 
 enum
 {
@@ -1595,13 +1548,11 @@ static INT_PTR CALLBACK MainDlgProc(HWND hwnd,
   return 0;
 }
 
-void cleanup_exit(int code)
-{
-  shutdown_help();
-  exit(code);
-}
+// region tray-fatty
+// removing duplicated definitions
 
-int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+int puttygen_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+// endsection
 {
   int argc, i;
   char **argv;
