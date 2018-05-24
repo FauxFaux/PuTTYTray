@@ -4,19 +4,21 @@
 
 #include "rcstuff.h"
 
-#define APPNAME "PuTTYgen"
-#define APPDESC "PuTTY SSH key generation utility"
+// region tray-fatty
+//  * removing duplicated definitions
+//  * change all the 2-based ids to 8-based
+// endregion
 
-200 ICON "puttygen.ico"
+800 ICON "puttygen.ico"
 
-201 DIALOG DISCARDABLE 0, 0, 318, 270
+801 DIALOG DISCARDABLE 0, 0, 318, 270
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "PuTTY Key Generator"
 FONT 8, "MS Shell Dlg"
 BEGIN
 END
 
-210 DIALOG DISCARDABLE 0, 0, 140, 60
+810 DIALOG DISCARDABLE 0, 0, 140, 60
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "PuTTYgen: Enter Passphrase"
 FONT 8, "MS Shell Dlg"
@@ -29,7 +31,7 @@ BEGIN
 END
 
 /* Accelerators used: cl */
-213 DIALOG DISCARDABLE 140, 40, 270, 106
+813 DIALOG DISCARDABLE 140, 40, 270, 106
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About PuTTYgen"
 FONT 8, "MS Shell Dlg"
@@ -41,7 +43,7 @@ BEGIN
 END
 
 /* No accelerators used */
-214 DIALOG DISCARDABLE 50, 50, 326, 231
+814 DIALOG DISCARDABLE 50, 50, 326, 231
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "PuTTY Licence"
 FONT 8, "MS Shell Dlg"
@@ -51,8 +53,6 @@ BEGIN
     EDITTEXT 1000, 10, 10, 306, 192, ES_READONLY | ES_MULTILINE | ES_LEFT, WS_EX_STATICEDGE
 END
 
-#include "version.rc2"
-
-#ifndef NO_MANIFESTS
-1 RT_MANIFEST "puttygen.mft"
-#endif /* NO_MANIFESTS */
+// region tray-fatty
+// removing duplicated definitions
+// endregion

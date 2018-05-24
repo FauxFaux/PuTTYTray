@@ -4,13 +4,15 @@
 
 #include "rcstuff.h"
 
-#define APPNAME "Pageant"
-#define APPDESC "PuTTY SSH authentication agent"
+// region tray-fatty
+//  * removing duplicated definitions
+//  * change all the 2-based ids to 9-based
+// endregion
 
-200 ICON "pageant.ico"
-201 ICON "pageants.ico"
+900 ICON "pageant.ico"
+901 ICON "pageants.ico"
 
-210 DIALOG DISCARDABLE 0, 0, 140, 60
+910 DIALOG DISCARDABLE 0, 0, 140, 60
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Pageant: Enter Passphrase"
 FONT 8, "MS Shell Dlg"
@@ -22,7 +24,7 @@ BEGIN
     PUSHBUTTON "&Cancel", IDCANCEL, 80, 42, 40, 14
 END
 
-211 DIALOG DISCARDABLE 0, 0, 330, 200
+911 DIALOG DISCARDABLE 0, 0, 330, 200
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Pageant Key List"
 FONT 8, "MS Shell Dlg"
@@ -36,7 +38,7 @@ BEGIN
 END
 
 /* Accelerators used: cl */
-213 DIALOG DISCARDABLE 140, 40, 270, 106
+913 DIALOG DISCARDABLE 140, 40, 270, 106
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About Pageant"
 FONT 8, "MS Shell Dlg"
@@ -48,7 +50,7 @@ BEGIN
 END
 
 /* No accelerators used */
-214 DIALOG DISCARDABLE 50, 50, 326, 231
+914 DIALOG DISCARDABLE 50, 50, 326, 231
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "PuTTY Licence"
 FONT 8, "MS Shell Dlg"
@@ -58,8 +60,6 @@ BEGIN
     EDITTEXT 1000, 10, 10, 306, 192, ES_READONLY | ES_MULTILINE | ES_LEFT, WS_EX_STATICEDGE
 END
 
-#include "version.rc2"
-
-#ifndef NO_MANIFESTS
-1 RT_MANIFEST "pageant.mft"
-#endif /* NO_MANIFESTS */
+// region tray-fatty
+// removing duplicated definitions
+// endregion

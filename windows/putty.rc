@@ -5,6 +5,11 @@
 
 #include "win_res.rc2"
 
+// region tray-fatty
+#include "puttygen.rc"
+#include "pageant.rc"
+// endregion
+
 #ifndef NO_MANIFESTS
 1 RT_MANIFEST "putty.mft"
 #endif /* NO_MANIFESTS */

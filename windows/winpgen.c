@@ -297,7 +297,11 @@ static INT_PTR CALLBACK AboutProc(HWND hwnd,
       return 0;
     case 101:
       EnableWindow(hwnd, 0);
-      DialogBox(hinst, MAKEINTRESOURCE(214), hwnd, LicenceProc);
+
+      // region tray-fatty
+      DialogBox(hinst, MAKEINTRESOURCE(814), hwnd, LicenceProc);
+      // endregion
+
       EnableWindow(hwnd, 1);
       SetActiveWindow(hwnd);
       return 0;
@@ -682,8 +686,10 @@ void load_key_file(HWND hwnd,
       struct PassphraseProcStruct pps;
       pps.passphrase = &passphrase;
       pps.comment = comment;
+      // region tray-fatty
       dlgret = DialogBoxParam(
-          hinst, MAKEINTRESOURCE(210), NULL, PassphraseProc, (LPARAM)&pps);
+          hinst, MAKEINTRESOURCE(810), NULL, PassphraseProc, (LPARAM)&pps);
+      // endregion
       if (!dlgret) {
         ret = -2;
         break;
@@ -824,10 +830,13 @@ static INT_PTR CALLBACK MainDlgProc(HWND hwnd,
        * if the help file isn't present.
        */
     }
+
+    // region tray-fatty
     SendMessage(hwnd,
                 WM_SETICON,
                 (WPARAM)ICON_BIG,
-                (LPARAM)LoadIcon(hinst, MAKEINTRESOURCE(200)));
+                (LPARAM)LoadIcon(hinst, MAKEINTRESOURCE(800)));
+    // endregion
 
     state = snew(struct MainDlgState);
     state->generation_thread_exists = FALSE;
@@ -1103,7 +1112,9 @@ static INT_PTR CALLBACK MainDlgProc(HWND hwnd,
       break;
     case IDC_ABOUT:
       EnableWindow(hwnd, 0);
-      DialogBox(hinst, MAKEINTRESOURCE(213), hwnd, AboutProc);
+      // region tray-fatty
+      DialogBox(hinst, MAKEINTRESOURCE(813), hwnd, AboutProc);
+      // endregion
       EnableWindow(hwnd, 1);
       SetActiveWindow(hwnd);
       return 0;
@@ -1590,7 +1601,10 @@ int puttygen_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   }
 
   random_ref();
-  ret = DialogBox(hinst, MAKEINTRESOURCE(201), NULL, MainDlgProc) != IDOK;
+
+  // region tray-fatty
+  ret = DialogBox(hinst, MAKEINTRESOURCE(801), NULL, MainDlgProc) != IDOK;
+  // endregion
 
   cleanup_exit(ret);
   return ret; /* just in case optimiser complains */

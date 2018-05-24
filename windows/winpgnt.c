@@ -28,8 +28,10 @@
 #endif
 #endif
 
-#define IDI_MAINICON 200
-#define IDI_TRAYICON 201
+// region tray-fatty
+#define IDI_MAINICON 900
+#define IDI_TRAYICON 901
+// endregion
 
 #define WM_SYSTRAY (WM_APP + 6)
 #define WM_SYSTRAY2 (WM_APP + 7)
@@ -162,7 +164,11 @@ static INT_PTR CALLBACK AboutProc(HWND hwnd,
       return 0;
     case 101:
       EnableWindow(hwnd, 0);
-      DialogBox(hinst, MAKEINTRESOURCE(214), hwnd, LicenceProc);
+
+      // region tray-fatty
+      DialogBox(hinst, MAKEINTRESOURCE(914), hwnd, LicenceProc);
+      // endregion
+
       EnableWindow(hwnd, 1);
       SetActiveWindow(hwnd);
       return 0;
@@ -411,8 +417,12 @@ static void win_add_keyfile(Filename *filename)
 
     pps.passphrase = &passphrase;
     pps.comment = err;
+
+    // region tray-fatty
     dlgret = DialogBoxParam(
-        hinst, MAKEINTRESOURCE(210), NULL, PassphraseProc, (LPARAM)&pps);
+        hinst, MAKEINTRESOURCE(910), NULL, PassphraseProc, (LPARAM)&pps);
+    // endregion
+
     passphrase_box = NULL;
 
     if (!dlgret)
@@ -676,7 +686,11 @@ static BOOL AddTrayIcon(HWND hwnd)
   tnid.uID = 1; /* unique within this systray use */
   tnid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
   tnid.uCallbackMessage = WM_SYSTRAY;
-  tnid.hIcon = hicon = LoadIcon(hinst, MAKEINTRESOURCE(201));
+
+  // region tray-fatty
+  tnid.hIcon = hicon = LoadIcon(hinst, MAKEINTRESOURCE(901));
+  // endregion
+
   strcpy(tnid.szTip, "Pageant (PuTTY authentication agent)");
 
   res = Shell_NotifyIcon(NIM_ADD, &tnid);
@@ -859,7 +873,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       break;
     case IDM_VIEWKEYS:
       if (!keylist) {
-        keylist = CreateDialog(hinst, MAKEINTRESOURCE(211), NULL, KeyListProc);
+
+        // region tray-fatty
+        keylist = CreateDialog(hinst, MAKEINTRESOURCE(911), NULL, KeyListProc);
+        // endregion
+
         ShowWindow(keylist, SW_SHOWNORMAL);
       }
       /*
@@ -888,7 +906,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       break;
     case IDM_ABOUT:
       if (!aboutbox) {
-        aboutbox = CreateDialog(hinst, MAKEINTRESOURCE(213), NULL, AboutProc);
+
+        // region tray-fatty
+        aboutbox = CreateDialog(hinst, MAKEINTRESOURCE(913), NULL, AboutProc);
+        // endregion
+
         ShowWindow(aboutbox, SW_SHOWNORMAL);
         /*
          * Sometimes the window comes up minimised / hidden
