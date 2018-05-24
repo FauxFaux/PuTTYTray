@@ -84,6 +84,10 @@ if (WIN32)
     add_definitions(-D_WINDOWS=1)
 endif (WIN32)
 
+if (CMAKE_CL_64)
+	add_definitions(-DNO_MANIFESTS=1)
+endif (CMAKE_CL_64)
+
 if (MINGW)
     # undefined reference to `IN6_IS_ADDR_LOOPBACK'; probably a toolchain bug
    add_definitions(-DNO_IPV6=1)
