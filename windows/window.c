@@ -162,7 +162,11 @@ struct wm_netevent_params {
   LPARAM lParam;
 };
 
-Conf *conf; /* exported to windlg.c */
+// region tray-fatty
+// this needs to definitely be NULL, so the cleanup_exit error handling
+// can be shared between PuTTY and Pageant (which doesn't care about conf)
+Conf *conf = NULL; /* exported to windlg.c */
+// endregion
 
 static void conf_cache_data(void);
 int cursor_type;
@@ -1044,7 +1048,9 @@ void cleanup_exit(int code)
     DeleteObject(pal);
   sk_cleanup();
 
-  if (conf_get_int(conf, CONF_protocol) == PROT_SSH) {
+  // region tray-fatty
+  if (conf && conf_get_int(conf, CONF_protocol) == PROT_SSH) {
+    // endregion
     random_save_seed();
 #ifdef MSCRYPTOAPI
     crypto_wrapup();
