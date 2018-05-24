@@ -84,6 +84,26 @@ if (WIN32)
     add_definitions(-D_WINDOWS=1)
 endif (WIN32)
 
+if (MSVC)
+    # https://www.owasp.org/index.php/C-Based_Toolchain_Hardening#Visual_Studio
+    set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /GS")       # buffer security check
+	set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /d2guard4") # control flow guard
+
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS=1)
+
+    set(CMAKE_C_FLAGS   ${{CMAKE_C_FLAGS}}   ${{EXTRA_FLAGS}})
+    set(CMAKE_CXX_FLAGS ${{CMAKE_CXX_FLAGS}} ${{EXTRA_FLAGS}})
+
+    set(CMAKE_C_FLAGS_DEBUG   "${{CMAKE_C_FLAGS_DEBUG}}   /MTd")
+    set(CMAKE_CXX_FLAGS_DEBUG "${{CMAKE_CXX_FLAGS_DEBUG}} /MTd")
+
+    set(CMAKE_C_FLAGS_RELEASE   "${{CMAKE_C_FLAGS_RELEASE}}   /MT /GL")
+    set(CMAKE_CXX_FLAGS_RELEASE "${{CMAKE_CXX_FLAGS_RELEASE}} /MT /GL")
+
+    set(CMAKE_SHARED_LINKER_FLAGS_DEBUG   "${{CMAKE_SHARED_LINKER_FLAGS_DEBUG}}   /guard:cf")
+    set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${{CMAKE_SHARED_LINKER_FLAGS_RELEASE}} /guard:cf /ltcg /opt:ref")
+endif (MSVC)
+
 if (CMAKE_CL_64)
 	add_definitions(-DNO_MANIFESTS=1)
 endif (CMAKE_CL_64)
