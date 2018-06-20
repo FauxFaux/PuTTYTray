@@ -85,14 +85,18 @@ if (WIN32)
 endif (WIN32)
 
 if (MSVC)
+    # cmake's quoting rules are a bit mad here. An unquoted argument will become a list-type,
+    # which will have semicolons randomly inserted when converted back to a string-type.
+    # cflags can't be a list-type (???), so we must be careful to keep everything as a string
+    
     # https://www.owasp.org/index.php/C-Based_Toolchain_Hardening#Visual_Studio
     set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /GS")       # buffer security check
 	set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /d2guard4") # control flow guard
 
     add_definitions(-D_CRT_SECURE_NO_WARNINGS=1)
 
-    set(CMAKE_C_FLAGS   ${{CMAKE_C_FLAGS}}   ${{EXTRA_FLAGS}})
-    set(CMAKE_CXX_FLAGS ${{CMAKE_CXX_FLAGS}} ${{EXTRA_FLAGS}})
+    set(CMAKE_C_FLAGS   "${{CMAKE_C_FLAGS}}   ${{EXTRA_FLAGS}}")
+    set(CMAKE_CXX_FLAGS "${{CMAKE_CXX_FLAGS}} ${{EXTRA_FLAGS}}")
 
     set(CMAKE_C_FLAGS_DEBUG   "${{CMAKE_C_FLAGS_DEBUG}}   /MTd")
     set(CMAKE_CXX_FLAGS_DEBUG "${{CMAKE_CXX_FLAGS_DEBUG}} /MTd")
@@ -100,8 +104,8 @@ if (MSVC)
     set(CMAKE_C_FLAGS_RELEASE   "${{CMAKE_C_FLAGS_RELEASE}}   /MT /GL")
     set(CMAKE_CXX_FLAGS_RELEASE "${{CMAKE_CXX_FLAGS_RELEASE}} /MT /GL")
 
-    set(CMAKE_SHARED_LINKER_FLAGS_DEBUG   "${{CMAKE_SHARED_LINKER_FLAGS_DEBUG}}   /guard:cf")
-    set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${{CMAKE_SHARED_LINKER_FLAGS_RELEASE}} /guard:cf /ltcg /opt:ref")
+    set(CMAKE_SHARED_LINKER_FLAGS_DEBUG   ${{CMAKE_SHARED_LINKER_FLAGS_DEBUG}}   /guard:cf)
+    set(CMAKE_SHARED_LINKER_FLAGS_RELEASE ${{CMAKE_SHARED_LINKER_FLAGS_RELEASE}} /guard:cf /ltcg /opt:ref)
 endif (MSVC)
 
 if (CMAKE_CL_64)
@@ -111,7 +115,7 @@ endif (CMAKE_CL_64)
 if (MINGW)
     # undefined reference to `IN6_IS_ADDR_LOOPBACK'; probably a toolchain bug
    add_definitions(-DNO_IPV6=1)
-   set(CMAKE_EXE_LINKER_FLAGS " -static")
+   set(CMAKE_EXE_LINKER_FLAGS -static)
 endif (MINGW)
 
 # generated from Recipe:
