@@ -1,0 +1,20 @@
+version: 1.0.{build}
+image: Visual Studio 2017
+install:
+- cmd: >-
+    mkdir doc
+
+    perl licence.pl
+
+    cd charset & perl sbcsgen.pl & cd ..
+
+    C:\Python36-x64\python mkcmake.py > CMakeLists.txt
+
+    mkdir build
+    cd build
+
+    cmake ..
+build:
+  project: putty.sln
+  verbosity: normal
+test: off
