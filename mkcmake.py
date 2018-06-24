@@ -91,7 +91,7 @@ if (MSVC)
     
     # https://www.owasp.org/index.php/C-Based_Toolchain_Hardening#Visual_Studio
     set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /GS")       # buffer security check
-	set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /d2guard4") # control flow guard
+    set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /d2guard4") # control flow guard
 
     add_definitions(-D_CRT_SECURE_NO_WARNINGS=1)
 
@@ -109,13 +109,13 @@ if (MSVC)
 endif (MSVC)
 
 if (CMAKE_CL_64)
-	add_definitions(-DNO_MANIFESTS=1)
+    add_definitions(-DNO_MANIFESTS=1)
 endif (CMAKE_CL_64)
 
 if (MINGW)
     # undefined reference to `IN6_IS_ADDR_LOOPBACK'; probably a toolchain bug
-   add_definitions(-DNO_IPV6=1)
-   set(CMAKE_EXE_LINKER_FLAGS -static)
+    add_definitions(-DNO_IPV6=1)
+    set(CMAKE_EXE_LINKER_FLAGS -static)
 endif (MINGW)
 
 # generated from Recipe:
