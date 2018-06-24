@@ -11,6 +11,7 @@ install:
     C:\Python36-x64\python mkcmake.py > CMakeLists.txt
 
     mkdir cmake-build
+
     cd cmake-build
 
     cmake ..
