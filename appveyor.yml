@@ -10,11 +10,10 @@ install:
 
     C:\Python36-x64\python mkcmake.py > CMakeLists.txt
 
-    mkdir build
-    cd build
+    mkdir cmake-build
+    cd cmake-build
 
     cmake ..
 build:
-  project: putty.sln
   verbosity: normal
 test: off
