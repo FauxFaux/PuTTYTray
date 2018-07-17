@@ -91,7 +91,7 @@ if (MSVC)
     
     # https://www.owasp.org/index.php/C-Based_Toolchain_Hardening#Visual_Studio
     set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /GS")       # buffer security check
-    set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /d2guard4") # control flow guard
+    set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /guard:cf") # control flow guard
 
     add_definitions(-D_CRT_SECURE_NO_WARNINGS=1)
 
