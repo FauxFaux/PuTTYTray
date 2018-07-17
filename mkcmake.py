@@ -82,6 +82,7 @@ endif (UNIX)
 
 if (WIN32)
     add_definitions(-D_WINDOWS=1)
+    add_definitions(-DNO_MANIFESTS=1)
 endif (WIN32)
 
 if (MSVC)
@@ -103,14 +104,10 @@ if (MSVC)
 
     set(CMAKE_C_FLAGS_RELEASE   "${{CMAKE_C_FLAGS_RELEASE}}   /MT /GL")
     set(CMAKE_CXX_FLAGS_RELEASE "${{CMAKE_CXX_FLAGS_RELEASE}} /MT /GL")
-	
+
     set(CMAKE_EXE_LINKER_FLAGS_DEBUG   "${{CMAKE_EXE_LINKER_FLAGS_DEBUG}}   /guard:cf")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${{CMAKE_EXE_LINKER_FLAGS_RELEASE}} /guard:cf /ltcg /opt:ref")
 endif (MSVC)
-
-if (CMAKE_CL_64)
-    add_definitions(-DNO_MANIFESTS=1)
-endif (CMAKE_CL_64)
 
 if (MINGW)
     # undefined reference to `IN6_IS_ADDR_LOOPBACK'; probably a toolchain bug
@@ -171,7 +168,7 @@ endif (MINGW)
 
         print('add_executable({} {}\n  {}\n  {})'.format(
             name,
-            'WIN32' if 'G' == platform else '# console app',
+            'WIN32 windows/putty.manifest' if 'G' == platform else '# console app',
             ' '.join(files),
             ' '.join(sorted(headers)),
         ))

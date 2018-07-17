@@ -111,6 +111,7 @@
 /unix/stamp-h1
 /unix/*.log
 /unix/.deps
+/windows/*.aps
 /windows/*.pdb
 /windows/*.ilk
 /windows/*.res
