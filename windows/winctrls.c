@@ -25,6 +25,7 @@
 // region tray-icon
 
 #include "pickicondialog.h"
+#include "win_res.h"
 
 // endregion
 
@@ -2724,6 +2725,54 @@ void dp_cleanup(struct dlgparam *dp)
 }
 
 // region tray-icon
+
+HICON extract_icon(const char *iconpath, int smallicon)
+{
+  char *iname, *comma;
+  int iindex;
+  HICON hiconLarge, hiconSmall;
+
+  hiconLarge = NULL;
+  hiconSmall = NULL;
+
+  if (iconpath && iconpath[0]) {
+    iname = dupstr(iconpath);
+    comma = strrchr(iname, ',');
+
+    if (comma) {
+      *comma = '\0';
+      comma++;
+      iindex = atoi(comma);
+
+      ExtractIconEx(iname, iindex, &hiconLarge, &hiconSmall, 1);
+    }
+    sfree(iname);
+  }
+
+  // Fix if no icon found
+  if (!hiconLarge && !smallicon) {
+    hiconLarge = LoadImage(hinst,
+                           MAKEINTRESOURCE(IDI_MAINICON),
+                           IMAGE_ICON,
+                           GetSystemMetrics(SM_CXICON),
+                           GetSystemMetrics(SM_CYICON),
+                           LR_DEFAULTCOLOR | LR_SHARED);
+  }
+  if (!hiconSmall && smallicon) {
+    hiconSmall = LoadImage(hinst,
+                           MAKEINTRESOURCE(IDI_MAINICON),
+                           IMAGE_ICON,
+                           GetSystemMetrics(SM_CXSMICON),
+                           GetSystemMetrics(SM_CYSMICON),
+                           LR_DEFAULTCOLOR | LR_SHARED);
+  }
+
+  if (smallicon) {
+    return hiconSmall;
+  } else {
+    return hiconLarge;
+  }
+}
 
 void dlg_icon_set(union control *ctrl, void *dlg, char const *icon)
 {
