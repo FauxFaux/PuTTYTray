@@ -18,3 +18,6 @@ install:
 build:
   verbosity: normal
 test: off
+branches:
+  only:
+    - master
