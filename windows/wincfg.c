@@ -10,6 +10,12 @@
 #include "dialog.h"
 #include "storage.h"
 
+// region tray-icon
+
+int dlg_pick_icon(void *dlg, char **iname, int inamesize, DWORD *iindex);
+
+// endregion
+
 static void about_handler(union control *ctrl, void *dlg, void *data, int event)
 {
   HWND *hwndp = (HWND *)ctrl->generic.context.p;
@@ -39,6 +45,40 @@ static void variable_pitch_handler(union control *ctrl,
     dlg_set_fixed_pitch_flag(dlg, !dlg_checkbox_get(ctrl, dlg));
   }
 }
+
+// region tray-icon
+
+static void window_icon_handler(union control *ctrl,
+                                void *dlg,
+                                void *data,
+                                int event)
+{
+  Conf *conf = (Conf *)data;
+
+  if (event == EVENT_ACTION) {
+    char buf[512], iname[512], *ipointer;
+    DWORD iindex;
+
+    memset(&iname, 0, sizeof(iname));
+    memset(&buf, 0, sizeof(buf));
+    iindex = 0;
+    ipointer = iname;
+    if (dlg_pick_icon(dlg, &ipointer, sizeof(iname), &iindex) /*&& iname[0]*/) {
+      Filename *filename;
+      if (iname[0]) {
+        sprintf(buf, "%s,%lu", iname, iindex);
+      } else {
+        sprintf(buf, "%s", iname);
+      }
+      dlg_icon_set((union control *)ctrl->button.context.p, dlg, buf);
+      filename = filename_from_str(buf);
+      conf_set_filename(conf, CONF_win_icon, filename);
+      filename_free(filename);
+    }
+  }
+}
+
+// endregion
 
 void win_setup_config_box(struct controlbox *b,
                           HWND *hwndp,
@@ -420,6 +460,53 @@ void win_setup_config_box(struct controlbox *b,
                 HELPCTX(behaviour_altenter),
                 conf_checkbox_handler,
                 I(CONF_fullscreenonaltenter));
+
+  // region tray-icon
+
+  s = ctrl_getset(b, "Window/Behaviour", "icon", "Adjust the icon");
+  ctrl_columns(s, 3, 40, 20, 40);
+  c = ctrl_text(s, "Window / tray icon:", HELPCTX(appearance_title));
+  c->generic.column = 0;
+  c = ctrl_icon(s, HELPCTX(appearance_title), I(CONF_win_icon));
+  c->generic.column = 1;
+  c = ctrl_pushbutton(s,
+                      "Change Icon...",
+                      NO_SHORTCUT,
+                      HELPCTX(appearance_title),
+                      window_icon_handler,
+                      P(c));
+  c->generic.column = 2;
+  ctrl_columns(s, 1, 100);
+
+  ctrl_radiobuttons(s,
+                    "Show tray icon:",
+                    NO_SHORTCUT,
+                    4,
+                    HELPCTX(no_help),
+                    conf_radiobutton_handler,
+                    I(CONF_tray),
+                    "Normal",
+                    'n',
+                    I(TRAY_NORMAL),
+                    "Always",
+                    'y',
+                    I(TRAY_ALWAYS),
+                    "Never",
+                    'r',
+                    I(TRAY_NEVER),
+                    "On start",
+                    's',
+                    I(TRAY_START),
+                    NULL);
+
+  ctrl_checkbox(s,
+                "Accept single-click to restore from tray",
+                NO_SHORTCUT,
+                HELPCTX(no_help),
+                conf_checkbox_handler,
+                I(CONF_tray_restore));
+
+  // endregion
 
   // region tray-url
   ctrl_settitle(

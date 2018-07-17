@@ -36,7 +36,14 @@ enum
   CTRL_COLUMNS,    /* divide window into columns */
   CTRL_FILESELECT, /* label plus filename selector */
   CTRL_FONTSELECT, /* label plus font selector */
-  CTRL_TABDELAY    /* see `tabdelay' below */
+
+  // region tray-icon
+
+  CTRL_ICON, /* static icon without label */
+
+  // endregion
+
+  CTRL_TABDELAY /* see `tabdelay' below */
 };
 
 /*

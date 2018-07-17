@@ -58,6 +58,14 @@
 #define IDM_PASTE 0x0190
 #define IDM_SPECIALSEP 0x0200
 
+// region tray-icon
+
+#define IDM_TRAYSEP 0x0210
+#define IDM_TRAYCLOSE 0x0220
+#define IDM_TRAYRESTORE 0x0230
+
+// endregion
+
 #define IDM_SPECIAL_MIN 0x0400
 #define IDM_SPECIAL_MAX 0x0800
 
@@ -250,6 +258,23 @@ static UINT wm_mousewheel = WM_MOUSEWHEEL;
   (((wch) >= 0x180B &&                                                         \
     (wch) <= 0x180D) || /* MONGOLIAN FREE VARIATION SELECTOR */                \
    ((wch) >= 0xFE00 && (wch) <= 0xFE0F)) /* VARIATION SELECTOR 1-16 */
+
+// region tray-icon
+
+static NOTIFYICONDATA puttyTray;
+static BOOL puttyTrayVisible;
+static BOOL puttyTrayFlash;
+static HICON puttyTrayFlashIcon;
+static BOOL windowMinimized = FALSE;
+BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon);
+void tray_updatemenu(BOOL disableMenuItems);
+
+enum
+{
+  WM_NOTIFY_PUTTYTRAY = WM_USER + 1983,
+};
+
+// endregion
 
 const int share_can_be_downstream = TRUE;
 const int share_can_be_upstream = TRUE;
@@ -946,8 +971,27 @@ int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
   logpal = NULL;
   init_palette();
 
-  term_set_focus(term, GetForegroundWindow() == hwnd);
-  UpdateWindow(hwnd);
+  // region tray-icon
+
+  puttyTrayVisible = FALSE;
+
+  if (conf_get_int(conf, CONF_tray) == TRAY_START ||
+      conf_get_int(conf, CONF_tray) == TRAY_ALWAYS) {
+    const char *name =
+        conf_get_int(conf, CONF_win_name_always) ? window_name : icon_name;
+    taskbar_addicon(name, TRUE);
+  }
+  if (conf_get_int(conf, CONF_tray) == TRAY_START) {
+    ShowWindow(hwnd, SW_HIDE);
+    windowMinimized = TRUE;
+  } else {
+    ShowWindow(hwnd, show);
+    SetForegroundWindow(hwnd);
+    term_set_focus(term, GetForegroundWindow() == hwnd);
+    UpdateWindow(hwnd);
+  }
+
+  // endregion
 
   while (1) {
     HANDLE *handles;
@@ -2477,6 +2521,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       int init_lvl = 1;
       int reconfig_result;
 
+      // region tray-icon
+
+      HINSTANCE inst;
+      HICON hIcon;
+
+      // endregion
+
       if (reconfiguring)
         break;
       else
@@ -2543,11 +2594,79 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
       if (back)
         back->reconfig(backhandle, conf);
 
+      // region tray-icon
+
+      if (conf_get_filename(conf, CONF_win_icon) &&
+          conf_get_filename(conf, CONF_win_icon)->path[0]) {
+        hIcon = extract_icon(
+            filename_to_str(conf_get_filename(conf, CONF_win_icon)), TRUE);
+        DestroyIcon(puttyTray.hIcon);
+        puttyTray.hIcon = hIcon;
+        SetClassLongPtr(
+            hwnd,
+            GCLP_HICON,
+            (LONG_PTR)extract_icon(
+                filename_to_str(conf_get_filename(conf, CONF_win_icon)),
+                FALSE));
+        SetClassLongPtr(hwnd, GCLP_HICONSM, (LONG_PTR)hIcon);
+      } else {
+        inst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+        DestroyIcon(puttyTray.hIcon);
+        puttyTray.hIcon = LoadImage(inst,
+                                    MAKEINTRESOURCE(IDI_MAINICON),
+                                    IMAGE_ICON,
+                                    GetSystemMetrics(SM_CXSMICON),
+                                    GetSystemMetrics(SM_CYSMICON),
+                                    LR_DEFAULTCOLOR | LR_SHARED);
+        SetClassLongPtr(hwnd,
+                        GCLP_HICON,
+                        (LONG_PTR)LoadImage(inst,
+                                            MAKEINTRESOURCE(IDI_MAINICON),
+                                            IMAGE_ICON,
+                                            GetSystemMetrics(SM_CXICON),
+                                            GetSystemMetrics(SM_CYICON),
+                                            LR_DEFAULTCOLOR | LR_SHARED));
+        SetClassLongPtr(hwnd,
+                        GCLP_HICONSM,
+                        (LONG_PTR)LoadImage(inst,
+                                            MAKEINTRESOURCE(IDI_MAINICON),
+                                            IMAGE_ICON,
+                                            GetSystemMetrics(SM_CXSMICON),
+                                            GetSystemMetrics(SM_CYSMICON),
+                                            LR_DEFAULTCOLOR | LR_SHARED));
+      }
+      if (puttyTrayVisible) {
+        taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name
+                                                                 : icon_name,
+                        TRUE);
+      }
+
+      if (conf_get_int(conf, CONF_tray) == TRAY_NORMAL ||
+          conf_get_int(conf, CONF_tray) == TRAY_START) {
+        if (windowMinimized) {
+          ShowWindow(hwnd, SW_HIDE);
+          taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name
+                                                                   : icon_name,
+                          TRUE);
+        } else {
+          taskbar_addicon("", FALSE);
+        }
+      } else if (conf_get_int(conf, CONF_tray) == TRAY_ALWAYS) {
+        taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name
+                                                                 : icon_name,
+                        TRUE);
+      } else {
+        taskbar_addicon("", FALSE);
+      }
+
+      // endregion
+
       // region tray-url
       urlhack_set_regular_expression(conf_get_int(conf, CONF_url_defregex),
                                      conf_get_str(conf, CONF_url_regex));
 
       term->url_update = TRUE;
+      term_update(term);
       // endregion
 
       /* Screen size changed ? */
@@ -2685,6 +2804,26 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     case IDM_HELP:
       launch_help(hwnd, NULL);
       break;
+
+      // region tray-icon
+    case IDM_TRAYRESTORE:
+      ShowWindow(hwnd, SW_RESTORE);
+      SetForegroundWindow(hwnd);
+      windowMinimized = FALSE;
+
+      // Remove icon
+      if (conf_get_int(conf, CONF_tray) != TRAY_ALWAYS) {
+        taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name
+                                                                 : icon_name,
+                        FALSE);
+      }
+      break;
+    case IDM_TRAYCLOSE:
+      SendMessage(hwnd, WM_CLOSE, (WPARAM)NULL, (LPARAM)NULL);
+      break;
+
+      // endregion
+
     case SC_MOUSEMENU:
       /*
        * We get this if the System menu has been activated
@@ -3231,10 +3370,34 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
          LOWORD(lParam),
          HIWORD(lParam)));
 #endif
-    if (wParam == SIZE_MINIMIZED)
+
+    // region tray-icon
+
+    if (wParam == SIZE_MINIMIZED) {
       SetWindowText(hwnd,
                     conf_get_int(conf, CONF_win_name_always) ? window_name
                                                              : icon_name);
+
+      BYTE keys[256];
+      int control_pressed;
+      if (GetKeyboardState(keys) != 0) {
+        control_pressed = keys[VK_CONTROL] & 0x80;
+      }
+
+      if (conf_get_int(conf, CONF_tray) == TRAY_NORMAL ||
+          conf_get_int(conf, CONF_tray) == TRAY_START || control_pressed > 0) {
+        taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name
+                                                                 : icon_name,
+                        TRUE);
+        ShowWindow(hwnd, SW_HIDE);
+      }
+      windowMinimized = TRUE;
+    } else {
+      windowMinimized = FALSE;
+    }
+
+    // endregion
+
     if (wParam == SIZE_RESTORED || wParam == SIZE_MAXIMIZED)
       SetWindowText(hwnd, window_name);
     if (wParam == SIZE_RESTORED) {
@@ -3604,6 +3767,64 @@ static LRESULT CALLBACK WndProc(HWND hwnd,
     if (process_clipdata((HGLOBAL)lParam, wParam))
       term_do_paste(term);
     return 0;
+
+    // region tray-icon
+
+  case WM_NOTIFY_PUTTYTRAY: {
+    UINT uID;
+    UINT uMouseMsg;
+
+    uID = (UINT)wParam;
+    uMouseMsg = (UINT)lParam;
+
+    if (uID == 1983) {
+      if (uMouseMsg == WM_LBUTTONDBLCLK ||
+          (conf_get_int(conf, CONF_tray_restore) == TRUE &&
+           uMouseMsg == WM_LBUTTONUP)) {
+        // Remove icon
+        if (conf_get_int(conf, CONF_tray) != TRAY_ALWAYS) {
+          taskbar_addicon(conf_get_int(conf, CONF_win_name_always) ? window_name
+                                                                   : icon_name,
+                          FALSE);
+        }
+
+        // Sleep a little while, otherwise the click event is sent to, for
+        // example, the Outlook 2003 Tray Icon, and it will also pop its menu.
+        Sleep(100);
+
+        // If trayicon is always visible, the icon should also be able to hide
+        // the window
+        if (windowMinimized) {
+          ShowWindow(hwnd, SW_RESTORE);
+          SetForegroundWindow(hwnd);
+          windowMinimized = FALSE;
+        } else {
+          ShowWindow(hwnd, SW_MINIMIZE);
+          windowMinimized = TRUE;
+        }
+      } else if (uMouseMsg == WM_RBUTTONUP) {
+        POINT cursorpos;
+
+        // Fix disappear bug
+        SetForegroundWindow(hwnd);
+
+        // Show popup
+        show_mouseptr(1); /* make sure pointer is visible */
+        GetCursorPos(&cursorpos);
+        TrackPopupMenu(popup_menus[CTXMENU].menu,
+                       TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON,
+                       cursorpos.x,
+                       cursorpos.y,
+                       0,
+                       hwnd,
+                       NULL);
+        PostMessage(hwnd, WM_NULL, 0, 0);
+      }
+    }
+  } break;
+
+    // endregion
+
   default:
     if (message == wm_mousewheel || message == WM_MOUSEWHEEL) {
       int shift_pressed = 0, control_pressed = 0;
@@ -6314,3 +6535,96 @@ void agent_schedule_callback(void (*callback)(void *, void *, int),
   c->len = len;
   PostMessage(hwnd, WM_AGENT_CALLBACK, 0, (LPARAM)c);
 }
+
+// region tray-icon
+
+BOOL taskbar_addicon(LPSTR lpszTip, BOOL showIcon)
+{
+  BOOL icon_result;
+
+  if (showIcon) {
+    // Set Tooltip
+    if (lpszTip) {
+      strncpy(puttyTray.szTip, lpszTip, sizeof(puttyTray.szTip));
+    } else {
+      puttyTray.szTip[0] = (TCHAR)'\0';
+    }
+
+    // Set icon visibility
+    if (!puttyTrayVisible) {
+      tray_updatemenu(TRUE);
+      icon_result = Shell_NotifyIcon(NIM_ADD, &puttyTray);
+      puttyTrayVisible = TRUE;
+      return icon_result;
+    } else {
+      icon_result = Shell_NotifyIcon(NIM_MODIFY, &puttyTray);
+      return icon_result;
+    }
+  } else {
+    if (puttyTrayVisible) {
+      tray_updatemenu(FALSE);
+      icon_result = Shell_NotifyIcon(NIM_DELETE, &puttyTray);
+      puttyTrayVisible = FALSE;
+      return icon_result;
+    }
+  }
+
+  return TRUE;
+}
+
+void tray_updatemenu(BOOL disableMenuItems)
+{
+  MENUITEMINFO mii;
+  memset(&mii, 0, sizeof(MENUITEMINFO));
+  mii.cbSize = sizeof(MENUITEMINFO);
+
+  if (disableMenuItems) {
+    DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYSEP, MF_BYCOMMAND);
+    DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, MF_BYCOMMAND);
+    DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, MF_BYCOMMAND);
+    InsertMenu(popup_menus[CTXMENU].menu,
+               -1,
+               MF_BYPOSITION | MF_SEPARATOR,
+               IDM_TRAYSEP,
+               0);
+    InsertMenu(popup_menus[CTXMENU].menu,
+               -1,
+               MF_BYPOSITION | MF_ENABLED,
+               IDM_TRAYRESTORE,
+               "&Restore Window");
+    InsertMenu(popup_menus[CTXMENU].menu,
+               -1,
+               MF_BYPOSITION | MF_ENABLED,
+               IDM_TRAYCLOSE,
+               "&Exit");
+
+    // Set X bitmap on close window menuitem
+    mii.fMask = MIIM_BITMAP;
+    mii.hbmpItem = HBMMENU_POPUP_CLOSE;
+    SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, FALSE, &mii);
+
+    // Set restore icon on restore menuitem
+    mii.hbmpItem = HBMMENU_POPUP_RESTORE;
+    SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, FALSE, &mii);
+
+    mii.fMask = MIIM_STATE;
+    mii.fState = MFS_GRAYED;
+  } else {
+    DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYSEP, MF_BYCOMMAND);
+    DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYRESTORE, MF_BYCOMMAND);
+    DeleteMenu(popup_menus[CTXMENU].menu, IDM_TRAYCLOSE, MF_BYCOMMAND);
+
+    mii.fMask = MIIM_STATE;
+    mii.fState = MFS_ENABLED;
+  }
+
+  // This UINT cast of the specials_menu works, but I don't understand why
+  SetMenuItemInfo(popup_menus[CTXMENU].menu, (UINT)specials_menu, FALSE, &mii);
+  SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_PASTE, FALSE, &mii);
+  SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_FULLSCREEN, FALSE, &mii);
+  SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_RESET, FALSE, &mii);
+  SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_CLRSB, FALSE, &mii);
+  SetMenuItemInfo(popup_menus[CTXMENU].menu, IDM_COPYALL, FALSE, &mii);
+}
+
+// endregion

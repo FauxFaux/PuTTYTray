@@ -236,6 +236,7 @@ TERMINAL = terminal wcwidth ldiscucs logging tree234 minibidi
 
 # GUI front end and terminal emulator (putty, puttytel).
 GUITERM  = TERMINAL window windlg winctrls sizetip winprint winutils
+     + pickicondialog
 	 + wincfg sercfg winhelp winjump
 	 + urlhack urlhack_win
 

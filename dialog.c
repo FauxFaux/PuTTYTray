@@ -302,6 +302,18 @@ union control *ctrl_combobox(struct controlset *s,
   return c;
 }
 
+// region tray-icon
+
+union control *ctrl_icon(struct controlset *s,
+                         intorptr helpctx,
+                         intorptr context)
+{
+  union control *c = ctrl_new(s, CTRL_ICON, helpctx, NULL, context);
+  return c;
+}
+
+// endregion
+
 /*
  * `ncolumns' is followed by (alternately) radio button titles and
  * intorptrs, until a NULL in place of a title string is seen. Each

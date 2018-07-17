@@ -11,5 +11,5 @@
 // endregion
 
 #ifndef NO_MANIFESTS
-1 RT_MANIFEST "putty.mft"
+1 RT_MANIFEST "putty.manifest"
 #endif /* NO_MANIFESTS */

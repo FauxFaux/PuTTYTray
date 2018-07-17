@@ -138,6 +138,18 @@ typedef struct terminal_tag Terminal;
 #define ATTR_DEFBG (258 << ATTR_BGSHIFT)
 #define ATTR_DEFAULT (ATTR_DEFFG | ATTR_DEFBG)
 
+// region tray-icon
+
+enum
+{
+  TRAY_NEVER,
+  TRAY_NORMAL,
+  TRAY_START,
+  TRAY_ALWAYS
+};
+
+// endregion
+
 // region tray-url
 #define CHAR_MASK 0x000000FFUL
 
@@ -1080,6 +1092,12 @@ void cleanup_exit(int);
   X(INT, NONE, shadowboldoffset)                                               \
   X(INT, NONE, crhaslf)                                                        \
   X(STR, NONE, winclass)                                                       \
+  /* region tray-icon */                                                       \
+  X(INT, NONE, tray)                                                           \
+  X(INT, NONE, start_tray)                                                     \
+  X(INT, NONE, tray_restore)                                                   \
+  X(FILENAME, NONE, win_icon)                                                  \
+  /* endregion */                                                              \
   /* region tray-url */                                                        \
   X(INT, NONE, url_ctrl_click)                                                 \
   X(INT, NONE, url_underline)                                                  \

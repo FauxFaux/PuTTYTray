@@ -667,6 +667,15 @@ void save_open_settings(void *sesskey, Conf *conf)
   write_setting_i(
       sesskey, "NetHackKeypad", conf_get_int(conf, CONF_nethack_keypad));
 
+  // region tray-icon
+  write_setting_i(sesskey, "Tray", conf_get_int(conf, CONF_tray));
+  write_setting_i(sesskey, "StartTray", conf_get_int(conf, CONF_start_tray));
+  write_setting_i(
+      sesskey, "TrayRestore", conf_get_int(conf, CONF_tray_restore));
+  write_setting_filename(
+      sesskey, "WindowIcon", conf_get_filename(conf, CONF_win_icon));
+  // endregion
+
   // region tray-url
   write_setting_i(
       sesskey, "HyperlinkUnderline", conf_get_int(conf, CONF_url_underline));
@@ -1160,6 +1169,13 @@ void load_open_settings(void *sesskey, Conf *conf)
   gppi(sesskey, "ApplicationCursorKeys", 0, conf, CONF_app_cursor);
   gppi(sesskey, "ApplicationKeypad", 0, conf, CONF_app_keypad);
   gppi(sesskey, "NetHackKeypad", 0, conf, CONF_nethack_keypad);
+
+  // region tray-icon
+  gppi(sesskey, "Tray", TRAY_NEVER, conf, CONF_tray);
+  gppi(sesskey, "StartTray", 0, conf, CONF_start_tray);
+  gppi(sesskey, "TrayRestore", 0, conf, CONF_tray_restore);
+  gppfile(sesskey, "WindowIcon", conf, CONF_win_icon);
+  // endregion
 
   // region tray-url
   gppi(sesskey, "HyperlinkUnderline", 1, conf, CONF_url_underline);

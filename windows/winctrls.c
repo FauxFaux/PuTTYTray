@@ -22,6 +22,12 @@
 
 #include <commctrl.h>
 
+// region tray-icon
+
+#include "pickicondialog.h"
+
+// endregion
+
 #define GAPBETWEEN 3
 #define GAPWITHIN 1
 #define GAPXBOX 7
@@ -2716,3 +2722,24 @@ void dp_cleanup(struct dlgparam *dp)
   sfree(dp->wintitle);
   sfree(dp->errtitle);
 }
+
+// region tray-icon
+
+void dlg_icon_set(union control *ctrl, void *dlg, char const *icon)
+{
+  HICON hicon;
+  struct dlgparam *dp = (struct dlgparam *)dlg;
+  struct winctrl *c = dlg_findbyctrl(dp, ctrl);
+  assert(c && c->ctrl->generic.type == CTRL_ICON);
+  hicon = extract_icon((char *)icon, FALSE);
+  SendDlgItemMessage(dp->hwnd, c->base_id, STM_SETICON, (WPARAM)hicon, 0);
+}
+
+int dlg_pick_icon(void *dlg, char **iname, int inamesize, DWORD *iindex)
+{
+  struct dlgparam *dp = (struct dlgparam *)dlg;
+  int ret = SelectIcon(dp->hwnd, *iname, inamesize, iindex);
+  return ret == IDOK ? TRUE : FALSE;
+}
+
+// endregion
