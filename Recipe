@@ -301,7 +301,6 @@ putty    : [G] GUITERM NONSSH WINSSH W_BE_ALL WINMISC winx11 putty.res LIBS
          + fatty
          + winpgen sshrsag sshdssg sshecdsag sshprime sshbcrypt import
          + winpgnt pageant
-puttytel : [G] GUITERM NONSSH W_BE_NOSSH WINMISC puttytel.res nogss LIBS
 plink    : [C] winplink wincons NONSSH WINSSH W_BE_ALL logging WINMISC
          + winx11 plink.res winnojmp noterm LIBS
 pscp     : [C] pscp winsftp wincons WINSSH BE_SSH SFTP wildcard WINMISC
