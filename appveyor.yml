@@ -21,3 +21,6 @@ test: off
 branches:
   only:
     - master
+artifacts:
+  - path: cmake-build/Debug/putty.pdb
+  - path: cmake-build/Debug/putty.exe
