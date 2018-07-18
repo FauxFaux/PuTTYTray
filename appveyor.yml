@@ -22,5 +22,7 @@ branches:
   only:
     - master
 artifacts:
-  - path: cmake-build/Debug/putty.pdb
-  - path: cmake-build/Debug/putty.exe
+  - path: cmake-build/RelWithDebInfo/putty.pdb
+  - path: cmake-build/RelWithDebInfo/putty.exe
+configuration:
+  - RelWithDebInfo
