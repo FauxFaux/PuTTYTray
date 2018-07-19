@@ -502,6 +502,13 @@ void dlg_auto_set_fixed_pitch_flag(void *dlg);
 int dlg_get_fixed_pitch_flag(void *dlg);
 void dlg_set_fixed_pitch_flag(void *dlg, int flag);
 
+// region tray-icon
+
+void dlg_icon_set(union control *ctrl, void *dlg, char const *icon);
+HICON extract_icon(const char *iconpath, int smallicon);
+
+// endregion
+
 #define MAX_SHORTCUTS_PER_CTRL 16
 
 /*

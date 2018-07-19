@@ -94,6 +94,9 @@ if (MSVC)
     set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /GS")       # buffer security check
     set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /guard:cf") # control flow guard
 
+    set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /wd4244")   # disable type conversion warnings :(((((
+    set(EXTRA_FLAGS "${{EXTRA_FLAGS}} /wd4267")   # disable type conversion warnings :(((((
+
     add_definitions(-D_CRT_SECURE_NO_WARNINGS=1)
 
     set(CMAKE_C_FLAGS   "${{CMAKE_C_FLAGS}}   ${{EXTRA_FLAGS}}")

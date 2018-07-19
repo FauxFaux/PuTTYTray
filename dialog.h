@@ -602,6 +602,14 @@ union control *ctrl_checkbox(struct controlset *,
                              intorptr context);
 union control *ctrl_tabdelay(struct controlset *, union control *);
 
+// region tray-icon
+
+union control *ctrl_icon(struct controlset *s,
+    intorptr helpctx,
+    intorptr context);
+
+// endregion
+
 /*
  * Routines the platform-independent dialog code can call to read
  * and write the values of controls.
