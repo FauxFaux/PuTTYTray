@@ -1281,11 +1281,22 @@ int pageant_add_keyfile(Filename *filename,
 
   *retstr = NULL;
 
-  type = key_type(filename);
-  if (type != SSH_KEYTYPE_SSH1 && type != SSH_KEYTYPE_SSH2) {
+  // region tray-import
+
+  int real_type;
+
+  type = real_type = key_type(filename);
+  if (type != SSH_KEYTYPE_SSH1 && type != SSH_KEYTYPE_SSH2 && !import_possible(type)) {
     *retstr = dupprintf("Couldn't load this key (%s)", key_type_to_str(type));
     return PAGEANT_ACTION_FAILURE;
   }
+
+  if (type != SSH_KEYTYPE_SSH1 &&
+      type != SSH_KEYTYPE_SSH2) {
+    type = import_target_type(type);
+  }
+
+  // endregion
 
   /*
    * See if the key is already loaded (in the primary Pageant,
@@ -1304,7 +1315,25 @@ int pageant_add_keyfile(Filename *filename,
       keylist = pageant_get_keylist1(&keylistlen);
     } else {
       unsigned char *blob2;
-      blob = ssh2_userkey_loadpub(filename, NULL, &bloblen, NULL, &error);
+
+      // region tray-import
+
+      if (real_type == type) {
+        blob = ssh2_userkey_loadpub(filename, NULL, &bloblen,
+                                    NULL, &error);
+      } else {
+        struct ssh2_userkey *loaded = import_ssh2(filename, real_type, "", NULL);
+        if (!loaded || SSH2_WRONG_PASSPHRASE == loaded) {
+          blob = _strdup("couldn't load public key yet");
+          bloblen = strlen(blob);
+        } else {
+          blob = loaded->alg->public_blob(loaded->data, &bloblen);
+          sfree(loaded);
+        }
+      }
+
+      // endregion
+
       if (!blob) {
         *retstr = dupprintf("Couldn't load private key (%s)", error);
         return PAGEANT_ACTION_FAILURE;
@@ -1446,7 +1475,16 @@ int pageant_add_keyfile(Filename *filename,
     if (type == SSH_KEYTYPE_SSH1)
       ret = loadrsakey(filename, rkey, this_passphrase, &error);
     else {
-      skey = ssh2_load_userkey(filename, this_passphrase, &error);
+
+      // region tray-import
+
+      if (real_type == type)
+        skey = ssh2_load_userkey(filename, passphrase, &error);
+      else
+        skey = import_ssh2(filename, real_type, passphrase, &error);
+
+      // region tray-import
+
       if (skey == SSH2_WRONG_PASSPHRASE)
         ret = -1;
       else if (!skey)

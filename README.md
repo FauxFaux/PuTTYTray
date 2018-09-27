@@ -35,6 +35,7 @@ Do not raise issues or pull requests about them.
  * `zoom`: increase font size with the mousewheel
  * `fatty`: bundle `agent` and `gen` into `putty.exe`
  * `icon`: tray icon and extra menu / actions
+ * `import`: transparent support for openssh key formats
 
 
 ### cmake

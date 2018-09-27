@@ -189,8 +189,7 @@ static int prompt_keyfile(
   memset(&of, 0, sizeof(of));
   of.hwndOwner = hwnd;
   if (ppk) {
-    of.lpstrFilter = "PuTTY Private Key Files (*.ppk)\0*.ppk\0"
-                     "All Files (*.*)\0*\0\0\0";
+    of.lpstrFilter = FILTER_KEY_FILES;
     of.lpstrDefExt = ".ppk";
   } else {
     of.lpstrFilter = "All Files (*.*)\0*\0\0\0";

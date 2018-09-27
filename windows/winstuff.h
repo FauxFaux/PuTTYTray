@@ -279,9 +279,20 @@ GLOBAL void *logctx;
  * these strings are of exactly the type needed to go in
  * `lpstrFilter' in an OPENFILENAME structure.
  */
-#define FILTER_KEY_FILES                                                       \
-  ("PuTTY Private Key Files (*.ppk)\0*.ppk\0"                                  \
-   "All Files (*.*)\0*\0\0\0")
+
+// region tray-import
+
+/*
+ * "*id_rsa" isn't ideal, but id_rsa* will get id_rsa.pub,
+ * which is absolutely not wanted.
+ */
+#define FILTER_KEY_FILES ("All Key Types (*.ppk;*id_rsa)\0*.ppk;*id_rsa\0"     \
+                              "PuTTY Private Key Files (*.ppk)\0*.ppk\0"       \
+                              "OpenSSH RSA private keys (*id_rsa)\0*id_rsa\0"  \
+                              "All Files (*.*)\0*\0\0\0")
+
+// endregion
+
 #define FILTER_WAVE_FILES                                                      \
   ("Wave Files (*.wav)\0*.WAV\0"                                               \
    "All Files (*.*)\0*\0\0\0")
