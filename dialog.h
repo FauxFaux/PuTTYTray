@@ -434,6 +434,15 @@ union control {
     STANDARD_PREFIX;
     char shortcut;
   } fontselect;
+
+  // region tray-icon
+
+  struct {
+    STANDARD_PREFIX;
+    intorptr handle;
+  } icon;
+
+  // endregion
 };
 
 #undef STANDARD_PREFIX
@@ -605,8 +614,8 @@ union control *ctrl_tabdelay(struct controlset *, union control *);
 // region tray-icon
 
 union control *ctrl_icon(struct controlset *s,
-    intorptr helpctx,
-    intorptr context);
+                         intorptr helpctx,
+                         intorptr context);
 
 // endregion
 

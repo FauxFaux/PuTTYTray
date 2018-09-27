@@ -13,6 +13,10 @@
 // region tray-icon
 
 int dlg_pick_icon(void *dlg, char **iname, int inamesize, DWORD *iindex);
+void dlg_icon_set(union control *ctrl, void *dlg, char const *icon);
+union control *ctrl_icon(struct controlset *s,
+                         intorptr helpctx,
+                         intorptr context);
 
 // endregion
 
@@ -489,7 +493,7 @@ void win_setup_config_box(struct controlbox *b,
                     'n',
                     I(TRAY_NORMAL),
                     "Always",
-                    'y',
+                    NULL,
                     I(TRAY_ALWAYS),
                     "Never",
                     'r',

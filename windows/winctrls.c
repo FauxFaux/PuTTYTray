@@ -26,6 +26,8 @@
 
 #include "pickicondialog.h"
 #include "win_res.h"
+#define ICONHEIGHT 20
+void staticicon(struct ctlpos *cp, char *stext, char *iname, int id);
 
 // endregion
 
@@ -1663,6 +1665,20 @@ void winctrl_layout(struct dlgparam *dp,
       }
       sfree(escaped);
       break;
+
+      // region tray-icon
+
+    case CTRL_ICON: {
+      Conf *conf = (Conf *)dp->data;
+      num_ids = 1;
+      staticicon(&pos,
+                 ctrl->icon.label,
+                 conf_get_filename(conf, ctrl->icon.context.i)->path,
+                 base_id);
+    } break;
+
+      // endregion
+
     case CTRL_RADIO:
       num_ids = ctrl->radio.nbuttons + 1; /* label as well */
       {
@@ -2772,6 +2788,20 @@ HICON extract_icon(const char *iconpath, int smallicon)
   } else {
     return hiconLarge;
   }
+}
+
+void staticicon(struct ctlpos *cp, char *stext, char *iname, int id)
+{
+  RECT r;
+  r.left = GAPBETWEEN;
+  r.top = cp->ypos;
+  r.right = cp->width;
+  r.bottom = ICONHEIGHT;
+  cp->ypos += r.bottom + GAPBETWEEN;
+  HWND hcontrol =
+      doctl(cp, r, "STATIC", WS_CHILD | WS_VISIBLE | SS_ICON, 0, NULL, id);
+  HICON hicon = extract_icon(iname, FALSE);
+  SendMessage(hcontrol, STM_SETICON, (WPARAM)hicon, 0);
 }
 
 void dlg_icon_set(union control *ctrl, void *dlg, char const *icon)
